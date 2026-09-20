@@ -2,35 +2,25 @@
 
 import { Children, cloneElement, isValidElement, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { jsPDF } from "jspdf";
 import {
   LayoutDashboard,
   Receipt,
   Users,
-  Coins,
   Package,
-  ShoppingCart,
-  ReceiptText,
-  FileBarChart,
   Settings,
   Plus,
   Trash2,
   Menu,
   X,
-  Share2,
   Printer,
   ChevronDown,
-  Search,
   ArrowLeft,
   CheckCircle2,
   AlertTriangle,
-  Building,
-  Wallet,
-  LogOut,
-  FolderTree
+  Wallet
 } from "lucide-react";
 
-// Direct Supabase client initialization with fallback to prevent Vercel prerender errors
+// Supabase client initialization with guard against missing env variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
 const db = createClient(supabaseUrl, supabaseKey);
@@ -45,10 +35,8 @@ const displayDate = (value) => {
 };
 
 const emptyCustomer = { customer_name: "", mobile_no: "", address: "", opening_due: 0 };
-const emptyItem = { master_name: "", item_name: "", sale_rate: 0, purchase_rate: 0, opening_stock: 0, minimum_stock: 0 };
-const emptyReceiver = { receiver_name: "", receiver_type: "Cash", opening_balance: 0, current_balance: 0 };
-const emptySupplier = { supplier_name: "", mobile_no: "", address: "", opening_due: 0 };
-const emptyExpense = { expense_date: today(), expense_type_id: "", amount: 0, paid_by: "Business", receiver_id: "", payment_mode: "CASH", reference_type: "", reference_id: "", remarks: "" };
+const emptyItem = { item_name: "", sale_rate: 0, purchase_rate: 0, opening_stock: 0 };
+const emptyReceiver = { receiver_name: "", opening_balance: 0 };
 
 export default function Home() {
   const [screen, setScreen] = useState("dashboard");
@@ -56,77 +44,39 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Entities
+  // Data Collections
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
   const [receivers, setReceivers] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
   const [sales, setSales] = useState([]);
   const [collections, setCollections] = useState([]);
-  const [purchases, setPurchases] = useState([]);
-  const [stockTxns, setStockTxns] = useState([]);
-  const [expenseTypes, setExpenseTypes] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [invoiceItems, setInvoiceItems] = useState([]);
 
-  // Filter & UI States
+  // Periods for Dashboard
   const [dashboardSalesPeriod, setDashboardSalesPeriod] = useState("day");
   const [dashboardCollectionsPeriod, setDashboardCollectionsPeriod] = useState("day");
-  const [dashboardProfitPeriod, setDashboardProfitPeriod] = useState("day");
   const [dashboardDuePeriod, setDashboardDuePeriod] = useState("day");
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [itemSearch, setItemSearch] = useState("");
-  const [masterTab, setMasterTab] = useState("customers");
-  const [reportTab, setReportTab] = useState("invoices");
-  const [reportDateFrom, setReportDateFrom] = useState("");
-  const [reportDateTo, setReportDateTo] = useState(today());
-  const [reportSearch, setReportSearch] = useState("");
 
-  // Modals & Form Visibility
+  // Masters UI & Modals
+  const [masterTab, setMasterTab] = useState("customers");
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
   const [showReceiverForm, setShowReceiverForm] = useState(false);
-  const [showSupplierForm, setShowSupplierForm] = useState(false);
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState(null);
-  const [editingItem, setEditingItem] = useState(null);
-  const [editingReceiver, setEditingReceiver] = useState(null);
-  const [editingSupplier, setEditingSupplier] = useState(null);
-  const [editingExpense, setEditingExpense] = useState(null);
   const [customerForm, setCustomerForm] = useState(emptyCustomer);
   const [itemForm, setItemForm] = useState(emptyItem);
   const [receiverForm, setReceiverForm] = useState(emptyReceiver);
-  const [supplierForm, setSupplierForm] = useState(emptySupplier);
-  const [expenseForm, setExpenseForm] = useState(emptyExpense);
 
-  // Selected Detail Views
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  // Selected Invoice Detail (For Print/Preview)
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [stockHistoryItem, setStockHistoryItem] = useState(null);
-  const [auditTarget, setAuditTarget] = useState(null);
 
   // Sale Entry
   const [saleDate, setSaleDate] = useState(today());
   const [saleCustomer, setSaleCustomer] = useState("");
   const [saleCustomerSearch, setSaleCustomerSearch] = useState("");
   const [openCustomerPicker, setOpenCustomerPicker] = useState(false);
-  const [openItemPicker, setOpenItemPicker] = useState(null);
-  const [itemPickerSearch, setItemPickerSearch] = useState("");
-  const [openCostPicker, setOpenCostPicker] = useState(null);
-  const [saleItems, setSaleItems] = useState([{ item_id: "", rate: 0, cost_rate: 0, qty: 1 }]);
+  const [saleItems, setSaleItems] = useState([{ item_id: "", rate: 0, qty: 1 }]);
   const [salePayment, setSalePayment] = useState("DUE");
-  const [salePaid, setSalePaid] = useState(0);
   const [saleReceiver, setSaleReceiver] = useState("");
-  const [salePaymentMode, setSalePaymentMode] = useState("CASH");
-
-  // Collection Entry
-  const [paymentCustomer, setPaymentCustomer] = useState("");
-  const [paymentAmounts, setPaymentAmounts] = useState({});
-  const [paymentReceiver, setPaymentReceiver] = useState("");
-  const [paymentMode, setPaymentMode] = useState("CASH");
-  const [paymentDate, setPaymentDate] = useState(today());
-  const [paymentNote, setPaymentNote] = useState("");
-  const [paymentOldDue, setPaymentOldDue] = useState("");
 
   useEffect(() => {
     loadAll();
@@ -135,31 +85,21 @@ export default function Home() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [c, i, r, s, sa, co, pu, st, et, ex] = await Promise.all([
-        db.from("customers").select("*").order("customer_name"),
+      const [c, i, r, sa, co, ii] = await Promise.all([
+        db.from("customers").select("*").order("name"),
         db.from("items").select("*").order("item_name"),
         db.from("receivers").select("*").order("name"),
-        db.from("suppliers").select("*").order("supplier_name"),
         db.from("invoices").select("*").order("invoice_date", { ascending: false }),
-        db.from("collections").select("*").order("collection_date", { ascending: false }),
-        db.from("purchases").select("*").order("purchase_date", { ascending: false }),
-        db.from("stock_transactions").select("*").order("transaction_date", { ascending: true }),
-        db.from("expense_types").select("*").order("type_name"),
-        db.from("expenses").select("*").order("expense_date", { ascending: false })
+        db.from("collections").select("*").order("created_at", { ascending: false }),
+        db.from("invoice_items").select("*")
       ]);
 
       if (c.data) setCustomers(c.data);
       if (i.data) setItems(i.data);
-      if (r.data) {
-        setReceivers(r.data.map(item => ({ ...item, receiver_name: item.name || item.receiver_name, current_balance: item.balance || item.current_balance })));
-      }
-      if (s.data) setSuppliers(s.data);
+      if (r.data) setReceivers(r.data);
       if (sa.data) setSales(sa.data);
       if (co.data) setCollections(co.data);
-      if (pu.data) setPurchases(pu.data);
-      if (st.data) setStockTxns(st.data);
-      if (et.data) setExpenseTypes(et.data);
-      if (ex.data) setExpenses(ex.data);
+      if (ii.data) setInvoiceItems(ii.data);
     } catch (err) {
       console.error(err);
       flash("Error loading records from database.");
@@ -181,24 +121,19 @@ export default function Home() {
 
   const stockMap = useMemo(() => {
     const m = {};
-    items.forEach((x) => (m[x.id] = Number(x.current_stock || x.opening_stock || 0)));
-    stockTxns.forEach((x) => {
-      m[x.item_id] = Number(m[x.item_id] || 0) + Number(x.qty_in || 0) - Number(x.qty_out || 0);
-    });
+    items.forEach((x) => (m[x.id] = Number(x.current_stock || 0)));
     return m;
-  }, [items, stockTxns]);
+  }, [items]);
 
   const customerDue = (customerId) => {
     const c = customers.find((x) => x.id === Number(customerId));
     const invDue = sales
-      .filter((x) => x.customer_id === Number(customerId))
-      .reduce((a, x) => a + Number(x.due_amount || (x.payment_status === "DUE" ? x.total_amount : 0)), 0);
-    return Number(c?.old_due || c?.opening_due || 0) + invDue;
+      .filter((x) => x.customer_id === Number(customerId) && x.payment_status === "DUE")
+      .reduce((a, x) => a + Number(x.total_amount || 0), 0);
+    return Number(c?.old_due || 0) + invDue;
   };
 
   const saleTotal = saleItems.reduce((a, x) => a + Number(x.rate || 0) * Number(x.qty || 0), 0);
-  const paidForSale = salePayment === "PAID" ? saleTotal : salePayment === "PARTIAL" ? Math.min(Number(salePaid || 0), saleTotal) : 0;
-  const dueForSale = saleTotal - paidForSale;
 
   const inPeriod = (date, period) => {
     if (!date) return false;
@@ -216,11 +151,11 @@ export default function Home() {
   };
 
   const periodSales = sales.filter((s) => inPeriod(s.invoice_date, dashboardSalesPeriod));
-  const periodCollections = collections.filter((c) => inPeriod(c.collection_date, dashboardCollectionsPeriod));
-  const periodDueSales = sales.filter((s) => inPeriod(s.invoice_date, dashboardDuePeriod));
+  const periodCollections = collections.filter((c) => inPeriod(c.collection_date || c.created_at?.slice(0, 10), dashboardCollectionsPeriod));
+  const periodDueSales = sales.filter((s) => inPeriod(s.invoice_date, dashboardDuePeriod) && s.payment_status === "DUE");
   const periodSalesTotal = periodSales.reduce((a, x) => a + Number(x.total_amount || 0), 0);
   const periodCollectionsTotal = periodCollections.reduce((a, x) => a + Number(x.total_amount || 0), 0);
-  const periodDueTotal = periodDueSales.reduce((a, x) => a + Number(x.due_amount || (x.payment_status === "DUE" ? x.total_amount : 0)), 0);
+  const periodDueTotal = periodDueSales.reduce((a, x) => a + Number(x.total_amount || 0), 0);
 
   // Master Handlers
   async function saveCustomer(e) {
@@ -231,16 +166,12 @@ export default function Home() {
       mobile: customerForm.mobile_no || "0000000000",
       old_due: Number(customerForm.opening_due || 0)
     };
-    const q = editingCustomer
-      ? db.from("customers").update(payload).eq("id", editingCustomer)
-      : db.from("customers").insert(payload);
-    const { error } = await q;
+    const { error } = await db.from("customers").insert(payload);
     if (error) return flash(error.message);
     setCustomerForm(emptyCustomer);
-    setEditingCustomer(null);
     setShowCustomerForm(false);
     await loadAll();
-    flash("Customer saved successfully!");
+    flash("Customer added successfully!");
   }
 
   async function saveItem(e) {
@@ -251,16 +182,12 @@ export default function Home() {
       unit_price: Number(itemForm.sale_rate || 0),
       current_stock: Number(itemForm.opening_stock || 0)
     };
-    const q = editingItem
-      ? db.from("items").update(payload).eq("id", editingItem)
-      : db.from("items").insert(payload);
-    const { error } = await q;
+    const { error } = await db.from("items").insert(payload);
     if (error) return flash(error.message);
     setItemForm(emptyItem);
-    setEditingItem(null);
     setShowItemForm(false);
     await loadAll();
-    flash("Item saved successfully!");
+    flash("Item added successfully!");
   }
 
   async function saveReceiver(e) {
@@ -270,55 +197,24 @@ export default function Home() {
       name: receiverForm.receiver_name,
       balance: Number(receiverForm.opening_balance || 0)
     };
-    const q = editingReceiver
-      ? db.from("receivers").update(payload).eq("id", editingReceiver)
-      : db.from("receivers").insert(payload);
-    const { error } = await q;
+    const { error } = await db.from("receivers").insert(payload);
     if (error) return flash(error.message);
     setReceiverForm(emptyReceiver);
-    setEditingReceiver(null);
     setShowReceiverForm(false);
     await loadAll();
-    flash("Receiver saved successfully!");
+    flash("Receiver account added!");
   }
 
   const saleCustomerRecord = customers.find((x) => x.id === Number(saleCustomer));
   const pickerCustomers = customers.filter((c) =>
-    `${c.name || c.customer_name || ""} ${c.mobile || c.mobile_no || ""}`.toLowerCase().includes(saleCustomerSearch.toLowerCase())
+    `${c.name || ""} ${c.mobile || ""}`.toLowerCase().includes(saleCustomerSearch.toLowerCase())
   );
-  const pickerItems = items.filter((it) =>
-    `${it.item_name || ""}`.toLowerCase().includes(itemPickerSearch.toLowerCase())
-  );
-
-  function chooseSaleCustomer(c) {
-    setSaleCustomer(String(c.id));
-    setSaleCustomerSearch("");
-    setOpenCustomerPicker(false);
-  }
-
-  function chooseSaleItem(index, it) {
-    setSaleItems((prev) =>
-      prev.map((z, j) =>
-        j === index
-          ? {
-              ...z,
-              item_id: String(it.id),
-              rate: Number(it.unit_price || it.sale_rate || 0),
-              cost_rate: Number(it.purchase_rate || 0),
-              qty: 1
-            }
-          : z
-      )
-    );
-    setOpenItemPicker(null);
-    setItemPickerSearch("");
-  }
 
   async function createSale(e) {
     e.preventDefault();
     if (!saleCustomer) return flash("Please select a customer.");
     if (!saleItems.length || saleItems.some((x) => !x.item_id || Number(x.qty) <= 0)) {
-      return flash("Please select valid items and quantities.");
+      return flash("Please select items and valid quantities.");
     }
 
     const nextInvoiceNo = `Inv-${String(sales.length + 1).padStart(4, "0")}`;
@@ -328,7 +224,7 @@ export default function Home() {
         invoice_number: nextInvoiceNo,
         invoice_date: saleDate,
         customer_id: Number(saleCustomer),
-        customer_name: saleCustomerRecord?.name || saleCustomerRecord?.customer_name || "Customer",
+        customer_name: saleCustomerRecord?.name || "Customer",
         total_amount: saleTotal,
         payment_status: salePayment,
         receiver_id: salePayment === "PAID" && saleReceiver ? Number(saleReceiver) : null
@@ -352,7 +248,6 @@ export default function Home() {
 
     await db.from("invoice_items").insert(rows);
 
-    // Stock deduction
     for (const x of saleItems) {
       const it = items.find((i) => i.id === Number(x.item_id));
       if (it) {
@@ -363,13 +258,12 @@ export default function Home() {
       }
     }
 
-    // Balance update
     if (salePayment === "PAID" && saleReceiver) {
       const r = receivers.find((rec) => rec.id === Number(saleReceiver));
       if (r) {
         await db
           .from("receivers")
-          .update({ balance: Number(r.current_balance || r.balance || 0) + saleTotal })
+          .update({ balance: Number(r.balance || 0) + saleTotal })
           .eq("id", Number(saleReceiver));
       }
     } else if (salePayment === "DUE") {
@@ -382,27 +276,10 @@ export default function Home() {
 
     flash(`Invoice ${nextInvoiceNo} created successfully!`);
     setSaleCustomer("");
-    setSaleItems([{ item_id: "", rate: 0, cost_rate: 0, qty: 1 }]);
+    setSaleItems([{ item_id: "", rate: 0, qty: 1 }]);
     setSalePayment("DUE");
     await loadAll();
     go("sales");
-  }
-
-  // PDF Export
-  function printInvoicePdf(s) {
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text("B REDDY SALES", 14, 18);
-    doc.setFontSize(12);
-    doc.text(`Invoice: ${s.invoice_number || s.invoice_no}`, 14, 28);
-    doc.text(`Customer: ${s.customer_name || s.customers?.customer_name || ""}`, 14, 35);
-    doc.text(`Date: ${displayDate(s.invoice_date)}`, 14, 42);
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Amount:", 14, 55);
-    doc.text(money(s.total_amount), 60, 55);
-    doc.text("Status:", 14, 63);
-    doc.text(s.payment_status || "DUE", 60, 63);
-    doc.save(`${s.invoice_number || "invoice"}.pdf`);
   }
 
   const navLinks = [
@@ -417,7 +294,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col antialiased">
       {/* Top Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -427,11 +304,11 @@ export default function Home() {
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => go("dashboard")}>
-              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-sm font-black">
+              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-sm">
                 B
               </div>
               <span className="text-base font-extrabold tracking-tight text-slate-900">
-                B REDDY <span className="text-indigo-600">SALES</span>[span_6](start_span)[span_6](end_span)
+                B REDDY <span className="text-indigo-600">SALES</span>[span_1](start_span)[span_1](end_span)
               </span>
             </div>
           </div>
@@ -459,7 +336,7 @@ export default function Home() {
 
       {/* Floating Notice Alert */}
       {notice && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-sm">
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-sm print:hidden">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
           <span className="text-sm font-medium">{notice}</span>
           <button onClick={() => setNotice("")} className="text-slate-400 hover:text-white">
@@ -475,8 +352,8 @@ export default function Home() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Store Overview</h1>
-                <p className="text-xs text-slate-500 mt-1">Live metrics and stock health</p>
+                <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+                <p className="text-xs text-slate-500 mt-1">Live metrics and store inventory</p>
               </div>
               <button
                 onClick={() => go("sale")}
@@ -486,12 +363,11 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Metric Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
-                { label: "Total Sales", val: money(periodSalesTotal), tone: "indigo", period: dashboardSalesPeriod, setPeriod: setDashboardSalesPeriod },
-                { label: "Collections", val: money(periodCollectionsTotal), tone: "emerald", period: dashboardCollectionsPeriod, setPeriod: setDashboardCollectionsPeriod },
-                { label: "Outstanding Due", val: money(periodDueTotal), tone: "amber", period: dashboardDuePeriod, setPeriod: setDashboardDuePeriod }
+                { label: "Total Sales", val: money(periodSalesTotal), period: dashboardSalesPeriod, setPeriod: setDashboardSalesPeriod },
+                { label: "Collections", val: money(periodCollectionsTotal), period: dashboardCollectionsPeriod, setPeriod: setDashboardCollectionsPeriod },
+                { label: "Outstanding Due", val: money(periodDueTotal), period: dashboardDuePeriod, setPeriod: setDashboardDuePeriod }
               ].map((m, idx) => (
                 <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
                   <div className="flex justify-between items-center mb-3">
@@ -513,11 +389,10 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Stock Level Quick View */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4">Stock Overview</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                {items.slice(0, 12).map((it) => (
+                {items.map((it) => (
                   <div key={it.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
                     <span className="text-xs font-bold text-slate-800 line-clamp-1">{it.item_name}</span>
                     <div className="mt-2 flex items-baseline justify-between">
@@ -536,24 +411,22 @@ export default function Home() {
           <div className="space-y-6">
             <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">New Bill</span>
-                <h1 className="text-xl font-black text-slate-900">Create Sale</h1>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sales Entry</span>
+                <h1 className="text-xl font-black text-slate-900">Create Invoice</h1>
               </div>
               <div className="text-right">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Grand Total</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Total Bill</span>
                 <div className="text-2xl font-black text-indigo-700">{money(saleTotal)}</div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Customer Selector & Item Inputs */}
               <div className="space-y-4">
-                {/* Customer Box */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer *</label>
                     <button
-                      onClick={() => { setEditingCustomer(null); setCustomerForm(emptyCustomer); setShowCustomerForm(true); }}
+                      onClick={() => { setCustomerForm(emptyCustomer); setShowCustomerForm(true); }}
                       className="text-xs font-bold text-indigo-600 hover:underline"
                     >
                       + New Customer
@@ -566,7 +439,7 @@ export default function Home() {
                       onClick={() => setOpenCustomerPicker(!openCustomerPicker)}
                       className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-left flex justify-between items-center text-sm font-semibold"
                     >
-                      <span>{saleCustomerRecord?.name || saleCustomerRecord?.customer_name || "Select Customer"}</span>
+                      <span>{saleCustomerRecord?.name || "Select Customer"}</span>
                       <ChevronDown className="w-4 h-4 text-slate-400" />
                     </button>
 
@@ -582,10 +455,10 @@ export default function Home() {
                         {pickerCustomers.map((c) => (
                           <div
                             key={c.id}
-                            onClick={() => chooseSaleCustomer(c)}
+                            onClick={() => { setSaleCustomer(String(c.id)); setOpenCustomerPicker(false); }}
                             className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex justify-between items-center text-xs"
                           >
-                            <span className="font-bold text-slate-800">{c.name || c.customer_name}</span>
+                            <span className="font-bold text-slate-800">{c.name}</span>
                             <span className="text-amber-600 font-bold">Due: {money(customerDue(c.id))}</span>
                           </div>
                         ))}
@@ -604,12 +477,11 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Items Selector */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pick Product</label>
                     <button
-                      onClick={() => { setEditingItem(null); setItemForm(emptyItem); setShowItemForm(true); }}
+                      onClick={() => { setItemForm(emptyItem); setShowItemForm(true); }}
                       className="text-xs font-bold text-indigo-600 hover:underline"
                     >
                       + New Item
@@ -617,75 +489,70 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-3">
-                    {saleItems.map((row, idx) => {
-                      const itm = items.find((i) => i.id === Number(row.item_id));
-                      return (
-                        <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-slate-700">Item #{idx + 1}</span>
-                            {saleItems.length > 1 && (
-                              <button
-                                onClick={() => setSaleItems(saleItems.filter((_, i) => i !== idx))}
-                                className="text-rose-500 hover:bg-rose-50 p-1 rounded"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                          <select
-                            value={row.item_id}
-                            onChange={(e) => {
-                              const found = items.find((i) => i.id === Number(e.target.value));
-                              setSaleItems(
-                                saleItems.map((r, i) =>
-                                  i === idx
-                                    ? { ...r, item_id: e.target.value, rate: found?.unit_price || found?.sale_rate || 0 }
-                                    : r
-                                )
-                              );
-                            }}
-                            className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-semibold"
-                          >
-                            <option value="">-- Choose Item --</option>
-                            {items.map((i) => (
-                              <option key={i.id} value={i.id}>
-                                {i.item_name} (Stock: {stockMap[i.id] || 0})
-                              </option>
-                            ))}
-                          </select>
+                    {saleItems.map((row, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">Item #{idx + 1}</span>
+                          {saleItems.length > 1 && (
+                            <button
+                              onClick={() => setSaleItems(saleItems.filter((_, i) => i !== idx))}
+                              className="text-rose-500 hover:bg-rose-50 p-1 rounded"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <select
+                          value={row.item_id}
+                          onChange={(e) => {
+                            const found = items.find((i) => i.id === Number(e.target.value));
+                            setSaleItems(
+                              saleItems.map((r, i) =>
+                                i === idx ? { ...r, item_id: e.target.value, rate: found?.unit_price || 0 } : r
+                              )
+                            );
+                          }}
+                          className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                        >
+                          <option value="">-- Choose Item --</option>
+                          {items.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.item_name} (Stock: {stockMap[i.id] || 0})
+                            </option>
+                          ))}
+                        </select>
 
-                          <div className="grid grid-cols-2 gap-2">
-                            <div>
-                              <span className="text-[10px] font-bold text-slate-400 block mb-1">Rate (₹)</span>
-                              <input
-                                type="number"
-                                value={row.rate}
-                                onChange={(e) =>
-                                  setSaleItems(saleItems.map((r, i) => (i === idx ? { ...r, rate: e.target.value } : r)))
-                                }
-                                className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-bold text-slate-400 block mb-1">Qty</span>
-                              <input
-                                type="number"
-                                min="1"
-                                value={row.qty}
-                                onChange={(e) =>
-                                  setSaleItems(saleItems.map((r, i) => (i === idx ? { ...r, qty: e.target.value } : r)))
-                                }
-                                className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold"
-                              />
-                            </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block mb-1">Rate (₹)</span>
+                            <input
+                              type="number"
+                              value={row.rate}
+                              onChange={(e) =>
+                                setSaleItems(saleItems.map((r, i) => (i === idx ? { ...r, rate: e.target.value } : r)))
+                              }
+                              className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block mb-1">Qty</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={row.qty}
+                              onChange={(e) =>
+                                setSaleItems(saleItems.map((r, i) => (i === idx ? { ...r, qty: e.target.value } : r)))
+                              }
+                              className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold"
+                            />
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
 
                     <button
                       type="button"
-                      onClick={() => setSaleItems([...saleItems, { item_id: "", rate: 0, cost_rate: 0, qty: 1 }])}
+                      onClick={() => setSaleItems([...saleItems, { item_id: "", rate: 0, qty: 1 }])}
                       className="w-full py-2 border-2 border-dashed border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-1.5"
                     >
                       <Plus className="w-4 h-4" /> Add Another Item
@@ -694,26 +561,25 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Bill Details & Settle */}
               <div className="lg:col-span-2 space-y-4">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between min-h-[380px]">
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Invoice Line Items</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Invoice Items</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="border-b text-slate-400 uppercase">
-                            <th className="pb-2 font-bold">Item</th>
-                            <th className="pb-2 font-bold text-right">Price</th>
-                            <th className="pb-2 font-bold text-center">Qty</th>
-                            <th className="pb-2 font-bold text-right">Total</th>
+                          <tr className="border-b text-slate-400 uppercase font-bold">
+                            <th className="pb-2">Item</th>
+                            <th className="pb-2 text-right">Price</th>
+                            <th className="pb-2 text-center">Qty</th>
+                            <th className="pb-2 text-right">Total</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium">
+                        <tbody className="divide-y divide-slate-100">
                           {saleItems.filter((x) => x.item_id).length === 0 ? (
                             <tr>
-                              <td colSpan="4" className="py-12 text-center text-slate-400 font-medium">
-                                No items selected. Add products on the left.
+                              <td colSpan="4" className="py-12 text-center text-slate-400">
+                                No items added yet.
                               </td>
                             </tr>
                           ) : (
@@ -774,7 +640,7 @@ export default function Home() {
                           <option value="">Select receiver...</option>
                           {receivers.map((r) => (
                             <option key={r.id} value={r.id}>
-                              {r.receiver_name} ({money(r.current_balance)})
+                              {r.name} ({money(r.balance)})
                             </option>
                           ))}
                         </select>
@@ -801,8 +667,8 @@ export default function Home() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Invoices History</h2>
-                <p className="text-xs text-slate-500">View and print past customer sales</p>
+                <h2 className="text-base font-bold text-slate-900">Invoices</h2>
+                <p className="text-xs text-slate-500">Sales records and bills</p>
               </div>
               <button
                 onClick={() => go("sale")}
@@ -821,22 +687,22 @@ export default function Home() {
                     <th className="pb-3">Customer</th>
                     <th className="pb-3">Status</th>
                     <th className="pb-3 text-right">Amount</th>
-                    <th className="pb-3 text-center">Action</th>
+                    <th className="pb-3 text-center">Print</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sales.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="py-12 text-center text-slate-400">
-                        No sales recorded yet.
+                        No invoices created yet.
                       </td>
                     </tr>
                   ) : (
                     sales.map((s) => (
                       <tr key={s.id} className="hover:bg-slate-50">
-                        <td className="py-3 font-bold text-indigo-600">{s.invoice_number || s.invoice_no}</td>
+                        <td className="py-3 font-bold text-indigo-600">{s.invoice_number}</td>
                         <td className="py-3 text-slate-600">{displayDate(s.invoice_date)}</td>
-                        <td className="py-3 font-semibold text-slate-800">{s.customer_name || s.customers?.customer_name}</td>
+                        <td className="py-3 font-semibold text-slate-800">{s.customer_name}</td>
                         <td className="py-3">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -851,9 +717,9 @@ export default function Home() {
                         <td className="py-3 text-right font-black text-slate-900">{money(s.total_amount)}</td>
                         <td className="py-3 text-center">
                           <button
-                            onClick={() => printInvoicePdf(s)}
+                            onClick={() => { setSelectedInvoice(s); go("invoice-detail"); }}
                             className="p-1.5 text-slate-600 hover:text-indigo-600 rounded-md"
-                            title="Export PDF"
+                            title="Print / View"
                           >
                             <Printer className="w-4 h-4" />
                           </button>
@@ -863,6 +729,69 @@ export default function Home() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: INVOICE DETAIL & BROWSER PRINT */}
+        {screen === "invoice-detail" && selectedInvoice && (
+          <div className="max-w-2xl mx-auto space-y-4">
+            <div className="flex justify-between items-center print:hidden">
+              <button onClick={() => go("sales")} className="flex items-center gap-1 text-xs font-bold text-slate-600">
+                <ArrowLeft className="w-4 h-4" /> Back to List
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 bg-indigo-600 text-white text-xs font-bold px-4 py-2 rounded-xl"
+              >
+                <Printer className="w-4 h-4" /> Print / Save as PDF
+              </button>
+            </div>
+
+            <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm print:border-none print:shadow-none print:p-0">
+              <div className="border-b pb-4 mb-4 flex justify-between items-start">
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900 tracking-tight">B REDDY SALES</h1>
+                  <p className="text-xs text-slate-500">Retail Sales Management</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-indigo-600">{selectedInvoice.invoice_number}</span>
+                  <p className="text-xs text-slate-400 mt-0.5">{displayDate(selectedInvoice.invoice_date)}</p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Customer Details</span>
+                <p className="text-sm font-bold text-slate-800">{selectedInvoice.customer_name}</p>
+              </div>
+
+              <table className="w-full text-left text-xs mb-6">
+                <thead>
+                  <tr className="border-b text-slate-400 uppercase">
+                    <th className="pb-2">Item</th>
+                    <th className="pb-2 text-right">Price</th>
+                    <th className="pb-2 text-center">Qty</th>
+                    <th className="pb-2 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {invoiceItems
+                    .filter((ii) => ii.invoice_id === selectedInvoice.id)
+                    .map((item) => (
+                      <tr key={item.id}>
+                        <td className="py-2 font-bold text-slate-800">{item.item_name}</td>
+                        <td className="py-2 text-right">{money(item.rate)}</td>
+                        <td className="py-2 text-center">{item.quantity}</td>
+                        <td className="py-2 text-right font-bold">{money(item.line_total)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+
+              <div className="border-t pt-4 flex justify-between items-center text-sm font-bold">
+                <span>Grand Total:</span>
+                <span className="text-lg font-black text-indigo-700">{money(selectedInvoice.total_amount)}</span>
+              </div>
             </div>
           </div>
         )}
@@ -897,32 +826,30 @@ export default function Home() {
                   <div className="flex justify-between items-center">
                     <h3 className="text-sm font-bold text-slate-800">Customers ({customers.length})</h3>
                     <button
-                      onClick={() => { setEditingCustomer(null); setCustomerForm(emptyCustomer); setShowCustomerForm(true); }}
+                      onClick={() => { setCustomerForm(emptyCustomer); setShowCustomerForm(true); }}
                       className="bg-indigo-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5"
                     >
                       <Plus className="w-3.5 h-3.5" /> Add Customer
                     </button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b text-slate-400 uppercase font-bold">
-                          <th className="pb-2">Name</th>
-                          <th className="pb-2">Mobile</th>
-                          <th className="pb-2 text-right">Due Amount</th>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b text-slate-400 uppercase font-bold">
+                        <th className="pb-2">Name</th>
+                        <th className="pb-2">Mobile</th>
+                        <th className="pb-2 text-right">Due Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {customers.map((c) => (
+                        <tr key={c.id}>
+                          <td className="py-2.5 font-bold text-slate-800">{c.name}</td>
+                          <td className="py-2.5 text-slate-500">{c.mobile}</td>
+                          <td className="py-2.5 text-right font-black text-amber-600">{money(customerDue(c.id))}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {customers.map((c) => (
-                          <tr key={c.id}>
-                            <td className="py-2.5 font-bold text-slate-800">{c.name || c.customer_name}</td>
-                            <td className="py-2.5 text-slate-500">{c.mobile || c.mobile_no}</td>
-                            <td className="py-2.5 text-right font-black text-amber-600">{money(customerDue(c.id))}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
@@ -931,64 +858,60 @@ export default function Home() {
                   <div className="flex justify-between items-center">
                     <h3 className="text-sm font-bold text-slate-800">Items Catalog ({items.length})</h3>
                     <button
-                      onClick={() => { setEditingItem(null); setItemForm(emptyItem); setShowItemForm(true); }}
+                      onClick={() => { setItemForm(emptyItem); setShowItemForm(true); }}
                       className="bg-indigo-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5"
                     >
                       <Plus className="w-3.5 h-3.5" /> Add Item
                     </button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b text-slate-400 uppercase font-bold">
-                          <th className="pb-2">Item Name</th>
-                          <th className="pb-2 text-right">Unit Price</th>
-                          <th className="pb-2 text-right">Current Stock</th>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b text-slate-400 uppercase font-bold">
+                        <th className="pb-2">Item Name</th>
+                        <th className="pb-2 text-right">Unit Price</th>
+                        <th className="pb-2 text-right">Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {items.map((i) => (
+                        <tr key={i.id}>
+                          <td className="py-2.5 font-bold text-slate-800">{i.item_name}</td>
+                          <td className="py-2.5 text-right font-semibold text-slate-700">{money(i.unit_price)}</td>
+                          <td className="py-2.5 text-right font-black text-emerald-600">{stockMap[i.id] || 0}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {items.map((i) => (
-                          <tr key={i.id}>
-                            <td className="py-2.5 font-bold text-slate-800">{i.item_name}</td>
-                            <td className="py-2.5 text-right font-semibold text-slate-700">{money(i.unit_price || i.sale_rate)}</td>
-                            <td className="py-2.5 text-right font-black text-emerald-600">{stockMap[i.id] || 0}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
               {masterTab === "receivers" && (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-bold text-slate-800">Receivers ({receivers.length})</h3>
+                    <h3 className="text-sm font-bold text-slate-800">Receivers / Accounts ({receivers.length})</h3>
                     <button
-                      onClick={() => { setEditingReceiver(null); setReceiverForm(emptyReceiver); setShowReceiverForm(true); }}
+                      onClick={() => { setReceiverForm(emptyReceiver); setShowReceiverForm(true); }}
                       className="bg-indigo-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5"
                     >
                       <Plus className="w-3.5 h-3.5" /> Add Receiver
                     </button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b text-slate-400 uppercase font-bold">
-                          <th className="pb-2">Account Name</th>
-                          <th className="pb-2 text-right">Balance</th>
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b text-slate-400 uppercase font-bold">
+                        <th className="pb-2">Account Name</th>
+                        <th className="pb-2 text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {receivers.map((r) => (
+                        <tr key={r.id}>
+                          <td className="py-2.5 font-bold text-slate-800">{r.name}</td>
+                          <td className="py-2.5 text-right font-black text-indigo-600">{money(r.balance)}</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {receivers.map((r) => (
-                          <tr key={r.id}>
-                            <td className="py-2.5 font-bold text-slate-800">{r.receiver_name}</td>
-                            <td className="py-2.5 text-right font-black text-indigo-600">{money(r.current_balance)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -998,33 +921,31 @@ export default function Home() {
         {/* VIEW 5: STOCK LIST */}
         {screen === "stock" && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <h2 className="text-base font-bold text-slate-900">Inventory Management</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b text-slate-400 uppercase font-bold">
-                    <th className="pb-2">Item Name</th>
-                    <th className="pb-2 text-right">Unit Price</th>
-                    <th className="pb-2 text-right">Stock Level</th>
+            <h2 className="text-base font-bold text-slate-900">Inventory Stock</h2>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b text-slate-400 uppercase font-bold">
+                  <th className="pb-2">Item Name</th>
+                  <th className="pb-2 text-right">Price</th>
+                  <th className="pb-2 text-right">Current Stock</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((it) => (
+                  <tr key={it.id}>
+                    <td className="py-3 font-bold text-slate-800">{it.item_name}</td>
+                    <td className="py-3 text-right font-medium text-slate-600">{money(it.unit_price)}</td>
+                    <td className="py-3 text-right font-black text-indigo-600">{stockMap[it.id] || 0}</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {items.map((it) => (
-                    <tr key={it.id}>
-                      <td className="py-3 font-bold text-slate-800">{it.item_name}</td>
-                      <td className="py-3 text-right font-medium text-slate-600">{money(it.unit_price || it.sale_rate)}</td>
-                      <td className="py-3 text-right font-black text-indigo-600">{stockMap[it.id] || 0}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </main>
 
-      {/* Floating Bottom Nav for Mobile */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1.5 flex justify-around items-center z-30 shadow-2xl">
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1.5 flex justify-around items-center z-30 shadow-2xl print:hidden">
         {navLinks.slice(0, 5).map((tab) => {
           const Icon = tab.icon;
           const isActive = screen === tab.id;
@@ -1096,7 +1017,7 @@ export default function Home() {
       {showItemForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={saveItem} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-slate-900">Add Item / Product</h3>
+            <h3 className="text-base font-bold text-slate-900">Add Item</h3>
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">Item Name *</label>
               <input
@@ -1109,7 +1030,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">Sale Rate (₹) *</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Price (₹) *</label>
                 <input
                   type="number"
                   required
@@ -1148,7 +1069,7 @@ export default function Home() {
       {showReceiverForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={saveReceiver} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-bold text-slate-900">Add Receiver / Account</h3>
+            <h3 className="text-base font-bold text-slate-900">Add Receiver</h3>
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">Account Name *</label>
               <input
@@ -1160,7 +1081,7 @@ export default function Home() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Opening Balance (₹)</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">Balance (₹)</label>
               <input
                 type="number"
                 value={receiverForm.opening_balance}
