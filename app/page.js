@@ -7,7 +7,6 @@ import {
   Receipt,
   Users,
   Package,
-  Settings,
   Plus,
   Trash2,
   Menu,
@@ -19,18 +18,31 @@ import {
   ArrowDownLeft
 } from "lucide-react";
 
-// Supabase configuration with your exact project details
-const supabaseUrl = "https://yfptlgypcmkykkw.supabase.co";
-const supabaseKey = "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
+// Supabase configuration with exact project credentials
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://yfptlgypcmkkwxnzgcw.supabase.co";
+const supabaseKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
+
 const db = createClient(supabaseUrl, supabaseKey);
 
-const money = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n) =>
+  `₹${Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
 const today = () => new Date().toISOString().slice(0, 10);
 const displayDate = (value) => {
   if (!value) return "-";
   const d = new Date(`${value}T00:00:00`);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
 };
 
 const emptyCustomer = { customer_name: "", mobile_no: "", opening_due: 0 };
@@ -44,7 +56,7 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Entities
+  // Data Collections
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
   const [receivers, setReceivers] = useState([]);
@@ -56,13 +68,13 @@ export default function Home() {
   const [showItemForm, setShowItemForm] = useState(false);
   const [showReceiverForm, setShowReceiverForm] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
+
   const [customerForm, setCustomerForm] = useState(emptyCustomer);
   const [itemForm, setItemForm] = useState(emptyItem);
   const [receiverForm, setReceiverForm] = useState(emptyReceiver);
   const [collectForm, setCollectForm] = useState(emptyCollection);
-  const [masterTab, setMasterTab] = useState("receivers");
 
-  // Sale Entry
+  // Sale Form State
   const [saleDate, setSaleDate] = useState(today());
   const [saleCustomer, setSaleCustomer] = useState("");
   const [saleCustomerSearch, setSaleCustomerSearch] = useState("");
@@ -124,7 +136,10 @@ export default function Home() {
     return Number(c?.old_due || 0) + invDue;
   };
 
-  const saleTotal = saleItems.reduce((a, x) => a + Number(x.rate || 0) * Number(x.qty || 0), 0);
+  const saleTotal = saleItems.reduce(
+    (a, x) => a + Number(x.rate || 0) * Number(x.qty || 0),
+    0
+  );
   const saleCustomerRecord = customers.find((x) => x.id === Number(saleCustomer));
   const pickerCustomers = customers.filter((c) =>
     `${c.name || ""} ${c.mobile || ""}`.toLowerCase().includes(saleCustomerSearch.toLowerCase())
@@ -345,7 +360,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Slide-out Mobile Sidebar Drawer */}
+      {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex">
           <div
@@ -397,7 +412,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Notice Alert */}
+      {/* Notice Notification */}
       {notice && (
         <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-sm">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
@@ -408,7 +423,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Body Views */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 pb-24 lg:pb-12">
         {/* VIEW: CREATE SALE */}
         {screen === "sale" && (
@@ -426,13 +441,15 @@ export default function Home() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="space-y-4">
-                {/* Customer Card */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer *</label>
                     <button
                       type="button"
-                      onClick={() => { setCustomerForm(emptyCustomer); setShowCustomerForm(true); }}
+                      onClick={() => {
+                        setCustomerForm(emptyCustomer);
+                        setShowCustomerForm(true);
+                      }}
                       className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
                     >
                       + New Customer
@@ -461,7 +478,10 @@ export default function Home() {
                         {pickerCustomers.map((c) => (
                           <div
                             key={c.id}
-                            onClick={() => { setSaleCustomer(String(c.id)); setOpenCustomerPicker(false); }}
+                            onClick={() => {
+                              setSaleCustomer(String(c.id));
+                              setOpenCustomerPicker(false);
+                            }}
                             className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex justify-between items-center text-xs"
                           >
                             <span className="font-bold text-slate-800">{c.name}</span>
@@ -473,7 +493,9 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Invoice Date</label>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Invoice Date
+                    </label>
                     <input
                       type="date"
                       value={saleDate}
@@ -483,13 +505,15 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Pick Products Card */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pick Product</label>
                     <button
                       type="button"
-                      onClick={() => { setItemForm(emptyItem); setShowItemForm(true); }}
+                      onClick={() => {
+                        setItemForm(emptyItem);
+                        setShowItemForm(true);
+                      }}
                       className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
                     >
                       + New Item
@@ -570,7 +594,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Order Summary & Settle */}
+              {/* Summary and Payment */}
               <div className="lg:col-span-2 space-y-4">
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between min-h-[380px]">
                   <div>
@@ -602,7 +626,9 @@ export default function Home() {
                                     <td className="py-2.5 font-bold text-slate-800">{itm?.item_name}</td>
                                     <td className="py-2.5 text-right font-bold text-slate-600">{money(r.rate)}</td>
                                     <td className="py-2.5 text-center font-bold text-indigo-600">{r.qty}</td>
-                                    <td className="py-2.5 text-right font-black text-slate-900">{money(Number(r.rate) * Number(r.qty))}</td>
+                                    <td className="py-2.5 text-right font-black text-slate-900">
+                                      {money(Number(r.rate) * Number(r.qty))}
+                                    </td>
                                   </tr>
                                 );
                               })
@@ -623,7 +649,9 @@ export default function Home() {
                         type="button"
                         onClick={() => setSalePayment("PAID")}
                         className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                          salePayment === "PAID" ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-white border-slate-300 text-slate-600"
+                          salePayment === "PAID"
+                            ? "bg-emerald-50 border-emerald-500 text-emerald-700"
+                            : "bg-white border-slate-300 text-slate-600"
                         }`}
                       >
                         <CheckCircle2 className="w-4 h-4" /> Fully Paid
@@ -632,7 +660,9 @@ export default function Home() {
                         type="button"
                         onClick={() => setSalePayment("DUE")}
                         className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                          salePayment === "DUE" ? "bg-amber-50 border-amber-500 text-amber-700" : "bg-white border-slate-300 text-slate-600"
+                          salePayment === "DUE"
+                            ? "bg-amber-50 border-amber-500 text-amber-700"
+                            : "bg-white border-slate-300 text-slate-600"
                         }`}
                       >
                         <AlertTriangle className="w-4 h-4" /> Due / Credit
@@ -641,7 +671,9 @@ export default function Home() {
 
                     {salePayment === "PAID" && (
                       <div className="mb-4">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Deposit To Receiver (Cash/PhonePe)</label>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                          Deposit To Receiver (Cash/PhonePe)
+                        </label>
                         <select
                           value={saleReceiver}
                           onChange={(e) => setSaleReceiver(e.target.value)}
@@ -672,23 +704,31 @@ export default function Home() {
           </div>
         )}
 
-        {/* VIEW: RECEIVERS & CASH BALANCES */}
+        {/* VIEW: RECEIVERS & CASH */}
         {screen === "receivers" && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Receivers & Cash Accounts</h1>
-                <p className="text-xs text-slate-500 mt-1">Manage balances in cash boxes, UPI, and bank accounts</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Manage balances across cash, shop drawer, and UPI accounts
+                </p>
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setCollectForm(emptyCollection); setShowCollectModal(true); }}
+                  onClick={() => {
+                    setCollectForm(emptyCollection);
+                    setShowCollectModal(true);
+                  }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
                 >
                   <ArrowDownLeft className="w-4 h-4" /> Collect Money
                 </button>
                 <button
-                  onClick={() => { setReceiverForm(emptyReceiver); setShowReceiverForm(true); }}
+                  onClick={() => {
+                    setReceiverForm(emptyReceiver);
+                    setShowReceiverForm(true);
+                  }}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
                 >
                   <Plus className="w-4 h-4" /> Add Receiver
@@ -698,7 +738,10 @@ export default function Home() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {receivers.map((r) => (
-                <div key={r.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center">
+                <div
+                  key={r.id}
+                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center"
+                >
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Account</span>
                     <h3 className="text-base font-bold text-slate-800 mt-1">{r.name}</h3>
@@ -727,14 +770,16 @@ export default function Home() {
                     {collections.length === 0 ? (
                       <tr>
                         <td colSpan="4" className="py-8 text-center text-slate-400">
-                          No collections yet. Tap &ldquo;Collect Money&rdquo; above to receive customer dues.
+                          No collections recorded yet.
                         </td>
                       </tr>
                     ) : (
                       collections.map((co) => (
                         <tr key={co.id}>
                           <td className="py-3 font-bold text-indigo-600">{co.collection_no}</td>
-                          <td className="py-3 text-slate-600">{displayDate(co.collection_date || co.created_at?.slice(0, 10))}</td>
+                          <td className="py-3 text-slate-600">
+                            {displayDate(co.collection_date || co.created_at?.slice(0, 10))}
+                          </td>
                           <td className="py-3 font-black text-emerald-600">{money(co.total_amount)}</td>
                           <td className="py-3 text-slate-500">{co.remarks || "-"}</td>
                         </tr>
@@ -781,7 +826,10 @@ export default function Home() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-base font-bold text-slate-900">Invoices ({sales.length})</h2>
-              <button onClick={() => go("sale")} className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+              <button
+                onClick={() => go("sale")}
+                className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+              >
                 + New Sale
               </button>
             </div>
@@ -803,7 +851,13 @@ export default function Home() {
                       <td className="py-3 text-slate-600">{displayDate(s.invoice_date)}</td>
                       <td className="py-3 font-semibold text-slate-800">{s.customer_name}</td>
                       <td className="py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.payment_status === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            s.payment_status === "PAID"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
                           {s.payment_status || "DUE"}
                         </span>
                       </td>
@@ -823,12 +877,21 @@ export default function Home() {
               <h2 className="text-base font-bold text-slate-900">Customers ({customers.length})</h2>
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setCollectForm(emptyCollection); setShowCollectModal(true); }}
+                  onClick={() => {
+                    setCollectForm(emptyCollection);
+                    setShowCollectModal(true);
+                  }}
                   className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
                 >
                   Collect Due
                 </button>
-                <button onClick={() => { setCustomerForm(emptyCustomer); setShowCustomerForm(true); }} className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                <button
+                  onClick={() => {
+                    setCustomerForm(emptyCustomer);
+                    setShowCustomerForm(true);
+                  }}
+                  className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+                >
                   + Add Customer
                 </button>
               </div>
@@ -846,7 +909,9 @@ export default function Home() {
                   <tr key={c.id}>
                     <td className="py-2.5 font-bold text-slate-800">{c.name}</td>
                     <td className="py-2.5 text-slate-500">{c.mobile}</td>
-                    <td className="py-2.5 text-right font-black text-amber-600">{money(customerDue(c.id))}</td>
+                    <td className="py-2.5 text-right font-black text-amber-600">
+                      {money(customerDue(c.id))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -859,7 +924,13 @@ export default function Home() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-base font-bold text-slate-900">Current Stock ({items.length})</h2>
-              <button onClick={() => { setItemForm(emptyItem); setShowItemForm(true); }} className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+              <button
+                onClick={() => {
+                  setItemForm(emptyItem);
+                  setShowItemForm(true);
+                }}
+                className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+              >
                 + Add Item
               </button>
             </div>
@@ -905,13 +976,20 @@ export default function Home() {
         })}
       </nav>
 
-      {/* COLLECT DUE MONEY MODAL */}
+      {/* COLLECT MODAL */}
       {showCollectModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form onSubmit={saveCollection} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+          <form
+            onSubmit={saveCollection}
+            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
+          >
             <div className="flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-900">Collect Due Payment</h3>
-              <button type="button" onClick={() => setShowCollectModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button
+                type="button"
+                onClick={() => setShowCollectModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -934,7 +1012,9 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Deposit To Receiver (Cash/PhonePe) *</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1">
+                Deposit To Receiver (Cash/PhonePe) *
+              </label>
               <select
                 required
                 value={collectForm.receiver_id}
@@ -982,7 +1062,10 @@ export default function Home() {
               >
                 Cancel
               </button>
-              <button type="submit" className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold">
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
+              >
                 Confirm & Collect
               </button>
             </div>
@@ -990,10 +1073,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* Add Customer Modal */}
+      {/* CUSTOMER MODAL */}
       {showCustomerForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form onSubmit={saveCustomer} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+          <form
+            onSubmit={saveCustomer}
+            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
+          >
             <h3 className="text-base font-bold text-slate-900">Add Customer</h3>
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">Customer Name *</label>
@@ -1001,7 +1087,9 @@ export default function Home() {
                 type="text"
                 required
                 value={customerForm.customer_name}
-                onChange={(e) => setCustomerForm({ ...customerForm, customer_name: e.target.value })}
+                onChange={(e) =>
+                  setCustomerForm({ ...customerForm, customer_name: e.target.value })
+                }
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
               />
             </div>
@@ -1010,7 +1098,9 @@ export default function Home() {
               <input
                 type="tel"
                 value={customerForm.mobile_no}
-                onChange={(e) => setCustomerForm({ ...customerForm, mobile_no: e.target.value })}
+                onChange={(e) =>
+                  setCustomerForm({ ...customerForm, mobile_no: e.target.value })
+                }
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
               />
             </div>
@@ -1019,7 +1109,9 @@ export default function Home() {
               <input
                 type="number"
                 value={customerForm.opening_due}
-                onChange={(e) => setCustomerForm({ ...customerForm, opening_due: e.target.value })}
+                onChange={(e) =>
+                  setCustomerForm({ ...customerForm, opening_due: e.target.value })
+                }
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
               />
             </div>
@@ -1031,7 +1123,10 @@ export default function Home() {
               >
                 Cancel
               </button>
-              <button type="submit" className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+              >
                 Save
               </button>
             </div>
@@ -1039,10 +1134,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* Add Item Modal */}
+      {/* ITEM MODAL */}
       {showItemForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form onSubmit={saveItem} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+          <form
+            onSubmit={saveItem}
+            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
+          >
             <h3 className="text-base font-bold text-slate-900">Add Item</h3>
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">Item Name *</label>
@@ -1070,7 +1168,9 @@ export default function Home() {
                 <input
                   type="number"
                   value={itemForm.opening_stock}
-                  onChange={(e) => setItemForm({ ...itemForm, opening_stock: e.target.value })}
+                  onChange={(e) =>
+                    setItemForm({ ...itemForm, opening_stock: e.target.value })
+                  }
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
                 />
               </div>
@@ -1083,7 +1183,10 @@ export default function Home() {
               >
                 Cancel
               </button>
-              <button type="submit" className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+              >
                 Save
               </button>
             </div>
@@ -1091,10 +1194,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* Add Receiver Modal */}
+      {/* RECEIVER MODAL */}
       {showReceiverForm && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form onSubmit={saveReceiver} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+          <form
+            onSubmit={saveReceiver}
+            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
+          >
             <h3 className="text-base font-bold text-slate-900">Add Account</h3>
             <div>
               <label className="text-xs font-bold text-slate-500 block mb-1">Account Name *</label>
@@ -1102,7 +1208,9 @@ export default function Home() {
                 type="text"
                 required
                 value={receiverForm.receiver_name}
-                onChange={(e) => setReceiverForm({ ...receiverForm, receiver_name: e.target.value })}
+                onChange={(e) =>
+                  setReceiverForm({ ...receiverForm, receiver_name: e.target.value })
+                }
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
               />
             </div>
@@ -1111,7 +1219,9 @@ export default function Home() {
               <input
                 type="number"
                 value={receiverForm.opening_balance}
-                onChange={(e) => setReceiverForm({ ...receiverForm, opening_balance: e.target.value })}
+                onChange={(e) =>
+                  setReceiverForm({ ...receiverForm, opening_balance: e.target.value })
+                }
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
               />
             </div>
@@ -1123,7 +1233,10 @@ export default function Home() {
               >
                 Cancel
               </button>
-              <button type="submit" className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
+              >
                 Save
               </button>
             </div>
