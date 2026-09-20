@@ -19,8 +19,9 @@ import {
   ArrowDownLeft
 } from "lucide-react";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+// Supabase configuration with your exact project details
+const supabaseUrl = "https://yfptlgypcmkykkw.supabase.co";
+const supabaseKey = "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
 const db = createClient(supabaseUrl, supabaseKey);
 
 const money = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -129,7 +130,6 @@ export default function Home() {
     `${c.name || ""} ${c.mobile || ""}`.toLowerCase().includes(saleCustomerSearch.toLowerCase())
   );
 
-  // Save Masters
   async function saveCustomer(e) {
     e.preventDefault();
     if (!customerForm.customer_name.trim()) return flash("Customer name is required.");
@@ -178,7 +178,6 @@ export default function Home() {
     flash("Receiver account added!");
   }
 
-  // Record Collection From Customer
   async function saveCollection(e) {
     e.preventDefault();
     const custId = Number(collectForm.customer_id);
@@ -192,7 +191,6 @@ export default function Home() {
     const customer = customers.find((c) => c.id === custId);
     const receiver = receivers.find((r) => r.id === recId);
 
-    // 1. Save Collection Log
     await db.from("collections").insert({
       collection_no: `COL-${Date.now()}`,
       collection_date: today(),
@@ -203,14 +201,12 @@ export default function Home() {
       remarks: collectForm.notes || `Collection from ${customer?.name}`
     });
 
-    // 2. Reduce Customer Due
     const currentDue = Number(customer?.old_due || 0);
     await db
       .from("customers")
       .update({ old_due: Math.max(0, currentDue - amount) })
       .eq("id", custId);
 
-    // 3. Increase Receiver Account Balance
     const currentBal = Number(receiver?.balance || 0);
     await db
       .from("receivers")
@@ -223,7 +219,6 @@ export default function Home() {
     await loadAll();
   }
 
-  // Create Sale
   async function createSale(e) {
     e.preventDefault();
     if (!saleCustomer) return flash("Please select a customer.");
@@ -302,14 +297,13 @@ export default function Home() {
     { id: "sales", label: "Invoices", icon: Receipt },
     { id: "customers", label: "Customers", icon: Users },
     { id: "receivers", label: "Receivers (Cash)", icon: Wallet },
-    { id: "stock", label: "Stock", icon: Package },
-    { id: "master", label: "Settings", icon: Settings }
+    { id: "stock", label: "Stock", icon: Package }
   ];
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col antialiased">
       {/* Top Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs print:hidden">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -325,7 +319,7 @@ export default function Home() {
                 B
               </div>
               <span className="text-base font-extrabold tracking-tight text-slate-900">
-                B REDDY <span className="text-indigo-600">SALES</span>[span_11](start_span)[span_11](end_span)
+                B REDDY <span className="text-indigo-600">SALES</span>
               </span>
             </div>
           </div>
@@ -353,9 +347,9 @@ export default function Home() {
 
       {/* Slide-out Mobile Sidebar Drawer */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex print:hidden">
+        <div className="fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
             onClick={() => setMobileMenuOpen(false)}
           />
           <div className="relative w-72 max-w-[80vw] bg-white h-full shadow-2xl flex flex-col justify-between p-5 z-50">
@@ -365,7 +359,7 @@ export default function Home() {
                   <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
                     B
                   </div>
-                  <span className="font-extrabold text-sm text-slate-900">B REDDY SALES</span>[span_12](start_span)[span_12](end_span)
+                  <span className="font-extrabold text-sm text-slate-900">B REDDY SALES</span>
                 </div>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
@@ -403,9 +397,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Floating Notice Alert */}
+      {/* Notice Alert */}
       {notice && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-sm print:hidden">
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-sm">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
           <span className="text-sm font-medium">{notice}</span>
           <button onClick={() => setNotice("")} className="text-slate-400 hover:text-white">
@@ -683,15 +677,15 @@ export default function Home() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Receivers & Cash Drawer</h1>
-                <p className="text-xs text-slate-500 mt-1">Track balances in your cash boxes, UPI, and bank accounts</p>
+                <h1 className="text-2xl font-bold text-slate-900">Receivers & Cash Accounts</h1>
+                <p className="text-xs text-slate-500 mt-1">Manage balances in cash boxes, UPI, and bank accounts</p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => { setCollectForm(emptyCollection); setShowCollectModal(true); }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
                 >
-                  <ArrowDownLeft className="w-4 h-4" /> Collect Money from Customer
+                  <ArrowDownLeft className="w-4 h-4" /> Collect Money
                 </button>
                 <button
                   onClick={() => { setReceiverForm(emptyReceiver); setShowReceiverForm(true); }}
@@ -702,7 +696,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Receiver Balance Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {receivers.map((r) => (
                 <div key={r.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center">
@@ -718,9 +711,8 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Collections Log Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Recent Collections Received ({collections.length})</h3>
+              <h3 className="text-sm font-bold text-slate-800">Recent Collections ({collections.length})</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
@@ -735,7 +727,7 @@ export default function Home() {
                     {collections.length === 0 ? (
                       <tr>
                         <td colSpan="4" className="py-8 text-center text-slate-400">
-                          No collections recorded yet. Tap &ldquo;Collect Money from Customer&rdquo; above to receive payments.
+                          No collections yet. Tap &ldquo;Collect Money&rdquo; above to receive customer dues.
                         </td>
                       </tr>
                     ) : (
@@ -891,18 +883,10 @@ export default function Home() {
             </table>
           </div>
         )}
-
-        {/* VIEW: MASTER DATA */}
-        {screen === "master" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <h2 className="text-base font-bold text-slate-900">Application Settings</h2>
-            <p className="text-xs text-slate-500">Connected to Supabase Project</p>
-          </div>
-        )}
       </main>
 
-      {/* Fixed Mobile Bottom Navigation Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1.5 flex justify-around items-center z-30 shadow-2xl print:hidden">
+      {/* Bottom Nav */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1.5 flex justify-around items-center z-30 shadow-2xl">
         {navLinks.slice(0, 5).map((tab) => {
           const Icon = tab.icon;
           const isActive = screen === tab.id;
