@@ -7,40 +7,45 @@ import {
   Trash2, 
   AlertCircle, 
   CheckCircle2, 
-  Calendar, 
-  Phone, 
-  User, 
   FileText, 
   Check, 
-  RefreshCw 
+  RefreshCw,
+  UserPlus,
+  PackagePlus
 } from 'lucide-react';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default function CreateSaleScreen() {
   const [customers, setCustomers] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [items, setItems] = useState([]);
   const [receivers, setReceivers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [invoiceNumber, setInvoiceNumber] = useState('Inv-0001');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [selectedItemId, setSelectedItemId] = useState('');
+
+  // Customer state: select existing or type custom
+  const [selectedCustomerId, setSelectedCustomerId] = useState('NEW');
+  const [customCustomerName, setCustomCustomerName] = useState('');
+  const [customCustomerMobile, setCustomCustomerMobile] = useState('');
+
+  // Item entry state: select existing or type manual item
+  const [selectedItemId, setSelectedItemId] = useState('NEW');
+  const [customItemName, setCustomItemName] = useState('');
   const [entryRate, setEntryRate] = useState('');
   const [entryQty, setEntryQty] = useState(1);
   const [stockError, setStockError] = useState('');
   const [lineItems, setLineItems] = useState([]);
 
+  // Payment & submission
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [paymentType, setPaymentType] = useState('PAID');
   const [selectedReceiverId, setSelectedReceiverId] = useState('');
+  const [customReceiverName, setCustomReceiverName] = useState('Cash');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -49,93 +54,70 @@ export default function CreateSaleScreen() {
 
   async function fetchInitialData() {
     setLoading(true);
-    const [custRes, catRes, itemsRes, recRes, invCountRes] = await Promise.all([
-      supabase.from('customers').select('*'),
-      supabase.from('master_categories').select('*'),
-      supabase.from('items').select('*'),
-      supabase.from('receivers').select('*'),
-      supabase.from('invoices').select('id', { count: 'exact', head: true })
-    ]);
+    try {
+      const [custRes, itemsRes, recRes, invCountRes] = await Promise.all([
+        supabase.from('customers').select('*'),
+        supabase.from('items').select('*'),
+        supabase.from('receivers').select('*'),
+        supabase.from('invoices').select('id', { count: 'exact', head: true })
+      ]);
 
-    if (custRes.data && custRes.data.length > 0) {
-      setCustomers(custRes.data);
-      setSelectedCustomerId(custRes.data[0].id);
-    }
-    if (catRes.data && catRes.data.length > 0) {
-      setCategories(catRes.data);
-      setSelectedCategoryId(catRes.data[0].id);
-    }
-    if (itemsRes.data) setItems(itemsRes.data);
-    if (recRes.data && recRes.data.length > 0) {
-      setReceivers(recRes.data);
-      setSelectedReceiverId(recRes.data[0].id);
-    }
+      if (custRes.data && custRes.data.length > 0) {
+        setCustomers(custRes.data);
+      }
+      if (itemsRes.data && itemsRes.data.length > 0) {
+        setItems(itemsRes.data);
+      }
+      if (recRes.data && recRes.data.length > 0) {
+        setReceivers(recRes.data);
+        setSelectedReceiverId(recRes.data[0].id);
+      }
 
-    const nextCount = (invCountRes.count || 0) + 1;
-    setInvoiceNumber(`Inv-${String(nextCount).padStart(4, '0')}`);
-    setLoading(false);
+      const nextCount = (invCountRes.count || 0) + 1;
+      setInvoiceNumber(`Inv-${String(nextCount).padStart(4, '0')}`);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const currentCustomer = useMemo(() => {
-    return customers.find(c => c.id === Number(selectedCustomerId)) || customers[0] || {};
-  }, [customers, selectedCustomerId]);
-
-  const filteredItems = useMemo(() => {
-    return items.filter(item => item.category_id === Number(selectedCategoryId));
-  }, [items, selectedCategoryId]);
-
-  const currentItem = useMemo(() => {
-    return items.find(item => item.id === Number(selectedItemId));
-  }, [items, selectedItemId]);
-
-  const handleItemSelect = (e) => {
-    const id = e.target.value;
-    setSelectedItemId(id);
-    setStockError('');
-    const found = items.find(i => i.id === Number(id));
-    if (found) {
-      setEntryRate(found.unit_price);
-      setEntryQty(1);
-    } else {
-      setEntryRate('');
-    }
-  };
-
   const handleAddItem = () => {
-    if (!currentItem) return;
     const qty = Number(entryQty);
     const rate = Number(entryRate);
 
+    const nameToUse = selectedItemId === 'NEW' 
+      ? customItemName.trim() 
+      : (items.find(i => i.id === Number(selectedItemId))?.item_name || '');
+
+    if (!nameToUse) {
+      setStockError('Please enter or select an item name');
+      return;
+    }
     if (qty <= 0) {
       setStockError('Quantity must be greater than zero');
       return;
     }
-
-    const existing = lineItems.find(l => l.itemId === currentItem.id);
-    const demanded = (existing ? existing.qty : 0) + qty;
-
-    if (demanded > currentItem.current_stock) {
-      setStockError(`Insufficient stock! Available: ${currentItem.current_stock}`);
+    if (rate < 0 || isNaN(rate)) {
+      setStockError('Enter a valid rate');
       return;
     }
 
-    if (existing) {
-      setLineItems(lineItems.map(l => l.itemId === currentItem.id 
-        ? { ...l, qty: demanded, lineTotal: demanded * rate }
-        : l
-      ));
-    } else {
-      setLineItems([...lineItems, {
+    setLineItems([
+      ...lineItems,
+      {
         id: Date.now(),
-        itemId: currentItem.id,
-        itemName: currentItem.item_name,
+        itemId: selectedItemId === 'NEW' ? null : Number(selectedItemId),
+        itemName: nameToUse,
         rate,
         qty,
         lineTotal: qty * rate
-      }]);
-    }
+      }
+    ]);
 
-    setSelectedItemId('');
+    // Reset input fields
+    setCustomItemName('');
+    setSelectedItemId('NEW');
     setEntryRate('');
     setEntryQty(1);
     setStockError('');
@@ -150,18 +132,54 @@ export default function CreateSaleScreen() {
     setSubmitting(true);
 
     try {
+      let finalCustomerId = null;
+      let finalCustomerName = customCustomerName.trim() || 'Walk-in Customer';
+
+      // 1. Resolve Customer
+      if (selectedCustomerId !== 'NEW') {
+        const found = customers.find(c => c.id === Number(selectedCustomerId));
+        if (found) {
+          finalCustomerId = found.id;
+          finalCustomerName = found.name;
+        }
+      } else if (customCustomerName.trim()) {
+        const mobile = customCustomerMobile.trim() || `000-${Date.now()}`;
+        const { data: newCust } = await supabase
+          .from('customers')
+          .insert({ name: customCustomerName.trim(), mobile, old_due: 0 })
+          .select()
+          .single();
+        if (newCust) {
+          finalCustomerId = newCust.id;
+          finalCustomerName = newCust.name;
+        }
+      }
+
+      // 2. Resolve Receiver
+      let finalReceiverId = selectedReceiverId ? Number(selectedReceiverId) : null;
+      if (paymentType === 'PAID' && !finalReceiverId) {
+        const { data: newRec } = await supabase
+          .from('receivers')
+          .insert({ name: customReceiverName || 'General Cash', balance: 0 })
+          .select()
+          .single();
+        if (newRec) finalReceiverId = newRec.id;
+      }
+
+      // 3. Insert Invoice
       const { data: invData, error: invErr } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
-        customer_id: currentCustomer.id,
-        customer_name: currentCustomer.name,
+        customer_id: finalCustomerId,
+        customer_name: finalCustomerName,
         total_amount: totalInvoiceValue,
         payment_status: paymentType,
-        receiver_id: paymentType === 'PAID' ? selectedReceiverId : null,
+        receiver_id: paymentType === 'PAID' ? finalReceiverId : null,
         invoice_date: invoiceDate
       }).select().single();
 
       if (invErr) throw invErr;
 
+      // 4. Insert Line Items
       const itemsToInsert = lineItems.map(item => ({
         invoice_id: invData.id,
         item_id: item.itemId,
@@ -173,30 +191,27 @@ export default function CreateSaleScreen() {
 
       await supabase.from('invoice_items').insert(itemsToInsert);
 
-      for (const line of lineItems) {
-        const itemObj = items.find(i => i.id === line.itemId);
-        if (itemObj) {
-          await supabase.from('items')
-            .update({ current_stock: Math.max(0, itemObj.current_stock - line.qty) })
-            .eq('id', line.itemId);
-        }
+      // 5. Update receiver or customer balance if applicable
+      if (paymentType === 'PAID' && finalReceiverId) {
+        const rec = receivers.find(r => r.id === finalReceiverId);
+        const currentBal = rec ? Number(rec.balance || 0) : 0;
+        await supabase
+          .from('receivers')
+          .update({ balance: currentBal + totalInvoiceValue })
+          .eq('id', finalReceiverId);
+      } else if (paymentType === 'DUE' && finalCustomerId) {
+        const cust = customers.find(c => c.id === finalCustomerId);
+        const curDue = cust ? Number(cust.old_due || 0) : 0;
+        await supabase
+          .from('customers')
+          .update({ old_due: curDue + totalInvoiceValue })
+          .eq('id', finalCustomerId);
       }
 
-      if (paymentType === 'PAID' && selectedReceiverId) {
-        const receiver = receivers.find(r => r.id === Number(selectedReceiverId));
-        if (receiver) {
-          await supabase.from('receivers')
-            .update({ balance: Number(receiver.balance) + totalInvoiceValue })
-            .eq('id', selectedReceiverId);
-        }
-      } else if (paymentType === 'DUE') {
-        await supabase.from('customers')
-          .update({ old_due: Number(currentCustomer.old_due || 0) + totalInvoiceValue })
-          .eq('id', currentCustomer.id);
-      }
-
-      alert(`Invoice ${invoiceNumber} created and saved successfully!`);
+      alert(`Invoice ${invoiceNumber} created successfully!`);
       setLineItems([]);
+      setCustomCustomerName('');
+      setCustomCustomerMobile('');
       setIsModalOpen(false);
       fetchInitialData();
     } catch (err) {
@@ -215,124 +230,143 @@ export default function CreateSaleScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 md:p-6 pb-20">
+      {/* Top Header */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-indigo-600" />
             <h1 className="text-xl font-bold text-slate-900">{invoiceNumber}</h1>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <span className="text-xs uppercase font-semibold text-slate-400">Old Due</span>
-              <p className="text-base font-bold text-amber-600">
-                ₹{Number(currentCustomer?.old_due || 0).toFixed(2)}
-              </p>
-            </div>
-            <div className="bg-indigo-50 border border-indigo-100 px-5 py-2 rounded-xl text-right">
-              <span className="text-xs uppercase font-semibold text-indigo-600">Total Value</span>
-              <p className="text-2xl font-black text-indigo-700">₹{totalInvoiceValue.toFixed(2)}</p>
-            </div>
+          <div className="bg-indigo-50 border border-indigo-100 px-5 py-2 rounded-xl text-right">
+            <span className="text-xs uppercase font-semibold text-indigo-600">Total Value</span>
+            <p className="text-2xl font-black text-indigo-700">₹{totalInvoiceValue.toFixed(2)}</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Side: Direct Entry Forms */}
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-lg shadow-slate-200/50">
-            <h2 className="text-sm font-bold uppercase text-slate-500 mb-4 flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-600" /> Customer Information
-            </h2>
-            <div className="space-y-4">
+          {/* Customer Card */}
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase text-slate-600 flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-indigo-600" /> Customer Information
+              </h2>
+              {customers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCustomerId(selectedCustomerId === 'NEW' ? customers[0].id : 'NEW')}
+                  className="text-xs text-indigo-600 font-semibold underline"
+                >
+                  {selectedCustomerId === 'NEW' ? 'Select Existing' : '+ Type New'}
+                </button>
+              )}
+            </div>
+
+            {selectedCustomerId === 'NEW' ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Customer Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter customer name"
+                    value={customCustomerName}
+                    onChange={(e) => setCustomCustomerName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Mobile (Optional)</label>
+                  <input
+                    type="tel"
+                    placeholder="Mobile number"
+                    value={customCustomerMobile}
+                    onChange={(e) => setCustomCustomerMobile(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm"
+                  />
+                </div>
+              </div>
+            ) : (
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Customer</label>
-                <select 
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm font-medium"
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Select Customer</label>
+                <select
                   value={selectedCustomerId}
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm"
                 >
                   {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{c.name} ({c.mobile})</option>
                   ))}
                 </select>
               </div>
+            )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Contact Mobile</label>
-                <input 
-                  type="text" 
-                  readOnly 
-                  value={currentCustomer?.mobile || ''}
-                  className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-sm text-slate-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Invoice Date</label>
-                <input 
-                  type="date" 
-                  value={invoiceDate}
-                  onChange={(e) => setInvoiceDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Invoice Date</label>
+              <input 
+                type="date" 
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm"
+              />
             </div>
           </div>
 
+          {/* Item Card */}
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold uppercase text-slate-500">Add Items</h2>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-2">Category</label>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCategoryId(cat.id);
-                      setSelectedItemId('');
-                      setEntryRate('');
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${
-                      selectedCategoryId === cat.id 
-                        ? 'bg-indigo-600 text-white' 
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase text-slate-600 flex items-center gap-2">
+                <PackagePlus className="w-4 h-4 text-indigo-600" /> Add Item
+              </h2>
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedItemId(selectedItemId === 'NEW' ? items[0].id : 'NEW')}
+                  className="text-xs text-indigo-600 font-semibold underline"
+                >
+                  {selectedItemId === 'NEW' ? 'Select Existing' : '+ Type Custom Item'}
+                </button>
+              )}
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-xs font-semibold text-slate-600">Select Item</label>
-                {currentItem && (
-                  <span className="text-xs font-bold text-emerald-600">
-                    Stock: {currentItem.current_stock}
-                  </span>
-                )}
+            {selectedItemId === 'NEW' ? (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Item Name / Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rice Bag 25kg, Oil 1L"
+                  value={customItemName}
+                  onChange={(e) => setCustomItemName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm"
+                />
               </div>
-              <select
-                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm font-medium"
-                value={selectedItemId}
-                onChange={handleItemSelect}
-              >
-                <option value="">-- Choose item --</option>
-                {filteredItems.map(item => (
-                  <option key={item.id} value={item.id} disabled={item.current_stock <= 0}>
-                    {item.item_name} (Stock: {item.current_stock})
-                  </option>
-                ))}
-              </select>
-            </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Select Item</label>
+                <select
+                  value={selectedItemId}
+                  onChange={(e) => {
+                    setSelectedItemId(e.target.value);
+                    const itm = items.find(i => i.id === Number(e.target.value));
+                    if (itm) setEntryRate(itm.unit_price);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm"
+                >
+                  {items.map(i => (
+                    <option key={i.id} value={i.id}>{i.item_name} (₹{i.unit_price})</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Rate (₹)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Price / Rate (₹)</label>
                 <input 
                   type="number" 
+                  placeholder="0.00"
                   value={entryRate}
                   onChange={(e) => setEntryRate(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm font-semibold"
@@ -351,7 +385,7 @@ export default function CreateSaleScreen() {
             </div>
 
             {stockError && (
-              <div className="p-2.5 bg-rose-50 text-rose-700 text-xs rounded-lg flex items-center gap-2">
+              <div className="p-2 bg-rose-50 text-rose-700 text-xs rounded-lg flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{stockError}</span>
               </div>
@@ -360,17 +394,17 @@ export default function CreateSaleScreen() {
             <button
               type="button"
               onClick={handleAddItem}
-              disabled={!selectedItemId}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-semibold text-sm rounded-lg flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-lg flex items-center justify-center gap-2"
             >
-              <Plus className="w-4 h-4" /> Add Item
+              <Plus className="w-4 h-4" /> Add to Invoice
             </button>
           </div>
         </div>
 
+        {/* Right Side: Invoice Line Items Table */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between overflow-hidden">
           <div className="p-5 flex-1">
-            <h2 className="text-sm font-bold uppercase text-slate-500 mb-4">Invoice Items</h2>
+            <h2 className="text-sm font-bold uppercase text-slate-600 mb-4">Invoice Items</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead>
@@ -378,23 +412,23 @@ export default function CreateSaleScreen() {
                     <th className="pb-3">Item</th>
                     <th className="pb-3 text-right">Rate</th>
                     <th className="pb-3 text-center">Qty</th>
-                    <th className="pb-3 text-right">Line Total</th>
+                    <th className="pb-3 text-right">Total</th>
                     <th className="pb-3 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {lineItems.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="py-8 text-center text-slate-400">
-                        No items added yet.
+                      <td colSpan="5" className="py-12 text-center text-slate-400">
+                        No items added yet. Enter items on the left to begin.
                       </td>
                     </tr>
                   ) : (
                     lineItems.map(item => (
                       <tr key={item.id}>
-                        <td className="py-3 font-semibold text-slate-800">{item.itemName}</td>
+                        <td className="py-3 font-medium text-slate-800">{item.itemName}</td>
                         <td className="py-3 text-right">₹{Number(item.rate).toFixed(2)}</td>
-                        <td className="py-3 text-center text-indigo-700 font-bold">{item.qty}</td>
+                        <td className="py-3 text-center font-bold text-indigo-700">{item.qty}</td>
                         <td className="py-3 text-right font-bold text-slate-900">₹{item.lineTotal.toFixed(2)}</td>
                         <td className="py-3 text-center">
                           <button
@@ -427,10 +461,11 @@ export default function CreateSaleScreen() {
         </div>
       </div>
 
+      {/* Confirmation & Payment Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Confirm Payment Status</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Confirm Payment</h3>
             <div className="grid grid-cols-2 gap-3 my-4">
               <button
                 type="button"
@@ -458,18 +493,26 @@ export default function CreateSaleScreen() {
 
             {paymentType === 'PAID' && (
               <div className="mb-4">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Deposit To Receiver</label>
-                <select
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm"
-                  value={selectedReceiverId}
-                  onChange={(e) => setSelectedReceiverId(e.target.value)}
-                >
-                  {receivers.map(rec => (
-                    <option key={rec.id} value={rec.id}>
-                      {rec.name} (Bal: ₹{Number(rec.balance).toFixed(2)})
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Payment Method / Account</label>
+                {receivers.length > 0 ? (
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm"
+                    value={selectedReceiverId}
+                    onChange={(e) => setSelectedReceiverId(e.target.value)}
+                  >
+                    {receivers.map(rec => (
+                      <option key={rec.id} value={rec.id}>{rec.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={customReceiverName}
+                    onChange={(e) => setCustomReceiverName(e.target.value)}
+                    placeholder="Cash / UPI / Account"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                )}
               </div>
             )}
 
@@ -495,4 +538,4 @@ export default function CreateSaleScreen() {
       )}
     </div>
   );
-      }
+}
