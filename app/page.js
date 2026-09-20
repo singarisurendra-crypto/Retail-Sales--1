@@ -19,8 +19,8 @@ import {
   ArrowDownLeft
 } from "lucide-react";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+const supabaseUrl = "https://YOUR-PROJECT-REF.supabase.co";
+const supabaseKey = "sb_publishable_YOUR_KEY_HERE";
 const db = createClient(supabaseUrl, supabaseKey);
 
 const money = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
