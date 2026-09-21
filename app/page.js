@@ -118,6 +118,7 @@ export default function App() {
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
   // Customer Form
+  const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
   // Partner Form
@@ -522,7 +523,56 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // EXPENSE HANDLERS
+  // CUSTOMER HANDLERS (Add, Edit, Delete)
+  const handleEditCustomer = (c) => {
+    setEditingCustId(c.id);
+    setCustForm({
+      name: c.name || "",
+      mobile: c.mobile || "",
+      old_due: c.old_due || ""
+    });
+    setShowCustModal(true);
+  };
+
+  const handleDeleteCustomer = async (c) => {
+    if (!confirm(`Delete customer "${c.name}"? This removes their customer record.`)) return;
+    try {
+      const { error } = await db.from("customers").delete().eq("id", c.id);
+      if (error) throw error;
+      alert("Customer deleted!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const saveCustomer = async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: custForm.name.trim(),
+      mobile: custForm.mobile.trim(),
+      old_due: Number(custForm.old_due || 0)
+    };
+    try {
+      if (editingCustId) {
+        const { error } = await db.from("customers").update(payload).eq("id", editingCustId);
+        if (error) throw error;
+        alert("Customer updated!");
+      } else {
+        const { error } = await db.from("customers").insert([payload]);
+        if (error) throw error;
+        alert("Customer created!");
+      }
+      setShowCustModal(false);
+      setEditingCustId(null);
+      setCustForm({ name: "", mobile: "", old_due: "" });
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // EXPENSE HANDLERS (Add, Edit, Delete)
   const handleEditExpense = (exp) => {
     setEditingExpenseId(exp.id);
     setExpenseForm({
@@ -607,7 +657,7 @@ Thank you for your business!`;
     }
   };
 
-  // BORROWER HANDLERS
+  // BORROWER HANDLERS (Add, Edit, Delete)
   const handleEditBorrower = (b) => {
     setEditingBorrowerId(b.id);
     setBorrowerForm({
@@ -718,7 +768,7 @@ Thank you for your business!`;
     }
   };
 
-  // PROCUREMENT HANDLERS
+  // PROCUREMENT HANDLERS (Add, Edit, Delete & Due Support)
   const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
     setProcureForm({
@@ -949,6 +999,7 @@ Thank you for your business!`;
                   <button
                     type="button"
                     onClick={() => {
+                      setEditingCustId(null);
                       setCustForm({ name: "", mobile: "", old_due: "" });
                       setShowCustModal(true);
                     }}
@@ -1226,7 +1277,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 4: BORROWERS */}
+        {/* VIEW 4: BORROWERS WITH EDIT & DELETE */}
         {activeTab === "borrowers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1305,7 +1356,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 5: EXPENSES */}
+        {/* VIEW 5: EXPENSES WITH EDIT & DELETE */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1381,7 +1432,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL REPORT & STOCK / CUSTOMER DUES (RETAINED) */}
+        {/* VIEW 6: EXCEL REPORT & STOCK / CUSTOMER DUES (WITH DELETE ACTIONS) */}
         {activeTab === "reports" && (
           <div className="space-y-6">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-5">
@@ -1442,7 +1493,7 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* RETAINED: Detailed Stock Inventory Breakdown */}
+              {/* Detailed Stock Inventory Table with Delete Action */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock Inventory Batches)</h3>
@@ -1459,6 +1510,7 @@ Thank you for your business!`;
                         <th className="p-2 border border-slate-200 text-right">Cost Rate</th>
                         <th className="p-2 border border-slate-200 text-right">Selling Rate</th>
                         <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
+                        <th className="p-2 border border-slate-200 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1473,6 +1525,16 @@ Thank you for your business!`;
                           <td className="p-2 border border-slate-200 text-right font-bold text-slate-900">
                             {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
                           </td>
+                          <td className="p-2 border border-slate-200 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProcurement(p)}
+                              className="p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded"
+                              title="Delete Stock Batch"
+                            >
+                              <Icon name="trash" size={13} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1480,7 +1542,7 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* RETAINED: Detailed Customer Dues Ledger */}
+              {/* Detailed Customer Dues Ledger with Delete Action */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
@@ -1494,6 +1556,7 @@ Thank you for your business!`;
                         <th className="p-2 border border-slate-200">Customer Name</th>
                         <th className="p-2 border border-slate-200">Mobile</th>
                         <th className="p-2 border border-slate-200 text-right">Outstanding Due</th>
+                        <th className="p-2 border border-slate-200 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1503,6 +1566,16 @@ Thank you for your business!`;
                           <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
                           <td className="p-2 border border-slate-200">{c.mobile || "N/A"}</td>
                           <td className="p-2 border border-slate-200 text-right font-bold text-rose-600">{money(c.old_due)}</td>
+                          <td className="p-2 border border-slate-200 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCustomer(c)}
+                              className="p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded"
+                              title="Delete Customer"
+                            >
+                              <Icon name="trash" size={13} />
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1513,7 +1586,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 7: CUSTOMERS */}
+        {/* VIEW 7: CUSTOMERS WITH EDIT & DELETE */}
         {activeTab === "customers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1524,6 +1597,7 @@ Thank you for your business!`;
               <button
                 type="button"
                 onClick={() => {
+                  setEditingCustId(null);
                   setCustForm({ name: "", mobile: "", old_due: "" });
                   setShowCustModal(true);
                 }}
@@ -1534,12 +1608,30 @@ Thank you for your business!`;
             </div>
             <div className="space-y-2">
               {customers.map((c) => (
-                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 flex justify-between items-center">
+                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
                     <h4 className="font-bold text-sm text-slate-900">{c.name}</h4>
                     <span className="text-xs text-slate-400">{c.mobile || "No Mobile"}</span>
                   </div>
-                  <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditCustomer(c)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomer(c)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2048,21 +2140,12 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD CUSTOMER */}
+      {/* MODAL: ADD / EDIT CUSTOMER */}
       {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Customer</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              await db.from("customers").insert([{
-                name: custForm.name.trim(),
-                mobile: custForm.mobile.trim(),
-                old_due: Number(custForm.old_due || 0)
-              }]);
-              setShowCustModal(false);
-              refreshData();
-            }} className="space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
               <input
                 type="text"
                 required
