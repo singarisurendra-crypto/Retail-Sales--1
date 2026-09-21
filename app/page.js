@@ -70,11 +70,13 @@ export default function App() {
   // Partner Form State
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
-  // Procurement Form State
+  // Procurement Form State (with editing state)
+  const [editingProcureId, setEditingProcureId] = useState(null);
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
     item_name: "",
     procured_qty: "",
+    remaining_qty: "",
     purchase_rate: "",
     selling_rate: "",
     is_opening: false,
@@ -291,14 +293,9 @@ export default function App() {
         payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"
       };
 
-      const { data: invData, error: invErr } = await db
-        .from("invoices")
-        .insert([invoiceRecord])
-        .select();
-
+      const { error: invErr } = await db.from("invoices").insert([invoiceRecord]);
       if (invErr) throw invErr;
 
-      // Update inventory stock levels
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -307,7 +304,6 @@ export default function App() {
         }
       }
 
-      // Update customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
@@ -450,6 +446,55 @@ export default function App() {
     }
   };
 
+  // --- PROCUREMENT: EDIT, DELETE, & SAVE LOGIC ---
+  const handleEditProcurement = (p) => {
+    setEditingProcureId(p.id);
+    setProcureForm({
+      supplier_name: p.supplier_name === "Opening Stock" ? "" : p.supplier_name || "",
+      item_name: p.item_name || "",
+      procured_qty: p.procured_qty || "",
+      remaining_qty: p.remaining_qty ?? p.procured_qty ?? "",
+      purchase_rate: p.purchase_rate || "",
+      selling_rate: p.selling_rate || "",
+      is_opening: p.supplier_name === "Opening Stock",
+      p1_id: p.p1_id ? String(p.p1_id) : "",
+      p1_amount: p.p1_amount || "",
+      p1_mode: p.p1_mode || "Cash",
+      split_p2: Boolean(p.p2_id),
+      p2_id: p.p2_id ? String(p.p2_id) : "",
+      p2_amount: p.p2_amount || "",
+      p2_mode: p.p2_mode || "UPI"
+    });
+    setShowProcureModal(true);
+  };
+
+  const handleDeleteProcurement = async (p) => {
+    const procuredQty = Number(p.procured_qty || 0);
+    const remainingQty = Number(p.remaining_qty || 0);
+
+    // Safeguard: Check if units from this batch have already been billed
+    if (remainingQty < procuredQty) {
+      const soldQty = procuredQty - remainingQty;
+      const proceed = confirm(
+        `Warning: ${soldQty} units of "${p.item_name}" have already been sold from this batch. Deleting it will remove the purchase history and affect partner account balances. Are you sure you want to proceed?`
+      );
+      if (!proceed) return;
+    } else {
+      if (!confirm(`Are you sure you want to delete "${p.item_name}" (${p.supplier_name})?`)) {
+        return;
+      }
+    }
+
+    try {
+      const { error } = await db.from("procurements").delete().eq("id", p.id);
+      if (error) throw error;
+      alert("Procurement entry deleted successfully!");
+      refreshData();
+    } catch (err) {
+      alert("Error deleting procurement: " + err.message);
+    }
+  };
+
   const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
@@ -457,13 +502,23 @@ export default function App() {
     const sellingRate = Number(procureForm.selling_rate || purchaseRate);
     const total = qty * purchaseRate;
 
+    // Preserve the sales delta if editing an active batch
+    let remaining = qty;
+    if (editingProcureId) {
+      const existing = procurements.find((p) => p.id === editingProcureId);
+      if (existing) {
+        const soldQty = Math.max(0, Number(existing.procured_qty || 0) - Number(existing.remaining_qty || 0));
+        remaining = Math.max(0, qty - soldQty);
+      }
+    }
+
     const record = {
       supplier_name: procureForm.is_opening
         ? "Opening Stock"
         : procureForm.supplier_name.trim() || "Vendor",
       item_name: procureForm.item_name.trim(),
       procured_qty: qty,
-      remaining_qty: qty,
+      remaining_qty: remaining,
       purchase_rate: purchaseRate,
       selling_rate: sellingRate,
       total_amount: total,
@@ -475,13 +530,24 @@ export default function App() {
       p2_mode: procureForm.p2_mode
     };
 
-    const { error } = await db.from("procurements").insert([record]);
-    if (!error) {
+    try {
+      if (editingProcureId) {
+        const { error } = await db.from("procurements").update(record).eq("id", editingProcureId);
+        if (error) throw error;
+        alert("Procurement entry updated successfully!");
+      } else {
+        const { error } = await db.from("procurements").insert([record]);
+        if (error) throw error;
+        alert("Procurement entry added successfully!");
+      }
+
       setShowProcureModal(false);
+      setEditingProcureId(null);
       setProcureForm({
         supplier_name: "",
         item_name: "",
         procured_qty: "",
+        remaining_qty: "",
         purchase_rate: "",
         selling_rate: "",
         is_opening: false,
@@ -494,8 +560,8 @@ export default function App() {
         p2_mode: "UPI"
       });
       refreshData();
-    } else {
-      alert(error.message);
+    } catch (err) {
+      alert("Error saving procurement: " + err.message);
     }
   };
 
@@ -714,7 +780,6 @@ export default function App() {
                         className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
                       >
                         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                          {/* Item Selector Picker Button */}
                           <div className="flex-1">
                             <button
                               type="button"
@@ -743,7 +808,6 @@ export default function App() {
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {/* Selling Price / Rate Input */}
                             <div className="w-28">
                               <label className="text-[10px] font-bold text-slate-400 block mb-0.5 sm:hidden">Selling Rate</label>
                               <input
@@ -778,7 +842,6 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Cost Rate, Selling Margin, & Profit Margin Indicator */}
                         {line.procure_id && (
                           <div className="pt-1.5 text-[11px] flex flex-wrap items-center justify-between border-t border-slate-200/60 text-slate-500 gap-2">
                             <div className="flex items-center gap-3">
@@ -1148,18 +1211,34 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 5: PROCUREMENTS & STOCK */}
+        {/* VIEW 5: PROCUREMENTS & STOCK (WITH EDIT & DELETE ACTIONS) */}
         {activeTab === "procurement" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Procurements & Inventory</h2>
-                <p className="text-xs text-slate-500">Record supplier purchases with purchase cost and intended selling price</p>
+                <p className="text-xs text-slate-500">Record supplier purchases, track batch quantities, or edit records</p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    setProcureForm({ ...procureForm, is_opening: true, supplier_name: "Opening Stock" });
+                    setEditingProcureId(null);
+                    setProcureForm({
+                      supplier_name: "Opening Stock",
+                      item_name: "",
+                      procured_qty: "",
+                      remaining_qty: "",
+                      purchase_rate: "",
+                      selling_rate: "",
+                      is_opening: true,
+                      p1_id: "",
+                      p1_amount: "",
+                      p1_mode: "Cash",
+                      split_p2: false,
+                      p2_id: "",
+                      p2_amount: "",
+                      p2_mode: "UPI"
+                    });
                     setShowProcureModal(true);
                   }}
                   className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
@@ -1168,7 +1247,23 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => {
-                    setProcureForm({ ...procureForm, is_opening: false });
+                    setEditingProcureId(null);
+                    setProcureForm({
+                      supplier_name: "",
+                      item_name: "",
+                      procured_qty: "",
+                      remaining_qty: "",
+                      purchase_rate: "",
+                      selling_rate: "",
+                      is_opening: false,
+                      p1_id: "",
+                      p1_amount: "",
+                      p1_mode: "Cash",
+                      split_p2: false,
+                      p2_id: "",
+                      p2_amount: "",
+                      p2_mode: "UPI"
+                    });
                     setShowProcureModal(true);
                   }}
                   className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
@@ -1187,10 +1282,11 @@ export default function App() {
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Purchased</th>
                     <th className="p-3">Available</th>
-                    <th className="p-3">Purchase Rate</th>
-                    <th className="p-3">Selling Rate</th>
+                    <th className="p-3">Purchase Cost</th>
+                    <th className="p-3">Selling Price</th>
                     <th className="p-3">Est. Margin</th>
                     <th className="p-3">Total Cost</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-slate-700 font-medium">
@@ -1212,7 +1308,7 @@ export default function App() {
                             p.supplier_name
                           )}
                         </td>
-                        <td className="p-3">{p.item_name}</td>
+                        <td className="p-3 font-bold text-slate-900">{p.item_name}</td>
                         <td className="p-3">{p.procured_qty}</td>
                         <td className="p-3 font-black text-emerald-600">{p.remaining_qty}</td>
                         <td className="p-3 font-bold text-slate-900">{money(p.purchase_rate)}</td>
@@ -1227,6 +1323,24 @@ export default function App() {
                           </span>
                         </td>
                         <td className="p-3 font-bold">{money(p.total_amount)}</td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleEditProcurement(p)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"
+                              title="Edit Stock Entry"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProcurement(p)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="Delete Stock Batch"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -1598,12 +1712,16 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD PROCUREMENT */}
+      {/* MODAL: ADD / EDIT PROCUREMENT */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full my-6">
             <h3 className="font-bold text-base text-slate-900 mb-1">
-              {procureForm.is_opening ? "Add Opening Inventory" : "Add Purchase Invoice"}
+              {editingProcureId
+                ? "Edit Stock / Procurement Entry"
+                : procureForm.is_opening
+                ? "Add Opening Inventory"
+                : "Add Purchase Invoice"}
             </h3>
             <p className="text-xs text-slate-400 mb-4">
               {procureForm.is_opening
@@ -1637,7 +1755,7 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500">Quantity *</label>
+                <label className="text-xs font-bold text-slate-500">Total Procured Quantity *</label>
                 <input
                   type="number"
                   required
@@ -1661,7 +1779,7 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500">Selling Rate (Default Sale/MRP)</label>
+                  <label className="text-xs font-bold text-slate-500">Selling Rate (MRP/Sale)</label>
                   <input
                     type="number"
                     className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600"
@@ -1756,13 +1874,16 @@ export default function App() {
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setShowProcureModal(false)}
+                  onClick={() => {
+                    setShowProcureModal(false);
+                    setEditingProcureId(null);
+                  }}
                   className="px-4 py-2 border rounded-xl text-xs font-bold"
                 >
                   Cancel
                 </button>
                 <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
-                  Save Stock
+                  {editingProcureId ? "Update Stock" : "Save Stock"}
                 </button>
               </div>
             </form>
