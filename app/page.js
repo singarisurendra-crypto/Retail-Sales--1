@@ -21,10 +21,12 @@ import {
 // Supabase configuration with exact project credentials
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  "https://yfptlgypcmkkwxnzgcw.supabase.co";
+  "https://yfptlgypcmykkwxnzgcw.supabase.co";
 const supabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
+
+const db = createClient(supabaseUrl, supabaseKey);
 
 const db = createClient(supabaseUrl, supabaseKey);
 
