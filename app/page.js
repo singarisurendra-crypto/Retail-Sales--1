@@ -124,7 +124,7 @@ export default function App() {
   // Partner Form
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
-  // Procurement Form
+  // Purchase Form
   const [editingProcureId, setEditingProcureId] = useState(null);
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
@@ -223,11 +223,24 @@ export default function App() {
     }
   };
 
+  // Distinct items from purchases for dropdown
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     procurements.forEach((p) => {
       const trimmed = (p.item_name || "").trim();
       if (trimmed && !map.has(trimmed.toLowerCase())) {
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
+    return Array.from(map.values());
+  }, [procurements]);
+
+  // Distinct suppliers from purchases for dropdown
+  const uniqueSupplierSuggestions = useMemo(() => {
+    const map = new Map();
+    procurements.forEach((p) => {
+      const trimmed = (p.supplier_name || "").trim();
+      if (trimmed && trimmed !== "Opening Stock" && !map.has(trimmed.toLowerCase())) {
         map.set(trimmed.toLowerCase(), trimmed);
       }
     });
@@ -301,12 +314,12 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
-  // Overall Business Statement Summary with Supplier Procurement Dues and Expenses
+  // Overall Business Statement Summary with Supplier Purchase Dues and Expenses
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
     const totalDebts = borrowers.reduce((s, b) => s + Number(b.balance_due || 0), 0);
-    const totalProcureDues = procurements.reduce((s, p) => {
+    const totalPurchaseDues = procurements.reduce((s, p) => {
       const total = Number(p.total_amount || 0);
       const paid = Number(p.p1_amount || 0);
       return s + Math.max(0, total - paid);
@@ -317,13 +330,13 @@ export default function App() {
     );
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
-    // Business Profit Formula: (Customer Dues + Stock Valuation) - (Debts + Supplier Procurement Dues + Expenses)
-    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalDebts + totalProcureDues + totalExpenses);
+    // Business Profit Formula: (Customer Dues + Stock Valuation) - (Debts + Supplier Purchase Dues + Expenses)
+    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalDebts + totalPurchaseDues + totalExpenses);
 
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    return { totalSales, totalCustomerDues, totalDebts, totalProcureDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
+    return { totalSales, totalCustomerDues, totalDebts, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
 
   const handlePickStockItem = (item) => {
@@ -473,7 +486,7 @@ export default function App() {
       alert("Invoice deleted and stock restored!");
       refreshData();
     } catch (err) {
-      alert("Error deleting invoice: " + err.message);
+      alert(err.message);
     }
   };
 
@@ -523,7 +536,7 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // CUSTOMER HANDLERS (Add, Edit, Delete)
+  // CUSTOMER HANDLERS
   const handleEditCustomer = (c) => {
     setEditingCustId(c.id);
     setCustForm({
@@ -572,7 +585,7 @@ Thank you for your business!`;
     }
   };
 
-  // EXPENSE HANDLERS (Add, Edit, Delete)
+  // EXPENSE HANDLERS
   const handleEditExpense = (exp) => {
     setEditingExpenseId(exp.id);
     setExpenseForm({
@@ -657,7 +670,7 @@ Thank you for your business!`;
     }
   };
 
-  // BORROWER HANDLERS (Add, Edit, Delete)
+  // BORROWER HANDLERS
   const handleEditBorrower = (b) => {
     setEditingBorrowerId(b.id);
     setBorrowerForm({
@@ -768,7 +781,7 @@ Thank you for your business!`;
     }
   };
 
-  // PROCUREMENT HANDLERS (Add, Edit, Delete & Due Support)
+  // PURCHASES HANDLERS
   const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
     setProcureForm({
@@ -786,11 +799,11 @@ Thank you for your business!`;
   };
 
   const handleDeleteProcurement = async (p) => {
-    if (!confirm(`Delete procurement "${p.item_name}" from ${p.supplier_name}? Stock will be removed.`)) return;
+    if (!confirm(`Delete purchase "${p.item_name}" from ${p.supplier_name}? Stock will be removed.`)) return;
     try {
       const { error } = await db.from("procurements").delete().eq("id", p.id);
       if (error) throw error;
-      alert("Procurement record deleted!");
+      alert("Purchase record deleted!");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -809,7 +822,7 @@ Thank you for your business!`;
       return alert("Amount paid cannot exceed total purchase valuation.");
     }
     if (paidNowNum > 0 && !procureForm.p1_id) {
-      return alert("Select which partner is funding this payment.");
+      return alert("Select which partner is funding this purchase payment.");
     }
 
     const payload = {
@@ -829,11 +842,11 @@ Thank you for your business!`;
       if (editingProcureId) {
         const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
         if (error) throw error;
-        alert("Procurement updated successfully!");
+        alert("Purchase record updated successfully!");
       } else {
         const { error } = await db.from("procurements").insert([payload]);
         if (error) throw error;
-        alert(`Procurement added! Due to supplier: ${money(total - paidNowNum)}`);
+        alert(`Purchase recorded! Supplier Due: ${money(total - paidNowNum)}`);
       }
       setShowProcureModal(false);
       setEditingProcureId(null);
@@ -943,7 +956,7 @@ Thank you for your business!`;
                 activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="package" size={18} /> Procurements & Stock
+              <Icon name="package" size={18} /> Purchases & Stock
             </button>
 
             <button
@@ -1187,8 +1200,8 @@ Thank you for your business!`;
                 <h3 className="text-lg sm:text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalCustomerDues)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts & Procurement Dues (అప్పులు)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts + businessSummary.totalProcureDues)}</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts & Purchase Dues (అప్పులు)</p>
+                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts + businessSummary.totalPurchaseDues)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1-4)</p>
@@ -1432,7 +1445,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL REPORT & STOCK / CUSTOMER DUES (WITH DELETE ACTIONS) */}
+        {/* VIEW 6: EXCEL REPORT & STOCK / CUSTOMER DUES */}
         {activeTab === "reports" && (
           <div className="space-y-6">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-5">
@@ -1463,8 +1476,8 @@ Thank you for your business!`;
                   <tbody>
                     <tr className="bg-amber-50/70 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">1</td>
-                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Procurement Dues)</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts + businessSummary.totalProcureDues)}</td>
+                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Purchase Dues)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts + businessSummary.totalPurchaseDues)}</td>
                     </tr>
                     <tr className="bg-slate-50 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">2</td>
@@ -1493,7 +1506,7 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* Detailed Stock Inventory Table with Delete Action */}
+              {/* Stock Inventory Table with Delete Action */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock Inventory Batches)</h3>
@@ -1542,7 +1555,7 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Detailed Customer Dues Ledger with Delete Action */}
+              {/* Customer Dues Ledger with Delete Action */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
@@ -1638,13 +1651,13 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: PROCUREMENTS */}
+        {/* VIEW 8: PURCHASES & STOCK */}
         {activeTab === "procurement" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Procurements & Inventory</h2>
-                <p className="text-xs text-slate-500">Stock purchases, partner payments, and supplier pending dues</p>
+                <h2 className="text-lg font-black text-slate-900">Purchases & Stock (కొనుగోళ్లు)</h2>
+                <p className="text-xs text-slate-500">Record stock purchases, supplier dues, and partner funded costs</p>
               </div>
               <button
                 type="button"
@@ -1665,7 +1678,7 @@ Thank you for your business!`;
                 }}
                 className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
               >
-                + Add Procurement
+                + Add Purchase
               </button>
             </div>
             <div className="space-y-3">
@@ -1975,22 +1988,36 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PROCUREMENT */}
+      {/* MODAL: ADD / EDIT PURCHASES WITH DROPDOWN AUTOCOMPLETE */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingProcureId ? "Edit Procurement" : "Add Procurement (Stock & Dues)"}</h3>
+            <h3 className="font-bold text-base text-slate-900">
+              {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
+            </h3>
             <form onSubmit={saveProcurement} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Supplier Name (e.g. JB Company)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={procureForm.supplier_name}
-                onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
-              />
+              {/* Supplier Dropdown with Autocomplete */}
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Item Name</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Supplier / Vendor *</label>
+                <input
+                  list="supplier-master-list"
+                  type="text"
+                  required
+                  placeholder="Type or select existing supplier..."
+                  className="w-full p-2.5 border rounded-xl text-sm font-semibold"
+                  value={procureForm.supplier_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                />
+                <datalist id="supplier-master-list">
+                  {uniqueSupplierSuggestions.map((s, idx) => (
+                    <option key={idx} value={s} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Item Name Dropdown with Autocomplete */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Item Name *</label>
                 <input
                   list="item-master-list"
                   type="text"
@@ -2085,7 +2112,7 @@ Thank you for your business!`;
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Stock</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
               </div>
             </form>
           </div>
