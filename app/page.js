@@ -36,6 +36,9 @@ const Icon = ({ name, size = 18, className = "" }) => {
     history: (
       <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8m0 0V3m0 5h5M12 7v5l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
+    receipt: (
+      <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1zm4 6h8m-8 4h8m-8 4h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
     lock: (
       <path d="M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2zm-12 0V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
@@ -107,7 +110,6 @@ export default function App() {
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [borrowers, setBorrowers] = useState([]);
   const [borrowerTx, setBorrowerTx] = useState([]);
-  const [purchasePayments, setPurchasePayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -146,13 +148,15 @@ export default function App() {
     p1_mode: "Cash"
   });
 
-  // Supplier Purchase Bill Payment Form
+  // Pay Supplier Purchase Bill Form
+  const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [payPurchaseForm, setPayPurchaseForm] = useState({
     purchase_id: "",
     amount: "",
     partner_id: "",
     payment_mode: "Cash",
-    payment_date: new Date().toISOString().split("T")[0]
+    reference_no: "",
+    notes: ""
   });
 
   // Expense Form
@@ -181,13 +185,16 @@ export default function App() {
     tx_date: new Date().toISOString().split("T")[0]
   });
 
-  // Due Collection Form (Invoice-Wise)
+  // Due Collection Form
+  const [editingCollectionId, setEditingCollectionId] = useState(null);
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
     invoice_id: "",
     amount: "",
     payment_mode: "Cash",
-    receiver_id: ""
+    receiver_id: "",
+    reference_no: "",
+    notes: ""
   });
 
   // Sales Entry State
@@ -262,7 +269,7 @@ export default function App() {
     return Array.from(map.values());
   }, [procurements]);
 
-  // Partner Ledger including purchase settlements
+  // Real-Time Partner Cash/UPI Ledger strictly tied to individual partners
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -329,7 +336,7 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
-  // Overall Business Statement Summary
+  // Overall Business Statement Summary with Supplier Purchase Dues and Expenses
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
@@ -351,84 +358,6 @@ export default function App() {
 
     return { totalSales, totalCustomerDues, totalDebts, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
-
-  // Unified Audit Trail History Logs
-  const auditHistory = useMemo(() => {
-    const list = [];
-
-    invoices.forEach((inv) => {
-      list.push({
-        id: `inv-${inv.id}`,
-        date: inv.invoice_date || inv.created_at?.slice(0, 10),
-        type: "Sale Invoice",
-        title: `${inv.customer_name} (${inv.invoice_number || `INV-${inv.id}`})`,
-        amount: Number(inv.total_amount || 0),
-        status: inv.status || (Number(inv.balance_due) <= 0 ? "Collected" : "Due"),
-        mode: inv.upfront_mode || "Bill",
-        details: `Upfront: ${money(inv.upfront_paid || 0)} | Due: ${money(inv.balance_due || 0)}`
-      });
-    });
-
-    collections.forEach((col) => {
-      const p = partners.find((pt) => pt.id == col.receiver_id);
-      list.push({
-        id: `col-${col.id}`,
-        date: col.created_at?.slice(0, 10),
-        type: "Due Collection",
-        title: `Customer Payment Received (${col.invoice_id ? `INV-${col.invoice_id}` : "Account"})`,
-        amount: Number(col.amount || 0),
-        status: "Collected",
-        mode: col.payment_mode,
-        details: `Collected by: ${p?.name || "Partner"}`
-      });
-    });
-
-    procurements.forEach((pr) => {
-      const total = Number(pr.total_amount || 0);
-      const paid = Number(pr.p1_amount || 0);
-      const isPaid = paid >= total;
-      list.push({
-        id: `pr-${pr.id}`,
-        date: pr.created_at?.slice(0, 10),
-        type: "Purchase Bill",
-        title: `${pr.item_name} from ${pr.supplier_name}`,
-        amount: total,
-        status: isPaid ? "Paid" : paid > 0 ? "Partial" : "Due",
-        mode: pr.p1_mode || "Cash",
-        details: `Paid: ${money(paid)} | Supplier Due: ${money(Math.max(0, total - paid))}`
-      });
-    });
-
-    expenses.forEach((e) => {
-      const p = partners.find((pt) => pt.id == e.paid_by_id);
-      list.push({
-        id: `exp-${e.id}`,
-        date: e.expense_date || e.created_at?.slice(0, 10),
-        type: "Shop Expense",
-        title: `${e.title} (${e.category_name || "General"})`,
-        amount: Number(e.amount || 0),
-        status: "Outflow",
-        mode: e.payment_mode,
-        details: `Paid by: ${p?.name || "Partner"}`
-      });
-    });
-
-    borrowerTx.forEach((tx) => {
-      const b = borrowers.find((br) => br.id == tx.borrower_id);
-      list.push({
-        id: `tx-${tx.id}`,
-        date: tx.tx_date || tx.created_at?.slice(0, 10),
-        type: tx.tx_type === "Given" ? "Loan Given" : "Loan Repaid",
-        title: `${b?.name || "Borrower"} (${tx.tx_type})`,
-        amount: Number(tx.amount || 0),
-        status: tx.tx_type,
-        mode: tx.payment_mode,
-        details: tx.notes || "Borrower Ledger Entry"
-      });
-    });
-
-    return list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  }, [invoices, collections, procurements, expenses, borrowerTx, partners, borrowers]);
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
@@ -463,7 +392,7 @@ export default function App() {
   const upfrontPaidNum = Number(upfrontAmount || 0);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
-  // SAVE INVOICE (Assigns status Collected, Partial, or Due)
+  // SAVE INVOICE
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -552,10 +481,15 @@ export default function App() {
     }
   };
 
+  // DELETE INVOICE (Cascades cleanup of linked collections and restores balances)
   const handleDeleteInvoice = async (inv) => {
-    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? This will restore stock and remove dues.`)) return;
+    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? Any collections made against this bill will also be removed.`)) return;
 
     try {
+      // 1. Delete linked collections from database
+      await db.from("collections").delete().eq("invoice_id", inv.id);
+
+      // 2. Return physical stock to procurements
       if (Array.isArray(inv.items)) {
         for (const item of inv.items) {
           const batch = procurements.find((p) => p.id == item.procure_id);
@@ -565,6 +499,7 @@ export default function App() {
         }
       }
 
+      // 3. Remove customer dues added by this invoice
       if (Number(inv.balance_due || 0) > 0) {
         const cust = customers.find((c) => c.id == inv.customer_id);
         if (cust) {
@@ -575,7 +510,7 @@ export default function App() {
 
       const { error } = await db.from("invoices").delete().eq("id", inv.id);
       if (error) throw error;
-      alert("Invoice deleted!");
+      alert("Invoice and linked payments deleted!");
       refreshData();
     } catch (err) {
       alert("Error deleting invoice: " + err.message);
@@ -583,8 +518,10 @@ export default function App() {
   };
 
   const handleEditInvoice = (inv) => {
-    if (inv.status === "Collected" || Number(inv.balance_due || 0) <= 0) {
-      return alert("This invoice has been fully Collected and cannot be edited as per business rules.");
+    // Check if fully collected
+    const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
+    if (isCollected) {
+      return alert("This invoice is fully Collected and locked from edits. If payments were recorded by mistake, delete or edit the collection receipts in the 'Payments & Collections' module first.");
     }
 
     setEditingInvoiceId(inv.id);
@@ -633,28 +570,38 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // INVOICE-WISE DUE COLLECTION HANDLER
-  const saveInvoiceCollection = async (e) => {
-    e.preventDefault();
-    const amt = Number(collectForm.amount || 0);
-    if (amt <= 0) return alert("Enter valid collection amount");
-    if (!collectForm.receiver_id) return alert("Select partner who collected");
+  // INVOICE-WISE DUE COLLECTION (Delete restores and unlocks invoice)
+  const handleEditCollection = (col) => {
+    setEditingCollectionId(col.id);
+    setCollectForm({
+      customer_id: String(col.customer_id),
+      invoice_id: col.invoice_id ? String(col.invoice_id) : "",
+      amount: String(col.amount),
+      payment_mode: col.payment_mode || "Cash",
+      receiver_id: col.receiver_id ? String(col.receiver_id) : upfrontPartnerId,
+      reference_no: col.reference_no || "",
+      notes: col.notes || ""
+    });
+    setShowCollectModal(true);
+  };
+
+  const handleDeleteCollection = async (col) => {
+    if (!confirm(`Delete collection receipt of ₹${col.amount}? This will restore the customer and invoice dues, unlocking the invoice for edit.`)) return;
 
     try {
-      await db.from("collections").insert([{
-        customer_id: Number(collectForm.customer_id),
-        invoice_id: collectForm.invoice_id ? Number(collectForm.invoice_id) : null,
-        amount: amt,
-        payment_mode: collectForm.payment_mode,
-        receiver_id: Number(collectForm.receiver_id)
-      }]);
+      const amt = Number(col.amount || 0);
 
-      if (collectForm.invoice_id) {
-        const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
+      // 1. Restore invoice balance & unlock
+      if (col.invoice_id) {
+        const targetInv = invoices.find((i) => i.id == col.invoice_id);
         if (targetInv) {
-          const currentBal = Number(targetInv.balance_due || 0);
-          const newBal = Math.max(0, currentBal - amt);
-          const newStatus = newBal <= 0 ? "Collected" : "Partial";
+          const newBal = Number(targetInv.balance_due || 0) + amt;
+          const totalAmt = Number(targetInv.total_amount || 0);
+          const upfrontAmt = Number(targetInv.upfront_paid || 0);
+          
+          // Revert status based on upfront payment vs total
+          const newStatus = upfrontAmt >= totalAmt ? "Collected" : upfrontAmt > 0 ? "Partial" : "Due";
+          
           await db.from("invoices").update({
             balance_due: newBal,
             status: newStatus
@@ -662,20 +609,126 @@ Thank you for your business!`;
         }
       }
 
-      const cust = customers.find((c) => c.id == collectForm.customer_id);
+      // 2. Restore customer old_due
+      const cust = customers.find((c) => c.id == col.customer_id);
       if (cust) {
-        await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
+        await db.from("customers").update({
+          old_due: Number(cust.old_due || 0) + amt
+        }).eq("id", cust.id);
       }
 
-      alert("Collection recorded and invoice status updated!");
+      // 3. Delete the collection record
+      await db.from("collections").delete().eq("id", col.id);
+      alert("Collection deleted! Invoice and customer balance restored and unlocked.");
+      refreshData();
+    } catch (err) {
+      alert("Error deleting collection: " + err.message);
+    }
+  };
+
+  const saveInvoiceCollection = async (e) => {
+    e.preventDefault();
+    const amt = Number(collectForm.amount || 0);
+    if (amt <= 0) return alert("Enter valid collection amount");
+    if (!collectForm.receiver_id) return alert("Select partner who collected");
+
+    const datePrefix = new Date().toISOString().split("T")[0].replace(/-/g, "").slice(2);
+    const refNo = collectForm.reference_no.trim() || `REC-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const payload = {
+      customer_id: Number(collectForm.customer_id),
+      invoice_id: collectForm.invoice_id ? Number(collectForm.invoice_id) : null,
+      amount: amt,
+      payment_mode: collectForm.payment_mode,
+      receiver_id: Number(collectForm.receiver_id),
+      reference_no: refNo,
+      notes: collectForm.notes.trim()
+    };
+
+    try {
+      if (editingCollectionId) {
+        const oldCol = collections.find((c) => c.id === editingCollectionId);
+        const diff = amt - Number(oldCol.amount || 0);
+
+        if (collectForm.invoice_id) {
+          const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
+          if (targetInv) {
+            const newBal = Math.max(0, Number(targetInv.balance_due || 0) - diff);
+            await db.from("invoices").update({
+              balance_due: newBal,
+              status: newBal <= 0 ? "Collected" : "Partial"
+            }).eq("id", targetInv.id);
+          }
+        }
+
+        const cust = customers.find((c) => c.id == collectForm.customer_id);
+        if (cust) {
+          await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - diff) }).eq("id", cust.id);
+        }
+
+        await db.from("collections").update(payload).eq("id", editingCollectionId);
+        alert("Collection updated successfully!");
+      } else {
+        await db.from("collections").insert([payload]);
+
+        if (collectForm.invoice_id) {
+          const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
+          if (targetInv) {
+            const currentBal = Number(targetInv.balance_due || 0);
+            const newBal = Math.max(0, currentBal - amt);
+            await db.from("invoices").update({
+              balance_due: newBal,
+              status: newBal <= 0 ? "Collected" : "Partial"
+            }).eq("id", targetInv.id);
+          }
+        }
+
+        const cust = customers.find((c) => c.id == collectForm.customer_id);
+        if (cust) {
+          await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
+        }
+
+        alert(`Collection receipt recorded (${refNo})!`);
+      }
+
       setShowCollectModal(false);
+      setEditingCollectionId(null);
       refreshData();
     } catch (err) {
       alert("Error saving collection: " + err.message);
     }
   };
 
-  // BILL-WISE PURCHASE PAYMENT HANDLER
+  // BILL-WISE PURCHASE PAYMENT (Delete restores and unlocks purchase bill)
+  const handleEditPurchasePayment = (p) => {
+    setEditingPaymentId(p.id);
+    setPayPurchaseForm({
+      purchase_id: String(p.id),
+      amount: String(p.p1_amount || ""),
+      partner_id: p.p1_id ? String(p.p1_id) : upfrontPartnerId,
+      payment_mode: p.p1_mode || "Cash",
+      reference_no: `PAY-${p.id}`,
+      notes: ""
+    });
+    setShowPayPurchaseModal(true);
+  };
+
+  const handleDeletePurchasePayment = async (p) => {
+    if (!confirm(`Void payment for purchase bill "${p.item_name}"? This restores the supplier due to full and unlocks the purchase for edit/delete.`)) return;
+
+    try {
+      await db.from("procurements").update({
+        p1_amount: 0,
+        p1_id: null
+      }).eq("id", p.id);
+
+      alert("Purchase payment voided! Bill restored to unpaid and unlocked for edit/delete.");
+      refreshData();
+    } catch (err) {
+      alert("Error deleting payment: " + err.message);
+    }
+  };
+
   const savePurchasePayment = async (e) => {
     e.preventDefault();
     const amt = Number(payPurchaseForm.amount || 0);
@@ -687,28 +740,27 @@ Thank you for your business!`;
     if (!targetP) return alert("Purchase not found");
 
     const currentTotal = Number(targetP.total_amount || 0);
-    const alreadyPaid = Number(targetP.p1_amount || 0);
-    const newPaidTotal = alreadyPaid + amt;
-
-    if (newPaidTotal > currentTotal) {
-      return alert("Payment exceeds remaining purchase bill balance!");
+    if (amt > currentTotal) {
+      return alert("Payment exceeds total purchase bill valuation!");
     }
 
     try {
       await db.from("procurements").update({
-        p1_amount: newPaidTotal,
+        p1_amount: amt,
         p1_id: Number(payPurchaseForm.partner_id),
         p1_mode: payPurchaseForm.payment_mode
       }).eq("id", targetP.id);
 
-      alert(`Purchase bill payment recorded! Remaining due: ${money(currentTotal - newPaidTotal)}`);
+      alert(`Purchase bill payment recorded! Remaining due: ${money(currentTotal - amt)}`);
       setShowPayPurchaseModal(false);
+      setEditingPaymentId(null);
       setPayPurchaseForm({
         purchase_id: "",
         amount: "",
         partner_id: upfrontPartnerId || "",
         payment_mode: "Cash",
-        payment_date: new Date().toISOString().split("T")[0]
+        reference_no: "",
+        notes: ""
       });
       refreshData();
     } catch (err) {
@@ -903,12 +955,13 @@ Thank you for your business!`;
     }
   };
 
-  // PURCHASES HANDLERS (Locks edit when fully Paid)
+  // PURCHASES HANDLERS
   const handleEditProcurement = (p) => {
     const total = Number(p.total_amount || 0);
     const paid = Number(p.p1_amount || 0);
-    if (paid >= total && total > 0) {
-      return alert("This purchase bill is fully Paid and locked from edits according to business rules.");
+    const isPaid = paid >= total && total > 0;
+    if (isPaid) {
+      return alert("This purchase bill is fully Paid and locked from edits. If this was marked paid in error, delete or void the payment in 'Payments & Collections' first.");
     }
 
     setEditingProcureId(p.id);
@@ -1027,12 +1080,21 @@ Thank you for your business!`;
             </button>
 
             <button
+              onClick={() => { setActiveTab("payments_collections"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "payments_collections" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <Icon name="receipt" size={18} /> Payments & Collections
+            </button>
+
+            <button
               onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
                 activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="invoice" size={18} /> Invoices & Collections
+              <Icon name="invoice" size={18} /> Invoices Directory
             </button>
 
             <button
@@ -1041,16 +1103,7 @@ Thank you for your business!`;
                 activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="package" size={18} /> Purchases & Supplier Bills
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("history"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "history" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="history" size={18} /> Audit History & Ledger
+              <Icon name="package" size={18} /> Purchases & Stock
             </button>
 
             <button
@@ -1103,17 +1156,19 @@ Thank you for your business!`;
         <div className="p-4 border-t border-slate-800 space-y-2">
           <button
             onClick={() => {
-              setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId });
+              setEditingCollectionId(null);
+              setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
               setShowCollectModal(true);
               setSidebarOpen(false);
             }}
             className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow"
           >
-            <Icon name="rupee" size={15} /> Collect Invoice Due
+            <Icon name="rupee" size={15} /> Collect Customer Due
           </button>
           <button
             onClick={() => {
-              setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", payment_date: new Date().toISOString().split("T")[0] });
+              setEditingPaymentId(null);
+              setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
               setShowPayPurchaseModal(true);
               setSidebarOpen(false);
             }}
@@ -1383,14 +1438,145 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 3: INVOICES & COLLECTIONS */}
+        {/* VIEW 3: SEPARATE PAYMENTS & COLLECTIONS MODULE */}
+        {activeTab === "payments_collections" && (
+          <div className="space-y-6">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">Payments & Collections Ledger</h2>
+                  <p className="text-xs text-slate-500">Edit or delete payments. Deleting all collections/payments restores bills to unpaid and unlocks them for edit.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingCollectionId(null);
+                      setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
+                      setShowCollectModal(true);
+                    }}
+                    className="px-3.5 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl"
+                  >
+                    + Customer Collection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingPaymentId(null);
+                      setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
+                      setShowPayPurchaseModal(true);
+                    }}
+                    className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                  >
+                    + Supplier Payment
+                  </button>
+                </div>
+              </div>
+
+              {/* Section 1: Customer Collections */}
+              <div className="pt-2">
+                <h3 className="font-bold text-sm text-slate-900 mb-2">Customer Collections (వసూళ్లు)</h3>
+                <div className="space-y-2">
+                  {collections.map((c) => {
+                    const cust = customers.find((x) => x.id == c.customer_id);
+                    const inv = invoices.find((x) => x.id == c.invoice_id);
+                    const p = partners.find((x) => x.id == c.receiver_id);
+
+                    return (
+                      <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                              {c.reference_no || `REC-${c.id}`}
+                            </span>
+                            <h4 className="font-bold text-sm text-slate-900">{cust?.name || "Customer"}</h4>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Invoice: <b>{inv?.invoice_number || (c.invoice_id ? `INV-${c.invoice_id}` : "Account Credit")}</b> | Collected by: {p?.name || "Partner"} ({c.payment_mode})
+                          </p>
+                          {c.notes && <p className="text-[11px] text-slate-400 italic">"{c.notes}"</p>}
+                        </div>
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                          <span className="font-black text-emerald-600 text-sm">{money(c.amount)}</span>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEditCollection(c)}
+                              className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                            >
+                              <Icon name="edit" size={13} /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCollection(c)}
+                              className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                            >
+                              <Icon name="trash" size={13} /> Void / Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Section 2: Supplier Payments */}
+              <div className="pt-4 border-t">
+                <h3 className="font-bold text-sm text-slate-900 mb-2">Supplier Purchase Payments (చెల్లింపులు)</h3>
+                <div className="space-y-2">
+                  {procurements
+                    .filter((p) => Number(p.p1_amount || 0) > 0)
+                    .map((p) => {
+                      const partner = partners.find((x) => x.id == p.p1_id);
+
+                      return (
+                        <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                                PAY-{p.id}
+                              </span>
+                              <h4 className="font-bold text-sm text-slate-900">{p.supplier_name}</h4>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Item: <b>{p.item_name}</b> | Paid by: {partner?.name || "Partner"} ({p.p1_mode || "Cash"})
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                            <span className="font-black text-indigo-600 text-sm">{money(p.p1_amount)}</span>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleEditPurchasePayment(p)}
+                                className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                              >
+                                <Icon name="edit" size={13} /> Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePurchasePayment(p)}
+                                className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                              >
+                                <Icon name="trash" size={13} /> Void / Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 4: INVOICES DIRECTORY */}
         {activeTab === "invoices" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
-                <p className="text-xs text-slate-500">Track bills, invoice-wise collections, and settlement status</p>
-              </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
+              <p className="text-xs text-slate-500">Track invoices. Fully collected invoices are locked. Deleting invoice removes linked collections.</p>
             </div>
 
             <div className="space-y-3">
@@ -1423,18 +1609,21 @@ Thank you for your business!`;
                         <button
                           type="button"
                           onClick={() => {
+                            setEditingCollectionId(null);
                             setCollectForm({
                               customer_id: String(inv.customer_id),
                               invoice_id: String(inv.id),
                               amount: String(inv.balance_due || ""),
                               payment_mode: "Cash",
-                              receiver_id: upfrontPartnerId
+                              receiver_id: upfrontPartnerId,
+                              reference_no: "",
+                              notes: `Payment for ${inv.invoice_number || `INV-${inv.id}`}`
                             });
                             setShowCollectModal(true);
                           }}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center gap-1"
                         >
-                          <Icon name="rupee" size={13} /> Collect This Bill
+                          <Icon name="rupee" size={13} /> Collect Due
                         </button>
                       )}
 
@@ -1475,25 +1664,15 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 4: PURCHASES & SUPPLIER BILLS */}
+        {/* VIEW 5: PURCHASES & STOCK */}
         {activeTab === "procurement" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Purchases & Stock (కొనుగోళ్లు)</h2>
-                <p className="text-xs text-slate-500">Supplier bills, settlements, and live stock tracking</p>
+                <p className="text-xs text-slate-500">Supplier purchases. Fully paid bills are locked from edit.</p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", payment_date: new Date().toISOString().split("T")[0] });
-                    setShowPayPurchaseModal(true);
-                  }}
-                  className="flex-1 sm:flex-none px-3.5 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs rounded-xl"
-                >
-                  Pay Supplier Bill
-                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1551,12 +1730,14 @@ Thank you for your business!`;
                         <button
                           type="button"
                           onClick={() => {
+                            setEditingPaymentId(null);
                             setPayPurchaseForm({
                               purchase_id: String(p.id),
                               amount: String(due),
                               partner_id: upfrontPartnerId,
                               payment_mode: "Cash",
-                              payment_date: new Date().toISOString().split("T")[0]
+                              reference_no: "",
+                              notes: `Payment for ${p.item_name}`
                             });
                             setShowPayPurchaseModal(true);
                           }}
@@ -1591,49 +1772,6 @@ Thank you for your business!`;
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 5: AUDIT TRAIL / LEDGER HISTORY */}
-        {activeTab === "history" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">Audit Trail & Transaction History</h2>
-              <p className="text-xs text-slate-500">Chronological timeline of all sales, collections, purchase bills, loans, and expenses</p>
-            </div>
-
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs border-collapse font-mono">
-                <thead className="bg-slate-100 text-slate-600 font-bold">
-                  <tr>
-                    <th className="p-2.5 border border-slate-200">Date</th>
-                    <th className="p-2.5 border border-slate-200">Module / Event</th>
-                    <th className="p-2.5 border border-slate-200">Reference / Title</th>
-                    <th className="p-2.5 border border-slate-200">Status</th>
-                    <th className="p-2.5 border border-slate-200">Mode</th>
-                    <th className="p-2.5 border border-slate-200 text-right">Amount</th>
-                    <th className="p-2.5 border border-slate-200">Audit Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditHistory.map((h) => (
-                    <tr key={h.id} className="hover:bg-slate-50/80">
-                      <td className="p-2.5 border border-slate-200 text-slate-500">{h.date}</td>
-                      <td className="p-2.5 border border-slate-200 font-bold text-indigo-600">{h.type}</td>
-                      <td className="p-2.5 border border-slate-200 font-bold text-slate-900">{h.title}</td>
-                      <td className="p-2.5 border border-slate-200">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                          {h.status}
-                        </span>
-                      </td>
-                      <td className="p-2.5 border border-slate-200">{h.mode}</td>
-                      <td className="p-2.5 border border-slate-200 text-right font-black text-slate-900">{money(h.amount)}</td>
-                      <td className="p-2.5 border border-slate-200 text-slate-500 text-[11px]">{h.details}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         )}
@@ -1854,7 +1992,7 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* Available Stock Inventory Table (Filtered to non-zero qty) */}
+              {/* Available Stock Table (Filtered to non-zero qty) */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock with Qty &gt; 0)</h3>
@@ -2059,7 +2197,7 @@ Thank you for your business!`;
       {showPayPurchaseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Pay Purchase Bill</h3>
+            <h3 className="font-bold text-base text-slate-900">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
             <form onSubmit={savePurchasePayment} className="space-y-3">
               <select
                 required
@@ -2077,10 +2215,10 @@ Thank you for your business!`;
               >
                 <option value="">-- Choose Purchase Bill --</option>
                 {procurements
-                  .filter((p) => Number(p.total_amount || 0) > Number(p.p1_amount || 0))
+                  .filter((p) => editingPaymentId || Number(p.total_amount || 0) > Number(p.p1_amount || 0))
                   .map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.item_name} ({p.supplier_name}) — Due: {money(Number(p.total_amount || 0) - Number(p.p1_amount || 0))}
+                      {p.item_name} ({p.supplier_name}) — Total: {money(p.total_amount)}
                     </option>
                   ))}
               </select>
@@ -2123,6 +2261,14 @@ Thank you for your business!`;
                 ))}
               </select>
 
+              <input
+                type="text"
+                placeholder="Reference No / Voucher (Optional)"
+                className="w-full p-2 border rounded-xl text-xs"
+                value={payPurchaseForm.reference_no}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, reference_no: e.target.value })}
+              />
+
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowPayPurchaseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Payment</button>
@@ -2136,7 +2282,7 @@ Thank you for your business!`;
       {showCollectModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Collect Customer Invoice Due</h3>
+            <h3 className="font-bold text-base text-slate-900">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
             <form onSubmit={saveInvoiceCollection} className="space-y-3">
               <select
                 required
@@ -2174,7 +2320,7 @@ Thank you for your business!`;
                 >
                   <option value="">-- Select Specific Invoice (Optional) --</option>
                   {invoices
-                    .filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0)
+                    .filter((i) => i.customer_id == collectForm.customer_id && (editingCollectionId || Number(i.balance_due || 0) > 0))
                     .map((i) => (
                       <option key={i.id} value={i.id}>
                         {i.invoice_number || `INV-${i.id}`} — Due: {money(i.balance_due)}
@@ -2221,9 +2367,17 @@ Thank you for your business!`;
                 ))}
               </select>
 
+              <input
+                type="text"
+                placeholder="Reference / Receipt No (Auto-generated if empty)"
+                className="w-full p-2 border rounded-xl text-xs"
+                value={collectForm.reference_no}
+                onChange={(e) => setCollectForm({ ...collectForm, reference_no: e.target.value })}
+              />
+
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Collection</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Receipt</button>
               </div>
             </form>
           </div>
