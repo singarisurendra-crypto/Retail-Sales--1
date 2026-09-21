@@ -118,7 +118,6 @@ export default function App() {
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
   // Customer Form
-  const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
   // Partner Form
@@ -523,7 +522,7 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // EXPENSE HANDLERS (Add, Edit, Delete)
+  // EXPENSE HANDLERS
   const handleEditExpense = (exp) => {
     setEditingExpenseId(exp.id);
     setExpenseForm({
@@ -608,7 +607,7 @@ Thank you for your business!`;
     }
   };
 
-  // BORROWER HANDLERS (Add, Edit, Delete)
+  // BORROWER HANDLERS
   const handleEditBorrower = (b) => {
     setEditingBorrowerId(b.id);
     setBorrowerForm({
@@ -719,7 +718,7 @@ Thank you for your business!`;
     }
   };
 
-  // PROCUREMENT HANDLERS (Add, Edit, Delete & Due Support)
+  // PROCUREMENT HANDLERS
   const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
     setProcureForm({
@@ -1227,7 +1226,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 4: BORROWERS WITH EDIT & DELETE */}
+        {/* VIEW 4: BORROWERS */}
         {activeTab === "borrowers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1306,7 +1305,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 5: EXPENSES WITH EDIT & DELETE */}
+        {/* VIEW 5: EXPENSES */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1382,10 +1381,10 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL REPORT & CUSTOMER DUES */}
+        {/* VIEW 6: EXCEL REPORT & STOCK / CUSTOMER DUES (RETAINED) */}
         {activeTab === "reports" && (
           <div className="space-y-6">
-            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">B Reddy Statement (Excel Sheet Format)</h2>
@@ -1400,7 +1399,7 @@ Thank you for your business!`;
                 </button>
               </div>
 
-              {/* Master Excel Report with Expenses as #4 */}
+              {/* Master Balance Sheet Statement */}
               <div className="overflow-x-auto border border-slate-300 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
@@ -1413,7 +1412,7 @@ Thank you for your business!`;
                   <tbody>
                     <tr className="bg-amber-50/70 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">1</td>
-                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Dues)</td>
+                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Procurement Dues)</td>
                       <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts + businessSummary.totalProcureDues)}</td>
                     </tr>
                     <tr className="bg-slate-50 font-bold">
@@ -1443,14 +1442,55 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* In-Report Customer Dues Directory */}
-              <div className="pt-4 border-t">
-                <h3 className="font-bold text-sm text-slate-900 mb-2">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
+              {/* RETAINED: Detailed Stock Inventory Breakdown */}
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock Inventory Batches)</h3>
+                  <span className="text-xs font-bold text-slate-600">Total Valuation: {money(businessSummary.stockValuation)}</span>
+                </div>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
                   <table className="w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-100 text-slate-600 font-bold">
                       <tr>
-                        <th className="p-2 border border-slate-200">S.No</th>
+                        <th className="p-2 border border-slate-200 text-center">S.No</th>
+                        <th className="p-2 border border-slate-200">Stock Item</th>
+                        <th className="p-2 border border-slate-200">Supplier</th>
+                        <th className="p-2 border border-slate-200 text-center">Available Qty</th>
+                        <th className="p-2 border border-slate-200 text-right">Cost Rate</th>
+                        <th className="p-2 border border-slate-200 text-right">Selling Rate</th>
+                        <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {procurements.map((p, idx) => (
+                        <tr key={p.id}>
+                          <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
+                          <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
+                          <td className="p-2 border border-slate-200 text-slate-500">{p.supplier_name}</td>
+                          <td className="p-2 border border-slate-200 text-center font-bold text-indigo-600">{p.remaining_qty}</td>
+                          <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
+                          <td className="p-2 border border-slate-200 text-right">{money(p.selling_rate)}</td>
+                          <td className="p-2 border border-slate-200 text-right font-bold text-slate-900">
+                            {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* RETAINED: Detailed Customer Dues Ledger */}
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-sm text-slate-900">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
+                  <span className="text-xs font-bold text-rose-600">Total Dues: {money(businessSummary.totalCustomerDues)}</span>
+                </div>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-100 text-slate-600 font-bold">
+                      <tr>
+                        <th className="p-2 border border-slate-200 text-center">S.No</th>
                         <th className="p-2 border border-slate-200">Customer Name</th>
                         <th className="p-2 border border-slate-200">Mobile</th>
                         <th className="p-2 border border-slate-200 text-right">Outstanding Due</th>
@@ -1484,7 +1524,6 @@ Thank you for your business!`;
               <button
                 type="button"
                 onClick={() => {
-                  setEditingCustId(null);
                   setCustForm({ name: "", mobile: "", old_due: "" });
                   setShowCustModal(true);
                 }}
@@ -1507,7 +1546,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: PROCUREMENTS WITH DUE, EDIT & DELETE */}
+        {/* VIEW 8: PROCUREMENTS */}
         {activeTab === "procurement" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1844,7 +1883,7 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PROCUREMENT WITH DUE TRACKING */}
+      {/* MODAL: ADD / EDIT PROCUREMENT */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
@@ -1911,7 +1950,7 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Total Calculation & Upfront Paid */}
+              {/* Total Calculation & Paid Now / Due */}
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex justify-between text-xs font-bold text-slate-700">
                   <span>Total Purchase Cost:</span>
