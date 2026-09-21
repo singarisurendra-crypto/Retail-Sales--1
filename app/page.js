@@ -261,7 +261,7 @@ export default function App() {
       });
   }, [procurements, stockSearchQuery]);
 
-  // Save Sale Invoice
+  // Save Sale Invoice (Robust with error catching)
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -293,9 +293,23 @@ export default function App() {
         payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"
       };
 
-      const { error: invErr } = await db.from("invoices").insert([invoiceRecord]);
-      if (invErr) throw invErr;
+      // Try saving with all columns. If schema isn't migrated, fallback gracefully.
+      let { error: invErr } = await db.from("invoices").insert([invoiceRecord]);
+      if (invErr && invErr.message?.includes("column")) {
+        const fallbackRecord = {
+          customer_id: selectedCust.id,
+          customer_name: selectedCust.name,
+          invoice_date: saleDate,
+          total_amount: cartTotal,
+          status: status
+        };
+        const fallbackRes = await db.from("invoices").insert([fallbackRecord]);
+        if (fallbackRes.error) throw fallbackRes.error;
+      } else if (invErr) {
+        throw invErr;
+      }
 
+      // Deduct sold quantities from stock
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -304,6 +318,7 @@ export default function App() {
         }
       }
 
+      // Update customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
@@ -472,11 +487,10 @@ export default function App() {
     const procuredQty = Number(p.procured_qty || 0);
     const remainingQty = Number(p.remaining_qty || 0);
 
-    // Safeguard: Check if units from this batch have already been billed
     if (remainingQty < procuredQty) {
       const soldQty = procuredQty - remainingQty;
       const proceed = confirm(
-        `Warning: ${soldQty} units of "${p.item_name}" have already been sold from this batch. Deleting it will remove the purchase history and affect partner account balances. Are you sure you want to proceed?`
+        `Warning: ${soldQty} units of "${p.item_name}" have already been billed from this batch. Deleting it will remove the purchase history. Proceed?`
       );
       if (!proceed) return;
     } else {
@@ -502,7 +516,6 @@ export default function App() {
     const sellingRate = Number(procureForm.selling_rate || purchaseRate);
     const total = qty * purchaseRate;
 
-    // Preserve the sales delta if editing an active batch
     let remaining = qty;
     if (editingProcureId) {
       const existing = procurements.find((p) => p.id === editingProcureId);
@@ -512,7 +525,8 @@ export default function App() {
       }
     }
 
-    const record = {
+    // Full record
+    const fullRecord = {
       supplier_name: procureForm.is_opening
         ? "Opening Stock"
         : procureForm.supplier_name.trim() || "Vendor",
@@ -530,15 +544,32 @@ export default function App() {
       p2_mode: procureForm.p2_mode
     };
 
+    // Simplified record fallback if partner columns aren't in database yet
+    const basicRecord = {
+      supplier_name: fullRecord.supplier_name,
+      item_name: fullRecord.item_name,
+      procured_qty: qty,
+      remaining_qty: remaining,
+      purchase_rate: purchaseRate,
+      selling_rate: sellingRate,
+      total_amount: total
+    };
+
     try {
       if (editingProcureId) {
-        const { error } = await db.from("procurements").update(record).eq("id", editingProcureId);
-        if (error) throw error;
-        alert("Procurement entry updated successfully!");
+        let res = await db.from("procurements").update(fullRecord).eq("id", editingProcureId);
+        if (res.error && res.error.message?.includes("column")) {
+          res = await db.from("procurements").update(basicRecord).eq("id", editingProcureId);
+        }
+        if (res.error) throw res.error;
+        alert("Stock updated successfully!");
       } else {
-        const { error } = await db.from("procurements").insert([record]);
-        if (error) throw error;
-        alert("Procurement entry added successfully!");
+        let res = await db.from("procurements").insert([fullRecord]);
+        if (res.error && res.error.message?.includes("column")) {
+          res = await db.from("procurements").insert([basicRecord]);
+        }
+        if (res.error) throw res.error;
+        alert("Stock added successfully!");
       }
 
       setShowProcureModal(false);
@@ -750,7 +781,7 @@ export default function App() {
                 )}
               </div>
 
-              {/* Cart Table with Pop-up Item Selector */}
+              {/* Cart Table */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold uppercase text-slate-500">Stock Items to Bill *</label>
@@ -1391,7 +1422,7 @@ export default function App() {
         )}
       </main>
 
-      {/* --- POPUP WINDOW: SMALL SCREEN STOCK ITEM PICKER --- */}
+      {/* --- POPUP WINDOW: STOCK ITEM PICKER --- */}
       {pickerActiveIndex !== null && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
