@@ -16,7 +16,9 @@ import {
   IndianRupee,
   Receipt,
   CheckCircle2,
-  Clock
+  Clock,
+  TrendingUp,
+  Tag
 } from "lucide-react";
 
 const supabaseUrl =
@@ -36,7 +38,7 @@ const money = (n) =>
 
 export default function App() {
   // Navigation
-  const [activeTab, setActiveTab] = useState("sale"); // Defaulting directly to billing
+  const [activeTab, setActiveTab] = useState("sale"); // default to Billing
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Core Data
@@ -71,21 +73,21 @@ export default function App() {
     p2_mode: "UPI"
   });
 
-  // Collection Form State (Supports Bill-Wise & On-Account)
+  // Collection State (Supports Bill-Wise & On-Account)
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
-    invoice_id: "", // empty means On-Account
+    invoice_id: "",
     amount: "",
     payment_mode: "Cash",
     receiver_id: ""
   });
 
-  // Sales Cart State
+  // Sales Entry State
   const [selectedCust, setSelectedCust] = useState(null);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
-  const [cart, setCart] = useState([{ procure_id: "", item_name: "", rate: "", qty: "1", total: 0, max_qty: 0 }]);
-  
-  // Upfront Partial Settlement at Invoicing
+  const [cart, setCart] = useState([
+    { procure_id: "", item_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
+  ]);
   const [upfrontAmount, setUpfrontAmount] = useState("");
   const [upfrontMode, setUpfrontMode] = useState("Cash"); // Cash, UPI
   const [upfrontPartnerId, setUpfrontPartnerId] = useState("");
@@ -121,7 +123,7 @@ export default function App() {
     }
   };
 
-  // Partner Real-Time Ledgers (Inflows from Upfront + Collections - Outflows from purchases)
+  // Partner Real-Time Ledgers
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -137,7 +139,7 @@ export default function App() {
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "UPI")
         .reduce((sum, i) => sum + Number(i.upfront_paid || 0), 0);
 
-      // Inflows from collections (old due settlements & bill-wise collections)
+      // Inflows from collections
       const colCash = collections
         .filter((c) => c.receiver_id == pid && c.payment_mode === "Cash")
         .reduce((sum, c) => sum + Number(c.amount || 0), 0);
@@ -179,14 +181,17 @@ export default function App() {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalMarketDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
     const stockUnits = procurements.reduce((s, p) => s + Number(p.remaining_qty || 0), 0);
-    const stockValuation = procurements.reduce((s, p) => s + (Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0)), 0);
+    const stockValuation = procurements.reduce(
+      (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
+      0
+    );
     const totalCashInHand = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpiInBank = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
     return { totalSales, totalMarketDues, stockUnits, stockValuation, totalCashInHand, totalUpiInBank };
   }, [invoices, customers, procurements, partnerAccounts]);
 
-  // Cart Helpers
+  // Cart Management
   const handleSelectProcuredItem = (idx, pid) => {
     const item = procurements.find((p) => p.id == pid);
     if (!item) return;
@@ -195,7 +200,8 @@ export default function App() {
     newCart[idx] = {
       procure_id: item.id,
       item_name: item.item_name,
-      rate: item.purchase_rate || "",
+      purchase_rate: Number(item.purchase_rate || 0),
+      rate: item.purchase_rate ? String(item.purchase_rate) : "",
       qty: 1,
       total: Number(item.purchase_rate || 0),
       max_qty: Number(item.remaining_qty)
@@ -216,17 +222,15 @@ export default function App() {
     return cart.reduce((sum, item) => sum + Number(item.total || 0), 0);
   }, [cart]);
 
-  // Upfront Payment Math
   const upfrontPaidNum = Number(upfrontAmount || 0);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
-  // Invoices filtered for the selected customer in the collection modal
   const customerUnpaidInvoices = useMemo(() => {
     if (!collectForm.customer_id) return [];
     return invoices.filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0);
   }, [collectForm.customer_id, invoices]);
 
-  // --- SAVE SALES INVOICE (Default Due + Partial Upfront) ---
+  // Save Sale Invoice
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -243,7 +247,7 @@ export default function App() {
 
     setSavingSale(true);
     try {
-      const status = upfrontPaidNum === 0 ? "Unpaid" : (upfrontPaidNum >= cartTotal ? "Paid" : "Partial");
+      const status = upfrontPaidNum === 0 ? "Unpaid" : upfrontPaidNum >= cartTotal ? "Paid" : "Partial";
 
       const invoiceRecord = {
         customer_id: selectedCust.id,
@@ -255,10 +259,10 @@ export default function App() {
         upfront_mode: upfrontPaidNum > 0 ? upfrontMode : "None",
         upfront_receiver_id: upfrontPaidNum > 0 ? Number(upfrontPartnerId) : null,
         status: status,
-        payment_mode: upfrontPaidNum === 0 ? "Due" : (upfrontPaidNum >= cartTotal ? upfrontMode : "Partial")
+        payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"
       };
 
-      const { data: invData, error: invErr } = await db.from("invoices").insert([invoiceRecord]).select();
+      const { error: invErr } = await db.from("invoices").insert([invoiceRecord]);
       if (invErr) throw invErr;
 
       // Deduct inventory quantities
@@ -270,14 +274,14 @@ export default function App() {
         }
       }
 
-      // Add remaining due portion directly to the customer's outstanding balance
+      // Add remaining due portion directly to customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
       }
 
-      alert(`Invoice saved! Due added: ${money(remainingBillDue)}`);
-      setCart([{ procure_id: "", item_name: "", rate: "", qty: "1", total: 0, max_qty: 0 }]);
+      alert(`Invoice saved! Bill Due: ${money(remainingBillDue)}`);
+      setCart([{ procure_id: "", item_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
       setSelectedCust(null);
       setUpfrontAmount("");
       refreshData();
@@ -288,7 +292,7 @@ export default function App() {
     }
   };
 
-  // --- SAVE DUE COLLECTION (Supports Bill-Wise or On-Account) ---
+  // Save Collection (Bill-Wise or On-Account)
   const saveCollection = async (e) => {
     e.preventDefault();
     const amt = Number(collectForm.amount || 0);
@@ -310,7 +314,6 @@ export default function App() {
       const { error: collErr } = await db.from("collections").insert([collRecord]);
       if (collErr) throw collErr;
 
-      // 1. If bill-wise, reduce the specific invoice balance
       if (isBillWise) {
         const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
         if (targetInv) {
@@ -320,7 +323,6 @@ export default function App() {
         }
       }
 
-      // 2. Reduce the customer's total outstanding balance
       const targetCust = customers.find((c) => c.id == collectForm.customer_id);
       if (targetCust) {
         const updatedTotalDue = Math.max(0, Number(targetCust.old_due || 0) - amt);
@@ -338,11 +340,13 @@ export default function App() {
 
   const savePartner = async (e) => {
     e.preventDefault();
-    const { error } = await db.from("receivers").insert([{
-      name: partnerForm.name.trim(),
-      opening_cash: Number(partnerForm.opening_cash || 0),
-      opening_upi: Number(partnerForm.opening_upi || 0)
-    }]);
+    const { error } = await db.from("receivers").insert([
+      {
+        name: partnerForm.name.trim(),
+        opening_cash: Number(partnerForm.opening_cash || 0),
+        opening_upi: Number(partnerForm.opening_upi || 0)
+      }
+    ]);
 
     if (!error) {
       setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
@@ -355,11 +359,13 @@ export default function App() {
 
   const saveCustomer = async (e) => {
     e.preventDefault();
-    const { error } = await db.from("customers").insert([{
-      name: custForm.name.trim(),
-      mobile: custForm.mobile.trim(),
-      old_due: Number(custForm.old_due || 0)
-    }]);
+    const { error } = await db.from("customers").insert([
+      {
+        name: custForm.name.trim(),
+        mobile: custForm.mobile.trim(),
+        old_due: Number(custForm.old_due || 0)
+      }
+    ]);
 
     if (!error) {
       setCustForm({ name: "", mobile: "", old_due: "" });
@@ -377,7 +383,9 @@ export default function App() {
     const total = qty * rate;
 
     const record = {
-      supplier_name: procureForm.is_opening ? "Opening Stock" : (procureForm.supplier_name.trim() || "Vendor"),
+      supplier_name: procureForm.is_opening
+        ? "Opening Stock"
+        : procureForm.supplier_name.trim() || "Vendor",
       item_name: procureForm.item_name.trim(),
       procured_qty: qty,
       remaining_qty: qty,
@@ -428,10 +436,12 @@ export default function App() {
       </div>
 
       {/* LEFT SIDEBAR NAVIGATION */}
-      <aside className={`
+      <aside
+        className={`
         fixed md:sticky top-0 left-0 h-screen w-64 bg-slate-900 text-slate-300 flex flex-col justify-between z-30 transition-transform
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-      `}>
+      `}
+      >
         <div>
           <div className="p-6 border-b border-slate-800 hidden md:flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/30">
@@ -445,54 +455,84 @@ export default function App() {
 
           <nav className="p-3 space-y-1.5 mt-2">
             <button
-              onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("sale");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "sale" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white"
+                activeTab === "sale"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <ShoppingCart size={18} /> Point of Sale (Billing)
             </button>
 
             <button
-              onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("summary");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "summary" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white"
+                activeTab === "summary"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <LayoutDashboard size={18} /> Business Summary
             </button>
 
             <button
-              onClick={() => { setActiveTab("customers"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("customers");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "customers" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white"
+                activeTab === "customers"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <Users size={18} /> Customers & Dues
             </button>
 
             <button
-              onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("invoices");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white"
+                activeTab === "invoices"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <FileSpreadsheet size={18} /> Invoices & Bills
             </button>
 
             <button
-              onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("procurement");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white"
+                activeTab === "procurement"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <PackagePlus size={18} /> Procurements & Stock
             </button>
 
             <button
-              onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("partners");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "partners" ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white"
+                activeTab === "partners"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <WalletCards size={18} /> Partner Accounts
@@ -512,10 +552,9 @@ export default function App() {
 
       {/* RIGHT MAIN WORKSPACE */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-        {/* VIEW 1: POINT OF SALE (CREDIT DEFAULT + UPFRONT SETTLEMENT) */}
+        {/* VIEW 1: POINT OF SALE (BILLING) */}
         {activeTab === "sale" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Items & Customer Selection */}
             <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div>
@@ -564,12 +603,17 @@ export default function App() {
                 )}
               </div>
 
-              {/* Cart Table */}
+              {/* Cart Table with Clear Cost Rate & Margin Display */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold uppercase text-slate-500">Stock Items to Bill *</label>
                   <button
-                    onClick={() => setCart([...cart, { procure_id: "", item_name: "", rate: "", qty: "1", total: 0, max_qty: 0 }])}
+                    onClick={() =>
+                      setCart([
+                        ...cart,
+                        { procure_id: "", item_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
+                      ])
+                    }
                     className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline"
                   >
                     <Plus size={14} /> Add Line
@@ -578,55 +622,85 @@ export default function App() {
 
                 <div className="space-y-3">
                   {cart.map((line, idx) => (
-                    <div key={idx} className="flex flex-col sm:flex-row gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200 items-stretch sm:items-center">
-                      <div className="flex-1">
-                        <select
-                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                          value={line.procure_id}
-                          onChange={(e) => handleSelectProcuredItem(idx, e.target.value)}
-                        >
-                          <option value="">-- Pick Stock Item --</option>
-                          {procurements
-                            .filter((p) => Number(p.remaining_qty) > 0)
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.item_name} [{p.supplier_name}] — Available: {p.remaining_qty}
-                              </option>
-                            ))}
-                        </select>
+                    <div
+                      key={idx}
+                      className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
+                    >
+                      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                        <div className="flex-1">
+                          <select
+                            className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold outline-none text-slate-800"
+                            value={line.procure_id}
+                            onChange={(e) => handleSelectProcuredItem(idx, e.target.value)}
+                          >
+                            <option value="">-- Pick Stock Item --</option>
+                            {procurements
+                              .filter((p) => Number(p.remaining_qty) > 0)
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.item_name} [{p.supplier_name}] | Cost: ₹{p.purchase_rate} | Avail: {p.remaining_qty}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="w-28">
+                            <input
+                              type="number"
+                              placeholder="Selling Rate"
+                              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                              value={line.rate}
+                              onChange={(e) => updateCart(idx, "rate", e.target.value)}
+                            />
+                          </div>
+                          <div className="w-20">
+                            <input
+                              type="number"
+                              min="1"
+                              max={line.max_qty || 9999}
+                              placeholder="Qty"
+                              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
+                              value={line.qty}
+                              onChange={(e) => updateCart(idx, "qty", e.target.value)}
+                            />
+                          </div>
+                          <div className="w-24 text-right font-black text-xs sm:text-sm text-slate-800">
+                            {money(line.total)}
+                          </div>
+                          <button
+                            onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
+                            className="text-slate-400 hover:text-rose-600 p-1"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <div className="w-28">
-                          <input
-                            type="number"
-                            placeholder="Selling Rate"
-                            className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
-                            value={line.rate}
-                            onChange={(e) => updateCart(idx, "rate", e.target.value)}
-                          />
+                      {/* Cost Rate & Margin Indicator */}
+                      {line.procure_id && (
+                        <div className="pt-1 text-[11px] flex items-center justify-between border-t border-slate-200/60 text-slate-500">
+                          <div className="flex items-center gap-3">
+                            <span>
+                              Purchase Cost: <b className="text-slate-700">₹{line.purchase_rate}</b>
+                            </span>
+                            <span>
+                              Avail Stock: <b className="text-slate-700">{line.max_qty}</b>
+                            </span>
+                          </div>
+                          {Number(line.rate) > 0 && (
+                            <span
+                              className={`font-bold ${
+                                Number(line.rate) >= Number(line.purchase_rate)
+                                  ? "text-emerald-600"
+                                  : "text-rose-600"
+                              }`}
+                            >
+                              Profit/Unit: ₹{Number(line.rate) - Number(line.purchase_rate)}
+                            </span>
+                          )}
                         </div>
-                        <div className="w-20">
-                          <input
-                            type="number"
-                            min="1"
-                            max={line.max_qty || 9999}
-                            placeholder="Qty"
-                            className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
-                            value={line.qty}
-                            onChange={(e) => updateCart(idx, "qty", e.target.value)}
-                          />
-                        </div>
-                        <div className="w-24 text-right font-black text-xs sm:text-sm text-slate-800">
-                          {money(line.total)}
-                        </div>
-                        <button
-                          onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
-                          className="text-slate-400 hover:text-rose-600 p-1"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -679,7 +753,9 @@ export default function App() {
                         type="button"
                         onClick={() => setUpfrontMode("Cash")}
                         className={`py-1.5 rounded-lg text-xs font-bold border ${
-                          upfrontMode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white border-slate-300"
+                          upfrontMode === "Cash"
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "bg-white border-slate-300"
                         }`}
                       >
                         💵 Cash
@@ -688,7 +764,9 @@ export default function App() {
                         type="button"
                         onClick={() => setUpfrontMode("UPI")}
                         className={`py-1.5 rounded-lg text-xs font-bold border ${
-                          upfrontMode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white border-slate-300"
+                          upfrontMode === "UPI"
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : "bg-white border-slate-300"
                         }`}
                       >
                         📱 UPI
@@ -703,7 +781,9 @@ export default function App() {
                         onChange={(e) => setUpfrontPartnerId(e.target.value)}
                       >
                         {partners.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
                         ))}
                       </select>
                     </div>
@@ -762,7 +842,9 @@ export default function App() {
                 <h3 className="text-2xl font-black text-emerald-600 mt-1">
                   {money(businessSummary.totalCashInHand + businessSummary.totalUpiInBank)}
                 </h3>
-                <span className="text-[11px] text-slate-500">Cash: {money(businessSummary.totalCashInHand)} | UPI: {money(businessSummary.totalUpiInBank)}</span>
+                <span className="text-[11px] text-slate-500">
+                  Cash: {money(businessSummary.totalCashInHand)} | UPI: {money(businessSummary.totalUpiInBank)}
+                </span>
               </div>
             </div>
 
@@ -808,7 +890,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: CUSTOMERS & DUES (WITH BILL-WISE PAYMENT TRIGGER) */}
+        {/* VIEW 3: CUSTOMERS & DUES */}
         {activeTab === "customers" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
@@ -867,7 +949,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 4: INVOICES (SHOWS BILL-WISE DUE & SETTLE BUTTON) */}
+        {/* VIEW 4: INVOICES (BILL-WISE STATUS) */}
         {activeTab === "invoices" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
@@ -903,10 +985,16 @@ export default function App() {
                         <td className="p-3 text-emerald-600 font-semibold">{money(inv.upfront_paid)}</td>
                         <td className="p-3 font-black text-rose-600">{money(due)}</td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            due === 0 ? "bg-emerald-100 text-emerald-800" : (Number(inv.upfront_paid || 0) > 0 ? "bg-indigo-100 text-indigo-800" : "bg-amber-100 text-amber-800")
-                          }`}>
-                            {due === 0 ? "Paid" : (Number(inv.upfront_paid || 0) > 0 ? "Partial" : "Unpaid")}
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              due === 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : Number(inv.upfront_paid || 0) > 0
+                                ? "bg-indigo-100 text-indigo-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {due === 0 ? "Paid" : Number(inv.upfront_paid || 0) > 0 ? "Partial" : "Unpaid"}
                           </span>
                         </td>
                         <td className="p-3 text-right">
@@ -986,7 +1074,9 @@ export default function App() {
                       <td className="p-3">{p.purchase_date || p.created_at?.slice(0, 10)}</td>
                       <td className="p-3 font-bold text-slate-900">
                         {p.supplier_name === "Opening Stock" ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px]">Opening Stock</span>
+                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px]">
+                            Opening Stock
+                          </span>
                         ) : (
                           p.supplier_name
                         )}
@@ -1045,7 +1135,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL: COLLECT DUE (SUPPORTS BILL-WISE OR ON-ACCOUNT) */}
+      {/* MODAL: COLLECT DUE */}
       {showCollectModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
@@ -1078,7 +1168,6 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Bill-Wise Selector */}
               {customerUnpaidInvoices.length > 0 && (
                 <div>
                   <label className="text-xs font-bold text-slate-500">Select Bill (Optional)</label>
@@ -1123,7 +1212,9 @@ export default function App() {
                     type="button"
                     onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
                     className={`py-2 rounded-xl text-xs font-bold border ${
-                      collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200"
+                      collectForm.payment_mode === "Cash"
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "border-slate-200"
                     }`}
                   >
                     💵 Cash
@@ -1132,7 +1223,9 @@ export default function App() {
                     type="button"
                     onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
                     className={`py-2 rounded-xl text-xs font-bold border ${
-                      collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200"
+                      collectForm.payment_mode === "UPI"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "border-slate-200"
                     }`}
                   >
                     📱 UPI
@@ -1148,13 +1241,19 @@ export default function App() {
                   onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
                 >
                   {partners.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setShowCollectModal(false)} className="px-4 py-2 border rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
                   Cancel
                 </button>
                 <button type="submit" className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">
@@ -1203,7 +1302,11 @@ export default function App() {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setShowPartnerModal(false)} className="px-4 py-2 border rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShowPartnerModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
                   Cancel
                 </button>
                 <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
@@ -1251,7 +1354,11 @@ export default function App() {
                 />
               </div>
               <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setShowCustModal(false)} className="px-4 py-2 border rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShowCustModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
                   Cancel
                 </button>
                 <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
@@ -1271,7 +1378,9 @@ export default function App() {
               {procureForm.is_opening ? "Add Opening Inventory" : "Add Purchase Invoice"}
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              {procureForm.is_opening ? "Direct stock entry into warehouse" : "Paid by Partner 1 and/or Partner 2"}
+              {procureForm.is_opening
+                ? "Direct stock entry into warehouse"
+                : "Paid by Partner 1 and/or Partner 2"}
             </p>
 
             <form onSubmit={saveProcurement} className="space-y-3">
@@ -1325,7 +1434,9 @@ export default function App() {
 
               {!procureForm.is_opening && (
                 <div className="pt-2 border-t border-slate-100 space-y-2">
-                  <label className="text-xs font-bold uppercase text-slate-500 block">Payment Source (Partner 1)</label>
+                  <label className="text-xs font-bold uppercase text-slate-500 block">
+                    Payment Source (Partner 1)
+                  </label>
                   <div className="grid grid-cols-3 gap-2">
                     <select
                       className="p-2 border border-slate-200 rounded-lg text-xs"
@@ -1334,7 +1445,9 @@ export default function App() {
                     >
                       <option value="">-- Partner 1 --</option>
                       {partners.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
                       ))}
                     </select>
                     <input
@@ -1375,7 +1488,9 @@ export default function App() {
                       >
                         <option value="">-- Partner 2 --</option>
                         {partners.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
                         ))}
                       </select>
                       <input
@@ -1399,7 +1514,11 @@ export default function App() {
               )}
 
               <div className="flex justify-end gap-2 pt-3">
-                <button type="button" onClick={() => setShowProcureModal(false)} className="px-4 py-2 border rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShowProcureModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
                   Cancel
                 </button>
                 <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
