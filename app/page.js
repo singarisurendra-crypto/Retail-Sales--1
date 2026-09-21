@@ -39,7 +39,7 @@ const supabaseKey =
 
 const db = createClient(supabaseUrl, supabaseKey);
 
-const money = (n: number | string | undefined | null) =>
+const money = (n) =>
   `₹${Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -51,13 +51,13 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Core Data State
-  const [partners, setPartners] = useState<any[]>([]);
-  const [procurements, setProcurements] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [collections, setCollections] = useState<any[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<any[]>([]);
+  const [partners, setPartners] = useState([]);
+  const [procurements, setProcurements] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [collections, setCollections] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -67,21 +67,21 @@ export default function App() {
   const [showCollectModal, setShowCollectModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showCategoryMasterModal, setShowCategoryMasterModal] = useState(false);
-  const [printInvoiceData, setPrintInvoiceData] = useState<any | null>(null);
+  const [printInvoiceData, setPrintInvoiceData] = useState(null);
 
   // Stock Picker Modal
-  const [pickerActiveIndex, setPickerActiveIndex] = useState<number | null>(null);
+  const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
   // Customer Form State
-  const [editingCustId, setEditingCustId] = useState<number | null>(null);
+  const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
   // Partner Form State
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
   // Procurement Form State
-  const [editingProcureId, setEditingProcureId] = useState<number | null>(null);
+  const [editingProcureId, setEditingProcureId] = useState(null);
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
     item_name: "",
@@ -121,9 +121,9 @@ export default function App() {
   });
 
   // Sales Entry State
-  const [selectedCust, setSelectedCust] = useState<any | null>(null);
+  const [selectedCust, setSelectedCust] = useState(null);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
-  const [cart, setCart] = useState<any[]>([
+  const [cart, setCart] = useState([
     { procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
   ]);
   const [upfrontAmount, setUpfrontAmount] = useState("");
@@ -228,7 +228,7 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses]);
 
-  // Overall Business Metrics
+  // Business Summary
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalMarketDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
@@ -244,7 +244,7 @@ export default function App() {
     return { totalSales, totalMarketDues, totalExpenses, stockUnits, stockValuation, totalCashInHand, totalUpiInBank };
   }, [invoices, customers, expenses, procurements, partnerAccounts]);
 
-  // Report Date Filtering
+  // Report Filtering
   const reportFiltered = useMemo(() => {
     const filteredInvoices = invoices.filter((i) => {
       const d = i.invoice_date || i.created_at?.slice(0, 10);
@@ -262,7 +262,7 @@ export default function App() {
     let estimatedCost = 0;
     filteredInvoices.forEach((inv) => {
       if (Array.isArray(inv.items)) {
-        inv.items.forEach((item: any) => {
+        inv.items.forEach((item) => {
           estimatedCost += Number(item.purchase_rate || 0) * Number(item.qty || 0);
         });
       }
@@ -281,8 +281,8 @@ export default function App() {
     };
   }, [invoices, expenses, reportStartDate, reportEndDate]);
 
-  // Cart Management
-  const handlePickStockItem = (item: any) => {
+  // Stock Picker
+  const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
     const defaultSellingRate = Number(item.selling_rate || item.purchase_rate || 0);
 
@@ -302,7 +302,7 @@ export default function App() {
     setStockSearchQuery("");
   };
 
-  const updateCart = (idx: number, field: string, val: string) => {
+  const updateCart = (idx, field, val) => {
     const newCart = [...cart];
     newCart[idx][field] = val;
     if (field === "qty" || field === "rate") {
@@ -336,7 +336,7 @@ export default function App() {
       });
   }, [procurements, stockSearchQuery]);
 
-  // Save Sale Invoice (Includes auto-generated invoice_number, items array, and fallback handlers)
+  // Save Sale Invoice (Fixed NOT NULL constraint with invoice_number)
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -355,12 +355,11 @@ export default function App() {
     try {
       const status = upfrontPaidNum === 0 ? "Unpaid" : upfrontPaidNum >= cartTotal ? "Paid" : "Partial";
 
-      // Generate invoice number: INV-YYMMDD-XXXX
       const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const generatedInvoiceNumber = `INV-${datePrefix}-${randomSuffix}`;
 
-      const invoiceRecord: any = {
+      const invoiceRecord = {
         invoice_number: generatedInvoiceNumber,
         customer_id: selectedCust.id,
         customer_name: selectedCust.name,
@@ -382,7 +381,6 @@ export default function App() {
         }))
       };
 
-      // Try inserting with all fields; if schema lacks payment_mode/items, fall back cleanly
       let { data: invData, error: invErr } = await db
         .from("invoices")
         .insert([invoiceRecord])
@@ -404,7 +402,6 @@ export default function App() {
         throw invErr;
       }
 
-      // Deduct inventory quantities
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -413,7 +410,6 @@ export default function App() {
         }
       }
 
-      // Update customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
@@ -422,7 +418,6 @@ export default function App() {
       const savedInv = invData && invData[0] ? invData[0] : invoiceRecord;
       alert(`Invoice saved! Bill Due: ${money(remainingBillDue)}`);
 
-      // Open print/share dialog immediately
       setPrintInvoiceData({
         ...savedInv,
         invoice_number: generatedInvoiceNumber,
@@ -434,15 +429,15 @@ export default function App() {
       setSelectedCust(null);
       setUpfrontAmount("");
       refreshData();
-    } catch (err: any) {
+    } catch (err) {
       alert("Error saving invoice: " + err.message);
     } finally {
       setSavingSale(false);
     }
   };
 
-  // WhatsApp Share Handler
-  const handleShareWhatsApp = (inv: any) => {
+  // WhatsApp Share Helper
+  const handleShareWhatsApp = (inv) => {
     const cust = customers.find((c) => c.id === inv.customer_id) || { mobile: inv.customer_phone || "" };
     const rawMobile = cust.mobile || "";
     const cleanMobile = rawMobile.replace(/[^0-9]/g, "");
@@ -450,7 +445,7 @@ export default function App() {
     let itemLines = "";
     if (Array.isArray(inv.items)) {
       itemLines = inv.items
-        .map((i: any, idx: number) => `${idx + 1}. *${i.item_name}* - ${i.qty} Qty x ₹${i.rate} = ₹${i.total}`)
+        .map((i, idx) => `${idx + 1}. *${i.item_name}* - ${i.qty} Qty x ₹${i.rate} = ₹${i.total}`)
         .join("\n");
     }
 
@@ -478,8 +473,8 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // Expenses: Category Management
-  const saveExpenseCategory = async (e: React.FormEvent) => {
+  // Expenses: Master Category
+  const saveExpenseCategory = async (e) => {
     e.preventDefault();
     if (!newCategoryName.trim()) return alert("Enter category name");
     try {
@@ -487,24 +482,24 @@ Thank you for your business!`;
       if (error) throw error;
       setNewCategoryName("");
       refreshData();
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
 
-  const deleteExpenseCategory = async (id: number) => {
+  const deleteExpenseCategory = async (id) => {
     if (!confirm("Delete this category?")) return;
     try {
       const { error } = await db.from("expense_categories").delete().eq("id", id);
       if (error) throw error;
       refreshData();
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
 
-  // Expenses: Add Record
-  const saveExpense = async (e: React.FormEvent) => {
+  // Expenses: Save
+  const saveExpense = async (e) => {
     e.preventDefault();
     const amt = Number(expenseForm.amount || 0);
     if (amt <= 0) return alert("Enter valid expense amount");
@@ -539,24 +534,24 @@ Thank you for your business!`;
       });
       refreshData();
       alert("Expense recorded successfully!");
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
 
-  const deleteExpense = async (id: number) => {
+  const deleteExpense = async (id) => {
     if (!confirm("Are you sure you want to delete this expense voucher?")) return;
     try {
       const { error } = await db.from("expenses").delete().eq("id", id);
       if (error) throw error;
       refreshData();
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
 
   // Customer Management
-  const saveCustomer = async (e: React.FormEvent) => {
+  const saveCustomer = async (e) => {
     e.preventDefault();
     if (!custForm.name.trim()) return alert("Customer name is required");
     const payload = {
@@ -580,13 +575,13 @@ Thank you for your business!`;
     }
   };
 
-  const handleEditCustomer = (c: any) => {
+  const handleEditCustomer = (c) => {
     setEditingCustId(c.id);
     setCustForm({ name: c.name, mobile: c.mobile || "", old_due: c.old_due || "" });
     setShowCustModal(true);
   };
 
-  const handleDeleteCustomer = async (c: any) => {
+  const handleDeleteCustomer = async (c) => {
     if (!confirm(`Delete customer "${c.name}"?`)) return;
     const { error } = await db.from("customers").delete().eq("id", c.id);
     if (!error) {
@@ -598,7 +593,7 @@ Thank you for your business!`;
   };
 
   // Due Collection
-  const saveCollection = async (e: React.FormEvent) => {
+  const saveCollection = async (e) => {
     e.preventDefault();
     const amt = Number(collectForm.amount || 0);
     if (amt <= 0) return alert("Enter valid collection amount");
@@ -636,13 +631,13 @@ Thank you for your business!`;
       setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: "" });
       refreshData();
       alert("Payment recorded successfully!");
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
 
   // Partner Management
-  const savePartner = async (e: React.FormEvent) => {
+  const savePartner = async (e) => {
     e.preventDefault();
     const { error } = await db.from("receivers").insert([
       {
@@ -661,7 +656,7 @@ Thank you for your business!`;
   };
 
   // Procurement Management
-  const handleEditProcurement = (p: any) => {
+  const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
     setProcureForm({
       supplier_name: p.supplier_name === "Opening Stock" ? "" : p.supplier_name || "",
@@ -682,18 +677,18 @@ Thank you for your business!`;
     setShowProcureModal(true);
   };
 
-  const handleDeleteProcurement = async (p: any) => {
+  const handleDeleteProcurement = async (p) => {
     if (!confirm(`Delete batch "${p.item_name}"?`)) return;
     try {
       const { error } = await db.from("procurements").delete().eq("id", p.id);
       if (error) throw error;
       refreshData();
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
 
-  const saveProcurement = async (e: React.FormEvent) => {
+  const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
     const purchaseRate = Number(procureForm.purchase_rate || 0);
@@ -736,7 +731,7 @@ Thank you for your business!`;
       setShowProcureModal(false);
       setEditingProcureId(null);
       refreshData();
-    } catch (err: any) {
+    } catch (err) {
       alert(err.message);
     }
   };
@@ -1171,7 +1166,6 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Partner Cash Holdings */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-base text-slate-900">Partner Cash / UPI Holding (Net of Expenses)</h3>
@@ -1393,7 +1387,6 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Profit & Loss Matrix */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                   <span className="text-xs font-bold text-slate-400 uppercase">Total Revenue (Invoiced)</span>
@@ -1651,7 +1644,6 @@ Thank you for your business!`;
       {printInvoiceData && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            {/* Printable Area */}
             <div id="printable-bill" className="p-4 border border-dashed border-slate-300 rounded-2xl space-y-4 font-mono text-xs text-slate-800">
               <div className="text-center border-b pb-3 border-slate-200">
                 <h2 className="font-black text-base text-slate-900">B REDDY SALES</h2>
@@ -1680,7 +1672,7 @@ Thank you for your business!`;
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {Array.isArray(printInvoiceData.items) ? (
-                    printInvoiceData.items.map((i: any, idx: number) => (
+                    printInvoiceData.items.map((i, idx) => (
                       <tr key={idx}>
                         <td className="py-1">{i.item_name}</td>
                         <td className="text-center py-1">{i.qty}</td>
@@ -1707,7 +1699,6 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Modal Buttons */}
             <div className="flex gap-2 justify-end pt-2">
               <button
                 type="button"
@@ -1936,7 +1927,7 @@ Thank you for your business!`;
               <button
                 type="button"
                 onClick={() => setPickerActiveIndex(null)}
-                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
               >
                 Close
               </button>
