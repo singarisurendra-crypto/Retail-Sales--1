@@ -3,21 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
-  Search,
   Plus,
   Trash2,
-  Printer,
-  Users,
-  Package,
-  FileText,
-  UserCheck,
-  TrendingUp,
-  CreditCard,
   Banknote,
-  Smartphone,
-  LogOut,
-  ShoppingBag,
-  Layers
+  LogOut
 } from "lucide-react";
 
 // Supabase configuration
@@ -37,44 +26,41 @@ const money = (n) =>
   })}`;
 
 export default function RetailSalesApp() {
-  // Auth State (Default login: admin / 1234)
+  // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginUsername, setLoginUsername] = useState("admin");
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
 
   // Navigation
-  const [activeTab, setActiveTab] = useState("sale"); // 'sale', 'procurement', 'invoices', 'customers', 'receivers', 'items'
+  const [activeTab, setActiveTab] = useState("sale"); // 'sale', 'procurement', 'invoices', 'customers', 'receivers'
 
   // DB Data
   const [customers, setCustomers] = useState([]);
-  const [items, setItems] = useState([]);
   const [procurements, setProcurements] = useState([]);
   const [receivers, setReceivers] = useState([]);
   const [invoices, setInvoices] = useState([]);
 
   // Modals
   const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [showItemModal, setShowItemModal] = useState(false);
   const [showReceiverModal, setShowReceiverModal] = useState(false);
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
 
   // Form States
   const [customerForm, setCustomerForm] = useState({ name: "", mobile: "", old_due: 0 });
-  const [itemForm, setItemForm] = useState({ name: "", rate: 0, stock: 0 });
   const [receiverForm, setReceiverForm] = useState({ name: "", opening_cash: 0, opening_upi: 0 });
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
     item_name: "",
-    procured_qty: 0,
-    purchase_rate: 0,
+    procured_qty: "",
+    purchase_rate: "",
     payment_mode: "Cash"
   });
   const [collectionForm, setCollectionForm] = useState({
     customer_id: "",
-    amount: 0,
-    payment_mode: "Cash", // Cash or UPI
+    amount: "",
+    payment_mode: "Cash",
     receiver_id: ""
   });
 
@@ -88,7 +74,6 @@ export default function RetailSalesApp() {
   const [receiverId, setReceiverId] = useState("");
   const [savingInvoice, setSavingInvoice] = useState(false);
 
-  // Initial Data Fetch
   useEffect(() => {
     if (isAuthenticated) {
       loadAllData();
@@ -96,16 +81,14 @@ export default function RetailSalesApp() {
   }, [isAuthenticated]);
 
   const loadAllData = async () => {
-    const [c, it, pr, rc, inv] = await Promise.all([
+    const [c, pr, rc, inv] = await Promise.all([
       db.from("customers").select("*").order("name", { ascending: true }),
-      db.from("items").select("*").order("name", { ascending: true }),
       db.from("procurements").select("*").order("created_at", { ascending: false }),
       db.from("receivers").select("*").order("name", { ascending: true }),
       db.from("invoices").select("*").order("created_at", { ascending: false })
     ]);
 
     if (c.data) setCustomers(c.data);
-    if (it.data) setItems(it.data);
     if (pr.data) setProcurements(pr.data);
     if (rc.data) {
       setReceivers(rc.data);
@@ -114,12 +97,10 @@ export default function RetailSalesApp() {
     if (inv.data) setInvoices(inv.data);
   };
 
-  // 1. Handle Login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError("");
 
-    // Test fallback check
     if (loginUsername === "admin" && loginPin === "1234") {
       setIsAuthenticated(true);
       return;
@@ -139,7 +120,6 @@ export default function RetailSalesApp() {
     }
   };
 
-  // 2. Customer Management
   const handleSaveCustomer = async (e) => {
     e.preventDefault();
     const { data, error } = await db.from("customers").insert([customerForm]).select();
@@ -153,20 +133,6 @@ export default function RetailSalesApp() {
     }
   };
 
-  // 3. Item Management
-  const handleSaveItem = async (e) => {
-    e.preventDefault();
-    const { data, error } = await db.from("items").insert([itemForm]).select();
-    if (!error && data) {
-      setItems([...items, data[0]]);
-      setShowItemModal(false);
-      setItemForm({ name: "", rate: 0, stock: 0 });
-    } else {
-      alert("Error saving item: " + error?.message);
-    }
-  };
-
-  // 4. Receiver Management (Opening Cash & Opening UPI)
   const handleSaveReceiver = async (e) => {
     e.preventDefault();
     const { data, error } = await db.from("receivers").insert([{
@@ -184,7 +150,6 @@ export default function RetailSalesApp() {
     }
   };
 
-  // 5. Procurement Management
   const handleSaveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
@@ -207,8 +172,8 @@ export default function RetailSalesApp() {
       setProcureForm({
         supplier_name: "",
         item_name: "",
-        procured_qty: 0,
-        purchase_rate: 0,
+        procured_qty: "",
+        purchase_rate: "",
         payment_mode: "Cash"
       });
     } else {
@@ -216,7 +181,6 @@ export default function RetailSalesApp() {
     }
   };
 
-  // 6. Collection Management (Cash or UPI)
   const handleSaveCollection = async (e) => {
     e.preventDefault();
     const collAmount = Number(collectionForm.amount || 0);
@@ -228,14 +192,13 @@ export default function RetailSalesApp() {
     }]);
 
     if (!error) {
-      // Deduct from customer due
       const targetCust = customers.find(c => c.id == collectionForm.customer_id);
       if (targetCust) {
         const newDue = Math.max(0, Number(targetCust.old_due || 0) - collAmount);
         await db.from("customers").update({ old_due: newDue }).eq("id", targetCust.id);
       }
       setShowCollectionModal(false);
-      setCollectionForm({ customer_id: "", amount: 0, payment_mode: "Cash", receiver_id: "" });
+      setCollectionForm({ customer_id: "", amount: "", payment_mode: "Cash", receiver_id: "" });
       loadAllData();
       alert("Collection recorded successfully!");
     } else {
@@ -243,7 +206,6 @@ export default function RetailSalesApp() {
     }
   };
 
-  // Cart operations using Procured Items
   const handleProcureSelectInCart = (index, procurementId) => {
     const proc = procurements.find((p) => p.id == procurementId);
     if (!proc) return;
@@ -252,10 +214,10 @@ export default function RetailSalesApp() {
     newCart[index] = {
       procurement_id: proc.id,
       item_name: proc.item_name,
-      rate: Number(proc.purchase_rate) * 1.25, // default markup or rate
+      rate: Number(proc.purchase_rate) * 1.2,
       qty: 1,
       max_qty: Number(proc.remaining_qty),
-      total: Number(proc.purchase_rate) * 1.25
+      total: Number(proc.purchase_rate) * 1.2
     };
     setCart(newCart);
   };
@@ -282,7 +244,6 @@ export default function RetailSalesApp() {
     return cart.reduce((sum, item) => sum + Number(item.total || 0), 0);
   }, [cart]);
 
-  // Complete & Save Sale
   const handleSaveSale = async () => {
     if (!selectedCustomer) {
       alert("Please select a customer.");
@@ -311,7 +272,6 @@ export default function RetailSalesApp() {
 
       if (invError) throw invError;
 
-      // Deduct quantities from procured stock
       for (const line of cart) {
         const proc = procurements.find((p) => p.id == line.procurement_id);
         if (proc) {
@@ -320,7 +280,6 @@ export default function RetailSalesApp() {
         }
       }
 
-      // If credit sale, increment customer due
       if (paymentType === "due") {
         const newDue = Number(selectedCustomer.old_due || 0) + billSubTotal;
         await db.from("customers").update({ old_due: newDue }).eq("id", selectedCustomer.id);
@@ -341,12 +300,12 @@ export default function RetailSalesApp() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full border border-slate-100">
+        <div className="bg-white rounded-3xl shadow-2xl p-6 sm:p-8 max-w-sm w-full border border-slate-100">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto text-white font-black text-2xl mb-3 shadow-lg shadow-blue-300">
+            <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto text-white font-black text-2xl mb-3 shadow-lg shadow-blue-300">
               B
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">B REDDY SALES</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight">B REDDY SALES</h2>
             <p className="text-xs text-slate-400 mt-1 font-medium">POS Register Login</p>
           </div>
 
@@ -361,7 +320,7 @@ export default function RetailSalesApp() {
               <label className="text-xs font-bold uppercase text-slate-500">Username</label>
               <input
                 type="text"
-                className="w-full mt-1.5 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700"
+                className="w-full mt-1.5 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700 text-sm"
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
                 required
@@ -395,100 +354,119 @@ export default function RetailSalesApp() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col text-slate-800 font-sans">
       {/* Top Navbar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
-            B
-          </div>
-          <div>
-            <h1 className="font-bold text-lg text-slate-900 leading-tight">B REDDY SALES</h1>
-            <p className="text-xs text-slate-500 font-medium">Retail Point of Sale</p>
-          </div>
-        </div>
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 shadow-sm sticky top-0 z-30">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-7xl mx-auto">
+          {/* Logo and Brand */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                B
+              </div>
+              <div>
+                <h1 className="font-bold text-base sm:text-lg text-slate-900 leading-tight">B REDDY SALES</h1>
+                <p className="text-[11px] text-slate-500 font-medium">Retail Point of Sale</p>
+              </div>
+            </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-          <button
-            onClick={() => setActiveTab("sale")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeTab === "sale" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            + Create Sale
-          </button>
-          <button
-            onClick={() => setActiveTab("procurement")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeTab === "procurement" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Procurement
-          </button>
-          <button
-            onClick={() => setActiveTab("invoices")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeTab === "invoices" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Invoices
-          </button>
-          <button
-            onClick={() => setActiveTab("customers")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeTab === "customers" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Customers
-          </button>
-          <button
-            onClick={() => setActiveTab("receivers")}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
-              activeTab === "receivers" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Receivers
-          </button>
-        </nav>
+            {/* Mobile Controls */}
+            <div className="flex items-center gap-2 sm:hidden">
+              <button
+                onClick={() => setShowCollectionModal(true)}
+                className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+              >
+                <Banknote size={14} /> Collect
+              </button>
+              <button
+                onClick={() => setIsAuthenticated(false)}
+                className="p-1.5 text-slate-400 hover:text-rose-600"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
+          </div>
 
-        {/* Right Header Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCollectionModal(true)}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
-          >
-            <Banknote size={15} /> Collect Due
-          </button>
-          <button
-            onClick={() => setIsAuthenticated(false)}
-            className="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition"
-            title="Logout"
-          >
-            <LogOut size={18} />
-          </button>
+          {/* Navigation Tabs (Scrollable on Mobile) */}
+          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar py-1">
+            <button
+              onClick={() => setActiveTab("sale")}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                activeTab === "sale" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              + Create Sale
+            </button>
+            <button
+              onClick={() => setActiveTab("procurement")}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                activeTab === "procurement" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Procurement
+            </button>
+            <button
+              onClick={() => setActiveTab("invoices")}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                activeTab === "invoices" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Invoices
+            </button>
+            <button
+              onClick={() => setActiveTab("customers")}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                activeTab === "customers" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Customers
+            </button>
+            <button
+              onClick={() => setActiveTab("receivers")}
+              className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                activeTab === "receivers" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Receivers
+            </button>
+          </nav>
+
+          {/* Desktop Right Header Controls */}
+          <div className="hidden sm:flex items-center gap-2">
+            <button
+              onClick={() => setShowCollectionModal(true)}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+            >
+              <Banknote size={15} /> Collect Due
+            </button>
+            <button
+              onClick={() => setIsAuthenticated(false)}
+              className="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition"
+              title="Logout"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Workspace */}
-      <main className="p-6 flex-1 max-w-7xl w-full mx-auto">
+      <main className="p-3 sm:p-6 flex-1 max-w-7xl w-full mx-auto">
         {/* VIEW 1: SALES ENTRY */}
         {activeTab === "sale" && (
-          <div className="grid grid-cols-12 gap-6">
-            {/* Left Column: Form & Procured Cart Items */}
-            <div className="col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+            {/* Form & Procured Cart Items */}
+            <div className="lg:col-span-8 bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
                 <h2 className="font-bold text-slate-800 text-base">New Sales Invoice</h2>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    className="p-2 text-xs border rounded-lg font-medium"
-                    value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
-                  />
-                </div>
+                <input
+                  type="date"
+                  className="p-2 text-xs border rounded-lg font-medium w-full sm:w-auto"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                />
               </div>
 
               {/* Customer Selector */}
-              <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div className="mb-6 bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase text-slate-500">Customer *</label>
                   <button
@@ -500,7 +478,7 @@ export default function RetailSalesApp() {
                   </button>
                 </div>
                 <select
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-sm outline-none"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-xs sm:text-sm outline-none"
                   value={selectedCustomer ? selectedCustomer.id : ""}
                   onChange={(e) => {
                     const found = customers.find((c) => c.id == e.target.value);
@@ -515,7 +493,7 @@ export default function RetailSalesApp() {
                   ))}
                 </select>
                 {selectedCustomer && (
-                  <div className="mt-2 text-xs flex gap-4 text-slate-600 font-medium">
+                  <div className="mt-2 text-xs flex flex-wrap gap-3 sm:gap-4 text-slate-600 font-medium">
                     <span>Mobile: <b>{selectedCustomer.mobile || "N/A"}</b></span>
                     <span>Opening Due: <b className="text-rose-600">{money(selectedCustomer.old_due)}</b></span>
                   </div>
@@ -536,14 +514,14 @@ export default function RetailSalesApp() {
 
                 <div className="space-y-3">
                   {cart.map((line, idx) => (
-                    <div key={idx} className="flex gap-3 items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div key={idx} className="flex flex-col sm:flex-row gap-2 sm:gap-3 items-stretch sm:items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <div className="flex-1">
                         <select
-                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium outline-none"
                           value={line.procurement_id}
                           onChange={(e) => handleProcureSelectInCart(idx, e.target.value)}
                         >
-                          <option value="">-- Choose From Procured Stock --</option>
+                          <option value="">-- Choose Procured Stock --</option>
                           {procurements
                             .filter((p) => Number(p.remaining_qty) > 0)
                             .map((p) => (
@@ -554,47 +532,49 @@ export default function RetailSalesApp() {
                         </select>
                       </div>
 
-                      <div className="w-24">
-                        <input
-                          type="number"
-                          placeholder="Rate"
-                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                          value={line.rate}
-                          onChange={(e) => updateCartLine(idx, "rate", e.target.value)}
-                        />
-                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 sm:w-24">
+                          <input
+                            type="number"
+                            placeholder="Rate (₹)"
+                            className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                            value={line.rate}
+                            onChange={(e) => updateCartLine(idx, "rate", e.target.value)}
+                          />
+                        </div>
 
-                      <div className="w-20">
-                        <input
-                          type="number"
-                          min="1"
-                          max={line.max_qty || 9999}
-                          placeholder="Qty"
-                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
-                          value={line.qty}
-                          onChange={(e) => updateCartLine(idx, "qty", e.target.value)}
-                        />
-                      </div>
+                        <div className="w-20">
+                          <input
+                            type="number"
+                            min="1"
+                            max={line.max_qty || 9999}
+                            placeholder="Qty"
+                            className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                            value={line.qty}
+                            onChange={(e) => updateCartLine(idx, "qty", e.target.value)}
+                          />
+                        </div>
 
-                      <div className="w-28 text-right font-bold text-sm text-slate-800">
-                        {money(line.total)}
-                      </div>
+                        <div className="w-24 text-right font-bold text-xs sm:text-sm text-slate-800">
+                          {money(line.total)}
+                        </div>
 
-                      <button
-                        onClick={() => removeCartLine(idx)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                        <button
+                          onClick={() => removeCartLine(idx)}
+                          className="text-slate-400 hover:text-rose-600 p-1"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Totals & Finalize */}
-            <div className="col-span-4 space-y-6">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            {/* Payment Summary */}
+            <div className="lg:col-span-4 space-y-4 sm:space-y-6">
+              <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
                 <h3 className="text-xs font-bold uppercase text-slate-500 mb-4">Payment Summary</h3>
 
                 <div className="space-y-3 pb-4 border-b border-slate-100">
@@ -604,11 +584,11 @@ export default function RetailSalesApp() {
                   </div>
                   {selectedCustomer && (
                     <div className="flex justify-between text-sm text-rose-600">
-                      <span>Previous Balance:</span>
+                      <span>Previous Due:</span>
                       <span className="font-bold">{money(selectedCustomer.old_due)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-lg font-black pt-2 border-t text-slate-900">
+                  <div className="flex justify-between text-base sm:text-lg font-black pt-2 border-t text-slate-900">
                     <span>Total Due:</span>
                     <span className="text-blue-600">{money(billSubTotal)}</span>
                   </div>
@@ -643,7 +623,7 @@ export default function RetailSalesApp() {
                         paymentType === "due" ? "bg-amber-600 text-white border-amber-600" : "border-slate-200"
                       }`}
                     >
-                      Credit (Due)
+                      Due
                     </button>
                   </div>
                 </div>
@@ -667,7 +647,7 @@ export default function RetailSalesApp() {
                 <button
                   disabled={savingInvoice || billSubTotal <= 0}
                   onClick={handleSaveSale}
-                  className="w-full mt-6 py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100"
+                  className="w-full mt-6 py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100 text-sm"
                 >
                   {savingInvoice ? "Completing..." : "Complete & Save Sale"}
                 </button>
@@ -676,33 +656,33 @@ export default function RetailSalesApp() {
           </div>
         )}
 
-        {/* VIEW 2: PROCUREMENT (STOCK IN) */}
+        {/* VIEW 2: PROCUREMENT */}
         {activeTab === "procurement" && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
               <div>
-                <h2 className="font-bold text-lg text-slate-800">Procurements (Stock In)</h2>
+                <h2 className="font-bold text-base sm:text-lg text-slate-800">Procurements (Stock In)</h2>
                 <p className="text-xs text-slate-500">Record item purchases and stock additions</p>
               </div>
               <button
                 onClick={() => setShowProcureModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 self-start sm:self-auto"
               >
                 <Plus size={16} /> Add Procurement
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full text-left text-xs sm:text-sm">
                 <thead>
-                  <tr className="border-b text-xs uppercase text-slate-400 font-bold bg-slate-50">
+                  <tr className="border-b text-[11px] uppercase text-slate-400 font-bold bg-slate-50">
                     <th className="p-3">Date</th>
                     <th className="p-3">Supplier</th>
                     <th className="p-3">Item Name</th>
-                    <th className="p-3">Purchased Qty</th>
-                    <th className="p-3">Remaining Qty</th>
+                    <th className="p-3">Purchased</th>
+                    <th className="p-3">Available</th>
                     <th className="p-3">Rate</th>
-                    <th className="p-3">Total Amount</th>
+                    <th className="p-3">Total</th>
                     <th className="p-3">Mode</th>
                   </tr>
                 </thead>
@@ -717,7 +697,7 @@ export default function RetailSalesApp() {
                       <td className="p-3">{money(p.purchase_rate)}</td>
                       <td className="p-3 font-bold">{money(p.total_amount)}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                        <span className={`px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold ${
                           p.payment_mode === "UPI" ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
                         }`}>
                           {p.payment_mode || "Cash"}
@@ -731,27 +711,27 @@ export default function RetailSalesApp() {
           </div>
         )}
 
-        {/* VIEW 3: RECEIVERS (CASH & UPI OPENING BALANCES) */}
+        {/* VIEW 3: RECEIVERS */}
         {activeTab === "receivers" && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
               <div>
-                <h2 className="font-bold text-lg text-slate-800">Receivers</h2>
+                <h2 className="font-bold text-base sm:text-lg text-slate-800">Receivers</h2>
                 <p className="text-xs text-slate-500">Manage cashier and account opening balances</p>
               </div>
               <button
                 onClick={() => setShowReceiverModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 self-start sm:self-auto"
               >
                 <Plus size={16} /> Add Receiver
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {receivers.map((r) => (
-                <div key={r.id} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50">
-                  <h3 className="font-bold text-base text-slate-900 mb-3">{r.name}</h3>
-                  <div className="space-y-1 text-xs">
+                <div key={r.id} className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50/50">
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900 mb-3">{r.name}</h3>
+                  <div className="space-y-1.5 text-xs">
                     <div className="flex justify-between">
                       <span className="text-slate-500">Opening Cash:</span>
                       <span className="font-bold text-slate-800">{money(r.opening_cash)}</span>
@@ -773,20 +753,20 @@ export default function RetailSalesApp() {
 
         {/* VIEW 4: CUSTOMERS */}
         {activeTab === "customers" && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold text-lg text-slate-800">Customers Ledger</h2>
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+              <h2 className="font-bold text-base sm:text-lg text-slate-800">Customers Ledger</h2>
               <button
                 onClick={() => setShowCustomerModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+                className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 self-start sm:self-auto"
               >
                 <Plus size={16} /> New Customer
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full text-left text-xs sm:text-sm">
                 <thead>
-                  <tr className="border-b text-xs uppercase text-slate-400 bg-slate-50">
+                  <tr className="border-b text-[11px] uppercase text-slate-400 bg-slate-50">
                     <th className="p-3">Name</th>
                     <th className="p-3">Mobile</th>
                     <th className="p-3">Current Due</th>
@@ -808,12 +788,12 @@ export default function RetailSalesApp() {
 
         {/* VIEW 5: INVOICES */}
         {activeTab === "invoices" && (
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <h2 className="font-bold text-lg text-slate-800 mb-4">Past Invoices</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+            <h2 className="font-bold text-base sm:text-lg text-slate-800 mb-4">Past Invoices</h2>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full text-left text-xs sm:text-sm">
                 <thead>
-                  <tr className="border-b text-xs uppercase text-slate-400 bg-slate-50">
+                  <tr className="border-b text-[11px] uppercase text-slate-400 bg-slate-50">
                     <th className="p-3">Invoice ID</th>
                     <th className="p-3">Date</th>
                     <th className="p-3">Customer</th>
