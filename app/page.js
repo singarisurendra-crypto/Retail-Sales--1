@@ -21,7 +21,8 @@ import {
   TrendingUp,
   Tag,
   Search,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from "lucide-react";
 
 const supabaseUrl =
@@ -59,7 +60,7 @@ export default function App() {
   const [showCollectModal, setShowCollectModal] = useState(false);
 
   // Stock Picker Modal
-  const [pickerActiveIndex, setPickerActiveIndex] = useState(null); // Which line in cart is picking
+  const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
   // Customer Edit/Add Form State
@@ -201,7 +202,7 @@ export default function App() {
     return { totalSales, totalMarketDues, stockUnits, stockValuation, totalCashInHand, totalUpiInBank };
   }, [invoices, customers, procurements, partnerAccounts]);
 
-  // Handle selecting an item from the Small Screen / Modal
+  // Handle selecting an item from the Stock Picker Modal
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
 
@@ -290,9 +291,14 @@ export default function App() {
         payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"
       };
 
-      const { error: invErr } = await db.from("invoices").insert([invoiceRecord]);
+      const { data: invData, error: invErr } = await db
+        .from("invoices")
+        .insert([invoiceRecord])
+        .select();
+
       if (invErr) throw invErr;
 
+      // Update inventory stock levels
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -301,6 +307,7 @@ export default function App() {
         }
       }
 
+      // Update customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
@@ -695,99 +702,110 @@ export default function App() {
                 </div>
 
                 <div className="space-y-3">
-                  {cart.map((line, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
-                    >
-                      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                        {/* Button that triggers the Small Screen Modal */}
-                        <div className="flex-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPickerActiveIndex(idx);
-                              setStockSearchQuery("");
-                            }}
-                            className={`w-full p-2.5 rounded-lg text-xs font-bold text-left flex items-center justify-between border transition ${
-                              line.procure_id
-                                ? "bg-white border-indigo-200 text-slate-900 shadow-sm"
-                                : "bg-white border-dashed border-slate-300 text-slate-400 hover:border-indigo-400"
-                            }`}
-                          >
-                            <div className="truncate">
-                              {line.procure_id ? (
-                                <div>
-                                  <span className="text-indigo-600 font-black">{line.item_name}</span>
-                                  <span className="text-slate-400 font-medium ml-2">[{line.supplier_name}]</span>
-                                </div>
-                              ) : (
-                                <span>🔍 Click to Pick Stock Item...</span>
-                              )}
-                            </div>
-                            <ChevronRight size={15} className="text-slate-400 shrink-0" />
-                          </button>
-                        </div>
+                  {cart.map((line, idx) => {
+                    const purchaseCost = Number(line.purchase_rate || 0);
+                    const sellingPrice = Number(line.rate || 0);
+                    const unitProfit = sellingPrice - purchaseCost;
+                    const marginPercent = sellingPrice > 0 ? ((unitProfit / sellingPrice) * 100).toFixed(1) : 0;
 
-                        <div className="flex items-center gap-2">
-                          <div className="w-28">
-                            <input
-                              type="number"
-                              placeholder="Selling Rate"
-                              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
-                              value={line.rate}
-                              onChange={(e) => updateCart(idx, "rate", e.target.value)}
-                            />
-                          </div>
-                          <div className="w-20">
-                            <input
-                              type="number"
-                              min="1"
-                              max={line.max_qty || 9999}
-                              placeholder="Qty"
-                              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
-                              value={line.qty}
-                              onChange={(e) => updateCart(idx, "qty", e.target.value)}
-                            />
-                          </div>
-                          <div className="w-24 text-right font-black text-xs sm:text-sm text-slate-800">
-                            {money(line.total)}
-                          </div>
-                          <button
-                            onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
-                            className="text-slate-400 hover:text-rose-600 p-1"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Cost Rate & Profit Margin Indicator */}
-                      {line.procure_id && (
-                        <div className="pt-1 text-[11px] flex items-center justify-between border-t border-slate-200/60 text-slate-500">
-                          <div className="flex items-center gap-3">
-                            <span>
-                              Purchase Cost: <b className="text-slate-700">₹{line.purchase_rate}</b>
-                            </span>
-                            <span>
-                              Available Stock: <b className="text-slate-700">{line.max_qty}</b>
-                            </span>
-                          </div>
-                          {Number(line.rate) > 0 && (
-                            <span
-                              className={`font-bold ${
-                                Number(line.rate) >= Number(line.purchase_rate)
-                                  ? "text-emerald-600"
-                                  : "text-rose-600"
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
+                      >
+                        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                          {/* Item Selector Picker Button */}
+                          <div className="flex-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPickerActiveIndex(idx);
+                                setStockSearchQuery("");
+                              }}
+                              className={`w-full p-2.5 rounded-lg text-xs font-bold text-left flex items-center justify-between border transition ${
+                                line.procure_id
+                                  ? "bg-white border-indigo-200 text-slate-900 shadow-sm"
+                                  : "bg-white border-dashed border-slate-300 text-slate-400 hover:border-indigo-400"
                               }`}
                             >
-                              Profit/Unit: ₹{Number(line.rate) - Number(line.purchase_rate)}
-                            </span>
-                          )}
+                              <div className="truncate">
+                                {line.procure_id ? (
+                                  <div>
+                                    <span className="text-indigo-600 font-black">{line.item_name}</span>
+                                    <span className="text-slate-400 font-medium ml-2">[{line.supplier_name}]</span>
+                                  </div>
+                                ) : (
+                                  <span>🔍 Click to Pick Stock Item...</span>
+                                )}
+                              </div>
+                              <ChevronRight size={15} className="text-slate-400 shrink-0" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Selling Price / Rate Input */}
+                            <div className="w-28">
+                              <label className="text-[10px] font-bold text-slate-400 block mb-0.5 sm:hidden">Selling Rate</label>
+                              <input
+                                type="number"
+                                placeholder="Selling Rate"
+                                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                                value={line.rate}
+                                onChange={(e) => updateCart(idx, "rate", e.target.value)}
+                              />
+                            </div>
+                            <div className="w-20">
+                              <label className="text-[10px] font-bold text-slate-400 block mb-0.5 sm:hidden">Qty</label>
+                              <input
+                                type="number"
+                                min="1"
+                                max={line.max_qty || 9999}
+                                placeholder="Qty"
+                                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
+                                value={line.qty}
+                                onChange={(e) => updateCart(idx, "qty", e.target.value)}
+                              />
+                            </div>
+                            <div className="w-24 text-right font-black text-xs sm:text-sm text-slate-800">
+                              {money(line.total)}
+                            </div>
+                            <button
+                              onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
+                              className="text-slate-400 hover:text-rose-600 p-1"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {/* Cost Rate, Selling Margin, & Profit Margin Indicator */}
+                        {line.procure_id && (
+                          <div className="pt-1.5 text-[11px] flex flex-wrap items-center justify-between border-t border-slate-200/60 text-slate-500 gap-2">
+                            <div className="flex items-center gap-3">
+                              <span>
+                                Purchase Cost: <b className="text-slate-700">₹{line.purchase_rate}</b>
+                              </span>
+                              <span>
+                                Available: <b className="text-slate-700">{line.max_qty} units</b>
+                              </span>
+                            </div>
+                            {sellingPrice > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`font-bold inline-flex items-center gap-1 ${
+                                    unitProfit >= 0 ? "text-emerald-600" : "text-rose-600"
+                                  }`}
+                                >
+                                  {unitProfit < 0 && <AlertCircle size={12} />}
+                                  Profit: ₹{unitProfit.toFixed(2)}/unit ({marginPercent}%)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1171,30 +1189,47 @@ export default function App() {
                     <th className="p-3">Available</th>
                     <th className="p-3">Purchase Rate</th>
                     <th className="p-3">Selling Rate</th>
+                    <th className="p-3">Est. Margin</th>
                     <th className="p-3">Total Cost</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-slate-700 font-medium">
-                  {procurements.map((p) => (
-                    <tr key={p.id}>
-                      <td className="p-3">{p.purchase_date || p.created_at?.slice(0, 10)}</td>
-                      <td className="p-3 font-bold text-slate-900">
-                        {p.supplier_name === "Opening Stock" ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px]">
-                            Opening Stock
+                  {procurements.map((p) => {
+                    const cost = Number(p.purchase_rate || 0);
+                    const sell = Number(p.selling_rate || cost);
+                    const margin = sell - cost;
+                    const marginPct = sell > 0 ? ((margin / sell) * 100).toFixed(1) : 0;
+
+                    return (
+                      <tr key={p.id}>
+                        <td className="p-3">{p.purchase_date || p.created_at?.slice(0, 10)}</td>
+                        <td className="p-3 font-bold text-slate-900">
+                          {p.supplier_name === "Opening Stock" ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px]">
+                              Opening Stock
+                            </span>
+                          ) : (
+                            p.supplier_name
+                          )}
+                        </td>
+                        <td className="p-3">{p.item_name}</td>
+                        <td className="p-3">{p.procured_qty}</td>
+                        <td className="p-3 font-black text-emerald-600">{p.remaining_qty}</td>
+                        <td className="p-3 font-bold text-slate-900">{money(p.purchase_rate)}</td>
+                        <td className="p-3 font-bold text-indigo-600">{money(sell)}</td>
+                        <td className="p-3">
+                          <span
+                            className={`font-semibold ${
+                              margin >= 0 ? "text-emerald-600" : "text-rose-600"
+                            }`}
+                          >
+                            {margin >= 0 ? "+" : ""}{money(margin)} ({marginPct}%)
                           </span>
-                        ) : (
-                          p.supplier_name
-                        )}
-                      </td>
-                      <td className="p-3">{p.item_name}</td>
-                      <td className="p-3">{p.procured_qty}</td>
-                      <td className="p-3 font-black text-emerald-600">{p.remaining_qty}</td>
-                      <td className="p-3 font-bold text-slate-900">{money(p.purchase_rate)}</td>
-                      <td className="p-3 font-bold text-indigo-600">{money(p.selling_rate || p.purchase_rate)}</td>
-                      <td className="p-3 font-bold">{money(p.total_amount)}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="p-3 font-bold">{money(p.total_amount)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1244,12 +1279,12 @@ export default function App() {
 
       {/* --- POPUP WINDOW: SMALL SCREEN STOCK ITEM PICKER --- */}
       {pickerActiveIndex !== null && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
                 <h3 className="font-black text-base text-slate-900">Select Stock Item</h3>
-                <p className="text-xs text-slate-400">Click any batch to automatically populate invoice line</p>
+                <p className="text-xs text-slate-400">Click any batch to populate cart item line</p>
               </div>
               <button
                 onClick={() => setPickerActiveIndex(null)}
@@ -1296,7 +1331,7 @@ export default function App() {
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1 flex gap-4">
                         <span>Cost Rate: <b className="text-slate-800">₹{item.purchase_rate}</b></span>
-                        <span>Default Sale: <b className="text-indigo-600">₹{item.selling_rate || item.purchase_rate}</b></span>
+                        <span>Default Selling Price: <b className="text-indigo-600">₹{item.selling_rate || item.purchase_rate}</b></span>
                       </div>
                     </div>
 
@@ -1626,7 +1661,7 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500">Selling Rate (MRP/Sale)</label>
+                  <label className="text-xs font-bold text-slate-500">Selling Rate (Default Sale/MRP)</label>
                   <input
                     type="number"
                     className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600"
