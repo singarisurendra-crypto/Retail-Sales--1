@@ -2,13 +2,29 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import * as LucideIcons from "lucide-react";
-
-// Safe icon loader to prevent undefined element crashes
-const getIcon = (name, props) => {
-  const IconComponent = LucideIcons[name] || LucideIcons.HelpCircle;
-  return <IconComponent {...props} />;
-};
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  PackagePlus,
+  Users,
+  Wallet,
+  FileSpreadsheet,
+  Plus,
+  Trash2,
+  Edit2,
+  Menu,
+  X,
+  IndianRupee,
+  Search,
+  ChevronRight,
+  Printer,
+  Share2,
+  CreditCard,
+  FileText,
+  HandCoins,
+  Download,
+  Layers
+} from "lucide-react";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -89,6 +105,7 @@ export default function App() {
     expense_date: new Date().toISOString().split("T")[0],
     notes: ""
   });
+  const [newCatName, setNewCatName] = useState("");
 
   // Borrower Form
   const [borrowerForm, setBorrowerForm] = useState({ name: "", mobile: "", initial_due: "" });
@@ -240,6 +257,7 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
+  // Business Summary & Net Profit Calculation including Expenses as 4th item
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
@@ -248,13 +266,16 @@ export default function App() {
       (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
       0
     );
-    const bReddyNetProfit = totalCustomerDues + stockValuation - totalDebts;
+    const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+
+    // Net Profit Formula: (Customer Dues + Stock Valuation) - (Debts + Expenses)
+    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalDebts + totalExpenses);
 
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    return { totalSales, totalCustomerDues, totalDebts, stockValuation, bReddyNetProfit, totalCash, totalUpi };
-  }, [invoices, customers, borrowers, procurements, partnerAccounts]);
+    return { totalSales, totalCustomerDues, totalDebts, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
+  }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
@@ -488,6 +509,19 @@ Thank you for your business!`;
     }
   };
 
+  const saveCategory = async (e) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return alert("Enter category name");
+    try {
+      const { error } = await db.from("expense_categories").insert([{ name: newCatName.trim() }]);
+      if (error) throw error;
+      setNewCatName("");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const saveBorrower = async (e) => {
     e.preventDefault();
     if (!borrowerForm.name.trim()) return alert("Borrower name is required");
@@ -612,7 +646,7 @@ Thank you for your business!`;
           <span className="font-bold text-sm tracking-wide">B Reddy Sales</span>
         </div>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 -mr-1 rounded-xl text-slate-300">
-          {sidebarOpen ? getIcon("X", { size: 22 }) : getIcon("Menu", { size: 22 })}
+          {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </header>
 
@@ -640,7 +674,7 @@ Thank you for your business!`;
                 activeTab === "sale" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("ShoppingCart", { size: 18 })} Point of Sale (Billing)
+              <ShoppingCart size={18} /> Point of Sale (Billing)
             </button>
 
             <button
@@ -649,7 +683,7 @@ Thank you for your business!`;
                 activeTab === "summary" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("LayoutDashboard", { size: 18 })} Business Summary
+              <LayoutDashboard size={18} /> Business Summary
             </button>
 
             <button
@@ -658,7 +692,7 @@ Thank you for your business!`;
                 activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("FileSpreadsheet", { size: 18 })} Invoices & Edit/Delete
+              <FileSpreadsheet size={18} /> Invoices & Edit/Delete
             </button>
 
             <button
@@ -667,7 +701,7 @@ Thank you for your business!`;
                 activeTab === "borrowers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("HandCoins", { size: 18 })} Borrowers (Loans)
+              <HandCoins size={18} /> Borrowers (Loans)
             </button>
 
             <button
@@ -676,7 +710,7 @@ Thank you for your business!`;
                 activeTab === "expenses" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("CreditCard", { size: 18 })} Expenses & Master
+              <CreditCard size={18} /> Expenses & Master
             </button>
 
             <button
@@ -685,7 +719,7 @@ Thank you for your business!`;
                 activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("FileText", { size: 18 })} Excel Report (PDF)
+              <FileText size={18} /> Excel Report (PDF)
             </button>
 
             <button
@@ -694,7 +728,7 @@ Thank you for your business!`;
                 activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("Users", { size: 18 })} Customers & Dues
+              <Users size={18} /> Customers & Dues
             </button>
 
             <button
@@ -703,7 +737,7 @@ Thank you for your business!`;
                 activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("PackagePlus", { size: 18 })} Procurements & Stock
+              <PackagePlus size={18} /> Procurements & Stock
             </button>
 
             <button
@@ -712,7 +746,7 @@ Thank you for your business!`;
                 activeTab === "partners" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              {getIcon("Wallet", { size: 18 })} Partner Accounts
+              <Wallet size={18} /> Partner Accounts
             </button>
           </nav>
         </div>
@@ -722,7 +756,7 @@ Thank you for your business!`;
             onClick={() => { setShowCollectModal(true); setSidebarOpen(false); }}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg"
           >
-            {getIcon("IndianRupee", { size: 16 })} Collect Customer Due
+            <IndianRupee size={16} /> Collect Customer Due
           </button>
         </div>
       </aside>
@@ -751,9 +785,20 @@ Thank you for your business!`;
                 />
               </div>
 
-              {/* Customer Selector */}
-              <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Customer *</label>
+              {/* Customer Selector with + Add New Customer button */}
+              <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Customer *</label>
+                  <button
+                    onClick={() => {
+                      setCustForm({ name: "", mobile: "", old_due: "" });
+                      setShowCustModal(true);
+                    }}
+                    className="text-xs font-bold text-indigo-600 hover:underline"
+                  >
+                    + Add New Customer
+                  </button>
+                </div>
                 <select
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold"
                   value={selectedCust ? selectedCust.id : ""}
@@ -784,7 +829,7 @@ Thank you for your business!`;
                     }
                     className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline"
                   >
-                    {getIcon("Plus", { size: 15 })} Add Line
+                    <Plus size={15} /> Add Line
                   </button>
                 </div>
 
@@ -798,7 +843,7 @@ Thank you for your business!`;
                       <span className={line.procure_id ? "text-indigo-600 font-black text-sm" : "text-slate-400"}>
                         {line.procure_id ? `${line.item_name} [${line.supplier_name}]` : "🔍 Pick In-Stock Item..."}
                       </span>
-                      {getIcon("ChevronRight", { size: 16, className: "text-slate-400" })}
+                      <ChevronRight size={16} className="text-slate-400" />
                     </button>
 
                     <div className="grid grid-cols-12 gap-2 items-center">
@@ -829,7 +874,7 @@ Thank you for your business!`;
                           onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
                           className="p-1.5 text-slate-400 hover:text-rose-600"
                         >
-                          {getIcon("Trash2", { size: 16 })}
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
@@ -933,7 +978,7 @@ Thank you for your business!`;
                 <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1)</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1-4)</p>
                 <h3 className="text-lg sm:text-2xl font-black text-emerald-600 mt-1">
                   {money(businessSummary.bReddyNetProfit)}
                 </h3>
@@ -994,19 +1039,19 @@ Thank you for your business!`;
                       onClick={() => handleEditInvoice(inv)}
                       className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      {getIcon("Edit2", { size: 13 })} Edit
+                      <Edit2 size={13} /> Edit
                     </button>
                     <button
                       onClick={() => handleDeleteInvoice(inv)}
                       className="px-3 py-1.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      {getIcon("Trash2", { size: 13 })} Delete
+                      <Trash2 size={13} /> Delete
                     </button>
                     <button
                       onClick={() => handleShareWhatsApp(inv)}
                       className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      {getIcon("Share2", { size: 13 })} WhatsApp
+                      <Share2 size={13} /> WhatsApp
                     </button>
                   </div>
                 </div>
@@ -1069,30 +1114,39 @@ Thank you for your business!`;
           </div>
         )}
 
+        {/* VIEW: EXPENSES (WITH CATEGORIES BUTTON RESTORED) */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Expenses</h2>
-                <p className="text-xs text-slate-500">Record shop outlays paid by partners</p>
+                <h2 className="text-lg font-black text-slate-900">Expenses & Cash Outflow</h2>
+                <p className="text-xs text-slate-500">Record shop costs and manage master categories</p>
               </div>
-              <button
-                onClick={() => {
-                  setExpenseForm({
-                    title: "",
-                    category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
-                    amount: "",
-                    payment_mode: "Cash",
-                    paid_by_id: upfrontPartnerId || "",
-                    expense_date: new Date().toISOString().split("T")[0],
-                    notes: ""
-                  });
-                  setShowExpenseModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-              >
-                + Record Expense
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowCategoryModal(true)}
+                  className="px-3.5 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5"
+                >
+                  <Layers size={15} /> Categories
+                </button>
+                <button
+                  onClick={() => {
+                    setExpenseForm({
+                      title: "",
+                      category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
+                      amount: "",
+                      payment_mode: "Cash",
+                      paid_by_id: upfrontPartnerId || "",
+                      expense_date: new Date().toISOString().split("T")[0],
+                      notes: ""
+                    });
+                    setShowExpenseModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+                >
+                  + Add Expense
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -1115,6 +1169,7 @@ Thank you for your business!`;
           </div>
         )}
 
+        {/* VIEW: EXCEL SHEET REPORT WITH EXPENSES AS 4TH ITEM */}
         {activeTab === "reports" && (
           <div className="space-y-5">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
@@ -1127,10 +1182,11 @@ Thank you for your business!`;
                   onClick={() => window.print()}
                   className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow"
                 >
-                  {getIcon("Download", { size: 15 })} Download / Print PDF
+                  <Download size={15} /> Download / Print PDF
                 </button>
               </div>
 
+              {/* Excel Table Layout with Expenses Added as #4 */}
               <div className="overflow-x-auto border border-slate-300 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
@@ -1156,9 +1212,14 @@ Thank you for your business!`;
                       <td className="p-2.5 border border-slate-300">నిలువలు (Stock Valuation)</td>
                       <td className="p-2.5 border border-slate-300 text-right text-slate-900">{money(businessSummary.stockValuation)}</td>
                     </tr>
+                    <tr className="bg-rose-50/70 font-bold">
+                      <td className="p-2.5 border border-slate-300 text-center">4</td>
+                      <td className="p-2.5 border border-slate-300">ఖర్చులు (Expenses & Outlays)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalExpenses)}</td>
+                    </tr>
                     <tr className="bg-emerald-100/80 font-black text-sm">
                       <td colSpan={2} className="p-3 border border-slate-300 text-right uppercase">
-                        లాభం (Net Business Profit = 2 + 3 - 1)
+                        లాభం (NET BUSINESS PROFIT = 2 + 3 - 1 - 4)
                       </td>
                       <td className="p-3 border border-slate-300 text-right text-emerald-800">
                         {money(businessSummary.bReddyNetProfit)}
@@ -1313,13 +1374,13 @@ Thank you for your business!`;
         )}
       </main>
 
-      {/* MODALS */}
+      {/* MODAL: STOCK PICKER */}
       {pickerActiveIndex !== null && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex justify-between items-center pb-3 border-b">
               <h3 className="font-black text-base text-slate-900">Select Item Batch</h3>
-              <button onClick={() => setPickerActiveIndex(null)} className="text-slate-400">{getIcon("X", { size: 20 })}</button>
+              <button onClick={() => setPickerActiveIndex(null)} className="text-slate-400"><X size={20} /></button>
             </div>
             <input
               type="text"
@@ -1350,6 +1411,37 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: EXPENSE CATEGORIES */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-base text-slate-900">Expense Categories</h3>
+              <button onClick={() => setShowCategoryModal(false)} className="text-slate-400"><X size={18} /></button>
+            </div>
+            <form onSubmit={saveCategory} className="flex gap-2">
+              <input
+                type="text"
+                required
+                placeholder="New Category Name..."
+                className="flex-1 p-2.5 border rounded-xl text-xs"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+              />
+              <button type="submit" className="px-3 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl">Add</button>
+            </form>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {expenseCategories.map((c) => (
+                <div key={c.id} className="p-2.5 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
+                  <span>{c.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD BORROWER */}
       {showBorrowerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1386,6 +1478,7 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: BORROWER TRANSACTION */}
       {showBorrowerTxModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1450,6 +1543,7 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: RECORD EXPENSE */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1502,6 +1596,7 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: ADD PROCUREMENT */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
@@ -1580,6 +1675,7 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: ADD PARTNER */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1627,6 +1723,7 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: ADD CUSTOMER */}
       {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1672,6 +1769,7 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: COLLECT CUSTOMER DUE */}
       {showCollectModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
