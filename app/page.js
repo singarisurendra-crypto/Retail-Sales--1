@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// Safe inline SVG icons to prevent any undefined component export crash
+// Clean standalone inline icons to avoid missing lucide dependency exports
 const Icon = ({ name, size = 18, className = "" }) => {
   const icons = {
     cart: (
@@ -66,13 +66,7 @@ const Icon = ({ name, size = 18, className = "" }) => {
   };
 
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      className={className}
-      style={{ display: "inline-block", verticalAlign: "middle" }}
-    >
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} style={{ display: "inline-block", verticalAlign: "middle" }}>
       {icons[name] || icons.rupee}
     </svg>
   );
@@ -124,6 +118,7 @@ export default function App() {
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
   // Customer Form
+  const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
   // Partner Form
@@ -138,16 +133,13 @@ export default function App() {
     purchase_rate: "",
     selling_rate: "",
     is_opening: false,
+    paid_now: "",
     p1_id: "",
-    p1_amount: "",
-    p1_mode: "Cash",
-    split_p2: false,
-    p2_id: "",
-    p2_amount: "",
-    p2_mode: "UPI"
+    p1_mode: "Cash"
   });
 
   // Expense Form
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [expenseForm, setExpenseForm] = useState({
     title: "",
     category_id: "",
@@ -160,6 +152,7 @@ export default function App() {
   const [newCatName, setNewCatName] = useState("");
 
   // Borrower Form
+  const [editingBorrowerId, setEditingBorrowerId] = useState(null);
   const [borrowerForm, setBorrowerForm] = useState({ name: "", mobile: "", initial_due: "" });
   const [borrowerTxForm, setBorrowerTxForm] = useState({
     borrower_id: "",
@@ -241,6 +234,7 @@ export default function App() {
     return Array.from(map.values());
   }, [procurements]);
 
+  // Real-Time Partner Cash/UPI Ledger strictly tied to individual partners
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -264,13 +258,11 @@ export default function App() {
       const procCash = procurements.reduce((s, p) => {
         let amt = 0;
         if (p.p1_id == pid && p.p1_mode === "Cash") amt += Number(p.p1_amount || 0);
-        if (p.p2_id == pid && p.p2_mode === "Cash") amt += Number(p.p2_amount || 0);
         return s + amt;
       }, 0);
       const procUpi = procurements.reduce((s, p) => {
         let amt = 0;
         if (p.p1_id == pid && p.p1_mode === "UPI") amt += Number(p.p1_amount || 0);
-        if (p.p2_id == pid && p.p2_mode === "UPI") amt += Number(p.p2_amount || 0);
         return s + amt;
       }, 0);
 
@@ -309,24 +301,29 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
-  // Overall Business Statement Summary including Expenses (#4)
+  // Overall Business Statement Summary with Supplier Procurement Dues and Expenses
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
     const totalDebts = borrowers.reduce((s, b) => s + Number(b.balance_due || 0), 0);
+    const totalProcureDues = procurements.reduce((s, p) => {
+      const total = Number(p.total_amount || 0);
+      const paid = Number(p.p1_amount || 0);
+      return s + Math.max(0, total - paid);
+    }, 0);
     const stockValuation = procurements.reduce(
       (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
       0
     );
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
-    // B Reddy Statement: (Customer Dues + Stock Valuation) - (Debts + Expenses)
-    const bReddyNetProfit = totalCustomerDues + stockValuation - totalDebts - totalExpenses;
+    // Business Profit Formula: (Customer Dues + Stock Valuation) - (Debts + Supplier Procurement Dues + Expenses)
+    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalDebts + totalProcureDues + totalExpenses);
 
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    return { totalSales, totalCustomerDues, totalDebts, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
+    return { totalSales, totalCustomerDues, totalDebts, totalProcureDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
 
   const handlePickStockItem = (item) => {
@@ -526,26 +523,63 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
+  // EXPENSE HANDLERS (Add, Edit, Delete)
+  const handleEditExpense = (exp) => {
+    setEditingExpenseId(exp.id);
+    setExpenseForm({
+      title: exp.title || "",
+      category_id: exp.category_id ? String(exp.category_id) : "",
+      amount: exp.amount || "",
+      payment_mode: exp.payment_mode || "Cash",
+      paid_by_id: exp.paid_by_id ? String(exp.paid_by_id) : "",
+      expense_date: exp.expense_date || new Date().toISOString().split("T")[0],
+      notes: exp.notes || ""
+    });
+    setShowExpenseModal(true);
+  };
+
+  const handleDeleteExpense = async (exp) => {
+    if (!confirm(`Delete expense "${exp.title}" of ₹${exp.amount}?`)) return;
+    try {
+      const { error } = await db.from("expenses").delete().eq("id", exp.id);
+      if (error) throw error;
+      alert("Expense deleted!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const saveExpense = async (e) => {
     e.preventDefault();
     const amt = Number(expenseForm.amount || 0);
     if (amt <= 0) return alert("Enter a valid amount");
-    if (!expenseForm.paid_by_id) return alert("Select who paid");
+    if (!expenseForm.paid_by_id) return alert("Select which partner paid");
 
     const cat = expenseCategories.find((c) => c.id == expenseForm.category_id);
+    const payload = {
+      title: expenseForm.title.trim(),
+      category_id: expenseForm.category_id ? Number(expenseForm.category_id) : null,
+      category_name: cat ? cat.name : "General",
+      amount: amt,
+      payment_mode: expenseForm.payment_mode,
+      paid_by_id: Number(expenseForm.paid_by_id),
+      expense_date: expenseForm.expense_date,
+      notes: expenseForm.notes.trim()
+    };
+
     try {
-      const { error } = await db.from("expenses").insert([{
-        title: expenseForm.title.trim(),
-        category_id: expenseForm.category_id ? Number(expenseForm.category_id) : null,
-        category_name: cat ? cat.name : "General",
-        amount: amt,
-        payment_mode: expenseForm.payment_mode,
-        paid_by_id: Number(expenseForm.paid_by_id),
-        expense_date: expenseForm.expense_date,
-        notes: expenseForm.notes.trim()
-      }]);
-      if (error) throw error;
+      if (editingExpenseId) {
+        const { error } = await db.from("expenses").update(payload).eq("id", editingExpenseId);
+        if (error) throw error;
+        alert("Expense updated successfully!");
+      } else {
+        const { error } = await db.from("expenses").insert([payload]);
+        if (error) throw error;
+        alert("Expense recorded!");
+      }
       setShowExpenseModal(false);
+      setEditingExpenseId(null);
       setExpenseForm({
         title: "",
         category_id: "",
@@ -574,23 +608,58 @@ Thank you for your business!`;
     }
   };
 
+  // BORROWER HANDLERS (Add, Edit, Delete)
+  const handleEditBorrower = (b) => {
+    setEditingBorrowerId(b.id);
+    setBorrowerForm({
+      name: b.name,
+      mobile: b.mobile || "",
+      initial_due: b.balance_due || b.total_borrowed || ""
+    });
+    setShowBorrowerModal(true);
+  };
+
+  const handleDeleteBorrower = async (b) => {
+    if (!confirm(`Delete borrower "${b.name}"? This removes related transaction history.`)) return;
+    try {
+      await db.from("borrower_transactions").delete().eq("borrower_id", b.id);
+      const { error } = await db.from("borrowers").delete().eq("id", b.id);
+      if (error) throw error;
+      alert("Borrower profile deleted!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const saveBorrower = async (e) => {
     e.preventDefault();
     if (!borrowerForm.name.trim()) return alert("Borrower name is required");
     const initialDue = Number(borrowerForm.initial_due || 0);
 
     try {
-      const { error } = await db.from("borrowers").insert([{
-        name: borrowerForm.name.trim(),
-        mobile: borrowerForm.mobile.trim(),
-        total_borrowed: initialDue,
-        balance_due: initialDue
-      }]);
-      if (error) throw error;
+      if (editingBorrowerId) {
+        const { error } = await db.from("borrowers").update({
+          name: borrowerForm.name.trim(),
+          mobile: borrowerForm.mobile.trim(),
+          balance_due: initialDue
+        }).eq("id", editingBorrowerId);
+        if (error) throw error;
+        alert("Borrower details updated!");
+      } else {
+        const { error } = await db.from("borrowers").insert([{
+          name: borrowerForm.name.trim(),
+          mobile: borrowerForm.mobile.trim(),
+          total_borrowed: initialDue,
+          balance_due: initialDue
+        }]);
+        if (error) throw error;
+        alert("Borrower profile added!");
+      }
       setShowBorrowerModal(false);
+      setEditingBorrowerId(null);
       setBorrowerForm({ name: "", mobile: "", initial_due: "" });
       refreshData();
-      alert("Borrower profile added!");
     } catch (err) {
       alert(err.message);
     }
@@ -650,12 +719,49 @@ Thank you for your business!`;
     }
   };
 
+  // PROCUREMENT HANDLERS (Add, Edit, Delete & Due Support)
+  const handleEditProcurement = (p) => {
+    setEditingProcureId(p.id);
+    setProcureForm({
+      supplier_name: p.supplier_name || "",
+      item_name: p.item_name || "",
+      procured_qty: p.procured_qty || "",
+      purchase_rate: p.purchase_rate || "",
+      selling_rate: p.selling_rate || "",
+      is_opening: p.supplier_name === "Opening Stock",
+      paid_now: p.p1_amount ? String(p.p1_amount) : "0",
+      p1_id: p.p1_id ? String(p.p1_id) : (partners[0]?.id ? String(partners[0].id) : ""),
+      p1_mode: p.p1_mode || "Cash"
+    });
+    setShowProcureModal(true);
+  };
+
+  const handleDeleteProcurement = async (p) => {
+    if (!confirm(`Delete procurement "${p.item_name}" from ${p.supplier_name}? Stock will be removed.`)) return;
+    try {
+      const { error } = await db.from("procurements").delete().eq("id", p.id);
+      if (error) throw error;
+      alert("Procurement record deleted!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
     const purchaseRate = Number(procureForm.purchase_rate || 0);
     const sellingRate = Number(procureForm.selling_rate || purchaseRate);
     const total = qty * purchaseRate;
+    const paidNowNum = Number(procureForm.paid_now || 0);
+
+    if (paidNowNum > total) {
+      return alert("Amount paid cannot exceed total purchase valuation.");
+    }
+    if (paidNowNum > 0 && !procureForm.p1_id) {
+      return alert("Select which partner is funding this payment.");
+    }
 
     const payload = {
       supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
@@ -665,21 +771,20 @@ Thank you for your business!`;
       purchase_rate: purchaseRate,
       selling_rate: sellingRate,
       total_amount: total,
-      p1_id: procureForm.p1_id ? Number(procureForm.p1_id) : null,
-      p1_amount: Number(procureForm.p1_amount || (procureForm.split_p2 ? 0 : total)),
-      p1_mode: procureForm.p1_mode,
-      p2_id: procureForm.split_p2 && procureForm.p2_id ? Number(procureForm.p2_id) : null,
-      p2_amount: procureForm.split_p2 ? Number(procureForm.p2_amount || 0) : 0,
-      p2_mode: procureForm.p2_mode
+      p1_id: paidNowNum > 0 ? Number(procureForm.p1_id) : null,
+      p1_amount: paidNowNum,
+      p1_mode: procureForm.p1_mode
     };
 
     try {
       if (editingProcureId) {
         const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
         if (error) throw error;
+        alert("Procurement updated successfully!");
       } else {
         const { error } = await db.from("procurements").insert([payload]);
         if (error) throw error;
+        alert(`Procurement added! Due to supplier: ${money(total - paidNowNum)}`);
       }
       setShowProcureModal(false);
       setEditingProcureId(null);
@@ -771,7 +876,7 @@ Thank you for your business!`;
                 activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="filetext" size={18} /> Excel Report (PDF)
+              <Icon name="filetext" size={18} /> Excel Report & Dues
             </button>
 
             <button
@@ -780,7 +885,7 @@ Thank you for your business!`;
                 activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="users" size={18} /> Customers & Dues
+              <Icon name="users" size={18} /> Customers Directory
             </button>
 
             <button
@@ -815,7 +920,7 @@ Thank you for your business!`;
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-xs" />}
 
-      {/* MAIN VIEW AREA */}
+      {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
@@ -838,7 +943,7 @@ Thank you for your business!`;
                 />
               </div>
 
-              {/* Customer Selector with + Add New Customer Button */}
+              {/* Customer Selector with + Add New Customer */}
               <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Customer *</label>
@@ -870,7 +975,7 @@ Thank you for your business!`;
                 </select>
               </div>
 
-              {/* Stock Items Cart */}
+              {/* Bill Line Items */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold uppercase text-slate-500">Bill Items *</label>
@@ -1032,8 +1137,8 @@ Thank you for your business!`;
                 <h3 className="text-lg sm:text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalCustomerDues)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts / Borrowings (అప్పులు)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts)}</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts & Procurement Dues (అప్పులు)</p>
+                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts + businessSummary.totalProcureDues)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1-4)</p>
@@ -1071,7 +1176,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 3: INVOICES */}
+        {/* VIEW 3: INVOICES DIRECTORY */}
         {activeTab === "invoices" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div>
@@ -1122,18 +1227,22 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 4: BORROWERS */}
+        {/* VIEW 4: BORROWERS WITH EDIT & DELETE */}
         {activeTab === "borrowers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Borrowers & Loans (అప్పులు)</h2>
-                <p className="text-xs text-slate-500">Track loans taken or given (e.g. Gold Loan, Srikanth Reddy, Swamy Ongole)</p>
+                <p className="text-xs text-slate-500">Track loans taken or given (e.g. Gold Loan, Srikanth Reddy)</p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => setShowBorrowerModal(true)}
+                  onClick={() => {
+                    setEditingBorrowerId(null);
+                    setBorrowerForm({ name: "", mobile: "", initial_due: "" });
+                    setShowBorrowerModal(true);
+                  }}
                   className="flex-1 sm:flex-none px-3.5 py-2.5 border border-slate-200 font-bold text-xs rounded-xl"
                 >
                   + Add Borrower
@@ -1161,7 +1270,7 @@ Thank you for your business!`;
 
             <div className="space-y-3">
               {borrowers.map((b) => (
-                <div key={b.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex justify-between items-center">
+                <div key={b.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
                     <h4 className="font-bold text-sm text-slate-900">{b.name}</h4>
                     <span className="text-xs text-slate-400 block">{b.mobile || "No Mobile"}</span>
@@ -1169,9 +1278,27 @@ Thank you for your business!`;
                       Total Borrowed: {money(b.total_borrowed)} | Repaid: {money(b.total_repaid)}
                     </span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-slate-400 block uppercase font-bold">Outstanding Balance</span>
-                    <span className="font-black text-rose-600 text-sm">{money(b.balance_due)}</span>
+                  <div className="flex sm:flex-col items-end justify-between w-full sm:w-auto gap-2">
+                    <div className="text-right">
+                      <span className="text-xs text-slate-400 block uppercase font-bold">Outstanding Balance</span>
+                      <span className="font-black text-rose-600 text-sm">{money(b.balance_due)}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditBorrower(b)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBorrower(b)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1179,7 +1306,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 5: EXPENSES WITH CATEGORIES BUTTON */}
+        {/* VIEW 5: EXPENSES WITH EDIT & DELETE */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1198,6 +1325,7 @@ Thank you for your business!`;
                 <button
                   type="button"
                   onClick={() => {
+                    setEditingExpenseId(null);
                     setExpenseForm({
                       title: "",
                       category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
@@ -1220,7 +1348,7 @@ Thank you for your business!`;
               {expenses.map((e) => {
                 const partner = partners.find((p) => p.id == e.paid_by_id);
                 return (
-                  <div key={e.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex justify-between items-center">
+                  <div key={e.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div>
                       <span className="text-[10px] font-bold uppercase text-indigo-600">{e.category_name}</span>
                       <h4 className="font-bold text-sm text-slate-900">{e.title}</h4>
@@ -1228,7 +1356,25 @@ Thank you for your business!`;
                         Paid by: {partner?.name || "N/A"} ({e.payment_mode}) on {e.expense_date}
                       </p>
                     </div>
-                    <span className="font-black text-rose-600 text-sm">{money(e.amount)}</span>
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                      <span className="font-black text-rose-600 text-sm">{money(e.amount)}</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditExpense(e)}
+                          className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                        >
+                          <Icon name="edit" size={13} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExpense(e)}
+                          className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                        >
+                          <Icon name="trash" size={13} /> Delete
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -1236,9 +1382,9 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL REPORT WITH EXPENSES AS ITEM #4 */}
+        {/* VIEW 6: EXCEL REPORT & CUSTOMER DUES */}
         {activeTab === "reports" && (
-          <div className="space-y-5">
+          <div className="space-y-6">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
@@ -1254,7 +1400,7 @@ Thank you for your business!`;
                 </button>
               </div>
 
-              {/* Table with Expenses as #4 */}
+              {/* Master Excel Report with Expenses as #4 */}
               <div className="overflow-x-auto border border-slate-300 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
@@ -1267,8 +1413,8 @@ Thank you for your business!`;
                   <tbody>
                     <tr className="bg-amber-50/70 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">1</td>
-                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts / Borrowings)</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts)}</td>
+                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Dues)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts + businessSummary.totalProcureDues)}</td>
                     </tr>
                     <tr className="bg-slate-50 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">2</td>
@@ -1297,29 +1443,26 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              <div className="pt-2">
-                <h3 className="font-bold text-sm text-slate-900 mb-2">నిలువలు (Stock Batches Breakdown)</h3>
+              {/* In-Report Customer Dues Directory */}
+              <div className="pt-4 border-t">
+                <h3 className="font-bold text-sm text-slate-900 mb-2">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
                   <table className="w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-100 text-slate-600 font-bold">
                       <tr>
                         <th className="p-2 border border-slate-200">S.No</th>
-                        <th className="p-2 border border-slate-200">Stock Item</th>
-                        <th className="p-2 border border-slate-200 text-center">Available Qty</th>
-                        <th className="p-2 border border-slate-200 text-right">Rate</th>
-                        <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
+                        <th className="p-2 border border-slate-200">Customer Name</th>
+                        <th className="p-2 border border-slate-200">Mobile</th>
+                        <th className="p-2 border border-slate-200 text-right">Outstanding Due</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {procurements.map((p, idx) => (
-                        <tr key={p.id}>
+                      {customers.map((c, idx) => (
+                        <tr key={c.id}>
                           <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                          <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
-                          <td className="p-2 border border-slate-200 text-center">{p.remaining_qty}</td>
-                          <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
-                          <td className="p-2 border border-slate-200 text-right font-bold">
-                            {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
-                          </td>
+                          <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
+                          <td className="p-2 border border-slate-200">{c.mobile || "N/A"}</td>
+                          <td className="p-2 border border-slate-200 text-right font-bold text-rose-600">{money(c.old_due)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1336,11 +1479,12 @@ Thank you for your business!`;
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Customer Directory</h2>
-                <p className="text-xs text-slate-500">Manage dues and mobile numbers</p>
+                <p className="text-xs text-slate-500">Manage dues and contact details</p>
               </div>
               <button
                 type="button"
                 onClick={() => {
+                  setEditingCustId(null);
                   setCustForm({ name: "", mobile: "", old_due: "" });
                   setShowCustModal(true);
                 }}
@@ -1363,13 +1507,13 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: PROCUREMENTS */}
+        {/* VIEW 8: PROCUREMENTS WITH DUE, EDIT & DELETE */}
         {activeTab === "procurement" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Procurements & Inventory</h2>
-                <p className="text-xs text-slate-500">Stock purchase entries and warehouse rates</p>
+                <p className="text-xs text-slate-500">Stock purchases, partner payments, and supplier pending dues</p>
               </div>
               <button
                 type="button"
@@ -1382,13 +1526,9 @@ Thank you for your business!`;
                     purchase_rate: "",
                     selling_rate: "",
                     is_opening: false,
-                    p1_id: "",
-                    p1_amount: "",
-                    p1_mode: "Cash",
-                    split_p2: false,
-                    p2_id: "",
-                    p2_amount: "",
-                    p2_mode: "UPI"
+                    paid_now: "",
+                    p1_id: partners[0]?.id ? String(partners[0].id) : "",
+                    p1_mode: "Cash"
                   });
                   setShowProcureModal(true);
                 }}
@@ -1397,19 +1537,46 @@ Thank you for your business!`;
                 + Add Procurement
               </button>
             </div>
-            <div className="space-y-2">
-              {procurements.map((p) => (
-                <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{p.supplier_name}</span>
-                    <h4 className="font-bold text-sm text-slate-900">{p.item_name}</h4>
-                    <span className="text-xs text-slate-500">Cost: {money(p.purchase_rate)} | Sell: {money(p.selling_rate)}</span>
+            <div className="space-y-3">
+              {procurements.map((p) => {
+                const total = Number(p.total_amount || 0);
+                const paid = Number(p.p1_amount || 0);
+                const due = Math.max(0, total - paid);
+                const partner = partners.find((pt) => pt.id == p.p1_id);
+
+                return (
+                  <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{p.supplier_name}</span>
+                      <h4 className="font-bold text-sm text-slate-900">{p.item_name}</h4>
+                      <span className="text-xs text-slate-500">
+                        Cost: {money(p.purchase_rate)} | Sell: {money(p.selling_rate)} | Stock: {p.remaining_qty}
+                      </span>
+                      {due > 0 && (
+                        <span className="block text-xs font-bold text-rose-600 mt-1">
+                          Supplier Due: {money(due)} (Paid: {money(paid)} by {partner?.name || "N/A"})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditProcurement(p)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProcurement(p)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+                    </div>
                   </div>
-                  <span className="font-black text-emerald-600 text-xs bg-emerald-50 px-2.5 py-1 rounded-lg">
-                    {p.remaining_qty} in stock
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1420,7 +1587,7 @@ Thank you for your business!`;
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Operating Partners</h2>
-                <p className="text-xs text-slate-500">Individual Partner Cash and Bank holdings</p>
+                <p className="text-xs text-slate-500">Individual Partner Cash and UPI holdings</p>
               </div>
               <button
                 type="button"
@@ -1522,11 +1689,11 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD BORROWER */}
+      {/* MODAL: ADD / EDIT BORROWER */}
       {showBorrowerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add New Borrower</h3>
+            <h3 className="font-bold text-base text-slate-900">{editingBorrowerId ? "Edit Borrower" : "Add New Borrower"}</h3>
             <form onSubmit={saveBorrower} className="space-y-3">
               <input
                 type="text"
@@ -1545,7 +1712,7 @@ Thank you for your business!`;
               />
               <input
                 type="number"
-                placeholder="Opening Borrowed Balance (₹)"
+                placeholder="Outstanding Due Balance (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm"
                 value={borrowerForm.initial_due}
                 onChange={(e) => setBorrowerForm({ ...borrowerForm, initial_due: e.target.value })}
@@ -1624,11 +1791,11 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: RECORD EXPENSE */}
+      {/* MODAL: ADD / EDIT EXPENSE */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Record Shop Expense</h3>
+            <h3 className="font-bold text-base text-slate-900">{editingExpenseId ? "Edit Shop Expense" : "Record Shop Expense"}</h3>
             <form onSubmit={saveExpense} className="space-y-3">
               <select
                 required
@@ -1677,11 +1844,11 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD PROCUREMENT */}
+      {/* MODAL: ADD / EDIT PROCUREMENT WITH DUE TRACKING */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Procurement</h3>
+            <h3 className="font-bold text-base text-slate-900">{editingProcureId ? "Edit Procurement" : "Add Procurement (Stock & Dues)"}</h3>
             <form onSubmit={saveProcurement} className="space-y-3">
               <input
                 type="text"
@@ -1692,7 +1859,7 @@ Thank you for your business!`;
                 onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
               />
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Item Name (Pick existing or type new)</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">Item Name</label>
                 <input
                   list="item-master-list"
                   type="text"
@@ -1710,42 +1877,80 @@ Thank you for your business!`;
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <input
-                  type="number"
-                  required
-                  placeholder="Qty"
-                  className="p-2.5 border rounded-xl text-xs font-bold"
-                  value={procureForm.procured_qty}
-                  onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
-                />
-                <input
-                  type="number"
-                  required
-                  placeholder="Cost Rate"
-                  className="p-2.5 border rounded-xl text-xs font-bold"
-                  value={procureForm.purchase_rate}
-                  onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
-                />
-                <input
-                  type="number"
-                  placeholder="Selling Rate"
-                  className="p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
-                  value={procureForm.selling_rate}
-                  onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
-                />
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Qty</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Qty"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={procureForm.procured_qty}
+                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Cost Rate"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={procureForm.purchase_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate</label>
+                  <input
+                    type="number"
+                    placeholder="Selling Rate"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
+                    value={procureForm.selling_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
+                  />
+                </div>
               </div>
 
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={procureForm.p1_id}
-                onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
-              >
-                <option value="">-- Funded by Partner 1 --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              {/* Total Calculation & Upfront Paid */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-700">
+                  <span>Total Purchase Cost:</span>
+                  <span>{money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}</span>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Paid Now by Partner (Leave 0 if full Due)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-600"
+                    value={procureForm.paid_now}
+                    onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
+                  />
+                </div>
+
+                {Number(procureForm.paid_now || 0) > 0 && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <select
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      value={procureForm.p1_id}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
+                    >
+                      <option value="">-- Funding Partner --</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      value={procureForm.p1_mode}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                    </select>
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
