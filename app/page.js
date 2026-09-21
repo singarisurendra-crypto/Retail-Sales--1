@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// Clean standalone inline icons to avoid missing lucide dependency exports
+// Clean inline SVG icons to prevent undefined Next.js build crashes
 const Icon = ({ name, size = 18, className = "" }) => {
   const icons = {
     cart: (
@@ -32,6 +32,12 @@ const Icon = ({ name, size = 18, className = "" }) => {
     ),
     wallet: (
       <path d="M21 18V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h15a2 2 0 002-2zM2 10h19M16 14h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    history: (
+      <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8m0 0V3m0 5h5M12 7v5l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    lock: (
+      <path d="M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2zm-12 0V7a5 5 0 0110 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
     plus: (
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -101,6 +107,7 @@ export default function App() {
   const [expenseCategories, setExpenseCategories] = useState([]);
   const [borrowers, setBorrowers] = useState([]);
   const [borrowerTx, setBorrowerTx] = useState([]);
+  const [purchasePayments, setPurchasePayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -108,6 +115,7 @@ export default function App() {
   const [showCustModal, setShowCustModal] = useState(false);
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
+  const [showPayPurchaseModal, setShowPayPurchaseModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showBorrowerModal, setShowBorrowerModal] = useState(false);
@@ -138,6 +146,15 @@ export default function App() {
     p1_mode: "Cash"
   });
 
+  // Supplier Purchase Bill Payment Form
+  const [payPurchaseForm, setPayPurchaseForm] = useState({
+    purchase_id: "",
+    amount: "",
+    partner_id: "",
+    payment_mode: "Cash",
+    payment_date: new Date().toISOString().split("T")[0]
+  });
+
   // Expense Form
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [expenseForm, setExpenseForm] = useState({
@@ -164,7 +181,7 @@ export default function App() {
     tx_date: new Date().toISOString().split("T")[0]
   });
 
-  // Due Collection Form
+  // Due Collection Form (Invoice-Wise)
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
     invoice_id: "",
@@ -223,7 +240,6 @@ export default function App() {
     }
   };
 
-  // Distinct items from purchases for dropdown
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     procurements.forEach((p) => {
@@ -235,7 +251,6 @@ export default function App() {
     return Array.from(map.values());
   }, [procurements]);
 
-  // Distinct suppliers from purchases for dropdown
   const uniqueSupplierSuggestions = useMemo(() => {
     const map = new Map();
     procurements.forEach((p) => {
@@ -247,7 +262,7 @@ export default function App() {
     return Array.from(map.values());
   }, [procurements]);
 
-  // Real-Time Partner Cash/UPI Ledger strictly tied to individual partners
+  // Partner Ledger including purchase settlements
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -314,7 +329,7 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
-  // Overall Business Statement Summary with Supplier Purchase Dues and Expenses
+  // Overall Business Statement Summary
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
@@ -325,19 +340,95 @@ export default function App() {
       return s + Math.max(0, total - paid);
     }, 0);
     const stockValuation = procurements.reduce(
-      (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
+      (s, p) => s + (Number(p.remaining_qty) > 0 ? Number(p.remaining_qty) * Number(p.purchase_rate || 0) : 0),
       0
     );
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
-    // Business Profit Formula: (Customer Dues + Stock Valuation) - (Debts + Supplier Purchase Dues + Expenses)
     const bReddyNetProfit = totalCustomerDues + stockValuation - (totalDebts + totalPurchaseDues + totalExpenses);
-
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
     return { totalSales, totalCustomerDues, totalDebts, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
+
+  // Unified Audit Trail History Logs
+  const auditHistory = useMemo(() => {
+    const list = [];
+
+    invoices.forEach((inv) => {
+      list.push({
+        id: `inv-${inv.id}`,
+        date: inv.invoice_date || inv.created_at?.slice(0, 10),
+        type: "Sale Invoice",
+        title: `${inv.customer_name} (${inv.invoice_number || `INV-${inv.id}`})`,
+        amount: Number(inv.total_amount || 0),
+        status: inv.status || (Number(inv.balance_due) <= 0 ? "Collected" : "Due"),
+        mode: inv.upfront_mode || "Bill",
+        details: `Upfront: ${money(inv.upfront_paid || 0)} | Due: ${money(inv.balance_due || 0)}`
+      });
+    });
+
+    collections.forEach((col) => {
+      const p = partners.find((pt) => pt.id == col.receiver_id);
+      list.push({
+        id: `col-${col.id}`,
+        date: col.created_at?.slice(0, 10),
+        type: "Due Collection",
+        title: `Customer Payment Received (${col.invoice_id ? `INV-${col.invoice_id}` : "Account"})`,
+        amount: Number(col.amount || 0),
+        status: "Collected",
+        mode: col.payment_mode,
+        details: `Collected by: ${p?.name || "Partner"}`
+      });
+    });
+
+    procurements.forEach((pr) => {
+      const total = Number(pr.total_amount || 0);
+      const paid = Number(pr.p1_amount || 0);
+      const isPaid = paid >= total;
+      list.push({
+        id: `pr-${pr.id}`,
+        date: pr.created_at?.slice(0, 10),
+        type: "Purchase Bill",
+        title: `${pr.item_name} from ${pr.supplier_name}`,
+        amount: total,
+        status: isPaid ? "Paid" : paid > 0 ? "Partial" : "Due",
+        mode: pr.p1_mode || "Cash",
+        details: `Paid: ${money(paid)} | Supplier Due: ${money(Math.max(0, total - paid))}`
+      });
+    });
+
+    expenses.forEach((e) => {
+      const p = partners.find((pt) => pt.id == e.paid_by_id);
+      list.push({
+        id: `exp-${e.id}`,
+        date: e.expense_date || e.created_at?.slice(0, 10),
+        type: "Shop Expense",
+        title: `${e.title} (${e.category_name || "General"})`,
+        amount: Number(e.amount || 0),
+        status: "Outflow",
+        mode: e.payment_mode,
+        details: `Paid by: ${p?.name || "Partner"}`
+      });
+    });
+
+    borrowerTx.forEach((tx) => {
+      const b = borrowers.find((br) => br.id == tx.borrower_id);
+      list.push({
+        id: `tx-${tx.id}`,
+        date: tx.tx_date || tx.created_at?.slice(0, 10),
+        type: tx.tx_type === "Given" ? "Loan Given" : "Loan Repaid",
+        title: `${b?.name || "Borrower"} (${tx.tx_type})`,
+        amount: Number(tx.amount || 0),
+        status: tx.tx_type,
+        mode: tx.payment_mode,
+        details: tx.notes || "Borrower Ledger Entry"
+      });
+    });
+
+    return list.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [invoices, collections, procurements, expenses, borrowerTx, partners, borrowers]);
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
@@ -372,6 +463,7 @@ export default function App() {
   const upfrontPaidNum = Number(upfrontAmount || 0);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
+  // SAVE INVOICE (Assigns status Collected, Partial, or Due)
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -386,7 +478,7 @@ export default function App() {
 
     setSavingSale(true);
     try {
-      const status = upfrontPaidNum === 0 ? "Unpaid" : upfrontPaidNum >= cartTotal ? "Paid" : "Partial";
+      const status = upfrontPaidNum >= cartTotal ? "Collected" : upfrontPaidNum > 0 ? "Partial" : "Due";
       const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
       const generatedInvoiceNumber = `INV-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -431,7 +523,7 @@ export default function App() {
       } else {
         const { error } = await db.from("invoices").insert([invoicePayload]);
         if (error) throw error;
-        alert(`Invoice created! Due: ${money(remainingBillDue)}`);
+        alert(`Invoice created! Status: ${status}`);
       }
 
       for (const line of cart) {
@@ -461,7 +553,7 @@ export default function App() {
   };
 
   const handleDeleteInvoice = async (inv) => {
-    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? This will return stock and remove dues.`)) return;
+    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? This will restore stock and remove dues.`)) return;
 
     try {
       if (Array.isArray(inv.items)) {
@@ -483,14 +575,18 @@ export default function App() {
 
       const { error } = await db.from("invoices").delete().eq("id", inv.id);
       if (error) throw error;
-      alert("Invoice deleted and stock restored!");
+      alert("Invoice deleted!");
       refreshData();
     } catch (err) {
-      alert(err.message);
+      alert("Error deleting invoice: " + err.message);
     }
   };
 
   const handleEditInvoice = (inv) => {
+    if (inv.status === "Collected" || Number(inv.balance_due || 0) <= 0) {
+      return alert("This invoice has been fully Collected and cannot be edited as per business rules.");
+    }
+
     setEditingInvoiceId(inv.id);
     const cust = customers.find((c) => c.id == inv.customer_id);
     setSelectedCust(cust || { id: inv.customer_id, name: inv.customer_name, old_due: 0 });
@@ -518,6 +614,7 @@ export default function App() {
 Date: ${inv.invoice_date || inv.created_at?.slice(0, 10)}
 Bill: ${inv.invoice_number || "INV-" + inv.id}
 Customer: ${inv.customer_name}
+Status: ${inv.status || (Number(inv.balance_due) <= 0 ? "Collected" : "Due")}
 
 *Items:*
 ${itemLines || "General Supplies"}
@@ -536,14 +633,93 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
+  // INVOICE-WISE DUE COLLECTION HANDLER
+  const saveInvoiceCollection = async (e) => {
+    e.preventDefault();
+    const amt = Number(collectForm.amount || 0);
+    if (amt <= 0) return alert("Enter valid collection amount");
+    if (!collectForm.receiver_id) return alert("Select partner who collected");
+
+    try {
+      await db.from("collections").insert([{
+        customer_id: Number(collectForm.customer_id),
+        invoice_id: collectForm.invoice_id ? Number(collectForm.invoice_id) : null,
+        amount: amt,
+        payment_mode: collectForm.payment_mode,
+        receiver_id: Number(collectForm.receiver_id)
+      }]);
+
+      if (collectForm.invoice_id) {
+        const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
+        if (targetInv) {
+          const currentBal = Number(targetInv.balance_due || 0);
+          const newBal = Math.max(0, currentBal - amt);
+          const newStatus = newBal <= 0 ? "Collected" : "Partial";
+          await db.from("invoices").update({
+            balance_due: newBal,
+            status: newStatus
+          }).eq("id", targetInv.id);
+        }
+      }
+
+      const cust = customers.find((c) => c.id == collectForm.customer_id);
+      if (cust) {
+        await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
+      }
+
+      alert("Collection recorded and invoice status updated!");
+      setShowCollectModal(false);
+      refreshData();
+    } catch (err) {
+      alert("Error saving collection: " + err.message);
+    }
+  };
+
+  // BILL-WISE PURCHASE PAYMENT HANDLER
+  const savePurchasePayment = async (e) => {
+    e.preventDefault();
+    const amt = Number(payPurchaseForm.amount || 0);
+    if (amt <= 0) return alert("Enter valid payment amount");
+    if (!payPurchaseForm.purchase_id) return alert("Select purchase bill");
+    if (!payPurchaseForm.partner_id) return alert("Select partner paying this bill");
+
+    const targetP = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
+    if (!targetP) return alert("Purchase not found");
+
+    const currentTotal = Number(targetP.total_amount || 0);
+    const alreadyPaid = Number(targetP.p1_amount || 0);
+    const newPaidTotal = alreadyPaid + amt;
+
+    if (newPaidTotal > currentTotal) {
+      return alert("Payment exceeds remaining purchase bill balance!");
+    }
+
+    try {
+      await db.from("procurements").update({
+        p1_amount: newPaidTotal,
+        p1_id: Number(payPurchaseForm.partner_id),
+        p1_mode: payPurchaseForm.payment_mode
+      }).eq("id", targetP.id);
+
+      alert(`Purchase bill payment recorded! Remaining due: ${money(currentTotal - newPaidTotal)}`);
+      setShowPayPurchaseModal(false);
+      setPayPurchaseForm({
+        purchase_id: "",
+        amount: "",
+        partner_id: upfrontPartnerId || "",
+        payment_mode: "Cash",
+        payment_date: new Date().toISOString().split("T")[0]
+      });
+      refreshData();
+    } catch (err) {
+      alert("Error recording payment: " + err.message);
+    }
+  };
+
   // CUSTOMER HANDLERS
   const handleEditCustomer = (c) => {
     setEditingCustId(c.id);
-    setCustForm({
-      name: c.name || "",
-      mobile: c.mobile || "",
-      old_due: c.old_due || ""
-    });
+    setCustForm({ name: c.name || "", mobile: c.mobile || "", old_due: c.old_due || "" });
     setShowCustModal(true);
   };
 
@@ -561,19 +737,13 @@ Thank you for your business!`;
 
   const saveCustomer = async (e) => {
     e.preventDefault();
-    const payload = {
-      name: custForm.name.trim(),
-      mobile: custForm.mobile.trim(),
-      old_due: Number(custForm.old_due || 0)
-    };
+    const payload = { name: custForm.name.trim(), mobile: custForm.mobile.trim(), old_due: Number(custForm.old_due || 0) };
     try {
       if (editingCustId) {
-        const { error } = await db.from("customers").update(payload).eq("id", editingCustId);
-        if (error) throw error;
+        await db.from("customers").update(payload).eq("id", editingCustId);
         alert("Customer updated!");
       } else {
-        const { error } = await db.from("customers").insert([payload]);
-        if (error) throw error;
+        await db.from("customers").insert([payload]);
         alert("Customer created!");
       }
       setShowCustModal(false);
@@ -603,8 +773,7 @@ Thank you for your business!`;
   const handleDeleteExpense = async (exp) => {
     if (!confirm(`Delete expense "${exp.title}" of ₹${exp.amount}?`)) return;
     try {
-      const { error } = await db.from("expenses").delete().eq("id", exp.id);
-      if (error) throw error;
+      await db.from("expenses").delete().eq("id", exp.id);
       alert("Expense deleted!");
       refreshData();
     } catch (err) {
@@ -632,38 +801,14 @@ Thank you for your business!`;
 
     try {
       if (editingExpenseId) {
-        const { error } = await db.from("expenses").update(payload).eq("id", editingExpenseId);
-        if (error) throw error;
-        alert("Expense updated successfully!");
+        await db.from("expenses").update(payload).eq("id", editingExpenseId);
+        alert("Expense updated!");
       } else {
-        const { error } = await db.from("expenses").insert([payload]);
-        if (error) throw error;
+        await db.from("expenses").insert([payload]);
         alert("Expense recorded!");
       }
       setShowExpenseModal(false);
       setEditingExpenseId(null);
-      setExpenseForm({
-        title: "",
-        category_id: "",
-        amount: "",
-        payment_mode: "Cash",
-        paid_by_id: upfrontPartnerId || "",
-        expense_date: new Date().toISOString().split("T")[0],
-        notes: ""
-      });
-      refreshData();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const saveCategory = async (e) => {
-    e.preventDefault();
-    if (!newCatName.trim()) return alert("Enter category name");
-    try {
-      const { error } = await db.from("expense_categories").insert([{ name: newCatName.trim() }]);
-      if (error) throw error;
-      setNewCatName("");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -673,21 +818,16 @@ Thank you for your business!`;
   // BORROWER HANDLERS
   const handleEditBorrower = (b) => {
     setEditingBorrowerId(b.id);
-    setBorrowerForm({
-      name: b.name,
-      mobile: b.mobile || "",
-      initial_due: b.balance_due || b.total_borrowed || ""
-    });
+    setBorrowerForm({ name: b.name, mobile: b.mobile || "", initial_due: b.balance_due || b.total_borrowed || "" });
     setShowBorrowerModal(true);
   };
 
   const handleDeleteBorrower = async (b) => {
-    if (!confirm(`Delete borrower "${b.name}"? This removes related transaction history.`)) return;
+    if (!confirm(`Delete borrower "${b.name}"?`)) return;
     try {
       await db.from("borrower_transactions").delete().eq("borrower_id", b.id);
-      const { error } = await db.from("borrowers").delete().eq("id", b.id);
-      if (error) throw error;
-      alert("Borrower profile deleted!");
+      await db.from("borrowers").delete().eq("id", b.id);
+      alert("Borrower deleted!");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -701,26 +841,23 @@ Thank you for your business!`;
 
     try {
       if (editingBorrowerId) {
-        const { error } = await db.from("borrowers").update({
+        await db.from("borrowers").update({
           name: borrowerForm.name.trim(),
           mobile: borrowerForm.mobile.trim(),
           balance_due: initialDue
         }).eq("id", editingBorrowerId);
-        if (error) throw error;
-        alert("Borrower details updated!");
+        alert("Borrower updated!");
       } else {
-        const { error } = await db.from("borrowers").insert([{
+        await db.from("borrowers").insert([{
           name: borrowerForm.name.trim(),
           mobile: borrowerForm.mobile.trim(),
           total_borrowed: initialDue,
           balance_due: initialDue
         }]);
-        if (error) throw error;
-        alert("Borrower profile added!");
+        alert("Borrower added!");
       }
       setShowBorrowerModal(false);
       setEditingBorrowerId(null);
-      setBorrowerForm({ name: "", mobile: "", initial_due: "" });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -731,11 +868,9 @@ Thank you for your business!`;
     e.preventDefault();
     const amt = Number(borrowerTxForm.amount || 0);
     if (amt <= 0) return alert("Enter valid loan amount");
-    if (!borrowerTxForm.borrower_id) return alert("Select borrower");
-    if (!borrowerTxForm.partner_id) return alert("Select partner");
 
     try {
-      const { error } = await db.from("borrower_transactions").insert([{
+      await db.from("borrower_transactions").insert([{
         borrower_id: Number(borrowerTxForm.borrower_id),
         tx_type: borrowerTxForm.tx_type,
         amount: amt,
@@ -744,45 +879,38 @@ Thank you for your business!`;
         notes: borrowerTxForm.notes.trim(),
         tx_date: borrowerTxForm.tx_date
       }]);
-      if (error) throw error;
 
       const targetB = borrowers.find((b) => b.id == borrowerTxForm.borrower_id);
       if (targetB) {
         let newBorrowed = Number(targetB.total_borrowed || 0);
         let newRepaid = Number(targetB.total_repaid || 0);
 
-        if (borrowerTxForm.tx_type === "Given") {
-          newBorrowed += amt;
-        } else {
-          newRepaid += amt;
-        }
-        const newBalance = Math.max(0, newBorrowed - newRepaid);
+        if (borrowerTxForm.tx_type === "Given") newBorrowed += amt;
+        else newRepaid += amt;
+
         await db.from("borrowers").update({
           total_borrowed: newBorrowed,
           total_repaid: newRepaid,
-          balance_due: newBalance
+          balance_due: Math.max(0, newBorrowed - newRepaid)
         }).eq("id", targetB.id);
       }
 
       setShowBorrowerTxModal(false);
-      setBorrowerTxForm({
-        borrower_id: "",
-        tx_type: "Given",
-        amount: "",
-        payment_mode: "Cash",
-        partner_id: upfrontPartnerId || "",
-        notes: "",
-        tx_date: new Date().toISOString().split("T")[0]
-      });
       refreshData();
-      alert("Loan entry recorded!");
+      alert("Loan transaction saved!");
     } catch (err) {
       alert(err.message);
     }
   };
 
-  // PURCHASES HANDLERS
+  // PURCHASES HANDLERS (Locks edit when fully Paid)
   const handleEditProcurement = (p) => {
+    const total = Number(p.total_amount || 0);
+    const paid = Number(p.p1_amount || 0);
+    if (paid >= total && total > 0) {
+      return alert("This purchase bill is fully Paid and locked from edits according to business rules.");
+    }
+
     setEditingProcureId(p.id);
     setProcureForm({
       supplier_name: p.supplier_name || "",
@@ -799,11 +927,10 @@ Thank you for your business!`;
   };
 
   const handleDeleteProcurement = async (p) => {
-    if (!confirm(`Delete purchase "${p.item_name}" from ${p.supplier_name}? Stock will be removed.`)) return;
+    if (!confirm(`Delete purchase "${p.item_name}" from ${p.supplier_name}?`)) return;
     try {
-      const { error } = await db.from("procurements").delete().eq("id", p.id);
-      if (error) throw error;
-      alert("Purchase record deleted!");
+      await db.from("procurements").delete().eq("id", p.id);
+      alert("Purchase deleted!");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -818,12 +945,8 @@ Thank you for your business!`;
     const total = qty * purchaseRate;
     const paidNowNum = Number(procureForm.paid_now || 0);
 
-    if (paidNowNum > total) {
-      return alert("Amount paid cannot exceed total purchase valuation.");
-    }
-    if (paidNowNum > 0 && !procureForm.p1_id) {
-      return alert("Select which partner is funding this purchase payment.");
-    }
+    if (paidNowNum > total) return alert("Amount paid cannot exceed purchase total.");
+    if (paidNowNum > 0 && !procureForm.p1_id) return alert("Select funding partner.");
 
     const payload = {
       supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
@@ -840,13 +963,11 @@ Thank you for your business!`;
 
     try {
       if (editingProcureId) {
-        const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
-        if (error) throw error;
-        alert("Purchase record updated successfully!");
+        await db.from("procurements").update(payload).eq("id", editingProcureId);
+        alert("Purchase record updated!");
       } else {
-        const { error } = await db.from("procurements").insert([payload]);
-        if (error) throw error;
-        alert(`Purchase recorded! Supplier Due: ${money(total - paidNowNum)}`);
+        await db.from("procurements").insert([payload]);
+        alert(`Purchase saved! Supplier Due: ${money(total - paidNowNum)}`);
       }
       setShowProcureModal(false);
       setEditingProcureId(null);
@@ -858,7 +979,7 @@ Thank you for your business!`;
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-800 antialiased">
-      {/* Mobile Top Header */}
+      {/* Mobile Header */}
       <header className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">B</div>
@@ -869,7 +990,7 @@ Thank you for your business!`;
         </button>
       </header>
 
-      {/* SIDEBAR NAVIGATION */}
+      {/* SIDEBAR */}
       <aside
         className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-slate-900 text-slate-300 flex flex-col justify-between z-40 transition-transform duration-200 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
@@ -911,7 +1032,25 @@ Thank you for your business!`;
                 activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="invoice" size={18} /> Invoices & Edit/Delete
+              <Icon name="invoice" size={18} /> Invoices & Collections
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <Icon name="package" size={18} /> Purchases & Supplier Bills
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("history"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "history" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <Icon name="history" size={18} /> Audit History & Ledger
             </button>
 
             <button
@@ -938,7 +1077,7 @@ Thank you for your business!`;
                 activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Icon name="filetext" size={18} /> Excel Report & Dues
+              <Icon name="filetext" size={18} /> Excel Report (PDF)
             </button>
 
             <button
@@ -948,15 +1087,6 @@ Thank you for your business!`;
               }`}
             >
               <Icon name="users" size={18} /> Customers Directory
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="package" size={18} /> Purchases & Stock
             </button>
 
             <button
@@ -970,19 +1100,33 @@ Thank you for your business!`;
           </nav>
         </div>
 
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-slate-800 space-y-2">
           <button
-            onClick={() => { setShowCollectModal(true); setSidebarOpen(false); }}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg"
+            onClick={() => {
+              setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId });
+              setShowCollectModal(true);
+              setSidebarOpen(false);
+            }}
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow"
           >
-            <Icon name="rupee" size={16} /> Collect Customer Due
+            <Icon name="rupee" size={15} /> Collect Invoice Due
+          </button>
+          <button
+            onClick={() => {
+              setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", payment_date: new Date().toISOString().split("T")[0] });
+              setShowPayPurchaseModal(true);
+              setSidebarOpen(false);
+            }}
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow"
+          >
+            <Icon name="wallet" size={15} /> Pay Purchase Bill
           </button>
         </div>
       </aside>
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-xs" />}
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN VIEW */}
       <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
@@ -1005,7 +1149,7 @@ Thank you for your business!`;
                 />
               </div>
 
-              {/* Customer Selector with + Add New Customer */}
+              {/* Customer Selector */}
               <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block">Customer *</label>
@@ -1038,7 +1182,7 @@ Thank you for your business!`;
                 </select>
               </div>
 
-              {/* Bill Line Items */}
+              {/* Bill Items */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold uppercase text-slate-500">Bill Items *</label>
@@ -1239,58 +1383,262 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 3: INVOICES DIRECTORY */}
+        {/* VIEW 3: INVOICES & COLLECTIONS */}
         {activeTab === "invoices" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
-              <p className="text-xs text-slate-500">Edit quantities or delete bills and restore warehouse stock</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
+                <p className="text-xs text-slate-500">Track bills, invoice-wise collections, and settlement status</p>
+              </div>
             </div>
 
             <div className="space-y-3">
-              {invoices.map((inv) => (
-                <div key={inv.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[11px] font-bold text-indigo-600 uppercase">{inv.invoice_number || `INV-${inv.id}`}</span>
-                      <h4 className="font-black text-sm text-slate-900">{inv.customer_name}</h4>
-                      <span className="text-[11px] text-slate-400">{inv.invoice_date || inv.created_at?.slice(0, 10)}</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                      Due: {money(inv.balance_due)}
-                    </span>
-                  </div>
+              {invoices.map((inv) => {
+                const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
 
-                  <div className="flex gap-2 pt-2 border-t border-slate-200 justify-end">
-                    <button
-                      type="button"
-                      onClick={() => handleEditInvoice(inv)}
-                      className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Icon name="edit" size={13} /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteInvoice(inv)}
-                      className="px-3 py-1.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Icon name="trash" size={13} /> Delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleShareWhatsApp(inv)}
-                      className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Icon name="share" size={13} /> WhatsApp
-                    </button>
+                return (
+                  <div key={inv.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-indigo-600 uppercase">{inv.invoice_number || `INV-${inv.id}`}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                            isCollected ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                          }`}>
+                            {isCollected ? "Collected" : inv.status || "Due"}
+                          </span>
+                        </div>
+                        <h4 className="font-black text-sm text-slate-900 mt-0.5">{inv.customer_name}</h4>
+                        <span className="text-[11px] text-slate-400">{inv.invoice_date || inv.created_at?.slice(0, 10)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-slate-400 block font-bold">Total: {money(inv.total_amount)}</span>
+                        <span className="font-black text-xs text-rose-600">Due: {money(inv.balance_due)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-slate-200 justify-end items-center">
+                      {!isCollected && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCollectForm({
+                              customer_id: String(inv.customer_id),
+                              invoice_id: String(inv.id),
+                              amount: String(inv.balance_due || ""),
+                              payment_mode: "Cash",
+                              receiver_id: upfrontPartnerId
+                            });
+                            setShowCollectModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center gap-1"
+                        >
+                          <Icon name="rupee" size={13} /> Collect This Bill
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={isCollected}
+                        onClick={() => handleEditInvoice(inv)}
+                        className={`px-3 py-1.5 font-bold text-xs rounded-lg flex items-center gap-1 border ${
+                          isCollected
+                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                            : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                        }`}
+                        title={isCollected ? "Locked (Fully Collected)" : "Edit Invoice"}
+                      >
+                        <Icon name={isCollected ? "lock" : "edit"} size={13} /> {isCollected ? "Locked" : "Edit"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteInvoice(inv)}
+                        className="px-3 py-1.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleShareWhatsApp(inv)}
+                        className="px-3 py-1.5 bg-slate-900 text-white font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="share" size={13} /> WhatsApp
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
 
-        {/* VIEW 4: BORROWERS WITH EDIT & DELETE */}
+        {/* VIEW 4: PURCHASES & SUPPLIER BILLS */}
+        {activeTab === "procurement" && (
+          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Purchases & Stock (కొనుగోళ్లు)</h2>
+                <p className="text-xs text-slate-500">Supplier bills, settlements, and live stock tracking</p>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", payment_date: new Date().toISOString().split("T")[0] });
+                    setShowPayPurchaseModal(true);
+                  }}
+                  className="flex-1 sm:flex-none px-3.5 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold text-xs rounded-xl"
+                >
+                  Pay Supplier Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingProcureId(null);
+                    setProcureForm({
+                      supplier_name: "",
+                      item_name: "",
+                      procured_qty: "",
+                      purchase_rate: "",
+                      selling_rate: "",
+                      is_opening: false,
+                      paid_now: "",
+                      p1_id: partners[0]?.id ? String(partners[0].id) : "",
+                      p1_mode: "Cash"
+                    });
+                    setShowProcureModal(true);
+                  }}
+                  className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                >
+                  + Add Purchase
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {procurements.map((p) => {
+                const total = Number(p.total_amount || 0);
+                const paid = Number(p.p1_amount || 0);
+                const due = Math.max(0, total - paid);
+                const isPaid = paid >= total && total > 0;
+                const partner = partners.find((pt) => pt.id == p.p1_id);
+
+                return (
+                  <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{p.supplier_name}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          isPaid ? "bg-emerald-100 text-emerald-800" : paid > 0 ? "bg-blue-100 text-blue-800" : "bg-amber-100 text-amber-800"
+                        }`}>
+                          {isPaid ? "Paid" : paid > 0 ? "Partial" : "Due"}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-sm text-slate-900 mt-0.5">{p.item_name}</h4>
+                      <span className="text-xs text-slate-500">
+                        Cost: {money(p.purchase_rate)} | Sell: {money(p.selling_rate)} | Available Stock: <b>{p.remaining_qty}</b>
+                      </span>
+                      <div className="text-xs font-semibold text-slate-600 mt-1">
+                        Total: {money(total)} | Paid: {money(paid)} by {partner?.name || "Partner"} | <span className="text-rose-600 font-bold">Due: {money(due)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {due > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPayPurchaseForm({
+                              purchase_id: String(p.id),
+                              amount: String(due),
+                              partner_id: upfrontPartnerId,
+                              payment_mode: "Cash",
+                              payment_date: new Date().toISOString().split("T")[0]
+                            });
+                            setShowPayPurchaseModal(true);
+                          }}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg"
+                        >
+                          Pay Bill
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        disabled={isPaid}
+                        onClick={() => handleEditProcurement(p)}
+                        className={`px-2.5 py-1 font-bold text-xs rounded-lg flex items-center gap-1 border ${
+                          isPaid
+                            ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                            : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+                        }`}
+                        title={isPaid ? "Locked (Fully Paid)" : "Edit Purchase"}
+                      >
+                        <Icon name={isPaid ? "lock" : "edit"} size={13} /> {isPaid ? "Locked" : "Edit"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProcurement(p)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 5: AUDIT TRAIL / LEDGER HISTORY */}
+        {activeTab === "history" && (
+          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Audit Trail & Transaction History</h2>
+              <p className="text-xs text-slate-500">Chronological timeline of all sales, collections, purchase bills, loans, and expenses</p>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs border-collapse font-mono">
+                <thead className="bg-slate-100 text-slate-600 font-bold">
+                  <tr>
+                    <th className="p-2.5 border border-slate-200">Date</th>
+                    <th className="p-2.5 border border-slate-200">Module / Event</th>
+                    <th className="p-2.5 border border-slate-200">Reference / Title</th>
+                    <th className="p-2.5 border border-slate-200">Status</th>
+                    <th className="p-2.5 border border-slate-200">Mode</th>
+                    <th className="p-2.5 border border-slate-200 text-right">Amount</th>
+                    <th className="p-2.5 border border-slate-200">Audit Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditHistory.map((h) => (
+                    <tr key={h.id} className="hover:bg-slate-50/80">
+                      <td className="p-2.5 border border-slate-200 text-slate-500">{h.date}</td>
+                      <td className="p-2.5 border border-slate-200 font-bold text-indigo-600">{h.type}</td>
+                      <td className="p-2.5 border border-slate-200 font-bold text-slate-900">{h.title}</td>
+                      <td className="p-2.5 border border-slate-200">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                          {h.status}
+                        </span>
+                      </td>
+                      <td className="p-2.5 border border-slate-200">{h.mode}</td>
+                      <td className="p-2.5 border border-slate-200 text-right font-black text-slate-900">{money(h.amount)}</td>
+                      <td className="p-2.5 border border-slate-200 text-slate-500 text-[11px]">{h.details}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 6: BORROWERS */}
         {activeTab === "borrowers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1369,7 +1717,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 5: EXPENSES WITH EDIT & DELETE */}
+        {/* VIEW 7: EXPENSES */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1445,14 +1793,14 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL REPORT & STOCK / CUSTOMER DUES */}
+        {/* VIEW 8: EXCEL REPORT (ZERO QTY FILTERED OUT) */}
         {activeTab === "reports" && (
           <div className="space-y-6">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">B Reddy Statement (Excel Sheet Format)</h2>
-                  <p className="text-xs text-slate-500">Complete statement mirroring your B Reddy.xlsx balance sheet</p>
+                  <p className="text-xs text-slate-500">Complete balance sheet. Zero stock batches are excluded.</p>
                 </div>
                 <button
                   type="button"
@@ -1463,7 +1811,7 @@ Thank you for your business!`;
                 </button>
               </div>
 
-              {/* Master Balance Sheet Statement */}
+              {/* Master Balance Sheet Table */}
               <div className="overflow-x-auto border border-slate-300 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
@@ -1506,10 +1854,10 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* Stock Inventory Table with Delete Action */}
+              {/* Available Stock Inventory Table (Filtered to non-zero qty) */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock Inventory Batches)</h3>
+                  <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock with Qty &gt; 0)</h3>
                   <span className="text-xs font-bold text-slate-600">Total Valuation: {money(businessSummary.stockValuation)}</span>
                 </div>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -1523,39 +1871,30 @@ Thank you for your business!`;
                         <th className="p-2 border border-slate-200 text-right">Cost Rate</th>
                         <th className="p-2 border border-slate-200 text-right">Selling Rate</th>
                         <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
-                        <th className="p-2 border border-slate-200 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {procurements.map((p, idx) => (
-                        <tr key={p.id}>
-                          <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                          <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
-                          <td className="p-2 border border-slate-200 text-slate-500">{p.supplier_name}</td>
-                          <td className="p-2 border border-slate-200 text-center font-bold text-indigo-600">{p.remaining_qty}</td>
-                          <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
-                          <td className="p-2 border border-slate-200 text-right">{money(p.selling_rate)}</td>
-                          <td className="p-2 border border-slate-200 text-right font-bold text-slate-900">
-                            {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
-                          </td>
-                          <td className="p-2 border border-slate-200 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteProcurement(p)}
-                              className="p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded"
-                              title="Delete Stock Batch"
-                            >
-                              <Icon name="trash" size={13} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {procurements
+                        .filter((p) => Number(p.remaining_qty || 0) > 0)
+                        .map((p, idx) => (
+                          <tr key={p.id}>
+                            <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
+                            <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
+                            <td className="p-2 border border-slate-200 text-slate-500">{p.supplier_name}</td>
+                            <td className="p-2 border border-slate-200 text-center font-bold text-indigo-600">{p.remaining_qty}</td>
+                            <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
+                            <td className="p-2 border border-slate-200 text-right">{money(p.selling_rate)}</td>
+                            <td className="p-2 border border-slate-200 text-right font-bold text-slate-900">
+                              {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* Customer Dues Ledger with Delete Action */}
+              {/* Customer Dues Ledger */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
@@ -1569,7 +1908,6 @@ Thank you for your business!`;
                         <th className="p-2 border border-slate-200">Customer Name</th>
                         <th className="p-2 border border-slate-200">Mobile</th>
                         <th className="p-2 border border-slate-200 text-right">Outstanding Due</th>
-                        <th className="p-2 border border-slate-200 text-center">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1579,16 +1917,6 @@ Thank you for your business!`;
                           <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
                           <td className="p-2 border border-slate-200">{c.mobile || "N/A"}</td>
                           <td className="p-2 border border-slate-200 text-right font-bold text-rose-600">{money(c.old_due)}</td>
-                          <td className="p-2 border border-slate-200 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCustomer(c)}
-                              className="p-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded"
-                              title="Delete Customer"
-                            >
-                              <Icon name="trash" size={13} />
-                            </button>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1599,7 +1927,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 7: CUSTOMERS WITH EDIT & DELETE */}
+        {/* VIEW 9: CUSTOMERS */}
         {activeTab === "customers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1651,81 +1979,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: PURCHASES & STOCK */}
-        {activeTab === "procurement" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Purchases & Stock (కొనుగోళ్లు)</h2>
-                <p className="text-xs text-slate-500">Record stock purchases, supplier dues, and partner funded costs</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingProcureId(null);
-                  setProcureForm({
-                    supplier_name: "",
-                    item_name: "",
-                    procured_qty: "",
-                    purchase_rate: "",
-                    selling_rate: "",
-                    is_opening: false,
-                    paid_now: "",
-                    p1_id: partners[0]?.id ? String(partners[0].id) : "",
-                    p1_mode: "Cash"
-                  });
-                  setShowProcureModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-              >
-                + Add Purchase
-              </button>
-            </div>
-            <div className="space-y-3">
-              {procurements.map((p) => {
-                const total = Number(p.total_amount || 0);
-                const paid = Number(p.p1_amount || 0);
-                const due = Math.max(0, total - paid);
-                const partner = partners.find((pt) => pt.id == p.p1_id);
-
-                return (
-                  <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{p.supplier_name}</span>
-                      <h4 className="font-bold text-sm text-slate-900">{p.item_name}</h4>
-                      <span className="text-xs text-slate-500">
-                        Cost: {money(p.purchase_rate)} | Sell: {money(p.selling_rate)} | Stock: {p.remaining_qty}
-                      </span>
-                      {due > 0 && (
-                        <span className="block text-xs font-bold text-rose-600 mt-1">
-                          Supplier Due: {money(due)} (Paid: {money(paid)} by {partner?.name || "N/A"})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditProcurement(p)}
-                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                      >
-                        <Icon name="edit" size={13} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteProcurement(p)}
-                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                      >
-                        <Icon name="trash" size={13} /> Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 9: PARTNER ACCOUNTS */}
+        {/* VIEW 10: PARTNER ACCOUNTS */}
         {activeTab === "partners" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1801,34 +2055,305 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: EXPENSE CATEGORIES */}
-      {showCategoryModal && (
+      {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
+      {showPayPurchaseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-base text-slate-900">Expense Categories</h3>
-              <button type="button" onClick={() => setShowCategoryModal(false)} className="text-slate-400">
-                <Icon name="close" size={18} />
-              </button>
-            </div>
-            <form onSubmit={saveCategory} className="flex gap-2">
-              <input
-                type="text"
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">Pay Purchase Bill</h3>
+            <form onSubmit={savePurchasePayment} className="space-y-3">
+              <select
                 required
-                placeholder="New Category Name..."
-                className="flex-1 p-2.5 border rounded-xl text-xs"
-                value={newCatName}
-                onChange={(e) => setNewCatName(e.target.value)}
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={payPurchaseForm.purchase_id}
+                onChange={(e) => {
+                  const target = procurements.find((p) => p.id == e.target.value);
+                  const remDue = target ? Math.max(0, Number(target.total_amount || 0) - Number(target.p1_amount || 0)) : "";
+                  setPayPurchaseForm({
+                    ...payPurchaseForm,
+                    purchase_id: e.target.value,
+                    amount: remDue ? String(remDue) : ""
+                  });
+                }}
+              >
+                <option value="">-- Choose Purchase Bill --</option>
+                {procurements
+                  .filter((p) => Number(p.total_amount || 0) > Number(p.p1_amount || 0))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.item_name} ({p.supplier_name}) — Due: {money(Number(p.total_amount || 0) - Number(p.p1_amount || 0))}
+                    </option>
+                  ))}
+              </select>
+
+              <input
+                type="number"
+                required
+                placeholder="Payment Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-indigo-600"
+                value={payPurchaseForm.amount}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, amount: e.target.value })}
               />
-              <button type="submit" className="px-3 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl">Add</button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={payPurchaseForm.partner_id}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, partner_id: e.target.value })}
+              >
+                <option value="">-- Partner Paying Bill --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowPayPurchaseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Payment</button>
+              </div>
             </form>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {expenseCategories.map((c) => (
-                <div key={c.id} className="p-2.5 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
-                  <span>{c.name}</span>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INVOICE-WISE DUE COLLECTION */}
+      {showCollectModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">Collect Customer Invoice Due</h3>
+            <form onSubmit={saveInvoiceCollection} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={collectForm.customer_id}
+                onChange={(e) => {
+                  const custId = e.target.value;
+                  const firstInv = invoices.find((i) => i.customer_id == custId && Number(i.balance_due || 0) > 0);
+                  setCollectForm({
+                    ...collectForm,
+                    customer_id: custId,
+                    invoice_id: firstInv ? String(firstInv.id) : "",
+                    amount: firstInv ? String(firstInv.balance_due) : ""
+                  });
+                }}
+              >
+                <option value="">-- Choose Customer --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} (Total Due: {money(c.old_due)})</option>
+                ))}
+              </select>
+
+              {collectForm.customer_id && (
+                <select
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                  value={collectForm.invoice_id}
+                  onChange={(e) => {
+                    const inv = invoices.find((i) => i.id == e.target.value);
+                    setCollectForm({
+                      ...collectForm,
+                      invoice_id: e.target.value,
+                      amount: inv ? String(inv.balance_due) : collectForm.amount
+                    });
+                  }}
+                >
+                  <option value="">-- Select Specific Invoice (Optional) --</option>
+                  {invoices
+                    .filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0)
+                    .map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.invoice_number || `INV-${i.id}`} — Due: {money(i.balance_due)}
+                      </option>
+                    ))}
+                </select>
+              )}
+
+              <input
+                type="number"
+                required
+                placeholder="Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
+                value={collectForm.amount}
+                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={collectForm.receiver_id || upfrontPartnerId}
+                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
+              >
+                <option value="">-- Partner Who Received --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Collection</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT PURCHASES */}
+      {showProcureModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">
+              {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
+            </h3>
+            <form onSubmit={saveProcurement} className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Supplier / Vendor *</label>
+                <input
+                  list="supplier-master-list"
+                  type="text"
+                  required
+                  placeholder="Type or select existing supplier..."
+                  className="w-full p-2.5 border rounded-xl text-sm font-semibold"
+                  value={procureForm.supplier_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                />
+                <datalist id="supplier-master-list">
+                  {uniqueSupplierSuggestions.map((s, idx) => (
+                    <option key={idx} value={s} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Item Name *</label>
+                <input
+                  list="item-master-list"
+                  type="text"
+                  required
+                  placeholder="Type or select existing item..."
+                  className="w-full p-2.5 border rounded-xl text-sm font-bold"
+                  value={procureForm.item_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
+                />
+                <datalist id="item-master-list">
+                  {uniqueItemSuggestions.map((item, idx) => (
+                    <option key={idx} value={item} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Qty</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Qty"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={procureForm.procured_qty}
+                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                  />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Cost Rate"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={procureForm.purchase_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate</label>
+                  <input
+                    type="number"
+                    placeholder="Selling Rate"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
+                    value={procureForm.selling_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-700">
+                  <span>Total Purchase Cost:</span>
+                  <span>{money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}</span>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Paid Now by Partner (Leave 0 if full Due)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-600"
+                    value={procureForm.paid_now}
+                    onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
+                  />
+                </div>
+
+                {Number(procureForm.paid_now || 0) > 0 && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <select
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      value={procureForm.p1_id}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
+                    >
+                      <option value="">-- Funding Partner --</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      value={procureForm.p1_mode}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1988,131 +2513,37 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PURCHASES WITH DROPDOWN AUTOCOMPLETE */}
-      {showProcureModal && (
+      {/* MODAL: ADD / EDIT CUSTOMER */}
+      {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">
-              {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
-            </h3>
-            <form onSubmit={saveProcurement} className="space-y-3">
-              {/* Supplier Dropdown with Autocomplete */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Supplier / Vendor *</label>
-                <input
-                  list="supplier-master-list"
-                  type="text"
-                  required
-                  placeholder="Type or select existing supplier..."
-                  className="w-full p-2.5 border rounded-xl text-sm font-semibold"
-                  value={procureForm.supplier_name}
-                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
-                />
-                <datalist id="supplier-master-list">
-                  {uniqueSupplierSuggestions.map((s, idx) => (
-                    <option key={idx} value={s} />
-                  ))}
-                </datalist>
-              </div>
-
-              {/* Item Name Dropdown with Autocomplete */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Item Name *</label>
-                <input
-                  list="item-master-list"
-                  type="text"
-                  required
-                  placeholder="Type or select existing item..."
-                  className="w-full p-2.5 border rounded-xl text-sm font-bold"
-                  value={procureForm.item_name}
-                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
-                />
-                <datalist id="item-master-list">
-                  {uniqueItemSuggestions.map((item, idx) => (
-                    <option key={idx} value={item} />
-                  ))}
-                </datalist>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Qty</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Qty"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
-                    value={procureForm.procured_qty}
-                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Cost Rate"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
-                    value={procureForm.purchase_rate}
-                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate</label>
-                  <input
-                    type="number"
-                    placeholder="Selling Rate"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
-                    value={procureForm.selling_rate}
-                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Total Calculation & Paid Now / Due */}
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-700">
-                  <span>Total Purchase Cost:</span>
-                  <span>{money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}</span>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Paid Now by Partner (Leave 0 if full Due)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-600"
-                    value={procureForm.paid_now}
-                    onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
-                  />
-                </div>
-
-                {Number(procureForm.paid_now || 0) > 0 && (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <select
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                      value={procureForm.p1_id}
-                      onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
-                    >
-                      <option value="">-- Funding Partner --</option>
-                      {partners.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                      value={procureForm.p1_mode}
-                      onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="UPI">UPI</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Customer Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.name}
+                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.mobile}
+                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.old_due}
+                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
+              />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
+                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
               </div>
             </form>
           </div>
@@ -2167,122 +2598,34 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT CUSTOMER */}
-      {showCustModal && (
+      {/* MODAL: EXPENSE CATEGORIES */}
+      {showCategoryModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
-            <form onSubmit={saveCustomer} className="space-y-3">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-base text-slate-900">Expense Categories</h3>
+              <button type="button" onClick={() => setShowCategoryModal(false)} className="text-slate-400">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            <form onSubmit={saveCategory} className="flex gap-2">
               <input
                 type="text"
                 required
-                placeholder="Customer Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.name}
-                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+                placeholder="New Category Name..."
+                className="flex-1 p-2.5 border rounded-xl text-xs"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
               />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.mobile}
-                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
-              />
-              <input
-                type="number"
-                placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.old_due}
-                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
-              </div>
+              <button type="submit" className="px-3 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl">Add</button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: COLLECT CUSTOMER DUE */}
-      {showCollectModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Collect Due</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const amt = Number(collectForm.amount || 0);
-              await db.from("collections").insert([{
-                customer_id: Number(collectForm.customer_id),
-                amount: amt,
-                payment_mode: collectForm.payment_mode,
-                receiver_id: Number(collectForm.receiver_id)
-              }]);
-              const cust = customers.find((c) => c.id == collectForm.customer_id);
-              if (cust) {
-                await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
-              }
-              setShowCollectModal(false);
-              refreshData();
-            }} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={collectForm.customer_id}
-                onChange={(e) => {
-                  const c = customers.find((x) => x.id == e.target.value);
-                  setCollectForm({ ...collectForm, customer_id: e.target.value, amount: c ? c.old_due : "" });
-                }}
-              >
-                <option value="">-- Choose Customer --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} (Due: {money(c.old_due)})</option>
-                ))}
-              </select>
-
-              <input
-                type="number"
-                required
-                placeholder="Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
-                value={collectForm.amount}
-                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  💵 Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
-                >
-                  📱 UPI
-                </button>
-              </div>
-
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={collectForm.receiver_id || upfrontPartnerId}
-                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
-              >
-                <option value="">-- Partner Who Received --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Payment</button>
-              </div>
-            </form>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {expenseCategories.map((c) => (
+                <div key={c.id} className="p-2.5 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
+                  <span>{c.name}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
