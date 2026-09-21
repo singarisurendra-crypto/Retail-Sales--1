@@ -28,8 +28,6 @@ const supabaseKey =
 
 const db = createClient(supabaseUrl, supabaseKey);
 
-const db = createClient(supabaseUrl, supabaseKey);
-
 const money = (n) =>
   `₹${Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
