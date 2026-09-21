@@ -3,22 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
-  LayoutDashboard,
-  Receipt,
-  Users,
-  Package,
+  Search,
   Plus,
   Trash2,
-  Menu,
-  X,
-  ChevronDown,
-  CheckCircle2,
-  AlertTriangle,
-  Wallet,
-  ArrowDownLeft
+  Printer,
+  Users,
+  Package,
+  FileText,
+  UserCheck,
+  TrendingUp,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  LogOut,
+  ShoppingBag,
+  Layers
 } from "lucide-react";
 
-// Supabase configuration with exact project credentials
+// Supabase configuration
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   "https://yfptlgypcmykkwxnzgcw.supabase.co";
@@ -31,837 +33,696 @@ const db = createClient(supabaseUrl, supabaseKey);
 const money = (n) =>
   `₹${Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   })}`;
-const today = () => new Date().toISOString().slice(0, 10);
-const displayDate = (value) => {
-  if (!value) return "-";
-  const d = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  });
-};
 
-const emptyCustomer = { customer_name: "", mobile_no: "", opening_due: 0 };
-const emptyItem = { item_name: "", sale_rate: 0, opening_stock: 0 };
-const emptyReceiver = { receiver_name: "", opening_balance: 0 };
-const emptyCollection = { customer_id: "", receiver_id: "", amount: "", notes: "" };
+export default function RetailSalesApp() {
+  // Auth State (Default login: admin / 1234)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("admin");
+  const [loginPin, setLoginPin] = useState("");
+  const [loginError, setLoginError] = useState("");
 
-export default function Home() {
-  const [screen, setScreen] = useState("sale");
-  const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState("");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Navigation
+  const [activeTab, setActiveTab] = useState("sale"); // 'sale', 'procurement', 'invoices', 'customers', 'receivers', 'items'
 
-  // Data Collections
+  // DB Data
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
+  const [procurements, setProcurements] = useState([]);
   const [receivers, setReceivers] = useState([]);
-  const [sales, setSales] = useState([]);
-  const [collections, setCollections] = useState([]);
+  const [invoices, setInvoices] = useState([]);
 
   // Modals
-  const [showCustomerForm, setShowCustomerForm] = useState(false);
-  const [showItemForm, setShowItemForm] = useState(false);
-  const [showReceiverForm, setShowReceiverForm] = useState(false);
-  const [showCollectModal, setShowCollectModal] = useState(false);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [showReceiverModal, setShowReceiverModal] = useState(false);
+  const [showProcureModal, setShowProcureModal] = useState(false);
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
 
-  const [customerForm, setCustomerForm] = useState(emptyCustomer);
-  const [itemForm, setItemForm] = useState(emptyItem);
-  const [receiverForm, setReceiverForm] = useState(emptyReceiver);
-  const [collectForm, setCollectForm] = useState(emptyCollection);
+  // Form States
+  const [customerForm, setCustomerForm] = useState({ name: "", mobile: "", old_due: 0 });
+  const [itemForm, setItemForm] = useState({ name: "", rate: 0, stock: 0 });
+  const [receiverForm, setReceiverForm] = useState({ name: "", opening_cash: 0, opening_upi: 0 });
+  const [procureForm, setProcureForm] = useState({
+    supplier_name: "",
+    item_name: "",
+    procured_qty: 0,
+    purchase_rate: 0,
+    payment_mode: "Cash"
+  });
+  const [collectionForm, setCollectionForm] = useState({
+    customer_id: "",
+    amount: 0,
+    payment_mode: "Cash", // Cash or UPI
+    receiver_id: ""
+  });
 
-  // Sale Form State
-  const [saleDate, setSaleDate] = useState(today());
-  const [saleCustomer, setSaleCustomer] = useState("");
-  const [saleCustomerSearch, setSaleCustomerSearch] = useState("");
-  const [openCustomerPicker, setOpenCustomerPicker] = useState(false);
-  const [saleItems, setSaleItems] = useState([{ item_id: "", rate: 0, qty: 1 }]);
-  const [salePayment, setSalePayment] = useState("DUE");
-  const [saleReceiver, setSaleReceiver] = useState("");
+  // Sales Entry State
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
+  const [cart, setCart] = useState([
+    { procurement_id: "", item_name: "", rate: 0, qty: 1, total: 0, max_qty: 0 }
+  ]);
+  const [paymentType, setPaymentType] = useState("cash"); // 'cash', 'upi', 'due'
+  const [receiverId, setReceiverId] = useState("");
+  const [savingInvoice, setSavingInvoice] = useState(false);
 
+  // Initial Data Fetch
   useEffect(() => {
-    loadAll();
-  }, []);
-
-  async function loadAll() {
-    setLoading(true);
-    try {
-      const [c, i, r, sa, co] = await Promise.all([
-        db.from("customers").select("*").order("name"),
-        db.from("items").select("*").order("item_name"),
-        db.from("receivers").select("*").order("name"),
-        db.from("invoices").select("*").order("invoice_date", { ascending: false }),
-        db.from("collections").select("*").order("created_at", { ascending: false })
-      ]);
-
-      if (c.data) setCustomers(c.data);
-      if (i.data) setItems(i.data);
-      if (r.data) setReceivers(r.data);
-      if (sa.data) setSales(sa.data);
-      if (co.data) setCollections(co.data);
-    } catch (err) {
-      console.error(err);
-      flash("Error loading records from database.");
-    } finally {
-      setLoading(false);
+    if (isAuthenticated) {
+      loadAllData();
     }
-  }
+  }, [isAuthenticated]);
 
-  function flash(msg) {
-    setNotice(msg);
-    setTimeout(() => setNotice(""), 4000);
-  }
+  const loadAllData = async () => {
+    const [c, it, pr, rc, inv] = await Promise.all([
+      db.from("customers").select("*").order("name", { ascending: true }),
+      db.from("items").select("*").order("name", { ascending: true }),
+      db.from("procurements").select("*").order("created_at", { ascending: false }),
+      db.from("receivers").select("*").order("name", { ascending: true }),
+      db.from("invoices").select("*").order("created_at", { ascending: false })
+    ]);
 
-  function go(screenName) {
-    setScreen(screenName);
-    setMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  const stockMap = useMemo(() => {
-    const m = {};
-    items.forEach((x) => (m[x.id] = Number(x.current_stock || 0)));
-    return m;
-  }, [items]);
-
-  const customerDue = (customerId) => {
-    const c = customers.find((x) => x.id === Number(customerId));
-    const invDue = sales
-      .filter((x) => x.customer_id === Number(customerId) && x.payment_status === "DUE")
-      .reduce((a, x) => a + Number(x.total_amount || 0), 0);
-    return Number(c?.old_due || 0) + invDue;
+    if (c.data) setCustomers(c.data);
+    if (it.data) setItems(it.data);
+    if (pr.data) setProcurements(pr.data);
+    if (rc.data) {
+      setReceivers(rc.data);
+      if (rc.data.length > 0 && !receiverId) setReceiverId(rc.data[0].id);
+    }
+    if (inv.data) setInvoices(inv.data);
   };
 
-  const saleTotal = saleItems.reduce(
-    (a, x) => a + Number(x.rate || 0) * Number(x.qty || 0),
-    0
-  );
-  const saleCustomerRecord = customers.find((x) => x.id === Number(saleCustomer));
-  const pickerCustomers = customers.filter((c) =>
-    `${c.name || ""} ${c.mobile || ""}`.toLowerCase().includes(saleCustomerSearch.toLowerCase())
-  );
-
-  async function saveCustomer(e) {
+  // 1. Handle Login
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!customerForm.customer_name.trim()) return flash("Customer name is required.");
-    const payload = {
-      name: customerForm.customer_name,
-      mobile: customerForm.mobile_no || "0000000000",
-      old_due: Number(customerForm.opening_due || 0)
-    };
-    const { data, error } = await db.from("customers").insert(payload).select().single();
-    if (error) return flash(error.message);
-    setCustomerForm(emptyCustomer);
-    setShowCustomerForm(false);
-    await loadAll();
-    if (data?.id) setSaleCustomer(String(data.id));
-    flash("Customer added successfully!");
-  }
+    setLoginError("");
 
-  async function saveItem(e) {
-    e.preventDefault();
-    if (!itemForm.item_name.trim()) return flash("Item name is required.");
-    const payload = {
-      item_name: itemForm.item_name,
-      unit_price: Number(itemForm.sale_rate || 0),
-      current_stock: Number(itemForm.opening_stock || 0)
-    };
-    const { error } = await db.from("items").insert(payload);
-    if (error) return flash(error.message);
-    setItemForm(emptyItem);
-    setShowItemForm(false);
-    await loadAll();
-    flash("Item added successfully!");
-  }
-
-  async function saveReceiver(e) {
-    e.preventDefault();
-    if (!receiverForm.receiver_name.trim()) return flash("Account name is required.");
-    const payload = {
-      name: receiverForm.receiver_name,
-      balance: Number(receiverForm.opening_balance || 0)
-    };
-    const { error } = await db.from("receivers").insert(payload);
-    if (error) return flash(error.message);
-    setReceiverForm(emptyReceiver);
-    setShowReceiverForm(false);
-    await loadAll();
-    flash("Receiver account added!");
-  }
-
-  async function saveCollection(e) {
-    e.preventDefault();
-    const custId = Number(collectForm.customer_id);
-    const recId = Number(collectForm.receiver_id);
-    const amount = Number(collectForm.amount);
-
-    if (!custId) return flash("Please select a customer.");
-    if (!recId) return flash("Please select a receiver account.");
-    if (amount <= 0) return flash("Enter a valid payment amount.");
-
-    const customer = customers.find((c) => c.id === custId);
-    const receiver = receivers.find((r) => r.id === recId);
-
-    await db.from("collections").insert({
-      collection_no: `COL-${Date.now()}`,
-      collection_date: today(),
-      customer_id: custId,
-      receiver_id: recId,
-      payment_mode: "CASH",
-      total_amount: amount,
-      remarks: collectForm.notes || `Collection from ${customer?.name}`
-    });
-
-    const currentDue = Number(customer?.old_due || 0);
-    await db
-      .from("customers")
-      .update({ old_due: Math.max(0, currentDue - amount) })
-      .eq("id", custId);
-
-    const currentBal = Number(receiver?.balance || 0);
-    await db
-      .from("receivers")
-      .update({ balance: currentBal + amount })
-      .eq("id", recId);
-
-    flash(`Received ${money(amount)} into ${receiver?.name}!`);
-    setCollectForm(emptyCollection);
-    setShowCollectModal(false);
-    await loadAll();
-  }
-
-  async function createSale(e) {
-    e.preventDefault();
-    if (!saleCustomer) return flash("Please select a customer.");
-    if (!saleItems.length || saleItems.some((x) => !x.item_id || Number(x.qty) <= 0)) {
-      return flash("Please select items and valid quantities.");
+    // Test fallback check
+    if (loginUsername === "admin" && loginPin === "1234") {
+      setIsAuthenticated(true);
+      return;
     }
 
-    const nextInvoiceNo = `Inv-${String(sales.length + 1).padStart(4, "0")}`;
-    const { data: sale, error } = await db
-      .from("invoices")
-      .insert({
-        invoice_number: nextInvoiceNo,
-        invoice_date: saleDate,
-        customer_id: Number(saleCustomer),
-        customer_name: saleCustomerRecord?.name || "Customer",
-        total_amount: saleTotal,
-        payment_status: salePayment,
-        receiver_id: salePayment === "PAID" && saleReceiver ? Number(saleReceiver) : null
-      })
-      .select()
+    const { data, error } = await db
+      .from("pos_users")
+      .select("*")
+      .eq("username", loginUsername.trim())
+      .eq("pin_code", loginPin.trim())
       .single();
 
-    if (error) return flash(error.message);
+    if (error || !data) {
+      setLoginError("Invalid Username or PIN");
+    } else {
+      setIsAuthenticated(true);
+    }
+  };
 
-    const rows = saleItems.map((x) => {
-      const itm = items.find((i) => i.id === Number(x.item_id));
-      return {
-        invoice_id: sale.id,
-        item_id: Number(x.item_id),
-        item_name: itm?.item_name || "Item",
-        rate: Number(x.rate),
-        quantity: Number(x.qty),
-        line_total: Number(x.rate) * Number(x.qty)
+  // 2. Customer Management
+  const handleSaveCustomer = async (e) => {
+    e.preventDefault();
+    const { data, error } = await db.from("customers").insert([customerForm]).select();
+    if (!error && data) {
+      setCustomers([...customers, data[0]]);
+      setSelectedCustomer(data[0]);
+      setShowCustomerModal(false);
+      setCustomerForm({ name: "", mobile: "", old_due: 0 });
+    } else {
+      alert("Error saving customer: " + error?.message);
+    }
+  };
+
+  // 3. Item Management
+  const handleSaveItem = async (e) => {
+    e.preventDefault();
+    const { data, error } = await db.from("items").insert([itemForm]).select();
+    if (!error && data) {
+      setItems([...items, data[0]]);
+      setShowItemModal(false);
+      setItemForm({ name: "", rate: 0, stock: 0 });
+    } else {
+      alert("Error saving item: " + error?.message);
+    }
+  };
+
+  // 4. Receiver Management (Opening Cash & Opening UPI)
+  const handleSaveReceiver = async (e) => {
+    e.preventDefault();
+    const { data, error } = await db.from("receivers").insert([{
+      name: receiverForm.name,
+      opening_cash: Number(receiverForm.opening_cash || 0),
+      opening_upi: Number(receiverForm.opening_upi || 0)
+    }]).select();
+
+    if (!error && data) {
+      setReceivers([...receivers, data[0]]);
+      setShowReceiverModal(false);
+      setReceiverForm({ name: "", opening_cash: 0, opening_upi: 0 });
+    } else {
+      alert("Error saving receiver: " + error?.message);
+    }
+  };
+
+  // 5. Procurement Management
+  const handleSaveProcurement = async (e) => {
+    e.preventDefault();
+    const qty = Number(procureForm.procured_qty || 0);
+    const rate = Number(procureForm.purchase_rate || 0);
+
+    const record = {
+      supplier_name: procureForm.supplier_name,
+      item_name: procureForm.item_name,
+      procured_qty: qty,
+      remaining_qty: qty,
+      purchase_rate: rate,
+      total_amount: qty * rate,
+      payment_mode: procureForm.payment_mode
+    };
+
+    const { data, error } = await db.from("procurements").insert([record]).select();
+    if (!error && data) {
+      setProcurements([data[0], ...procurements]);
+      setShowProcureModal(false);
+      setProcureForm({
+        supplier_name: "",
+        item_name: "",
+        procured_qty: 0,
+        purchase_rate: 0,
+        payment_mode: "Cash"
+      });
+    } else {
+      alert("Error saving procurement: " + error?.message);
+    }
+  };
+
+  // 6. Collection Management (Cash or UPI)
+  const handleSaveCollection = async (e) => {
+    e.preventDefault();
+    const collAmount = Number(collectionForm.amount || 0);
+    const { error } = await db.from("collections").insert([{
+      customer_id: collectionForm.customer_id,
+      amount: collAmount,
+      payment_mode: collectionForm.payment_mode,
+      receiver_id: collectionForm.receiver_id || receiverId
+    }]);
+
+    if (!error) {
+      // Deduct from customer due
+      const targetCust = customers.find(c => c.id == collectionForm.customer_id);
+      if (targetCust) {
+        const newDue = Math.max(0, Number(targetCust.old_due || 0) - collAmount);
+        await db.from("customers").update({ old_due: newDue }).eq("id", targetCust.id);
+      }
+      setShowCollectionModal(false);
+      setCollectionForm({ customer_id: "", amount: 0, payment_mode: "Cash", receiver_id: "" });
+      loadAllData();
+      alert("Collection recorded successfully!");
+    } else {
+      alert("Error recording collection: " + error?.message);
+    }
+  };
+
+  // Cart operations using Procured Items
+  const handleProcureSelectInCart = (index, procurementId) => {
+    const proc = procurements.find((p) => p.id == procurementId);
+    if (!proc) return;
+
+    const newCart = [...cart];
+    newCart[index] = {
+      procurement_id: proc.id,
+      item_name: proc.item_name,
+      rate: Number(proc.purchase_rate) * 1.25, // default markup or rate
+      qty: 1,
+      max_qty: Number(proc.remaining_qty),
+      total: Number(proc.purchase_rate) * 1.25
+    };
+    setCart(newCart);
+  };
+
+  const updateCartLine = (index, field, value) => {
+    const newCart = [...cart];
+    newCart[index][field] = value;
+    if (field === "qty" || field === "rate") {
+      newCart[index].total = Number(newCart[index].qty || 0) * Number(newCart[index].rate || 0);
+    }
+    setCart(newCart);
+  };
+
+  const addCartLine = () => {
+    setCart([...cart, { procurement_id: "", item_name: "", rate: 0, qty: 1, total: 0, max_qty: 0 }]);
+  };
+
+  const removeCartLine = (index) => {
+    if (cart.length === 1) return;
+    setCart(cart.filter((_, i) => i !== index));
+  };
+
+  const billSubTotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + Number(item.total || 0), 0);
+  }, [cart]);
+
+  // Complete & Save Sale
+  const handleSaveSale = async () => {
+    if (!selectedCustomer) {
+      alert("Please select a customer.");
+      return;
+    }
+    if (cart.some((c) => !c.procurement_id || c.qty <= 0)) {
+      alert("Please select valid procured items and quantities.");
+      return;
+    }
+
+    setSavingInvoice(true);
+    try {
+      const invoiceRecord = {
+        customer_id: selectedCustomer.id,
+        customer_name: selectedCustomer.name,
+        invoice_date: invoiceDate,
+        total_amount: billSubTotal,
+        payment_type: paymentType,
+        receiver_id: receiverId || null
       };
-    });
 
-    await db.from("invoice_items").insert(rows);
+      const { data: invData, error: invError } = await db
+        .from("invoices")
+        .insert([invoiceRecord])
+        .select();
 
-    for (const x of saleItems) {
-      const it = items.find((i) => i.id === Number(x.item_id));
-      if (it) {
-        await db
-          .from("items")
-          .update({ current_stock: Math.max(0, Number(it.current_stock || 0) - Number(x.qty)) })
-          .eq("id", x.item_id);
+      if (invError) throw invError;
+
+      // Deduct quantities from procured stock
+      for (const line of cart) {
+        const proc = procurements.find((p) => p.id == line.procurement_id);
+        if (proc) {
+          const updatedQty = Math.max(0, Number(proc.remaining_qty) - Number(line.qty));
+          await db.from("procurements").update({ remaining_qty: updatedQty }).eq("id", proc.id);
+        }
       }
-    }
 
-    if (salePayment === "PAID" && saleReceiver) {
-      const r = receivers.find((rec) => rec.id === Number(saleReceiver));
-      if (r) {
-        await db
-          .from("receivers")
-          .update({ balance: Number(r.balance || 0) + saleTotal })
-          .eq("id", Number(saleReceiver));
+      // If credit sale, increment customer due
+      if (paymentType === "due") {
+        const newDue = Number(selectedCustomer.old_due || 0) + billSubTotal;
+        await db.from("customers").update({ old_due: newDue }).eq("id", selectedCustomer.id);
       }
-    } else if (salePayment === "DUE") {
-      const currentDue = Number(saleCustomerRecord?.old_due || 0);
-      await db
-        .from("customers")
-        .update({ old_due: currentDue + saleTotal })
-        .eq("id", Number(saleCustomer));
-    }
 
-    flash(`Invoice ${nextInvoiceNo} created successfully!`);
-    setSaleCustomer("");
-    setSaleItems([{ item_id: "", rate: 0, qty: 1 }]);
-    setSalePayment("DUE");
-    await loadAll();
-    go("sales");
+      alert("Invoice Created Successfully!");
+      setCart([{ procurement_id: "", item_name: "", rate: 0, qty: 1, total: 0, max_qty: 0 }]);
+      setSelectedCustomer(null);
+      loadAllData();
+    } catch (err) {
+      alert("Error creating invoice: " + err.message);
+    } finally {
+      setSavingInvoice(false);
+    }
+  };
+
+  // --- LOGIN SCREEN ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full border border-slate-100">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto text-white font-black text-2xl mb-3 shadow-lg shadow-blue-300">
+              B
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">B REDDY SALES</h2>
+            <p className="text-xs text-slate-400 mt-1 font-medium">POS Register Login</p>
+          </div>
+
+          {loginError && (
+            <div className="mb-4 text-xs font-semibold text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-200 text-center">
+              {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Username</label>
+              <input
+                type="text"
+                className="w-full mt-1.5 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-semibold text-slate-700"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">PIN Code</label>
+              <input
+                type="password"
+                maxLength={6}
+                placeholder="1234"
+                className="w-full mt-1.5 px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-center tracking-widest text-xl font-bold text-slate-800"
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value)}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition shadow-lg shadow-blue-200 text-sm"
+            >
+              Sign In to POS
+            </button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
-  const navLinks = [
-    { id: "sale", label: "Create Sale", icon: Plus, highlight: true },
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "sales", label: "Invoices", icon: Receipt },
-    { id: "customers", label: "Customers", icon: Users },
-    { id: "receivers", label: "Receivers (Cash)", icon: Wallet },
-    { id: "stock", label: "Stock", icon: Package }
-  ];
-
+  // --- MAIN APP SCREEN ---
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col antialiased">
+    <div className="min-h-screen bg-slate-100 flex flex-col text-slate-800 font-sans">
       {/* Top Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-2 text-slate-700 hover:bg-slate-100 rounded-lg active:bg-slate-200"
-              aria-label="Open menu"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => go("dashboard")}>
-              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-sm">
-                B
-              </div>
-              <span className="text-base font-extrabold tracking-tight text-slate-900">
-                B REDDY <span className="text-indigo-600">SALES</span>
-              </span>
-            </div>
+      <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+            B
           </div>
+          <div>
+            <h1 className="font-bold text-lg text-slate-900 leading-tight">B REDDY SALES</h1>
+            <p className="text-xs text-slate-500 font-medium">Retail Point of Sale</p>
+          </div>
+        </div>
 
-          <div className="hidden lg:flex items-center gap-1">
-            {navLinks.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => go(tab.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition ${
-                    screen === tab.id
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "text-slate-600 hover:bg-slate-100"
-                  } ${tab.highlight ? "bg-indigo-600 !text-white hover:!bg-indigo-700 ml-2" : ""}`}
-                >
-                  <Icon className="w-4 h-4" /> {tab.label}
-                </button>
-              );
-            })}
-          </div>
+        {/* Navigation Tabs */}
+        <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab("sale")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
+              activeTab === "sale" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            + Create Sale
+          </button>
+          <button
+            onClick={() => setActiveTab("procurement")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
+              activeTab === "procurement" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Procurement
+          </button>
+          <button
+            onClick={() => setActiveTab("invoices")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
+              activeTab === "invoices" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Invoices
+          </button>
+          <button
+            onClick={() => setActiveTab("customers")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
+              activeTab === "customers" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Customers
+          </button>
+          <button
+            onClick={() => setActiveTab("receivers")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${
+              activeTab === "receivers" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            Receivers
+          </button>
+        </nav>
+
+        {/* Right Header Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCollectionModal(true)}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+          >
+            <Banknote size={15} /> Collect Due
+          </button>
+          <button
+            onClick={() => setIsAuthenticated(false)}
+            className="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition"
+            title="Logout"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </header>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex">
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="relative w-72 max-w-[80vw] bg-white h-full shadow-2xl flex flex-col justify-between p-5 z-50">
-            <div>
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      {/* Main Workspace */}
+      <main className="p-6 flex-1 max-w-7xl w-full mx-auto">
+        {/* VIEW 1: SALES ENTRY */}
+        {activeTab === "sale" && (
+          <div className="grid grid-cols-12 gap-6">
+            {/* Left Column: Form & Procured Cart Items */}
+            <div className="col-span-8 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                <h2 className="font-bold text-slate-800 text-base">New Sales Invoice</h2>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                    B
-                  </div>
-                  <span className="font-extrabold text-sm text-slate-900">B REDDY SALES</span>
+                  <input
+                    type="date"
+                    className="p-2 text-xs border rounded-lg font-medium"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                  />
                 </div>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
-              <div className="mt-4 space-y-1">
-                {navLinks.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
+              {/* Customer Selector */}
+              <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold uppercase text-slate-500">Customer *</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomerModal(true)}
+                    className="text-xs font-bold text-blue-600 hover:underline"
+                  >
+                    + New Customer
+                  </button>
+                </div>
+                <select
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-medium text-sm outline-none"
+                  value={selectedCustomer ? selectedCustomer.id : ""}
+                  onChange={(e) => {
+                    const found = customers.find((c) => c.id == e.target.value);
+                    setSelectedCustomer(found || null);
+                  }}
+                >
+                  <option value="">-- Choose Customer --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.mobile || "No Mobile"}) - Due: {money(c.old_due)}
+                    </option>
+                  ))}
+                </select>
+                {selectedCustomer && (
+                  <div className="mt-2 text-xs flex gap-4 text-slate-600 font-medium">
+                    <span>Mobile: <b>{selectedCustomer.mobile || "N/A"}</b></span>
+                    <span>Opening Due: <b className="text-rose-600">{money(selectedCustomer.old_due)}</b></span>
+                  </div>
+                )}
+              </div>
+
+              {/* Cart Table (Procured Item Linked) */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold uppercase text-slate-500">Procured Items *</h3>
+                  <button
+                    onClick={addCartLine}
+                    className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                  >
+                    <Plus size={14} /> Add Line
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {cart.map((line, idx) => (
+                    <div key={idx} className="flex gap-3 items-center bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <div className="flex-1">
+                        <select
+                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                          value={line.procurement_id}
+                          onChange={(e) => handleProcureSelectInCart(idx, e.target.value)}
+                        >
+                          <option value="">-- Choose From Procured Stock --</option>
+                          {procurements
+                            .filter((p) => Number(p.remaining_qty) > 0)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.item_name} (Supplier: {p.supplier_name} | Left: {p.remaining_qty})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div className="w-24">
+                        <input
+                          type="number"
+                          placeholder="Rate"
+                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                          value={line.rate}
+                          onChange={(e) => updateCartLine(idx, "rate", e.target.value)}
+                        />
+                      </div>
+
+                      <div className="w-20">
+                        <input
+                          type="number"
+                          min="1"
+                          max={line.max_qty || 9999}
+                          placeholder="Qty"
+                          className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-medium"
+                          value={line.qty}
+                          onChange={(e) => updateCartLine(idx, "qty", e.target.value)}
+                        />
+                      </div>
+
+                      <div className="w-28 text-right font-bold text-sm text-slate-800">
+                        {money(line.total)}
+                      </div>
+
+                      <button
+                        onClick={() => removeCartLine(idx)}
+                        className="text-slate-400 hover:text-rose-600 p-1"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Totals & Finalize */}
+            <div className="col-span-4 space-y-6">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h3 className="text-xs font-bold uppercase text-slate-500 mb-4">Payment Summary</h3>
+
+                <div className="space-y-3 pb-4 border-b border-slate-100">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Subtotal:</span>
+                    <span className="font-bold">{money(billSubTotal)}</span>
+                  </div>
+                  {selectedCustomer && (
+                    <div className="flex justify-between text-sm text-rose-600">
+                      <span>Previous Balance:</span>
+                      <span className="font-bold">{money(selectedCustomer.old_due)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-black pt-2 border-t text-slate-900">
+                    <span>Total Due:</span>
+                    <span className="text-blue-600">{money(billSubTotal)}</span>
+                  </div>
+                </div>
+
+                {/* Payment Mode Selection */}
+                <div className="mt-4">
+                  <label className="text-xs font-bold uppercase text-slate-500 block mb-2">Payment Type</label>
+                  <div className="grid grid-cols-3 gap-2">
                     <button
-                      key={tab.id}
-                      onClick={() => go(tab.id)}
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-bold transition ${
-                        screen === tab.id
-                          ? "bg-indigo-50 text-indigo-700"
-                          : "text-slate-600 hover:bg-slate-50"
+                      type="button"
+                      onClick={() => setPaymentType("cash")}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        paymentType === "cash" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200"
                       }`}
                     >
-                      <Icon className="w-5 h-5" />
-                      <span>{tab.label}</span>
+                      Cash
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 text-xs text-slate-400">
-              Retail Inventory & Billing
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Notice Notification */}
-      {notice && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 max-w-sm">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-          <span className="text-sm font-medium">{notice}</span>
-          <button onClick={() => setNotice("")} className="text-slate-400 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Body Views */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 pb-24 lg:pb-12">
-        {/* VIEW: CREATE SALE */}
-        {screen === "sale" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Sales Entry</span>
-                <h1 className="text-xl font-black text-slate-900">Create Invoice</h1>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Total Bill</span>
-                <div className="text-2xl font-black text-indigo-700">{money(saleTotal)}</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="space-y-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer *</label>
                     <button
                       type="button"
-                      onClick={() => {
-                        setCustomerForm(emptyCustomer);
-                        setShowCustomerForm(true);
-                      }}
-                      className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
+                      onClick={() => setPaymentType("upi")}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        paymentType === "upi" ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200"
+                      }`}
                     >
-                      + New Customer
+                      UPI
                     </button>
-                  </div>
-
-                  <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setOpenCustomerPicker(!openCustomerPicker)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-left flex justify-between items-center text-sm font-semibold"
+                      onClick={() => setPaymentType("due")}
+                      className={`py-2 rounded-xl text-xs font-bold border transition ${
+                        paymentType === "due" ? "bg-amber-600 text-white border-amber-600" : "border-slate-200"
+                      }`}
                     >
-                      <span>{saleCustomerRecord?.name || "Select Customer"}</span>
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                      Credit (Due)
                     </button>
-
-                    {openCustomerPicker && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto">
-                        <input
-                          type="text"
-                          placeholder="Search customer..."
-                          value={saleCustomerSearch}
-                          onChange={(e) => setSaleCustomerSearch(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs mb-2 font-medium"
-                        />
-                        {pickerCustomers.map((c) => (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setSaleCustomer(String(c.id));
-                              setOpenCustomerPicker(false);
-                            }}
-                            className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer flex justify-between items-center text-xs"
-                          >
-                            <span className="font-bold text-slate-800">{c.name}</span>
-                            <span className="text-amber-600 font-bold">Due: {money(customerDue(c.id))}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                      Invoice Date
-                    </label>
-                    <input
-                      type="date"
-                      value={saleDate}
-                      onChange={(e) => setSaleDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm font-semibold"
-                    />
                   </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 shadow-xs">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Pick Product</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setItemForm(emptyItem);
-                        setShowItemForm(true);
-                      }}
-                      className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
-                    >
-                      + New Item
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {saleItems.map((row, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-700">Item #{idx + 1}</span>
-                          {saleItems.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setSaleItems(saleItems.filter((_, i) => i !== idx))}
-                              className="text-rose-500 hover:bg-rose-50 p-1 rounded"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                        <select
-                          value={row.item_id}
-                          onChange={(e) => {
-                            const found = items.find((i) => i.id === Number(e.target.value));
-                            setSaleItems(
-                              saleItems.map((r, i) =>
-                                i === idx ? { ...r, item_id: e.target.value, rate: found?.unit_price || 0 } : r
-                              )
-                            );
-                          }}
-                          className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-semibold"
-                        >
-                          <option value="">-- Choose Item --</option>
-                          {items.map((i) => (
-                            <option key={i.id} value={i.id}>
-                              {i.item_name} (Stock: {stockMap[i.id] || 0})
-                            </option>
-                          ))}
-                        </select>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 block mb-1">Rate (₹)</span>
-                            <input
-                              type="number"
-                              value={row.rate}
-                              onChange={(e) =>
-                                setSaleItems(saleItems.map((r, i) => (i === idx ? { ...r, rate: e.target.value } : r)))
-                              }
-                              className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold"
-                            />
-                          </div>
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 block mb-1">Qty</span>
-                            <input
-                              type="number"
-                              min="1"
-                              value={row.qty}
-                              onChange={(e) =>
-                                setSaleItems(saleItems.map((r, i) => (i === idx ? { ...r, qty: e.target.value } : r)))
-                              }
-                              className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold"
-                            />
-                          </div>
-                        </div>
-                      </div>
+                {/* Receiver Selection */}
+                <div className="mt-4">
+                  <label className="text-xs font-bold uppercase text-slate-500 block mb-1">Receiver Account</label>
+                  <select
+                    className="w-full p-2 border rounded-lg text-xs font-medium"
+                    value={receiverId}
+                    onChange={(e) => setReceiverId(e.target.value)}
+                  >
+                    {receivers.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
                     ))}
-
-                    <button
-                      type="button"
-                      onClick={() => setSaleItems([...saleItems, { item_id: "", rate: 0, qty: 1 }])}
-                      className="w-full py-2 border-2 border-dashed border-slate-300 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4" /> Add Another Item
-                    </button>
-                  </div>
+                  </select>
                 </div>
-              </div>
 
-              {/* Summary and Payment */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between min-h-[380px]">
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Invoice Items</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="border-b text-slate-400 uppercase font-bold">
-                            <th className="pb-2">Item</th>
-                            <th className="pb-2 text-right">Price</th>
-                            <th className="pb-2 text-center">Qty</th>
-                            <th className="pb-2 text-right">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium">
-                          {saleItems.filter((x) => x.item_id).length === 0 ? (
-                            <tr>
-                              <td colSpan="4" className="py-12 text-center text-slate-400 font-medium">
-                                No items added yet. Pick products on the left.
-                              </td>
-                            </tr>
-                          ) : (
-                            saleItems
-                              .filter((x) => x.item_id)
-                              .map((r, i) => {
-                                const itm = items.find((it) => it.id === Number(r.item_id));
-                                return (
-                                  <tr key={i}>
-                                    <td className="py-2.5 font-bold text-slate-800">{itm?.item_name}</td>
-                                    <td className="py-2.5 text-right font-bold text-slate-600">{money(r.rate)}</td>
-                                    <td className="py-2.5 text-center font-bold text-indigo-600">{r.qty}</td>
-                                    <td className="py-2.5 text-right font-black text-slate-900">
-                                      {money(Number(r.rate) * Number(r.qty))}
-                                    </td>
-                                  </tr>
-                                );
-                              })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-200 pt-4 mt-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-sm font-bold text-slate-500">Bill Total</span>
-                      <span className="text-2xl font-black text-slate-900">{money(saleTotal)}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <button
-                        type="button"
-                        onClick={() => setSalePayment("PAID")}
-                        className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                          salePayment === "PAID"
-                            ? "bg-emerald-50 border-emerald-500 text-emerald-700"
-                            : "bg-white border-slate-300 text-slate-600"
-                        }`}
-                      >
-                        <CheckCircle2 className="w-4 h-4" /> Fully Paid
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSalePayment("DUE")}
-                        className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                          salePayment === "DUE"
-                            ? "bg-amber-50 border-amber-500 text-amber-700"
-                            : "bg-white border-slate-300 text-slate-600"
-                        }`}
-                      >
-                        <AlertTriangle className="w-4 h-4" /> Due / Credit
-                      </button>
-                    </div>
-
-                    {salePayment === "PAID" && (
-                      <div className="mb-4">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                          Deposit To Receiver (Cash/PhonePe)
-                        </label>
-                        <select
-                          value={saleReceiver}
-                          onChange={(e) => setSaleReceiver(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
-                        >
-                          <option value="">Select receiver account...</option>
-                          {receivers.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name} ({money(r.balance)})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={createSale}
-                      disabled={!saleCustomer || saleTotal <= 0}
-                      className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-extrabold text-sm rounded-xl shadow-md transition cursor-pointer"
-                    >
-                      Complete & Save Sale
-                    </button>
-                  </div>
-                </div>
+                <button
+                  disabled={savingInvoice || billSubTotal <= 0}
+                  onClick={handleSaveSale}
+                  className="w-full mt-6 py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold rounded-xl transition shadow-lg shadow-blue-100"
+                >
+                  {savingInvoice ? "Completing..." : "Complete & Save Sale"}
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* VIEW: RECEIVERS & CASH */}
-        {screen === "receivers" && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* VIEW 2: PROCUREMENT (STOCK IN) */}
+        {activeTab === "procurement" && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Receivers & Cash Accounts</h1>
-                <p className="text-xs text-slate-500 mt-1">
-                  Manage balances across cash, shop drawer, and UPI accounts
-                </p>
+                <h2 className="font-bold text-lg text-slate-800">Procurements (Stock In)</h2>
+                <p className="text-xs text-slate-500">Record item purchases and stock additions</p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setCollectForm(emptyCollection);
-                    setShowCollectModal(true);
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
-                >
-                  <ArrowDownLeft className="w-4 h-4" /> Collect Money
-                </button>
-                <button
-                  onClick={() => {
-                    setReceiverForm(emptyReceiver);
-                    setShowReceiverForm(true);
-                  }}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> Add Receiver
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {receivers.map((r) => (
-                <div
-                  key={r.id}
-                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center"
-                >
-                  <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Account</span>
-                    <h3 className="text-base font-bold text-slate-800 mt-1">{r.name}</h3>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Balance</span>
-                    <div className="text-xl font-black text-slate-900 mt-0.5">{money(r.balance)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Recent Collections ({collections.length})</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b text-slate-400 uppercase font-bold">
-                      <th className="pb-3">Receipt No</th>
-                      <th className="pb-3">Date</th>
-                      <th className="pb-3">Amount</th>
-                      <th className="pb-3">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {collections.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="py-8 text-center text-slate-400">
-                          No collections recorded yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      collections.map((co) => (
-                        <tr key={co.id}>
-                          <td className="py-3 font-bold text-indigo-600">{co.collection_no}</td>
-                          <td className="py-3 text-slate-600">
-                            {displayDate(co.collection_date || co.created_at?.slice(0, 10))}
-                          </td>
-                          <td className="py-3 font-black text-emerald-600">{money(co.total_amount)}</td>
-                          <td className="py-3 text-slate-500">{co.remarks || "-"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW: DASHBOARD */}
-        {screen === "dashboard" && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-slate-900">Store Dashboard</h1>
               <button
-                onClick={() => go("sale")}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1"
+                onClick={() => setShowProcureModal(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
               >
-                <Plus className="w-4 h-4" /> New Sale
+                <Plus size={16} /> Add Procurement
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-xs font-bold uppercase text-slate-400">Total Invoices</span>
-                <p className="text-2xl font-black text-slate-900 mt-2">{sales.length}</p>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-xs font-bold uppercase text-slate-400">Registered Customers</span>
-                <p className="text-2xl font-black text-slate-900 mt-2">{customers.length}</p>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-xs font-bold uppercase text-slate-400">Catalog Products</span>
-                <p className="text-2xl font-black text-slate-900 mt-2">{items.length}</p>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* VIEW: INVOICES */}
-        {screen === "sales" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-base font-bold text-slate-900">Invoices ({sales.length})</h2>
-              <button
-                onClick={() => go("sale")}
-                className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
-              >
-                + New Sale
-              </button>
-            </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-sm">
                 <thead>
-                  <tr className="border-b text-slate-400 uppercase font-bold">
-                    <th className="pb-3">Invoice</th>
-                    <th className="pb-3">Date</th>
-                    <th className="pb-3">Customer</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 text-right">Amount</th>
+                  <tr className="border-b text-xs uppercase text-slate-400 font-bold bg-slate-50">
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Supplier</th>
+                    <th className="p-3">Item Name</th>
+                    <th className="p-3">Purchased Qty</th>
+                    <th className="p-3">Remaining Qty</th>
+                    <th className="p-3">Rate</th>
+                    <th className="p-3">Total Amount</th>
+                    <th className="p-3">Mode</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sales.map((s) => (
-                    <tr key={s.id}>
-                      <td className="py-3 font-bold text-indigo-600">{s.invoice_number}</td>
-                      <td className="py-3 text-slate-600">{displayDate(s.invoice_date)}</td>
-                      <td className="py-3 font-semibold text-slate-800">{s.customer_name}</td>
-                      <td className="py-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            s.payment_status === "PAID"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          {s.payment_status || "DUE"}
+                <tbody className="divide-y text-slate-700 font-medium">
+                  {procurements.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50/50">
+                      <td className="p-3">{p.purchase_date || p.created_at?.slice(0, 10)}</td>
+                      <td className="p-3 font-bold text-slate-900">{p.supplier_name}</td>
+                      <td className="p-3">{p.item_name}</td>
+                      <td className="p-3">{p.procured_qty}</td>
+                      <td className="p-3 font-bold text-emerald-600">{p.remaining_qty}</td>
+                      <td className="p-3">{money(p.purchase_rate)}</td>
+                      <td className="p-3 font-bold">{money(p.total_amount)}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                          p.payment_mode === "UPI" ? "bg-indigo-100 text-indigo-700" : "bg-emerald-100 text-emerald-700"
+                        }`}>
+                          {p.payment_mode || "Cash"}
                         </span>
                       </td>
-                      <td className="py-3 text-right font-black text-slate-900">{money(s.total_amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -870,377 +731,388 @@ export default function Home() {
           </div>
         )}
 
-        {/* VIEW: CUSTOMERS */}
-        {screen === "customers" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-base font-bold text-slate-900">Customers ({customers.length})</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setCollectForm(emptyCollection);
-                    setShowCollectModal(true);
-                  }}
-                  className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
-                >
-                  Collect Due
-                </button>
-                <button
-                  onClick={() => {
-                    setCustomerForm(emptyCustomer);
-                    setShowCustomerForm(true);
-                  }}
-                  className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
-                >
-                  + Add Customer
-                </button>
+        {/* VIEW 3: RECEIVERS (CASH & UPI OPENING BALANCES) */}
+        {activeTab === "receivers" && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-bold text-lg text-slate-800">Receivers</h2>
+                <p className="text-xs text-slate-500">Manage cashier and account opening balances</p>
               </div>
+              <button
+                onClick={() => setShowReceiverModal(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
+              >
+                <Plus size={16} /> Add Receiver
+              </button>
             </div>
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b text-slate-400 uppercase font-bold">
-                  <th className="pb-2">Name</th>
-                  <th className="pb-2">Mobile</th>
-                  <th className="pb-2 text-right">Due Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {customers.map((c) => (
-                  <tr key={c.id}>
-                    <td className="py-2.5 font-bold text-slate-800">{c.name}</td>
-                    <td className="py-2.5 text-slate-500">{c.mobile}</td>
-                    <td className="py-2.5 text-right font-black text-amber-600">
-                      {money(customerDue(c.id))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+            <div className="grid grid-cols-3 gap-4">
+              {receivers.map((r) => (
+                <div key={r.id} className="p-5 rounded-xl border border-slate-200 bg-slate-50/50">
+                  <h3 className="font-bold text-base text-slate-900 mb-3">{r.name}</h3>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Opening Cash:</span>
+                      <span className="font-bold text-slate-800">{money(r.opening_cash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Opening UPI:</span>
+                      <span className="font-bold text-indigo-600">{money(r.opening_upi)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t font-black text-slate-900">
+                      <span>Total Initial:</span>
+                      <span>{money(Number(r.opening_cash || 0) + Number(r.opening_upi || 0))}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* VIEW: STOCK */}
-        {screen === "stock" && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-base font-bold text-slate-900">Current Stock ({items.length})</h2>
+        {/* VIEW 4: CUSTOMERS */}
+        {activeTab === "customers" && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-bold text-lg text-slate-800">Customers Ledger</h2>
               <button
-                onClick={() => {
-                  setItemForm(emptyItem);
-                  setShowItemForm(true);
-                }}
-                className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+                onClick={() => setShowCustomerModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
               >
-                + Add Item
+                <Plus size={16} /> New Customer
               </button>
             </div>
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b text-slate-400 uppercase font-bold">
-                  <th className="pb-2">Product Name</th>
-                  <th className="pb-2 text-right">Price</th>
-                  <th className="pb-2 text-right">Stock</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {items.map((it) => (
-                  <tr key={it.id}>
-                    <td className="py-3 font-bold text-slate-800">{it.item_name}</td>
-                    <td className="py-3 text-right font-medium text-slate-600">{money(it.unit_price)}</td>
-                    <td className="py-3 text-right font-black text-indigo-600">{stockMap[it.id] || 0}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b text-xs uppercase text-slate-400 bg-slate-50">
+                    <th className="p-3">Name</th>
+                    <th className="p-3">Mobile</th>
+                    <th className="p-3">Current Due</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y text-slate-700">
+                  {customers.map((c) => (
+                    <tr key={c.id}>
+                      <td className="p-3 font-bold">{c.name}</td>
+                      <td className="p-3">{c.mobile || "-"}</td>
+                      <td className="p-3 font-bold text-rose-600">{money(c.old_due)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 5: INVOICES */}
+        {activeTab === "invoices" && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <h2 className="font-bold text-lg text-slate-800 mb-4">Past Invoices</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b text-xs uppercase text-slate-400 bg-slate-50">
+                    <th className="p-3">Invoice ID</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3">Amount</th>
+                    <th className="p-3">Type</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-700">
+                  {invoices.map((inv) => (
+                    <tr key={inv.id}>
+                      <td className="p-3 font-bold">INV-{inv.id}</td>
+                      <td className="p-3">{inv.invoice_date || inv.created_at?.slice(0, 10)}</td>
+                      <td className="p-3">{inv.customer_name}</td>
+                      <td className="p-3 font-bold">{money(inv.total_amount)}</td>
+                      <td className="p-3 uppercase font-bold text-xs">{inv.payment_type}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>
 
-      {/* Bottom Nav */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-1.5 flex justify-around items-center z-30 shadow-2xl">
-        {navLinks.slice(0, 5).map((tab) => {
-          const Icon = tab.icon;
-          const isActive = screen === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => go(tab.id)}
-              className={`flex flex-col items-center gap-0.5 p-2 rounded-xl transition cursor-pointer ${
-                isActive ? "text-indigo-600 font-bold" : "text-slate-500 font-medium"
-              }`}
-            >
-              <Icon className={`w-5 h-5 ${tab.highlight ? "text-indigo-600" : ""}`} />
-              <span className="text-[10px]">{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* COLLECT MODAL */}
-      {showCollectModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={saveCollection}
-            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
-          >
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-slate-900">Collect Due Payment</h3>
-              <button
-                type="button"
-                onClick={() => setShowCollectModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Select Customer *</label>
-              <select
-                required
-                value={collectForm.customer_id}
-                onChange={(e) => setCollectForm({ ...collectForm, customer_id: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
-              >
-                <option value="">-- Choose customer --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} (Due: {money(customerDue(c.id))})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">
-                Deposit To Receiver (Cash/PhonePe) *
-              </label>
-              <select
-                required
-                value={collectForm.receiver_id}
-                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
-              >
-                <option value="">-- Choose receiver account --</option>
-                {receivers.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({money(r.balance)})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Amount Received (₹) *</label>
-              <input
-                type="number"
-                required
-                min="1"
-                placeholder="0.00"
-                value={collectForm.amount}
-                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Notes / Remarks</label>
-              <input
-                type="text"
-                placeholder="e.g. Received via PhonePe or Cash"
-                value={collectForm.notes}
-                onChange={(e) => setCollectForm({ ...collectForm, notes: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowCollectModal(false)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
-              >
-                Confirm & Collect
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* CUSTOMER MODAL */}
-      {showCustomerForm && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={saveCustomer}
-            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
-          >
-            <h3 className="text-base font-bold text-slate-900">Add Customer</h3>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Customer Name *</label>
-              <input
-                type="text"
-                required
-                value={customerForm.customer_name}
-                onChange={(e) =>
-                  setCustomerForm({ ...customerForm, customer_name: e.target.value })
-                }
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Mobile Number</label>
-              <input
-                type="tel"
-                value={customerForm.mobile_no}
-                onChange={(e) =>
-                  setCustomerForm({ ...customerForm, mobile_no: e.target.value })
-                }
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Opening Due (₹)</label>
-              <input
-                type="number"
-                value={customerForm.opening_due}
-                onChange={(e) =>
-                  setCustomerForm({ ...customerForm, opening_due: e.target.value })
-                }
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowCustomerForm(false)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
-              >
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ITEM MODAL */}
-      {showItemForm && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={saveItem}
-            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
-          >
-            <h3 className="text-base font-bold text-slate-900">Add Item</h3>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Item Name *</label>
-              <input
-                type="text"
-                required
-                value={itemForm.item_name}
-                onChange={(e) => setItemForm({ ...itemForm, item_name: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+      {/* --- MODAL: NEW CUSTOMER --- */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-800 mb-4">Add New Customer</h3>
+            <form onSubmit={handleSaveCustomer} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">Price (₹) *</label>
+                <label className="text-xs font-bold text-slate-500">Customer Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={customerForm.name}
+                  onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Mobile Number</label>
+                <input
+                  type="text"
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={customerForm.mobile}
+                  onChange={(e) => setCustomerForm({ ...customerForm, mobile: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Opening Due (₹)</label>
+                <input
+                  type="number"
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={customerForm.old_due}
+                  onChange={(e) => setCustomerForm({ ...customerForm, old_due: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs"
+                >
+                  Save Customer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: NEW RECEIVER (CASH & UPI) --- */}
+      {showReceiverModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-800 mb-4">Add Receiver</h3>
+            <form onSubmit={handleSaveReceiver} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Receiver Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={receiverForm.name}
+                  onChange={(e) => setReceiverForm({ ...receiverForm, name: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Opening Cash (₹)</label>
+                  <input
+                    type="number"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm"
+                    value={receiverForm.opening_cash}
+                    onChange={(e) => setReceiverForm({ ...receiverForm, opening_cash: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Opening UPI (₹)</label>
+                  <input
+                    type="number"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm"
+                    value={receiverForm.opening_upi}
+                    onChange={(e) => setReceiverForm({ ...receiverForm, opening_upi: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowReceiverModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs"
+                >
+                  Save Receiver
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: NEW PROCUREMENT --- */}
+      {showProcureModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-800 mb-4">Add Procurement</h3>
+            <form onSubmit={handleSaveProcurement} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Supplier Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={procureForm.supplier_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Item Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={procureForm.item_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Quantity *</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm"
+                    value={procureForm.procured_qty}
+                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Purchase Rate (₹) *</label>
+                  <input
+                    type="number"
+                    required
+                    className="w-full mt-1 p-2 border rounded-lg text-sm"
+                    value={procureForm.purchase_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Paid Via</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setProcureForm({ ...procureForm, payment_mode: "Cash" })}
+                    className={`py-1.5 rounded-lg text-xs font-bold border ${
+                      procureForm.payment_mode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200"
+                    }`}
+                  >
+                    Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProcureForm({ ...procureForm, payment_mode: "UPI" })}
+                    className={`py-1.5 rounded-lg text-xs font-bold border ${
+                      procureForm.payment_mode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200"
+                    }`}
+                  >
+                    UPI
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowProcureModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs"
+                >
+                  Save Stock
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: COLLECT DUE (CASH OR UPI) --- */}
+      {showCollectionModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-800 mb-4">Collect Due Balance</h3>
+            <form onSubmit={handleSaveCollection} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Customer *</label>
+                <select
+                  required
+                  className="w-full mt-1 p-2 border rounded-lg text-sm"
+                  value={collectionForm.customer_id}
+                  onChange={(e) => setCollectionForm({ ...collectionForm, customer_id: e.target.value })}
+                >
+                  <option value="">-- Choose Customer --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (Due: {money(c.old_due)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Amount Received (₹) *</label>
                 <input
                   type="number"
                   required
-                  value={itemForm.sale_rate}
-                  onChange={(e) => setItemForm({ ...itemForm, sale_rate: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
+                  min="1"
+                  className="w-full mt-1 p-2 border rounded-lg text-sm font-bold"
+                  value={collectionForm.amount}
+                  onChange={(e) => setCollectionForm({ ...collectionForm, amount: e.target.value })}
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">Opening Stock</label>
-                <input
-                  type="number"
-                  value={itemForm.opening_stock}
-                  onChange={(e) =>
-                    setItemForm({ ...itemForm, opening_stock: e.target.value })
-                  }
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
-                />
+                <label className="text-xs font-bold text-slate-500 block mb-1">Collection Mode *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCollectionForm({ ...collectionForm, payment_mode: "Cash" })}
+                    className={`py-2 rounded-lg text-xs font-bold border ${
+                      collectionForm.payment_mode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200"
+                    }`}
+                  >
+                    💵 Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectionForm({ ...collectionForm, payment_mode: "UPI" })}
+                    className={`py-2 rounded-lg text-xs font-bold border ${
+                      collectionForm.payment_mode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200"
+                    }`}
+                  >
+                    📱 UPI
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowItemForm(false)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
-              >
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* RECEIVER MODAL */}
-      {showReceiverForm && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <form
-            onSubmit={saveReceiver}
-            className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
-          >
-            <h3 className="text-base font-bold text-slate-900">Add Account</h3>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Account Name *</label>
-              <input
-                type="text"
-                required
-                value={receiverForm.receiver_name}
-                onChange={(e) =>
-                  setReceiverForm({ ...receiverForm, receiver_name: e.target.value })
-                }
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-500 block mb-1">Opening Balance (₹)</label>
-              <input
-                type="number"
-                value={receiverForm.opening_balance}
-                onChange={(e) =>
-                  setReceiverForm({ ...receiverForm, opening_balance: e.target.value })
-                }
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold"
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowReceiverForm(false)}
-                className="flex-1 py-2.5 border border-slate-300 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold"
-              >
-                Save
-              </button>
-            </div>
-          </form>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectionModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                >
+                  Confirm Collection
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
