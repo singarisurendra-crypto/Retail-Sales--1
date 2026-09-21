@@ -2,28 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  PackagePlus,
-  Users,
-  Wallet,
-  FileSpreadsheet,
-  Plus,
-  Trash2,
-  Edit2,
-  Menu,
-  X,
-  IndianRupee,
-  Search,
-  ChevronRight,
-  Printer,
-  Share2,
-  CreditCard,
-  FileText,
-  HandCoins,
-  Download
-} from "lucide-react";
+import * as LucideIcons from "lucide-react";
+
+// Safe icon loader to prevent undefined element crashes
+const getIcon = (name, props) => {
+  const IconComponent = LucideIcons[name] || LucideIcons.HelpCircle;
+  return <IconComponent {...props} />;
+};
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -65,14 +50,12 @@ export default function App() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showBorrowerModal, setShowBorrowerModal] = useState(false);
   const [showBorrowerTxModal, setShowBorrowerTxModal] = useState(false);
-  const [printInvoiceData, setPrintInvoiceData] = useState(null);
 
   // Stock Picker Modal
   const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
   // Customer Form
-  const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
   // Partner Form
@@ -106,7 +89,6 @@ export default function App() {
     expense_date: new Date().toISOString().split("T")[0],
     notes: ""
   });
-  const [newCatName, setNewCatName] = useState("");
 
   // Borrower Form
   const [borrowerForm, setBorrowerForm] = useState({ name: "", mobile: "", initial_due: "" });
@@ -179,7 +161,6 @@ export default function App() {
     }
   };
 
-  // Distinct items from procurements to avoid duplicate naming
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     procurements.forEach((p) => {
@@ -191,7 +172,6 @@ export default function App() {
     return Array.from(map.values());
   }, [procurements]);
 
-  // Real-Time Partner Cash/UPI Ledger
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -260,7 +240,6 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
-  // Overall Business Dashboard Figures (Derived as per B Reddy.xlsx logic)
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
@@ -269,7 +248,6 @@ export default function App() {
       (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
       0
     );
-    // B Reddy Profit Formula: (Customer Dues + Stock Value) - Debts
     const bReddyNetProfit = totalCustomerDues + stockValuation - totalDebts;
 
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
@@ -278,7 +256,6 @@ export default function App() {
     return { totalSales, totalCustomerDues, totalDebts, stockValuation, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, partnerAccounts]);
 
-  // Cart Handlers
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
     const defaultSellingRate = Number(item.selling_rate || item.purchase_rate || 0);
@@ -312,7 +289,6 @@ export default function App() {
   const upfrontPaidNum = Number(upfrontAmount || 0);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
-  // SAVE INVOICE (Auto assigns unique invoice_number)
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -401,7 +377,6 @@ export default function App() {
     }
   };
 
-  // DELETE INVOICE
   const handleDeleteInvoice = async (inv) => {
     if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? This will return stock and remove dues.`)) return;
 
@@ -432,7 +407,6 @@ export default function App() {
     }
   };
 
-  // EDIT INVOICE
   const handleEditInvoice = (inv) => {
     setEditingInvoiceId(inv.id);
     const cust = customers.find((c) => c.id == inv.customer_id);
@@ -448,7 +422,6 @@ export default function App() {
     setActiveTab("sale");
   };
 
-  // WhatsApp Share Helper
   const handleShareWhatsApp = (inv) => {
     const cust = customers.find((c) => c.id === inv.customer_id) || {};
     const cleanMobile = (cust.mobile || "").replace(/[^0-9]/g, "");
@@ -480,7 +453,6 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // Expenses Handlers
   const saveExpense = async (e) => {
     e.preventDefault();
     const amt = Number(expenseForm.amount || 0);
@@ -516,7 +488,6 @@ Thank you for your business!`;
     }
   };
 
-  // Borrowers Handlers
   const saveBorrower = async (e) => {
     e.preventDefault();
     if (!borrowerForm.name.trim()) return alert("Borrower name is required");
@@ -593,7 +564,6 @@ Thank you for your business!`;
     }
   };
 
-  // Procurement Handlers
   const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
@@ -642,7 +612,7 @@ Thank you for your business!`;
           <span className="font-bold text-sm tracking-wide">B Reddy Sales</span>
         </div>
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 -mr-1 rounded-xl text-slate-300">
-          {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+          {sidebarOpen ? getIcon("X", { size: 22 }) : getIcon("Menu", { size: 22 })}
         </button>
       </header>
 
@@ -670,7 +640,7 @@ Thank you for your business!`;
                 activeTab === "sale" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <ShoppingCart size={18} /> Point of Sale (Billing)
+              {getIcon("ShoppingCart", { size: 18 })} Point of Sale (Billing)
             </button>
 
             <button
@@ -679,7 +649,7 @@ Thank you for your business!`;
                 activeTab === "summary" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <LayoutDashboard size={18} /> Business Summary
+              {getIcon("LayoutDashboard", { size: 18 })} Business Summary
             </button>
 
             <button
@@ -688,7 +658,7 @@ Thank you for your business!`;
                 activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <FileSpreadsheet size={18} /> Invoices & Edit/Delete
+              {getIcon("FileSpreadsheet", { size: 18 })} Invoices & Edit/Delete
             </button>
 
             <button
@@ -697,7 +667,7 @@ Thank you for your business!`;
                 activeTab === "borrowers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <HandCoins size={18} /> Borrowers (Loans)
+              {getIcon("HandCoins", { size: 18 })} Borrowers (Loans)
             </button>
 
             <button
@@ -706,7 +676,7 @@ Thank you for your business!`;
                 activeTab === "expenses" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <CreditCard size={18} /> Expenses & Master
+              {getIcon("CreditCard", { size: 18 })} Expenses & Master
             </button>
 
             <button
@@ -715,7 +685,7 @@ Thank you for your business!`;
                 activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <FileText size={18} /> Excel Report (PDF)
+              {getIcon("FileText", { size: 18 })} Excel Report (PDF)
             </button>
 
             <button
@@ -724,7 +694,7 @@ Thank you for your business!`;
                 activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Users size={18} /> Customers & Dues
+              {getIcon("Users", { size: 18 })} Customers & Dues
             </button>
 
             <button
@@ -733,7 +703,7 @@ Thank you for your business!`;
                 activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <PackagePlus size={18} /> Procurements & Stock
+              {getIcon("PackagePlus", { size: 18 })} Procurements & Stock
             </button>
 
             <button
@@ -742,7 +712,7 @@ Thank you for your business!`;
                 activeTab === "partners" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
               }`}
             >
-              <Wallet size={18} /> Partner Accounts
+              {getIcon("Wallet", { size: 18 })} Partner Accounts
             </button>
           </nav>
         </div>
@@ -752,7 +722,7 @@ Thank you for your business!`;
             onClick={() => { setShowCollectModal(true); setSidebarOpen(false); }}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg"
           >
-            <IndianRupee size={16} /> Collect Customer Due
+            {getIcon("IndianRupee", { size: 16 })} Collect Customer Due
           </button>
         </div>
       </aside>
@@ -761,7 +731,6 @@ Thank you for your business!`;
 
       {/* MAIN VIEW AREA */}
       <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
             <div className="lg:col-span-8 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
@@ -815,7 +784,7 @@ Thank you for your business!`;
                     }
                     className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline"
                   >
-                    <Plus size={15} /> Add Line
+                    {getIcon("Plus", { size: 15 })} Add Line
                   </button>
                 </div>
 
@@ -829,7 +798,7 @@ Thank you for your business!`;
                       <span className={line.procure_id ? "text-indigo-600 font-black text-sm" : "text-slate-400"}>
                         {line.procure_id ? `${line.item_name} [${line.supplier_name}]` : "🔍 Pick In-Stock Item..."}
                       </span>
-                      <ChevronRight size={16} className="text-slate-400" />
+                      {getIcon("ChevronRight", { size: 16, className: "text-slate-400" })}
                     </button>
 
                     <div className="grid grid-cols-12 gap-2 items-center">
@@ -860,7 +829,7 @@ Thank you for your business!`;
                           onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
                           className="p-1.5 text-slate-400 hover:text-rose-600"
                         >
-                          <Trash2 size={16} />
+                          {getIcon("Trash2", { size: 16 })}
                         </button>
                       </div>
                     </div>
@@ -943,7 +912,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 2: BUSINESS SUMMARY */}
         {activeTab === "summary" && (
           <div className="space-y-5">
             <div>
@@ -972,7 +940,6 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Individual Partner Direct Holdings */}
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200">
               <h3 className="font-bold text-base text-slate-900 mb-4">Partner Cash / UPI In-Hand</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1001,7 +968,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 3: INVOICES (WITH EDIT & DELETE) */}
         {activeTab === "invoices" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div>
@@ -1028,19 +994,19 @@ Thank you for your business!`;
                       onClick={() => handleEditInvoice(inv)}
                       className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      <Edit2 size={13} /> Edit
+                      {getIcon("Edit2", { size: 13 })} Edit
                     </button>
                     <button
                       onClick={() => handleDeleteInvoice(inv)}
                       className="px-3 py-1.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      <Trash2 size={13} /> Delete
+                      {getIcon("Trash2", { size: 13 })} Delete
                     </button>
                     <button
                       onClick={() => handleShareWhatsApp(inv)}
                       className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      <Share2 size={13} /> WhatsApp
+                      {getIcon("Share2", { size: 13 })} WhatsApp
                     </button>
                   </div>
                 </div>
@@ -1049,7 +1015,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 4: BORROWERS / LOANS */}
         {activeTab === "borrowers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1104,7 +1069,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 5: EXPENSES */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1151,7 +1115,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL-STYLE SHEET REPORT (PDF DOWNLOADABLE) */}
         {activeTab === "reports" && (
           <div className="space-y-5">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
@@ -1164,11 +1127,10 @@ Thank you for your business!`;
                   onClick={() => window.print()}
                   className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow"
                 >
-                  <Download size={15} /> Download / Print PDF
+                  {getIcon("Download", { size: 15 })} Download / Print PDF
                 </button>
               </div>
 
-              {/* Excel Table Layout (Matches B Reddy.xlsx) */}
               <div className="overflow-x-auto border border-slate-300 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
@@ -1206,7 +1168,6 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* Sub-breakdown of Inventory Stocks */}
               <div className="pt-2">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">నిలువలు (Stock Batches Breakdown)</h3>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -1240,7 +1201,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 7: CUSTOMERS */}
         {activeTab === "customers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1250,7 +1210,6 @@ Thank you for your business!`;
               </div>
               <button
                 onClick={() => {
-                  setEditingCustId(null);
                   setCustForm({ name: "", mobile: "", old_due: "" });
                   setShowCustModal(true);
                 }}
@@ -1273,7 +1232,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: PROCUREMENTS */}
         {activeTab === "procurement" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1323,7 +1281,6 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 9: PARTNER ACCOUNTS */}
         {activeTab === "partners" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1356,13 +1313,13 @@ Thank you for your business!`;
         )}
       </main>
 
-      {/* MODAL: STOCK PICKER */}
+      {/* MODALS */}
       {pickerActiveIndex !== null && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex justify-between items-center pb-3 border-b">
               <h3 className="font-black text-base text-slate-900">Select Item Batch</h3>
-              <button onClick={() => setPickerActiveIndex(null)} className="text-slate-400"><X size={20} /></button>
+              <button onClick={() => setPickerActiveIndex(null)} className="text-slate-400">{getIcon("X", { size: 20 })}</button>
             </div>
             <input
               type="text"
@@ -1393,7 +1350,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD BORROWER */}
       {showBorrowerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1430,7 +1386,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: BORROWER TRANSACTION */}
       {showBorrowerTxModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1495,7 +1450,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: RECORD EXPENSE */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1548,7 +1502,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD PROCUREMENT */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
@@ -1627,7 +1580,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD PARTNER */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1675,7 +1627,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD CUSTOMER */}
       {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
@@ -1721,7 +1672,6 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: COLLECT CUSTOMER DUE */}
       {showCollectModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
