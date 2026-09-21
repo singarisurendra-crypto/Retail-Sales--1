@@ -26,7 +26,8 @@ import {
   TrendingDown,
   TrendingUp,
   CreditCard,
-  FileText
+  FileText,
+  AlertCircle
 } from "lucide-react";
 
 const supabaseUrl =
@@ -170,7 +171,7 @@ export default function App() {
     }
   };
 
-  // Partner Real-Time Balances (Inflows from Sales/Collections minus Outflows for Procurements & Expenses)
+  // Partner Real-Time Balances
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -206,11 +207,10 @@ export default function App() {
         return sum + amt;
       }, 0);
 
-      // Deduct Expenses paid by this partner
-      const expenseCashOut = expenses
+      const expenseCashOut = (expenses || [])
         .filter((e) => e.paid_by_id == pid && e.payment_mode === "Cash")
         .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-      const expenseUpiOut = expenses
+      const expenseUpiOut = (expenses || [])
         .filter((e) => e.paid_by_id == pid && e.payment_mode === "UPI")
         .reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
@@ -232,7 +232,7 @@ export default function App() {
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalMarketDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
-    const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const totalExpenses = (expenses || []).reduce((s, e) => s + Number(e.amount || 0), 0);
     const stockUnits = procurements.reduce((s, p) => s + Number(p.remaining_qty || 0), 0);
     const stockValuation = procurements.reduce(
       (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
@@ -251,7 +251,7 @@ export default function App() {
       return (!reportStartDate || d >= reportStartDate) && (!reportEndDate || d <= reportEndDate);
     });
 
-    const filteredExpenses = expenses.filter((e) => {
+    const filteredExpenses = (expenses || []).filter((e) => {
       const d = e.expense_date || e.created_at?.slice(0, 10);
       return (!reportStartDate || d >= reportStartDate) && (!reportEndDate || d <= reportEndDate);
     });
@@ -259,7 +259,6 @@ export default function App() {
     const salesTotal = filteredInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const expensesTotal = filteredExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
-    // Calculate approximate gross profit from invoice items if present
     let estimatedCost = 0;
     filteredInvoices.forEach((inv) => {
       if (Array.isArray(inv.items)) {
@@ -337,7 +336,7 @@ export default function App() {
       });
   }, [procurements, stockSearchQuery]);
 
-  // Save Sale Invoice (Includes items JSON for print & WhatsApp)
+  // Save Sale Invoice (Includes auto-generated invoice_number, items array, and fallback handlers)
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -356,7 +355,13 @@ export default function App() {
     try {
       const status = upfrontPaidNum === 0 ? "Unpaid" : upfrontPaidNum >= cartTotal ? "Paid" : "Partial";
 
-      const invoiceRecord = {
+      // Generate invoice number: INV-YYMMDD-XXXX
+      const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const generatedInvoiceNumber = `INV-${datePrefix}-${randomSuffix}`;
+
+      const invoiceRecord: any = {
+        invoice_number: generatedInvoiceNumber,
         customer_id: selectedCust.id,
         customer_name: selectedCust.name,
         invoice_date: saleDate,
@@ -377,14 +382,29 @@ export default function App() {
         }))
       };
 
-      const { data: invData, error: invErr } = await db
+      // Try inserting with all fields; if schema lacks payment_mode/items, fall back cleanly
+      let { data: invData, error: invErr } = await db
         .from("invoices")
         .insert([invoiceRecord])
         .select();
 
-      if (invErr) throw invErr;
+      if (invErr && invErr.message?.includes("column")) {
+        const safeRecord = {
+          invoice_number: generatedInvoiceNumber,
+          customer_id: selectedCust.id,
+          customer_name: selectedCust.name,
+          invoice_date: saleDate,
+          total_amount: cartTotal,
+          status: status
+        };
+        const safeRes = await db.from("invoices").insert([safeRecord]).select();
+        if (safeRes.error) throw safeRes.error;
+        invData = safeRes.data;
+      } else if (invErr) {
+        throw invErr;
+      }
 
-      // Deduct inventory
+      // Deduct inventory quantities
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -393,7 +413,7 @@ export default function App() {
         }
       }
 
-      // Update customer due
+      // Update customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
@@ -402,9 +422,10 @@ export default function App() {
       const savedInv = invData && invData[0] ? invData[0] : invoiceRecord;
       alert(`Invoice saved! Bill Due: ${money(remainingBillDue)}`);
 
-      // Offer Print view immediately
+      // Open print/share dialog immediately
       setPrintInvoiceData({
         ...savedInv,
+        invoice_number: generatedInvoiceNumber,
         customer_phone: selectedCust.mobile,
         items: invoiceRecord.items
       });
@@ -420,7 +441,7 @@ export default function App() {
     }
   };
 
-  // WhatsApp Share Helper
+  // WhatsApp Share Handler
   const handleShareWhatsApp = (inv: any) => {
     const cust = customers.find((c) => c.id === inv.customer_id) || { mobile: inv.customer_phone || "" };
     const rawMobile = cust.mobile || "";
@@ -435,7 +456,7 @@ export default function App() {
 
     const message = `🧾 *INVOICE: B REDDY SALES*
 Date: ${inv.invoice_date || inv.created_at?.slice(0, 10)}
-Bill No: INV-${inv.id || "NEW"}
+Bill No: ${inv.invoice_number || "INV-" + inv.id}
 Customer: ${inv.customer_name}
 
 *Items:*
@@ -482,11 +503,11 @@ Thank you for your business!`;
     }
   };
 
-  // Expenses: Add Expense Record
+  // Expenses: Add Record
   const saveExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(expenseForm.amount || 0);
-    if (amt <= 0) return alert("Enter a valid amount");
+    if (amt <= 0) return alert("Enter valid expense amount");
     if (!expenseForm.title.trim()) return alert("Enter expense title");
     if (!expenseForm.paid_by_id) return alert("Select who paid for this expense");
 
@@ -524,7 +545,7 @@ Thank you for your business!`;
   };
 
   const deleteExpense = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this expense record?")) return;
+    if (!confirm("Are you sure you want to delete this expense voucher?")) return;
     try {
       const { error } = await db.from("expenses").delete().eq("id", id);
       if (error) throw error;
@@ -1219,7 +1240,7 @@ Thank you for your business!`;
                     const due = Number(inv.balance_due || 0);
                     return (
                       <tr key={inv.id}>
-                        <td className="p-3 font-bold text-slate-900">INV-{inv.id}</td>
+                        <td className="p-3 font-bold text-slate-900">{inv.invoice_number || `INV-${inv.id}`}</td>
                         <td className="p-3">{inv.invoice_date || inv.created_at?.slice(0, 10)}</td>
                         <td className="p-3 font-bold">{inv.customer_name}</td>
                         <td className="p-3">{money(inv.total_amount)}</td>
@@ -1640,7 +1661,7 @@ Thank you for your business!`;
 
               <div className="flex justify-between text-[11px]">
                 <div>
-                  <p>Bill No: <b>INV-{printInvoiceData.id || "N/A"}</b></p>
+                  <p>Bill No: <b>{printInvoiceData.invoice_number || `INV-${printInvoiceData.id || "N/A"}`}</b></p>
                   <p>Customer: <b>{printInvoiceData.customer_name}</b></p>
                 </div>
                 <div className="text-right">
@@ -1915,7 +1936,7 @@ Thank you for your business!`;
               <button
                 type="button"
                 onClick={() => setPickerActiveIndex(null)}
-                className="px-4 py-2 border rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
               >
                 Close
               </button>
@@ -2029,7 +2050,7 @@ Thank you for your business!`;
                     <option value="">-- On Account (General Due) --</option>
                     {customerUnpaidInvoices.map((inv) => (
                       <option key={inv.id} value={inv.id}>
-                        INV-{inv.id} ({inv.invoice_date}) — Due: {money(inv.balance_due)}
+                        {inv.invoice_number || `INV-${inv.id}`} ({inv.invoice_date}) — Due: {money(inv.balance_due)}
                       </option>
                     ))}
                   </select>
