@@ -22,9 +22,6 @@ import {
   CreditCard,
   FileText,
   HandCoins,
-  Layers,
-  ArrowDownLeft,
-  ArrowUpRight,
   Download
 } from "lucide-react";
 
@@ -44,11 +41,10 @@ const money = (n) =>
   })}`;
 
 export default function App() {
-  // Navigation
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Core Data
+  // Core Data State
   const [partners, setPartners] = useState([]);
   const [procurements, setProcurements] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -71,7 +67,7 @@ export default function App() {
   const [showBorrowerTxModal, setShowBorrowerTxModal] = useState(false);
   const [printInvoiceData, setPrintInvoiceData] = useState(null);
 
-  // Stock Picker
+  // Stock Picker Modal
   const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
@@ -114,10 +110,9 @@ export default function App() {
 
   // Borrower Form
   const [borrowerForm, setBorrowerForm] = useState({ name: "", mobile: "", initial_due: "" });
-  const [selectedBorrower, setSelectedBorrower] = useState(null);
   const [borrowerTxForm, setBorrowerTxForm] = useState({
     borrower_id: "",
-    tx_type: "Given", // Given (outflow) or Received (inflow)
+    tx_type: "Given",
     amount: "",
     payment_mode: "Cash",
     partner_id: "",
@@ -125,7 +120,7 @@ export default function App() {
     tx_date: new Date().toISOString().split("T")[0]
   });
 
-  // Collection Form
+  // Due Collection Form
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
     invoice_id: "",
@@ -134,7 +129,7 @@ export default function App() {
     receiver_id: ""
   });
 
-  // Sales Entry & Editing
+  // Sales Entry State
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [selectedCust, setSelectedCust] = useState(null);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
@@ -145,12 +140,6 @@ export default function App() {
   const [upfrontMode, setUpfrontMode] = useState("Cash");
   const [upfrontPartnerId, setUpfrontPartnerId] = useState("");
   const [savingSale, setSavingSale] = useState(false);
-
-  // Reports Date Filter
-  const [reportStart, setReportStart] = useState(
-    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]
-  );
-  const [reportEnd, setReportEnd] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
     refreshData();
@@ -190,7 +179,7 @@ export default function App() {
     }
   };
 
-  // Unique item master catalog auto-extracted from existing procurement history
+  // Distinct items from procurements to avoid duplicate naming
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     procurements.forEach((p) => {
@@ -202,14 +191,13 @@ export default function App() {
     return Array.from(map.values());
   }, [procurements]);
 
-  // Real-Time Partner Account Balances (Pure Partner-centric, No Main Drawer / Store UPI)
+  // Real-Time Partner Cash/UPI Ledger
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
       const initCash = Number(partner.opening_cash || 0);
       const initUpi = Number(partner.opening_upi || 0);
 
-      // Inflows: Sale upfront payments
       const saleCash = invoices
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "Cash")
         .reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
@@ -217,7 +205,6 @@ export default function App() {
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "UPI")
         .reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
 
-      // Inflows: Collections
       const colCash = collections
         .filter((c) => c.receiver_id == pid && c.payment_mode === "Cash")
         .reduce((s, c) => s + Number(c.amount || 0), 0);
@@ -225,7 +212,6 @@ export default function App() {
         .filter((c) => c.receiver_id == pid && c.payment_mode === "UPI")
         .reduce((s, c) => s + Number(c.amount || 0), 0);
 
-      // Outflows: Procurements
       const procCash = procurements.reduce((s, p) => {
         let amt = 0;
         if (p.p1_id == pid && p.p1_mode === "Cash") amt += Number(p.p1_amount || 0);
@@ -239,7 +225,6 @@ export default function App() {
         return s + amt;
       }, 0);
 
-      // Outflows: Expenses
       const expCash = expenses
         .filter((e) => e.paid_by_id == pid && e.payment_mode === "Cash")
         .reduce((s, e) => s + Number(e.amount || 0), 0);
@@ -247,7 +232,6 @@ export default function App() {
         .filter((e) => e.paid_by_id == pid && e.payment_mode === "UPI")
         .reduce((s, e) => s + Number(e.amount || 0), 0);
 
-      // Borrowers / Loans: Inflow (Received) & Outflow (Given)
       const bGivenCash = borrowerTx
         .filter((b) => b.partner_id == pid && b.tx_type === "Given" && b.payment_mode === "Cash")
         .reduce((s, b) => s + Number(b.amount || 0), 0);
@@ -276,49 +260,23 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
 
-  // Overall Business Dashboard Figures
+  // Overall Business Dashboard Figures (Derived as per B Reddy.xlsx logic)
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
-    const totalMarketDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
-    const totalBorrowersDue = borrowers.reduce((s, b) => s + Number(b.balance_due || 0), 0);
-    const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
+    const totalDebts = borrowers.reduce((s, b) => s + Number(b.balance_due || 0), 0);
+    const stockValuation = procurements.reduce(
+      (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
+      0
+    );
+    // B Reddy Profit Formula: (Customer Dues + Stock Value) - Debts
+    const bReddyNetProfit = totalCustomerDues + stockValuation - totalDebts;
+
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    return { totalSales, totalMarketDues, totalBorrowersDue, totalExpenses, totalCash, totalUpi };
-  }, [invoices, customers, borrowers, expenses, partnerAccounts]);
-
-  // Excel Format Data Structure for the Report
-  const excelReportData = useMemo(() => {
-    const filteredInvs = invoices.filter((i) => {
-      const d = i.invoice_date || i.created_at?.slice(0, 10);
-      return (!reportStart || d >= reportStart) && (!reportEnd || d <= reportEnd);
-    });
-
-    const filteredExps = expenses.filter((e) => {
-      const d = e.expense_date || e.created_at?.slice(0, 10);
-      return (!reportStart || d >= reportStart) && (!reportEnd || d <= reportEnd);
-    });
-
-    const totalInvoiced = filteredInvs.reduce((s, i) => s + Number(i.total_amount || 0), 0);
-    const totalCashReceived = filteredInvs.reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
-    const totalCreditPending = filteredInvs.reduce((s, i) => s + Number(i.balance_due || 0), 0);
-    const totalExpenseAmt = filteredExps.reduce((s, e) => s + Number(e.amount || 0), 0);
-
-    return {
-      filteredInvs,
-      filteredExps,
-      totalInvoiced,
-      totalCashReceived,
-      totalCreditPending,
-      totalExpenseAmt
-    };
-  }, [invoices, expenses, reportStart, reportEnd]);
-
-  // Download Excel Report as PDF via standard print engine with spreadsheet stylesheet
-  const handleDownloadReportPDF = () => {
-    window.print();
-  };
+    return { totalSales, totalCustomerDues, totalDebts, stockValuation, bReddyNetProfit, totalCash, totalUpi };
+  }, [invoices, customers, borrowers, procurements, partnerAccounts]);
 
   // Cart Handlers
   const handlePickStockItem = (item) => {
@@ -354,7 +312,7 @@ export default function App() {
   const upfrontPaidNum = Number(upfrontAmount || 0);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
-  // 1. SAVE / UPDATE INVOICE
+  // SAVE INVOICE (Auto assigns unique invoice_number)
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
@@ -370,8 +328,6 @@ export default function App() {
     setSavingSale(true);
     try {
       const status = upfrontPaidNum === 0 ? "Unpaid" : upfrontPaidNum >= cartTotal ? "Paid" : "Partial";
-
-      // Auto-generate invoice number if brand new
       const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
       const generatedInvoiceNumber = `INV-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -398,7 +354,6 @@ export default function App() {
       };
 
       if (editingInvoiceId) {
-        // Reverse original invoice inventory & dues before updating
         const oldInv = invoices.find((i) => i.id === editingInvoiceId);
         if (oldInv && Array.isArray(oldInv.items)) {
           for (const item of oldInv.items) {
@@ -420,7 +375,6 @@ export default function App() {
         alert(`Invoice created! Due: ${money(remainingBillDue)}`);
       }
 
-      // Deduct stock for cart items
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -429,7 +383,6 @@ export default function App() {
         }
       }
 
-      // Add new remaining bill due to customer ledger
       if (remainingBillDue > 0) {
         const currentCust = customers.find((c) => c.id === selectedCust.id);
         const updatedDue = Number(currentCust?.old_due || 0) + remainingBillDue;
@@ -448,9 +401,9 @@ export default function App() {
     }
   };
 
-  // 1. DELETE INVOICE (Reverses inventory batches and customer dues)
+  // DELETE INVOICE
   const handleDeleteInvoice = async (inv) => {
-    if (!confirm(`Are you sure you want to delete bill ${inv.invoice_number || "INV-" + inv.id}? This will return items to stock.`)) return;
+    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? This will return stock and remove dues.`)) return;
 
     try {
       if (Array.isArray(inv.items)) {
@@ -479,7 +432,7 @@ export default function App() {
     }
   };
 
-  // 1. EDIT INVOICE (Loads invoice back into POS billing state)
+  // EDIT INVOICE
   const handleEditInvoice = (inv) => {
     setEditingInvoiceId(inv.id);
     const cust = customers.find((c) => c.id == inv.customer_id);
@@ -563,7 +516,7 @@ Thank you for your business!`;
     }
   };
 
-  // 5. BORROWERS / LOAN HANDLERS
+  // Borrowers Handlers
   const saveBorrower = async (e) => {
     e.preventDefault();
     if (!borrowerForm.name.trim()) return alert("Borrower name is required");
@@ -605,7 +558,6 @@ Thank you for your business!`;
       }]);
       if (error) throw error;
 
-      // Update borrower balance ledger
       const targetB = borrowers.find((b) => b.id == borrowerTxForm.borrower_id);
       if (targetB) {
         let newBorrowed = Number(targetB.total_borrowed || 0);
@@ -683,7 +635,7 @@ Thank you for your business!`;
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-800 antialiased">
-      {/* Mobile App Header */}
+      {/* Mobile Top Header */}
       <header className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">B</div>
@@ -712,45 +664,93 @@ Thank you for your business!`;
           </div>
 
           <nav className="p-3 space-y-1 mt-2">
-            {[
-              { id: "sale", label: "Point of Sale (Billing)", icon: ShoppingCart },
-              { id: "summary", label: "Business Summary", icon: LayoutDashboard },
-              { id: "invoices", label: "Invoices & Edit/Delete", icon: FileSpreadsheet },
-              { id: "borrowers", label: "Borrowers (Loans)", icon: HandCoins },
-              { id: "expenses", label: "Expenses & Master", icon: CreditCard },
-              { id: "reports", label: "Excel Style Reports (PDF)", icon: FileText },
-              { id: "customers", label: "Customers & Dues", icon: Users },
-              { id: "procurement", label: "Procurements & Stock", icon: PackagePlus },
-              { id: "partners", label: "Partner Accounts", icon: WalletCards }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                    isActive ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : "hover:bg-slate-800 hover:text-white text-slate-400"
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+            <button
+              onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "sale" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <ShoppingCart size={18} /> Point of Sale (Billing)
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "summary" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <LayoutDashboard size={18} /> Business Summary
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <FileSpreadsheet size={18} /> Invoices & Edit/Delete
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("borrowers"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "borrowers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <HandCoins size={18} /> Borrowers (Loans)
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "expenses" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <CreditCard size={18} /> Expenses & Master
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <FileText size={18} /> Excel Report (PDF)
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("customers"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <Users size={18} /> Customers & Dues
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <PackagePlus size={18} /> Procurements & Stock
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "partners" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <WalletCards size={18} /> Partner Accounts
+            </button>
           </nav>
         </div>
 
         <div className="p-4 border-t border-slate-800">
           <button
-            onClick={() => {
-              setShowCollectModal(true);
-              setSidebarOpen(false);
-            }}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+            onClick={() => { setShowCollectModal(true); setSidebarOpen(false); }}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg"
           >
             <IndianRupee size={16} /> Collect Customer Due
           </button>
@@ -771,7 +771,7 @@ Thank you for your business!`;
                     {editingInvoiceId ? "Edit Sales Invoice" : "Create Sales Invoice"}
                   </h2>
                   <p className="text-xs text-slate-400">
-                    {editingInvoiceId ? "Modify quantities, rates, or payment and re-save" : "Bills go to customer credit by default"}
+                    {editingInvoiceId ? "Adjust items and rates, then re-save" : "Bills go to customer credit by default"}
                   </p>
                 </div>
                 <input
@@ -823,10 +823,7 @@ Thank you for your business!`;
                   <div key={idx} className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        setPickerActiveIndex(idx);
-                        setStockSearchQuery("");
-                      }}
+                      onClick={() => { setPickerActiveIndex(idx); setStockSearchQuery(""); }}
                       className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-left flex justify-between items-center"
                     >
                       <span className={line.procure_id ? "text-indigo-600 font-black text-sm" : "text-slate-400"}>
@@ -872,7 +869,7 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Bill Summary & Partner Direct Allocation */}
+            {/* Bill Summary */}
             <div className="lg:col-span-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 h-fit">
               <h3 className="font-bold text-base text-slate-900 border-b pb-3">Payment Terms</h3>
               <div className="flex justify-between text-sm font-black text-slate-900">
@@ -880,7 +877,6 @@ Thank you for your business!`;
                 <span>{money(cartTotal)}</span>
               </div>
 
-              {/* Upfront Payment directly to Partner */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
                 <label className="text-xs font-bold uppercase text-slate-700 block">Upfront Payment</label>
                 <div className="relative">
@@ -924,9 +920,7 @@ Thank you for your business!`;
                       onChange={(e) => setUpfrontPartnerId(e.target.value)}
                     >
                       {partners.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
+                        <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
                   </div>
@@ -954,33 +948,33 @@ Thank you for your business!`;
           <div className="space-y-5">
             <div>
               <h2 className="text-xl font-black text-slate-900">Business Snapshot</h2>
-              <p className="text-xs text-slate-500">Live operational ledger across partners, loans, and dues</p>
+              <p className="text-xs text-slate-500">Live operational ledger across partners, loans, and inventory</p>
             </div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Sales</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Sales Invoiced</p>
                 <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1">{money(businessSummary.totalSales)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Customer Market Dues</p>
-                <h3 className="text-lg sm:text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalMarketDues)}</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Customer Dues (కస్టమర్ బ్యాలెన్స్)</p>
+                <h3 className="text-lg sm:text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalCustomerDues)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Borrowers Loan Due</p>
-                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalBorrowersDue)}</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts / Borrowings (అప్పులు)</p>
+                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts)}</h3>
               </div>
               <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Cash + Bank</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1)</p>
                 <h3 className="text-lg sm:text-2xl font-black text-emerald-600 mt-1">
-                  {money(businessSummary.totalCash + businessSummary.totalUpi)}
+                  {money(businessSummary.bReddyNetProfit)}
                 </h3>
               </div>
             </div>
 
-            {/* Individual Partner Portfolios */}
+            {/* Individual Partner Direct Holdings */}
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-base text-slate-900 mb-4">Partner Balances (Direct Cash / UPI In-Hand)</h3>
+              <h3 className="font-bold text-base text-slate-900 mb-4">Partner Cash / UPI In-Hand</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {partnerAccounts.map((p) => (
                   <div key={p.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70">
@@ -992,7 +986,7 @@ Thank you for your business!`;
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-slate-400 text-[11px]">Cash In-Hand</span>
+                        <span className="text-slate-400 text-[11px]">Physical Cash</span>
                         <p className="font-black text-sm text-emerald-600 mt-0.5">{money(p.netCash)}</p>
                       </div>
                       <div className="bg-white p-2.5 rounded-lg border border-slate-200">
@@ -1011,8 +1005,8 @@ Thank you for your business!`;
         {activeTab === "invoices" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">Invoices & Bill Actions</h2>
-              <p className="text-xs text-slate-500">Edit quantities/rates, delete mistakenly billed invoices, or share on WhatsApp</p>
+              <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
+              <p className="text-xs text-slate-500">Edit quantities or delete bills and restore warehouse stock</p>
             </div>
 
             <div className="space-y-3">
@@ -1034,7 +1028,7 @@ Thank you for your business!`;
                       onClick={() => handleEditInvoice(inv)}
                       className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
                     >
-                      <Edit2 size={13} /> Edit Bill
+                      <Edit2 size={13} /> Edit
                     </button>
                     <button
                       onClick={() => handleDeleteInvoice(inv)}
@@ -1060,8 +1054,8 @@ Thank you for your business!`;
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Borrowers & Loan Ledgers</h2>
-                <p className="text-xs text-slate-500">Track money given on loan and repayments received</p>
+                <h2 className="text-lg font-black text-slate-900">Borrowers & Loans (అప్పులు)</h2>
+                <p className="text-xs text-slate-500">Track loans taken or given (e.g. Gold Loan, Srikanth Reddy, Swamy Ongole)</p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
@@ -1097,11 +1091,11 @@ Thank you for your business!`;
                     <h4 className="font-bold text-sm text-slate-900">{b.name}</h4>
                     <span className="text-xs text-slate-400 block">{b.mobile || "No Mobile"}</span>
                     <span className="text-[11px] text-slate-500">
-                      Given: {money(b.total_borrowed)} | Repaid: {money(b.total_repaid)}
+                      Total Borrowed: {money(b.total_borrowed)} | Repaid: {money(b.total_repaid)}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs text-slate-400 block uppercase font-bold">Balance Due</span>
+                    <span className="text-xs text-slate-400 block uppercase font-bold">Outstanding Balance</span>
                     <span className="font-black text-rose-600 text-sm">{money(b.balance_due)}</span>
                   </div>
                 </div>
@@ -1116,7 +1110,7 @@ Thank you for your business!`;
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Expenses</h2>
-                <p className="text-xs text-slate-500">Record payments made by partners for specific shop needs</p>
+                <p className="text-xs text-slate-500">Record shop outlays paid by partners</p>
               </div>
               <button
                 onClick={() => {
@@ -1157,79 +1151,90 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: EXCEL-STYLE REPORTS & PDF DOWNLOAD */}
+        {/* VIEW 6: EXCEL-STYLE SHEET REPORT (PDF DOWNLOADABLE) */}
         {activeTab === "reports" && (
           <div className="space-y-5">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Excel Format Business Report</h2>
-                  <p className="text-xs text-slate-500">View spreadsheet layout and download directly to PDF</p>
+                  <h2 className="text-lg font-black text-slate-900">B Reddy Statement (Excel Sheet Format)</h2>
+                  <p className="text-xs text-slate-500">Complete statement mirroring your B Reddy.xlsx balance sheet</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    className="p-2 border border-slate-200 rounded-xl text-xs font-semibold"
-                    value={reportStart}
-                    onChange={(e) => setReportStart(e.target.value)}
-                  />
-                  <input
-                    type="date"
-                    className="p-2 border border-slate-200 rounded-xl text-xs font-semibold"
-                    value={reportEnd}
-                    onChange={(e) => setReportEnd(e.target.value)}
-                  />
-                  <button
-                    onClick={handleDownloadReportPDF}
-                    className="px-3 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow"
-                  >
-                    <Download size={14} /> Download PDF
-                  </button>
-                </div>
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow"
+                >
+                  <Download size={15} /> Download / Print PDF
+                </button>
               </div>
 
-              {/* Excel Spreadsheet Table View */}
-              <div id="excel-report" className="overflow-x-auto border border-slate-300 rounded-xl">
+              {/* Excel Table Layout (Matches B Reddy.xlsx) */}
+              <div className="overflow-x-auto border border-slate-300 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse font-mono">
                   <thead>
-                    <tr className="bg-emerald-800 text-white font-bold">
-                      <th className="p-2.5 border border-emerald-700">Date</th>
-                      <th className="p-2.5 border border-emerald-700">Type / Ref</th>
-                      <th className="p-2.5 border border-emerald-700">Customer / Description</th>
-                      <th className="p-2.5 border border-emerald-700 text-right">Invoiced (₹)</th>
-                      <th className="p-2.5 border border-emerald-700 text-right">Received (₹)</th>
-                      <th className="p-2.5 border border-emerald-700 text-right">Due Balance (₹)</th>
+                    <tr className="bg-slate-900 text-white font-bold">
+                      <th className="p-3 border border-slate-800">S.No</th>
+                      <th className="p-3 border border-slate-800">వివరణ (Description)</th>
+                      <th className="p-3 border border-slate-800 text-right">మొత్తం విలువ (Value ₹)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {excelReportData.filteredInvs.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-slate-50">
-                        <td className="p-2 border border-slate-200">{inv.invoice_date || inv.created_at?.slice(0, 10)}</td>
-                        <td className="p-2 border border-slate-200 font-bold">{inv.invoice_number || `INV-${inv.id}`}</td>
-                        <td className="p-2 border border-slate-200">{inv.customer_name}</td>
-                        <td className="p-2 border border-slate-200 text-right">{money(inv.total_amount)}</td>
-                        <td className="p-2 border border-slate-200 text-right text-emerald-700 font-bold">{money(inv.upfront_paid)}</td>
-                        <td className="p-2 border border-slate-200 text-right text-rose-600 font-bold">{money(inv.balance_due)}</td>
-                      </tr>
-                    ))}
-                    {excelReportData.filteredExps.map((e) => (
-                      <tr key={e.id} className="bg-rose-50/40">
-                        <td className="p-2 border border-slate-200">{e.expense_date}</td>
-                        <td className="p-2 border border-slate-200 text-amber-700 font-bold">EXPENSE</td>
-                        <td className="p-2 border border-slate-200">{e.title} ({e.category_name})</td>
-                        <td className="p-2 border border-slate-200 text-right">-</td>
-                        <td className="p-2 border border-slate-200 text-right text-rose-600 font-bold">-{money(e.amount)}</td>
-                        <td className="p-2 border border-slate-200 text-right">-</td>
-                      </tr>
-                    ))}
-                    <tr className="bg-slate-200 font-black text-slate-900">
-                      <td colSpan={3} className="p-2.5 border border-slate-300 text-right uppercase">Total Summary</td>
-                      <td className="p-2.5 border border-slate-300 text-right">{money(excelReportData.totalInvoiced)}</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-emerald-700">{money(excelReportData.totalCashReceived)}</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(excelReportData.totalCreditPending)}</td>
+                  <tbody>
+                    <tr className="bg-amber-50/70 font-bold">
+                      <td className="p-2.5 border border-slate-300 text-center">1</td>
+                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts / Borrowings)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts)}</td>
+                    </tr>
+                    <tr className="bg-slate-50 font-bold">
+                      <td className="p-2.5 border border-slate-300 text-center">2</td>
+                      <td className="p-2.5 border border-slate-300">కస్టమర్ బ్యాలెన్స్ (Customer Dues)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-slate-900">{money(businessSummary.totalCustomerDues)}</td>
+                    </tr>
+                    <tr className="bg-slate-50 font-bold">
+                      <td className="p-2.5 border border-slate-300 text-center">3</td>
+                      <td className="p-2.5 border border-slate-300">నిలువలు (Stock Valuation)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-slate-900">{money(businessSummary.stockValuation)}</td>
+                    </tr>
+                    <tr className="bg-emerald-100/80 font-black text-sm">
+                      <td colSpan={2} className="p-3 border border-slate-300 text-right uppercase">
+                        లాభం (Net Business Profit = 2 + 3 - 1)
+                      </td>
+                      <td className="p-3 border border-slate-300 text-right text-emerald-800">
+                        {money(businessSummary.bReddyNetProfit)}
+                      </td>
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              {/* Sub-breakdown of Inventory Stocks */}
+              <div className="pt-2">
+                <h3 className="font-bold text-sm text-slate-900 mb-2">నిలువలు (Stock Batches Breakdown)</h3>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-100 text-slate-600 font-bold">
+                      <tr>
+                        <th className="p-2 border border-slate-200">S.No</th>
+                        <th className="p-2 border border-slate-200">Stock Item</th>
+                        <th className="p-2 border border-slate-200 text-center">Available Qty</th>
+                        <th className="p-2 border border-slate-200 text-right">Rate</th>
+                        <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {procurements.map((p, idx) => (
+                        <tr key={p.id}>
+                          <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
+                          <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
+                          <td className="p-2 border border-slate-200 text-center">{p.remaining_qty}</td>
+                          <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
+                          <td className="p-2 border border-slate-200 text-right font-bold">
+                            {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -1240,8 +1245,8 @@ Thank you for your business!`;
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Customer Ledgers</h2>
-                <p className="text-xs text-slate-500">Track total dues and phone contacts</p>
+                <h2 className="text-lg font-black text-slate-900">Customer Directory</h2>
+                <p className="text-xs text-slate-500">Manage dues and mobile numbers</p>
               </div>
               <button
                 onClick={() => {
@@ -1268,13 +1273,13 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: PROCUREMENTS (WITH DUPLICATE ITEM NAME PREVENTION) */}
+        {/* VIEW 8: PROCUREMENTS */}
         {activeTab === "procurement" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Procurements & Inventory</h2>
-                <p className="text-xs text-slate-500">Record purchases using standardized items</p>
+                <p className="text-xs text-slate-500">Stock purchase entries and warehouse rates</p>
               </div>
               <button
                 onClick={() => {
@@ -1318,7 +1323,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 9: PARTNERS */}
+        {/* VIEW 9: PARTNER ACCOUNTS */}
         {activeTab === "partners" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -1397,7 +1402,7 @@ Thank you for your business!`;
               <input
                 type="text"
                 required
-                placeholder="Borrower Name"
+                placeholder="Borrower Name (e.g. Swamy Ongole)"
                 className="w-full p-2.5 border rounded-xl text-sm"
                 value={borrowerForm.name}
                 onChange={(e) => setBorrowerForm({ ...borrowerForm, name: e.target.value })}
@@ -1418,7 +1423,7 @@ Thank you for your business!`;
               />
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowBorrowerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Borrower</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
               </div>
             </form>
           </div>
@@ -1543,24 +1548,22 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD PROCUREMENT (WITH DUPLICATE CHECK / AUTO-SUGGESTION) */}
+      {/* MODAL: ADD PROCUREMENT */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Procurement / Stock</h3>
+            <h3 className="font-bold text-base text-slate-900">Add Procurement</h3>
             <form onSubmit={saveProcurement} className="space-y-3">
               <input
                 type="text"
                 required
-                placeholder="Supplier Name"
+                placeholder="Supplier Name (e.g. JB Company)"
                 className="w-full p-2.5 border rounded-xl text-sm"
                 value={procureForm.supplier_name}
                 onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
               />
-
-              {/* Duplicate Protection: Datalist Auto-Complete from existing items */}
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Item Name (Pick existing to avoid duplicates)</label>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">Item Name (Pick existing or type new)</label>
                 <input
                   list="item-master-list"
                   type="text"
@@ -1628,7 +1631,7 @@ Thank you for your business!`;
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Operating Partner</h3>
+            <h3 className="font-bold text-base text-slate-900">Add Partner</h3>
             <form onSubmit={async (e) => {
               e.preventDefault();
               await db.from("receivers").insert([{
