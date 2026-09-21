@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
-  Tag
+  Tag,
+  Search,
+  ChevronRight
 } from "lucide-react";
 
 const supabaseUrl =
@@ -39,7 +41,7 @@ const money = (n) =>
 
 export default function App() {
   // Navigation
-  const [activeTab, setActiveTab] = useState("sale"); // default to Billing
+  const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Core Data
@@ -56,6 +58,10 @@ export default function App() {
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
 
+  // Stock Picker Modal
+  const [pickerActiveIndex, setPickerActiveIndex] = useState(null); // Which line in cart is picking
+  const [stockSearchQuery, setStockSearchQuery] = useState("");
+
   // Customer Edit/Add Form State
   const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
@@ -63,7 +69,7 @@ export default function App() {
   // Partner Form State
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
-  // Procurement Form State (with Purchase Rate AND Selling Rate)
+  // Procurement Form State
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
     item_name: "",
@@ -80,7 +86,7 @@ export default function App() {
     p2_mode: "UPI"
   });
 
-  // Collection State (Supports Bill-Wise & On-Account)
+  // Collection State
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
     invoice_id: "",
@@ -93,10 +99,10 @@ export default function App() {
   const [selectedCust, setSelectedCust] = useState(null);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [cart, setCart] = useState([
-    { procure_id: "", item_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
+    { procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
   ]);
   const [upfrontAmount, setUpfrontAmount] = useState("");
-  const [upfrontMode, setUpfrontMode] = useState("Cash"); // Cash, UPI
+  const [upfrontMode, setUpfrontMode] = useState("Cash");
   const [upfrontPartnerId, setUpfrontPartnerId] = useState("");
   const [savingSale, setSavingSale] = useState(false);
 
@@ -130,7 +136,7 @@ export default function App() {
     }
   };
 
-  // Partner Real-Time Balances (No main drawer / store UPI - pure partner accounting)
+  // Partner Real-Time Balances
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -138,7 +144,6 @@ export default function App() {
       const initCash = Number(partner.opening_cash || 0);
       const initUpi = Number(partner.opening_upi || 0);
 
-      // Inflows from upfront payments on sales
       const saleUpfrontCash = invoices
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "Cash")
         .reduce((sum, i) => sum + Number(i.upfront_paid || 0), 0);
@@ -146,7 +151,6 @@ export default function App() {
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "UPI")
         .reduce((sum, i) => sum + Number(i.upfront_paid || 0), 0);
 
-      // Inflows from collections
       const colCash = collections
         .filter((c) => c.receiver_id == pid && c.payment_mode === "Cash")
         .reduce((sum, c) => sum + Number(c.amount || 0), 0);
@@ -154,7 +158,6 @@ export default function App() {
         .filter((c) => c.receiver_id == pid && c.payment_mode === "UPI")
         .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
-      // Outflows from procurement payments
       const procureCashOut = procurements.reduce((sum, p) => {
         let amt = 0;
         if (p.p1_id == pid && p.p1_mode === "Cash") amt += Number(p.p1_amount || 0);
@@ -198,17 +201,17 @@ export default function App() {
     return { totalSales, totalMarketDues, stockUnits, stockValuation, totalCashInHand, totalUpiInBank };
   }, [invoices, customers, procurements, partnerAccounts]);
 
-  // Item Selection in Billing: Uses Selling Rate if defined, else defaults to Purchase Rate
-  const handleSelectProcuredItem = (idx, pid) => {
-    const item = procurements.find((p) => p.id == pid);
-    if (!item) return;
+  // Handle selecting an item from the Small Screen / Modal
+  const handlePickStockItem = (item) => {
+    if (pickerActiveIndex === null) return;
 
     const defaultSellingRate = Number(item.selling_rate || item.purchase_rate || 0);
 
     const newCart = [...cart];
-    newCart[idx] = {
+    newCart[pickerActiveIndex] = {
       procure_id: item.id,
       item_name: item.item_name,
+      supplier_name: item.supplier_name,
       purchase_rate: Number(item.purchase_rate || 0),
       rate: defaultSellingRate > 0 ? String(defaultSellingRate) : "",
       qty: 1,
@@ -216,6 +219,8 @@ export default function App() {
       max_qty: Number(item.remaining_qty)
     };
     setCart(newCart);
+    setPickerActiveIndex(null);
+    setStockSearchQuery("");
   };
 
   const updateCart = (idx, field, val) => {
@@ -238,6 +243,20 @@ export default function App() {
     if (!collectForm.customer_id) return [];
     return invoices.filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0);
   }, [collectForm.customer_id, invoices]);
+
+  // Filter available stock for modal
+  const filteredStock = useMemo(() => {
+    return procurements
+      .filter((p) => Number(p.remaining_qty) > 0)
+      .filter((p) => {
+        if (!stockSearchQuery) return true;
+        const q = stockSearchQuery.toLowerCase();
+        return (
+          p.item_name?.toLowerCase().includes(q) ||
+          p.supplier_name?.toLowerCase().includes(q)
+        );
+      });
+  }, [procurements, stockSearchQuery]);
 
   // Save Sale Invoice
   const saveSaleInvoice = async () => {
@@ -274,7 +293,6 @@ export default function App() {
       const { error: invErr } = await db.from("invoices").insert([invoiceRecord]);
       if (invErr) throw invErr;
 
-      // Deduct inventory quantities
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -283,14 +301,13 @@ export default function App() {
         }
       }
 
-      // Add remaining due portion directly to customer ledger
       if (remainingBillDue > 0) {
         const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
         await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
       }
 
       alert(`Invoice saved! Bill Due: ${money(remainingBillDue)}`);
-      setCart([{ procure_id: "", item_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
+      setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
       setSelectedCust(null);
       setUpfrontAmount("");
       refreshData();
@@ -301,7 +318,7 @@ export default function App() {
     }
   };
 
-  // Customer: Save (Create or Update)
+  // Customer Management
   const saveCustomer = async (e) => {
     e.preventDefault();
     if (!custForm.name.trim()) return alert("Customer name is required");
@@ -336,7 +353,6 @@ export default function App() {
     }
   };
 
-  // Customer: Open Edit Modal
   const handleEditCustomer = (c) => {
     setEditingCustId(c.id);
     setCustForm({
@@ -347,9 +363,8 @@ export default function App() {
     setShowCustModal(true);
   };
 
-  // Customer: Delete with confirmation
   const handleDeleteCustomer = async (c) => {
-    if (!confirm(`Are you sure you want to delete customer "${c.name}"? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete customer "${c.name}"?`)) {
       return;
     }
 
@@ -363,7 +378,7 @@ export default function App() {
     }
   };
 
-  // Save Collection
+  // Due Collection
   const saveCollection = async (e) => {
     e.preventDefault();
     const amt = Number(collectForm.amount || 0);
@@ -409,7 +424,6 @@ export default function App() {
     }
   };
 
-  // Save Partner
   const savePartner = async (e) => {
     e.preventDefault();
     const { error } = await db.from("receivers").insert([
@@ -429,7 +443,6 @@ export default function App() {
     }
   };
 
-  // Save Procurement (Supports Purchase Rate AND Selling Rate)
   const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
@@ -664,7 +677,7 @@ export default function App() {
                 )}
               </div>
 
-              {/* Cart Table with Clear Purchase Cost vs Selling Rate */}
+              {/* Cart Table with Pop-up Item Selector */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold uppercase text-slate-500">Stock Items to Bill *</label>
@@ -672,7 +685,7 @@ export default function App() {
                     onClick={() =>
                       setCart([
                         ...cart,
-                        { procure_id: "", item_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
+                        { procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }
                       ])
                     }
                     className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline"
@@ -688,21 +701,32 @@ export default function App() {
                       className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
                     >
                       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                        {/* Button that triggers the Small Screen Modal */}
                         <div className="flex-1">
-                          <select
-                            className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold outline-none text-slate-800"
-                            value={line.procure_id}
-                            onChange={(e) => handleSelectProcuredItem(idx, e.target.value)}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPickerActiveIndex(idx);
+                              setStockSearchQuery("");
+                            }}
+                            className={`w-full p-2.5 rounded-lg text-xs font-bold text-left flex items-center justify-between border transition ${
+                              line.procure_id
+                                ? "bg-white border-indigo-200 text-slate-900 shadow-sm"
+                                : "bg-white border-dashed border-slate-300 text-slate-400 hover:border-indigo-400"
+                            }`}
                           >
-                            <option value="">-- Pick Stock Item --</option>
-                            {procurements
-                              .filter((p) => Number(p.remaining_qty) > 0)
-                              .map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.item_name} [{p.supplier_name}] | Cost: ₹{p.purchase_rate} | Sale: ₹{p.selling_rate || p.purchase_rate} | Avail: {p.remaining_qty}
-                                </option>
-                              ))}
-                          </select>
+                            <div className="truncate">
+                              {line.procure_id ? (
+                                <div>
+                                  <span className="text-indigo-600 font-black">{line.item_name}</span>
+                                  <span className="text-slate-400 font-medium ml-2">[{line.supplier_name}]</span>
+                                </div>
+                              ) : (
+                                <span>🔍 Click to Pick Stock Item...</span>
+                              )}
+                            </div>
+                            <ChevronRight size={15} className="text-slate-400 shrink-0" />
+                          </button>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -746,7 +770,7 @@ export default function App() {
                               Purchase Cost: <b className="text-slate-700">₹{line.purchase_rate}</b>
                             </span>
                             <span>
-                              Avail Stock: <b className="text-slate-700">{line.max_qty}</b>
+                              Available Stock: <b className="text-slate-700">{line.max_qty}</b>
                             </span>
                           </div>
                           {Number(line.rate) > 0 && (
@@ -951,7 +975,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: CUSTOMERS & DUES (WITH EDIT & DELETE) */}
+        {/* VIEW 3: CUSTOMERS & DUES */}
         {activeTab === "customers" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
@@ -1106,7 +1130,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 5: PROCUREMENTS & STOCK (SHOWING PURCHASE RATE AND SELLING RATE) */}
+        {/* VIEW 5: PROCUREMENTS & STOCK */}
         {activeTab === "procurement" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -1217,6 +1241,87 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* --- POPUP WINDOW: SMALL SCREEN STOCK ITEM PICKER --- */}
+      {pickerActiveIndex !== null && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-base text-slate-900">Select Stock Item</h3>
+                <p className="text-xs text-slate-400">Click any batch to automatically populate invoice line</p>
+              </div>
+              <button
+                onClick={() => setPickerActiveIndex(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick Search */}
+            <div className="my-3 relative">
+              <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search item name or supplier..."
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500"
+                value={stockSearchQuery}
+                onChange={(e) => setStockSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Stock List */}
+            <div className="overflow-y-auto space-y-2.5 flex-1 pr-1">
+              {filteredStock.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-400">
+                  No in-stock items found matching your search.
+                </div>
+              ) : (
+                filteredStock.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handlePickStockItem(item)}
+                    className="p-3 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/40 cursor-pointer transition flex items-center justify-between group"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-black text-sm text-slate-900 group-hover:text-indigo-600">
+                          {item.item_name}
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">
+                          {item.supplier_name}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1 flex gap-4">
+                        <span>Cost Rate: <b className="text-slate-800">₹{item.purchase_rate}</b></span>
+                        <span>Default Sale: <b className="text-indigo-600">₹{item.selling_rate || item.purchase_rate}</b></span>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                        {item.remaining_qty} in stock
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 mt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPickerActiveIndex(null)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: ADD / EDIT CUSTOMER */}
       {showCustModal && (
@@ -1458,7 +1563,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD PROCUREMENT (PURCHASE RATE + SELLING RATE) */}
+      {/* MODAL: ADD PROCUREMENT */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full my-6">
@@ -1508,7 +1613,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Purchase Rate & Expected Selling Rate Inputs */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs font-bold text-slate-500">Purchase Rate (Cost) *</label>
