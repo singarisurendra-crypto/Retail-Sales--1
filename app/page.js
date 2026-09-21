@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   Plus,
   Trash2,
+  Edit2,
   Menu,
   X,
   IndianRupee,
@@ -55,14 +56,20 @@ export default function App() {
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
 
-  // Form States
-  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
+  // Customer Edit/Add Form State
+  const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
+
+  // Partner Form State
+  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
+
+  // Procurement Form State (with Purchase Rate AND Selling Rate)
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
     item_name: "",
     procured_qty: "",
     purchase_rate: "",
+    selling_rate: "",
     is_opening: false,
     p1_id: "",
     p1_amount: "",
@@ -123,7 +130,7 @@ export default function App() {
     }
   };
 
-  // Partner Real-Time Ledgers
+  // Partner Real-Time Balances (No main drawer / store UPI - pure partner accounting)
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -191,19 +198,21 @@ export default function App() {
     return { totalSales, totalMarketDues, stockUnits, stockValuation, totalCashInHand, totalUpiInBank };
   }, [invoices, customers, procurements, partnerAccounts]);
 
-  // Cart Management
+  // Item Selection in Billing: Uses Selling Rate if defined, else defaults to Purchase Rate
   const handleSelectProcuredItem = (idx, pid) => {
     const item = procurements.find((p) => p.id == pid);
     if (!item) return;
+
+    const defaultSellingRate = Number(item.selling_rate || item.purchase_rate || 0);
 
     const newCart = [...cart];
     newCart[idx] = {
       procure_id: item.id,
       item_name: item.item_name,
       purchase_rate: Number(item.purchase_rate || 0),
-      rate: item.purchase_rate ? String(item.purchase_rate) : "",
+      rate: defaultSellingRate > 0 ? String(defaultSellingRate) : "",
       qty: 1,
-      total: Number(item.purchase_rate || 0),
+      total: defaultSellingRate,
       max_qty: Number(item.remaining_qty)
     };
     setCart(newCart);
@@ -292,7 +301,69 @@ export default function App() {
     }
   };
 
-  // Save Collection (Bill-Wise or On-Account)
+  // Customer: Save (Create or Update)
+  const saveCustomer = async (e) => {
+    e.preventDefault();
+    if (!custForm.name.trim()) return alert("Customer name is required");
+
+    const payload = {
+      name: custForm.name.trim(),
+      mobile: custForm.mobile.trim(),
+      old_due: Number(custForm.old_due || 0)
+    };
+
+    if (editingCustId) {
+      const { error } = await db.from("customers").update(payload).eq("id", editingCustId);
+      if (!error) {
+        setEditingCustId(null);
+        setCustForm({ name: "", mobile: "", old_due: "" });
+        setShowCustModal(false);
+        refreshData();
+        alert("Customer updated successfully!");
+      } else {
+        alert(error.message);
+      }
+    } else {
+      const { error } = await db.from("customers").insert([payload]);
+      if (!error) {
+        setCustForm({ name: "", mobile: "", old_due: "" });
+        setShowCustModal(false);
+        refreshData();
+        alert("Customer added successfully!");
+      } else {
+        alert(error.message);
+      }
+    }
+  };
+
+  // Customer: Open Edit Modal
+  const handleEditCustomer = (c) => {
+    setEditingCustId(c.id);
+    setCustForm({
+      name: c.name,
+      mobile: c.mobile || "",
+      old_due: c.old_due || ""
+    });
+    setShowCustModal(true);
+  };
+
+  // Customer: Delete with confirmation
+  const handleDeleteCustomer = async (c) => {
+    if (!confirm(`Are you sure you want to delete customer "${c.name}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    const { error } = await db.from("customers").delete().eq("id", c.id);
+    if (!error) {
+      if (selectedCust && selectedCust.id === c.id) setSelectedCust(null);
+      refreshData();
+      alert("Customer deleted successfully!");
+    } else {
+      alert("Error deleting customer: " + error.message);
+    }
+  };
+
+  // Save Collection
   const saveCollection = async (e) => {
     e.preventDefault();
     const amt = Number(collectForm.amount || 0);
@@ -338,6 +409,7 @@ export default function App() {
     }
   };
 
+  // Save Partner
   const savePartner = async (e) => {
     e.preventDefault();
     const { error } = await db.from("receivers").insert([
@@ -357,30 +429,13 @@ export default function App() {
     }
   };
 
-  const saveCustomer = async (e) => {
-    e.preventDefault();
-    const { error } = await db.from("customers").insert([
-      {
-        name: custForm.name.trim(),
-        mobile: custForm.mobile.trim(),
-        old_due: Number(custForm.old_due || 0)
-      }
-    ]);
-
-    if (!error) {
-      setCustForm({ name: "", mobile: "", old_due: "" });
-      setShowCustModal(false);
-      refreshData();
-    } else {
-      alert(error.message);
-    }
-  };
-
+  // Save Procurement (Supports Purchase Rate AND Selling Rate)
   const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
-    const rate = Number(procureForm.purchase_rate || 0);
-    const total = qty * rate;
+    const purchaseRate = Number(procureForm.purchase_rate || 0);
+    const sellingRate = Number(procureForm.selling_rate || purchaseRate);
+    const total = qty * purchaseRate;
 
     const record = {
       supplier_name: procureForm.is_opening
@@ -389,7 +444,8 @@ export default function App() {
       item_name: procureForm.item_name.trim(),
       procured_qty: qty,
       remaining_qty: qty,
-      purchase_rate: rate,
+      purchase_rate: purchaseRate,
+      selling_rate: sellingRate,
       total_amount: total,
       p1_id: procureForm.p1_id ? Number(procureForm.p1_id) : null,
       p1_amount: Number(procureForm.p1_amount || (procureForm.split_p2 ? 0 : total)),
@@ -407,6 +463,7 @@ export default function App() {
         item_name: "",
         procured_qty: "",
         purchase_rate: "",
+        selling_rate: "",
         is_opening: false,
         p1_id: "",
         p1_amount: "",
@@ -574,7 +631,11 @@ export default function App() {
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="text-xs font-bold uppercase text-slate-500">Customer *</label>
                   <button
-                    onClick={() => setShowCustModal(true)}
+                    onClick={() => {
+                      setEditingCustId(null);
+                      setCustForm({ name: "", mobile: "", old_due: "" });
+                      setShowCustModal(true);
+                    }}
                     className="text-xs font-bold text-indigo-600 hover:underline"
                   >
                     + Add New Customer
@@ -603,7 +664,7 @@ export default function App() {
                 )}
               </div>
 
-              {/* Cart Table with Clear Cost Rate & Margin Display */}
+              {/* Cart Table with Clear Purchase Cost vs Selling Rate */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-bold uppercase text-slate-500">Stock Items to Bill *</label>
@@ -638,7 +699,7 @@ export default function App() {
                               .filter((p) => Number(p.remaining_qty) > 0)
                               .map((p) => (
                                 <option key={p.id} value={p.id}>
-                                  {p.item_name} [{p.supplier_name}] | Cost: ₹{p.purchase_rate} | Avail: {p.remaining_qty}
+                                  {p.item_name} [{p.supplier_name}] | Cost: ₹{p.purchase_rate} | Sale: ₹{p.selling_rate || p.purchase_rate} | Avail: {p.remaining_qty}
                                 </option>
                               ))}
                           </select>
@@ -677,7 +738,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Cost Rate & Margin Indicator */}
+                      {/* Cost Rate & Profit Margin Indicator */}
                       {line.procure_id && (
                         <div className="pt-1 text-[11px] flex items-center justify-between border-t border-slate-200/60 text-slate-500">
                           <div className="flex items-center gap-3">
@@ -707,7 +768,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Bill Summary & Partial / Upfront Payment */}
+            {/* Bill Summary & Upfront Payment to Partner */}
             <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 h-fit">
               <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3">Bill & Payment Terms</h3>
 
@@ -728,7 +789,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Upfront / Partial Payment */}
+              {/* Upfront / Partial Payment directly to Partner */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold uppercase text-slate-700">Upfront Payment (If Any)</label>
@@ -774,7 +835,7 @@ export default function App() {
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Received by Partner *</label>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Partner Receiving Amount *</label>
                       <select
                         className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                         value={upfrontPartnerId}
@@ -848,7 +909,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Partner Real-Time Ledgers */}
+            {/* Partner Accounts Passbook */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-base text-slate-900">Partner Cash / UPI Holding</h3>
@@ -890,16 +951,20 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 3: CUSTOMERS & DUES */}
+        {/* VIEW 3: CUSTOMERS & DUES (WITH EDIT & DELETE) */}
         {activeTab === "customers" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Customers Ledger & Balances</h2>
-                <p className="text-xs text-slate-500">Collect on account or pay individual bills</p>
+                <h2 className="text-lg font-black text-slate-900">Customers Directory & Ledgers</h2>
+                <p className="text-xs text-slate-500">Manage customer contacts, update dues, or collect balances</p>
               </div>
               <button
-                onClick={() => setShowCustModal(true)}
+                onClick={() => {
+                  setEditingCustId(null);
+                  setCustForm({ name: "", mobile: "", old_due: "" });
+                  setShowCustModal(true);
+                }}
                 className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
               >
                 <Plus size={15} /> Add Customer
@@ -913,7 +978,7 @@ export default function App() {
                     <th className="p-3">Customer Name</th>
                     <th className="p-3">Phone</th>
                     <th className="p-3">Total Outstanding</th>
-                    <th className="p-3 text-right">Settlement Action</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-slate-700 font-medium">
@@ -923,23 +988,39 @@ export default function App() {
                       <td className="p-3">{c.mobile || "-"}</td>
                       <td className="p-3 font-black text-rose-600">{money(c.old_due)}</td>
                       <td className="p-3 text-right">
-                        {Number(c.old_due) > 0 && (
+                        <div className="flex items-center justify-end gap-2">
+                          {Number(c.old_due) > 0 && (
+                            <button
+                              onClick={() => {
+                                setCollectForm({
+                                  customer_id: c.id,
+                                  invoice_id: "",
+                                  amount: c.old_due,
+                                  payment_mode: "Cash",
+                                  receiver_id: upfrontPartnerId
+                                });
+                                setShowCollectModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg inline-flex items-center gap-1"
+                            >
+                              Collect Due
+                            </button>
+                          )}
                           <button
-                            onClick={() => {
-                              setCollectForm({
-                                customer_id: c.id,
-                                invoice_id: "",
-                                amount: c.old_due,
-                                payment_mode: "Cash",
-                                receiver_id: upfrontPartnerId
-                              });
-                              setShowCollectModal(true);
-                            }}
-                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg inline-flex items-center gap-1"
+                            onClick={() => handleEditCustomer(c)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"
+                            title="Edit Customer"
                           >
-                            Collect Due
+                            <Edit2 size={15} />
                           </button>
-                        )}
+                          <button
+                            onClick={() => handleDeleteCustomer(c)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Delete Customer"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -949,7 +1030,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 4: INVOICES (BILL-WISE STATUS) */}
+        {/* VIEW 4: INVOICES */}
         {activeTab === "invoices" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
@@ -1025,13 +1106,13 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 5: PROCUREMENTS & STOCK */}
+        {/* VIEW 5: PROCUREMENTS & STOCK (SHOWING PURCHASE RATE AND SELLING RATE) */}
         {activeTab === "procurement" && (
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Procurements & Inventory</h2>
-                <p className="text-xs text-slate-500">Record supplier purchases and add opening stock</p>
+                <p className="text-xs text-slate-500">Record supplier purchases with purchase cost and intended selling price</p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -1064,8 +1145,9 @@ export default function App() {
                     <th className="p-3">Item Name</th>
                     <th className="p-3">Purchased</th>
                     <th className="p-3">Available</th>
-                    <th className="p-3">Cost Rate</th>
-                    <th className="p-3">Total Amount</th>
+                    <th className="p-3">Purchase Rate</th>
+                    <th className="p-3">Selling Rate</th>
+                    <th className="p-3">Total Cost</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-slate-700 font-medium">
@@ -1084,7 +1166,8 @@ export default function App() {
                       <td className="p-3">{p.item_name}</td>
                       <td className="p-3">{p.procured_qty}</td>
                       <td className="p-3 font-black text-emerald-600">{p.remaining_qty}</td>
-                      <td className="p-3">{money(p.purchase_rate)}</td>
+                      <td className="p-3 font-bold text-slate-900">{money(p.purchase_rate)}</td>
+                      <td className="p-3 font-bold text-indigo-600">{money(p.selling_rate || p.purchase_rate)}</td>
                       <td className="p-3 font-bold">{money(p.total_amount)}</td>
                     </tr>
                   ))}
@@ -1134,6 +1217,63 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* MODAL: ADD / EDIT CUSTOMER */}
+      {showCustModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-900 mb-4">
+              {editingCustId ? "Edit Customer Details" : "Add New Customer"}
+            </h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Customer Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  value={custForm.name}
+                  onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Phone Number</label>
+                <input
+                  type="text"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  value={custForm.mobile}
+                  onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Opening Due / Balance (₹)</label>
+                <input
+                  type="number"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  placeholder="0"
+                  value={custForm.old_due}
+                  onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustModal(false);
+                    setEditingCustId(null);
+                  }}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
+                  {editingCustId ? "Update Customer" : "Save Customer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: COLLECT DUE */}
       {showCollectModal && (
@@ -1318,59 +1458,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: ADD CUSTOMER */}
-      {showCustModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="font-bold text-base text-slate-900 mb-4">Add New Customer</h3>
-            <form onSubmit={saveCustomer} className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-500">Customer Name *</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
-                  value={custForm.name}
-                  onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500">Phone Number</label>
-                <input
-                  type="text"
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
-                  value={custForm.mobile}
-                  onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500">Opening Due / Balance (₹)</label>
-                <input
-                  type="number"
-                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
-                  placeholder="0"
-                  value={custForm.old_due}
-                  onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCustModal(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
-                  Save Customer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD PROCUREMENT / OPENING STOCK */}
+      {/* MODAL: ADD PROCUREMENT (PURCHASE RATE + SELLING RATE) */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full my-6">
@@ -1408,26 +1496,39 @@ export default function App() {
                 />
               </div>
 
+              <div>
+                <label className="text-xs font-bold text-slate-500">Quantity *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold"
+                  value={procureForm.procured_qty}
+                  onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                />
+              </div>
+
+              {/* Purchase Rate & Expected Selling Rate Inputs */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold text-slate-500">Quantity *</label>
+                  <label className="text-xs font-bold text-slate-500">Purchase Rate (Cost) *</label>
                   <input
                     type="number"
                     required
-                    min="1"
                     className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold"
-                    value={procureForm.procured_qty}
-                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                    placeholder="e.g. 25000"
+                    value={procureForm.purchase_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-500">Cost Rate (₹) *</label>
+                  <label className="text-xs font-bold text-slate-500">Selling Rate (MRP/Sale)</label>
                   <input
                     type="number"
-                    required
-                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold"
-                    value={procureForm.purchase_rate}
-                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600"
+                    placeholder="e.g. 30000"
+                    value={procureForm.selling_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
                   />
                 </div>
               </div>
