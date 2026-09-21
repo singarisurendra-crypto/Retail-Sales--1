@@ -15,14 +15,14 @@ import {
   Menu,
   X,
   IndianRupee,
+  Receipt,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
+  Tag,
   Search,
   ChevronRight,
-  Printer,
-  Share2,
-  CreditCard,
-  FileText,
-  HandCoins,
-  Download
+  AlertCircle
 } from "lucide-react";
 
 const supabaseUrl =
@@ -41,19 +41,16 @@ const money = (n) =>
   })}`;
 
 export default function App() {
+  // Navigation
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Core Data State
+  // Core Data
   const [partners, setPartners] = useState([]);
   const [procurements, setProcurements] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [collections, setCollections] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [expenseCategories, setExpenseCategories] = useState([]);
-  const [borrowers, setBorrowers] = useState([]);
-  const [borrowerTx, setBorrowerTx] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -61,25 +58,19 @@ export default function App() {
   const [showCustModal, setShowCustModal] = useState(false);
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showBorrowerModal, setShowBorrowerModal] = useState(false);
-  const [showBorrowerTxModal, setShowBorrowerTxModal] = useState(false);
-  const [printInvoiceData, setPrintInvoiceData] = useState(null);
 
   // Stock Picker Modal
   const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
 
-  // Customer Form
+  // Customer Edit/Add Form State
   const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
-  // Partner Form
+  // Partner Form State
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
-  // Procurement Form
-  const [editingProcureId, setEditingProcureId] = useState(null);
+  // Procurement Form State
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
     item_name: "",
@@ -96,31 +87,7 @@ export default function App() {
     p2_mode: "UPI"
   });
 
-  // Expense Form
-  const [expenseForm, setExpenseForm] = useState({
-    title: "",
-    category_id: "",
-    amount: "",
-    payment_mode: "Cash",
-    paid_by_id: "",
-    expense_date: new Date().toISOString().split("T")[0],
-    notes: ""
-  });
-  const [newCatName, setNewCatName] = useState("");
-
-  // Borrower Form
-  const [borrowerForm, setBorrowerForm] = useState({ name: "", mobile: "", initial_due: "" });
-  const [borrowerTxForm, setBorrowerTxForm] = useState({
-    borrower_id: "",
-    tx_type: "Given",
-    amount: "",
-    payment_mode: "Cash",
-    partner_id: "",
-    notes: "",
-    tx_date: new Date().toISOString().split("T")[0]
-  });
-
-  // Due Collection Form
+  // Collection State
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
     invoice_id: "",
@@ -130,7 +97,6 @@ export default function App() {
   });
 
   // Sales Entry State
-  const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [selectedCust, setSelectedCust] = useState(null);
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
   const [cart, setCart] = useState([
@@ -148,16 +114,12 @@ export default function App() {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [p, pr, c, inv, col, exp, cats, b, bTx] = await Promise.all([
+      const [p, pr, c, inv, col] = await Promise.all([
         db.from("receivers").select("*").order("name", { ascending: true }),
         db.from("procurements").select("*").order("created_at", { ascending: false }),
         db.from("customers").select("*").order("name", { ascending: true }),
         db.from("invoices").select("*").order("created_at", { ascending: false }),
-        db.from("collections").select("*").order("created_at", { ascending: false }),
-        db.from("expenses").select("*").order("expense_date", { ascending: false }),
-        db.from("expense_categories").select("*").order("name", { ascending: true }),
-        db.from("borrowers").select("*").order("name", { ascending: true }),
-        db.from("borrower_transactions").select("*").order("tx_date", { ascending: false })
+        db.from("collections").select("*").order("created_at", { ascending: false })
       ]);
 
       if (p.data) {
@@ -168,10 +130,6 @@ export default function App() {
       if (c.data) setCustomers(c.data);
       if (inv.data) setInvoices(inv.data);
       if (col.data) setCollections(col.data);
-      if (exp.data) setExpenses(exp.data);
-      if (cats.data) setExpenseCategories(cats.data);
-      if (b.data) setBorrowers(b.data);
-      if (bTx.data) setBorrowerTx(bTx.data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -179,75 +137,44 @@ export default function App() {
     }
   };
 
-  // Distinct items from procurements to avoid duplicate naming
-  const uniqueItemSuggestions = useMemo(() => {
-    const map = new Map();
-    procurements.forEach((p) => {
-      const trimmed = (p.item_name || "").trim();
-      if (trimmed && !map.has(trimmed.toLowerCase())) {
-        map.set(trimmed.toLowerCase(), trimmed);
-      }
-    });
-    return Array.from(map.values());
-  }, [procurements]);
-
-  // Real-Time Partner Cash/UPI Ledger
+  // Partner Real-Time Balances
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
+
       const initCash = Number(partner.opening_cash || 0);
       const initUpi = Number(partner.opening_upi || 0);
 
-      const saleCash = invoices
+      const saleUpfrontCash = invoices
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "Cash")
-        .reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
-      const saleUpi = invoices
+        .reduce((sum, i) => sum + Number(i.upfront_paid || 0), 0);
+      const saleUpfrontUpi = invoices
         .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "UPI")
-        .reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
+        .reduce((sum, i) => sum + Number(i.upfront_paid || 0), 0);
 
       const colCash = collections
         .filter((c) => c.receiver_id == pid && c.payment_mode === "Cash")
-        .reduce((s, c) => s + Number(c.amount || 0), 0);
+        .reduce((sum, c) => sum + Number(c.amount || 0), 0);
       const colUpi = collections
         .filter((c) => c.receiver_id == pid && c.payment_mode === "UPI")
-        .reduce((s, c) => s + Number(c.amount || 0), 0);
+        .reduce((sum, c) => sum + Number(c.amount || 0), 0);
 
-      const procCash = procurements.reduce((s, p) => {
+      const procureCashOut = procurements.reduce((sum, p) => {
         let amt = 0;
         if (p.p1_id == pid && p.p1_mode === "Cash") amt += Number(p.p1_amount || 0);
         if (p.p2_id == pid && p.p2_mode === "Cash") amt += Number(p.p2_amount || 0);
-        return s + amt;
+        return sum + amt;
       }, 0);
-      const procUpi = procurements.reduce((s, p) => {
+
+      const procureUpiOut = procurements.reduce((sum, p) => {
         let amt = 0;
         if (p.p1_id == pid && p.p1_mode === "UPI") amt += Number(p.p1_amount || 0);
         if (p.p2_id == pid && p.p2_mode === "UPI") amt += Number(p.p2_amount || 0);
-        return s + amt;
+        return sum + amt;
       }, 0);
 
-      const expCash = expenses
-        .filter((e) => e.paid_by_id == pid && e.payment_mode === "Cash")
-        .reduce((s, e) => s + Number(e.amount || 0), 0);
-      const expUpi = expenses
-        .filter((e) => e.paid_by_id == pid && e.payment_mode === "UPI")
-        .reduce((s, e) => s + Number(e.amount || 0), 0);
-
-      const bGivenCash = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Given" && b.payment_mode === "Cash")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
-      const bGivenUpi = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Given" && b.payment_mode === "UPI")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
-
-      const bRecCash = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Received" && b.payment_mode === "Cash")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
-      const bRecUpi = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Received" && b.payment_mode === "UPI")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
-
-      const netCash = initCash + saleCash + colCash + bRecCash - procCash - expCash - bGivenCash;
-      const netUpi = initUpi + saleUpi + colUpi + bRecUpi - procUpi - expUpi - bGivenUpi;
+      const netCash = initCash + saleUpfrontCash + colCash - procureCashOut;
+      const netUpi = initUpi + saleUpfrontUpi + colUpi - procureUpiOut;
 
       return {
         ...partner,
@@ -258,29 +185,27 @@ export default function App() {
         totalBalance: netCash + netUpi
       };
     });
-  }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
+  }, [partners, invoices, collections, procurements]);
 
-  // Overall Business Dashboard Figures (Derived as per B Reddy.xlsx logic)
+  // Overall Business Metrics
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
-    const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
-    const totalDebts = borrowers.reduce((s, b) => s + Number(b.balance_due || 0), 0);
+    const totalMarketDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
+    const stockUnits = procurements.reduce((s, p) => s + Number(p.remaining_qty || 0), 0);
     const stockValuation = procurements.reduce(
       (s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0),
       0
     );
-    // B Reddy Profit Formula: (Customer Dues + Stock Value) - Debts
-    const bReddyNetProfit = totalCustomerDues + stockValuation - totalDebts;
+    const totalCashInHand = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
+    const totalUpiInBank = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
-    const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
+    return { totalSales, totalMarketDues, stockUnits, stockValuation, totalCashInHand, totalUpiInBank };
+  }, [invoices, customers, procurements, partnerAccounts]);
 
-    return { totalSales, totalCustomerDues, totalDebts, stockValuation, bReddyNetProfit, totalCash, totalUpi };
-  }, [invoices, customers, borrowers, procurements, partnerAccounts]);
-
-  // Cart Handlers
+  // Handle selecting an item from the Stock Picker Modal
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
+
     const defaultSellingRate = Number(item.selling_rate || item.purchase_rate || 0);
 
     const newCart = [...cart];
@@ -308,19 +233,43 @@ export default function App() {
     setCart(newCart);
   };
 
-  const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.total || 0), 0), [cart]);
+  const cartTotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + Number(item.total || 0), 0);
+  }, [cart]);
+
   const upfrontPaidNum = Number(upfrontAmount || 0);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
-  // SAVE INVOICE (Auto assigns unique invoice_number)
+  const customerUnpaidInvoices = useMemo(() => {
+    if (!collectForm.customer_id) return [];
+    return invoices.filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0);
+  }, [collectForm.customer_id, invoices]);
+
+  // Filter available stock for modal
+  const filteredStock = useMemo(() => {
+    return procurements
+      .filter((p) => Number(p.remaining_qty) > 0)
+      .filter((p) => {
+        if (!stockSearchQuery) return true;
+        const q = stockSearchQuery.toLowerCase();
+        return (
+          p.item_name?.toLowerCase().includes(q) ||
+          p.supplier_name?.toLowerCase().includes(q)
+        );
+      });
+  }, [procurements, stockSearchQuery]);
+
+  // Save Sale Invoice
   const saveSaleInvoice = async () => {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
-      return alert("Select items with valid quantities");
+      return alert("Select items from stock with valid quantities");
     }
+
     if (upfrontPaidNum > cartTotal) {
-      return alert("Upfront payment cannot exceed total amount");
+      return alert("Upfront payment cannot be greater than bill total");
     }
+
     if (upfrontPaidNum > 0 && !upfrontPartnerId) {
       return alert("Select which partner received the upfront payment");
     }
@@ -328,11 +277,8 @@ export default function App() {
     setSavingSale(true);
     try {
       const status = upfrontPaidNum === 0 ? "Unpaid" : upfrontPaidNum >= cartTotal ? "Paid" : "Partial";
-      const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
-      const generatedInvoiceNumber = `INV-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      const invoicePayload = {
-        invoice_number: editingInvoiceId ? undefined : generatedInvoiceNumber,
+      const invoiceRecord = {
         customer_id: selectedCust.id,
         customer_name: selectedCust.name,
         invoice_date: saleDate,
@@ -342,39 +288,17 @@ export default function App() {
         upfront_mode: upfrontPaidNum > 0 ? upfrontMode : "None",
         upfront_receiver_id: upfrontPaidNum > 0 ? Number(upfrontPartnerId) : null,
         status: status,
-        payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial",
-        items: cart.map((c) => ({
-          procure_id: c.procure_id,
-          item_name: c.item_name,
-          qty: c.qty,
-          rate: c.rate,
-          total: c.total,
-          purchase_rate: c.purchase_rate
-        }))
+        payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"
       };
 
-      if (editingInvoiceId) {
-        const oldInv = invoices.find((i) => i.id === editingInvoiceId);
-        if (oldInv && Array.isArray(oldInv.items)) {
-          for (const item of oldInv.items) {
-            const batch = procurements.find((p) => p.id == item.procure_id);
-            if (batch) {
-              await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
-            }
-          }
-          const restoredCustDue = Math.max(0, Number(selectedCust.old_due || 0) - Number(oldInv.balance_due || 0));
-          await db.from("customers").update({ old_due: restoredCustDue }).eq("id", selectedCust.id);
-        }
+      const { data: invData, error: invErr } = await db
+        .from("invoices")
+        .insert([invoiceRecord])
+        .select();
 
-        const { error } = await db.from("invoices").update(invoicePayload).eq("id", editingInvoiceId);
-        if (error) throw error;
-        alert("Invoice updated successfully!");
-      } else {
-        const { error } = await db.from("invoices").insert([invoicePayload]);
-        if (error) throw error;
-        alert(`Invoice created! Due: ${money(remainingBillDue)}`);
-      }
+      if (invErr) throw invErr;
 
+      // Update inventory stock levels
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -383,13 +307,13 @@ export default function App() {
         }
       }
 
+      // Update customer ledger
       if (remainingBillDue > 0) {
-        const currentCust = customers.find((c) => c.id === selectedCust.id);
-        const updatedDue = Number(currentCust?.old_due || 0) + remainingBillDue;
-        await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+        const newTotalCustomerDue = Number(selectedCust.old_due || 0) + remainingBillDue;
+        await db.from("customers").update({ old_due: newTotalCustomerDue }).eq("id", selectedCust.id);
       }
 
-      setEditingInvoiceId(null);
+      alert(`Invoice saved! Bill Due: ${money(remainingBillDue)}`);
       setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
       setSelectedCust(null);
       setUpfrontAmount("");
@@ -401,199 +325,131 @@ export default function App() {
     }
   };
 
-  // DELETE INVOICE
-  const handleDeleteInvoice = async (inv) => {
-    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? This will return stock and remove dues.`)) return;
-
-    try {
-      if (Array.isArray(inv.items)) {
-        for (const item of inv.items) {
-          const batch = procurements.find((p) => p.id == item.procure_id);
-          if (batch) {
-            await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
-          }
-        }
-      }
-
-      if (Number(inv.balance_due || 0) > 0) {
-        const cust = customers.find((c) => c.id == inv.customer_id);
-        if (cust) {
-          const newDue = Math.max(0, Number(cust.old_due || 0) - Number(inv.balance_due || 0));
-          await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
-        }
-      }
-
-      const { error } = await db.from("invoices").delete().eq("id", inv.id);
-      if (error) throw error;
-      alert("Invoice deleted and stock restored!");
-      refreshData();
-    } catch (err) {
-      alert("Error deleting invoice: " + err.message);
-    }
-  };
-
-  // EDIT INVOICE
-  const handleEditInvoice = (inv) => {
-    setEditingInvoiceId(inv.id);
-    const cust = customers.find((c) => c.id == inv.customer_id);
-    setSelectedCust(cust || { id: inv.customer_id, name: inv.customer_name, old_due: 0 });
-    setSaleDate(inv.invoice_date || inv.created_at?.slice(0, 10));
-    setUpfrontAmount(String(inv.upfront_paid || ""));
-    setUpfrontMode(inv.upfront_mode || "Cash");
-    setUpfrontPartnerId(inv.upfront_receiver_id ? String(inv.upfront_receiver_id) : upfrontPartnerId);
-
-    if (Array.isArray(inv.items) && inv.items.length > 0) {
-      setCart(inv.items.map((i) => ({ ...i })));
-    }
-    setActiveTab("sale");
-  };
-
-  // WhatsApp Share Helper
-  const handleShareWhatsApp = (inv) => {
-    const cust = customers.find((c) => c.id === inv.customer_id) || {};
-    const cleanMobile = (cust.mobile || "").replace(/[^0-9]/g, "");
-
-    let itemLines = "";
-    if (Array.isArray(inv.items)) {
-      itemLines = inv.items.map((i, idx) => `${idx + 1}. *${i.item_name}* - ${i.qty} x ₹${i.rate} = ₹${i.total}`).join("\n");
-    }
-
-    const message = `🧾 *INVOICE: B REDDY SALES*
-Date: ${inv.invoice_date || inv.created_at?.slice(0, 10)}
-Bill: ${inv.invoice_number || "INV-" + inv.id}
-Customer: ${inv.customer_name}
-
-*Items:*
-${itemLines || "General Supplies"}
-
--------------------------------
-*Total Amount:* ₹${Number(inv.total_amount || 0).toLocaleString("en-IN")}
-*Upfront Paid:* ₹${Number(inv.upfront_paid || 0).toLocaleString("en-IN")}
-*Balance Due:* ₹${Number(inv.balance_due || 0).toLocaleString("en-IN")}
--------------------------------
-Thank you for your business!`;
-
-    const targetUrl = cleanMobile.length >= 10
-      ? `https://wa.me/${cleanMobile.length === 10 ? "91" + cleanMobile : cleanMobile}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/?text=${encodeURIComponent(message)}`;
-
-    window.open(targetUrl, "_blank");
-  };
-
-  // Expenses Handlers
-  const saveExpense = async (e) => {
+  // Customer Management
+  const saveCustomer = async (e) => {
     e.preventDefault();
-    const amt = Number(expenseForm.amount || 0);
-    if (amt <= 0) return alert("Enter a valid amount");
-    if (!expenseForm.paid_by_id) return alert("Select who paid");
+    if (!custForm.name.trim()) return alert("Customer name is required");
 
-    const cat = expenseCategories.find((c) => c.id == expenseForm.category_id);
+    const payload = {
+      name: custForm.name.trim(),
+      mobile: custForm.mobile.trim(),
+      old_due: Number(custForm.old_due || 0)
+    };
+
+    if (editingCustId) {
+      const { error } = await db.from("customers").update(payload).eq("id", editingCustId);
+      if (!error) {
+        setEditingCustId(null);
+        setCustForm({ name: "", mobile: "", old_due: "" });
+        setShowCustModal(false);
+        refreshData();
+        alert("Customer updated successfully!");
+      } else {
+        alert(error.message);
+      }
+    } else {
+      const { error } = await db.from("customers").insert([payload]);
+      if (!error) {
+        setCustForm({ name: "", mobile: "", old_due: "" });
+        setShowCustModal(false);
+        refreshData();
+        alert("Customer added successfully!");
+      } else {
+        alert(error.message);
+      }
+    }
+  };
+
+  const handleEditCustomer = (c) => {
+    setEditingCustId(c.id);
+    setCustForm({
+      name: c.name,
+      mobile: c.mobile || "",
+      old_due: c.old_due || ""
+    });
+    setShowCustModal(true);
+  };
+
+  const handleDeleteCustomer = async (c) => {
+    if (!confirm(`Are you sure you want to delete customer "${c.name}"?`)) {
+      return;
+    }
+
+    const { error } = await db.from("customers").delete().eq("id", c.id);
+    if (!error) {
+      if (selectedCust && selectedCust.id === c.id) setSelectedCust(null);
+      refreshData();
+      alert("Customer deleted successfully!");
+    } else {
+      alert("Error deleting customer: " + error.message);
+    }
+  };
+
+  // Due Collection
+  const saveCollection = async (e) => {
+    e.preventDefault();
+    const amt = Number(collectForm.amount || 0);
+    if (amt <= 0) return alert("Please enter a valid payment amount");
+    if (!collectForm.receiver_id) return alert("Select which partner received the payment");
+
     try {
-      const { error } = await db.from("expenses").insert([{
-        title: expenseForm.title.trim(),
-        category_id: expenseForm.category_id ? Number(expenseForm.category_id) : null,
-        category_name: cat ? cat.name : "General",
+      const isBillWise = Boolean(collectForm.invoice_id);
+
+      const collRecord = {
+        customer_id: Number(collectForm.customer_id),
+        invoice_id: isBillWise ? Number(collectForm.invoice_id) : null,
+        collection_type: isBillWise ? "Bill Wise" : "On Account",
         amount: amt,
-        payment_mode: expenseForm.payment_mode,
-        paid_by_id: Number(expenseForm.paid_by_id),
-        expense_date: expenseForm.expense_date,
-        notes: expenseForm.notes.trim()
-      }]);
-      if (error) throw error;
-      setShowExpenseModal(false);
-      setExpenseForm({
-        title: "",
-        category_id: "",
-        amount: "",
-        payment_mode: "Cash",
-        paid_by_id: upfrontPartnerId || "",
-        expense_date: new Date().toISOString().split("T")[0],
-        notes: ""
-      });
-      refreshData();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+        payment_mode: collectForm.payment_mode,
+        receiver_id: Number(collectForm.receiver_id)
+      };
 
-  // Borrowers Handlers
-  const saveBorrower = async (e) => {
-    e.preventDefault();
-    if (!borrowerForm.name.trim()) return alert("Borrower name is required");
-    const initialDue = Number(borrowerForm.initial_due || 0);
+      const { error: collErr } = await db.from("collections").insert([collRecord]);
+      if (collErr) throw collErr;
 
-    try {
-      const { error } = await db.from("borrowers").insert([{
-        name: borrowerForm.name.trim(),
-        mobile: borrowerForm.mobile.trim(),
-        total_borrowed: initialDue,
-        balance_due: initialDue
-      }]);
-      if (error) throw error;
-      setShowBorrowerModal(false);
-      setBorrowerForm({ name: "", mobile: "", initial_due: "" });
-      refreshData();
-      alert("Borrower profile added!");
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const saveBorrowerTransaction = async (e) => {
-    e.preventDefault();
-    const amt = Number(borrowerTxForm.amount || 0);
-    if (amt <= 0) return alert("Enter valid loan amount");
-    if (!borrowerTxForm.borrower_id) return alert("Select borrower");
-    if (!borrowerTxForm.partner_id) return alert("Select partner");
-
-    try {
-      const { error } = await db.from("borrower_transactions").insert([{
-        borrower_id: Number(borrowerTxForm.borrower_id),
-        tx_type: borrowerTxForm.tx_type,
-        amount: amt,
-        payment_mode: borrowerTxForm.payment_mode,
-        partner_id: Number(borrowerTxForm.partner_id),
-        notes: borrowerTxForm.notes.trim(),
-        tx_date: borrowerTxForm.tx_date
-      }]);
-      if (error) throw error;
-
-      const targetB = borrowers.find((b) => b.id == borrowerTxForm.borrower_id);
-      if (targetB) {
-        let newBorrowed = Number(targetB.total_borrowed || 0);
-        let newRepaid = Number(targetB.total_repaid || 0);
-
-        if (borrowerTxForm.tx_type === "Given") {
-          newBorrowed += amt;
-        } else {
-          newRepaid += amt;
+      if (isBillWise) {
+        const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
+        if (targetInv) {
+          const newInvDue = Math.max(0, Number(targetInv.balance_due || 0) - amt);
+          const newStatus = newInvDue === 0 ? "Paid" : "Partial";
+          await db.from("invoices").update({ balance_due: newInvDue, status: newStatus }).eq("id", targetInv.id);
         }
-        const newBalance = Math.max(0, newBorrowed - newRepaid);
-        await db.from("borrowers").update({
-          total_borrowed: newBorrowed,
-          total_repaid: newRepaid,
-          balance_due: newBalance
-        }).eq("id", targetB.id);
       }
 
-      setShowBorrowerTxModal(false);
-      setBorrowerTxForm({
-        borrower_id: "",
-        tx_type: "Given",
-        amount: "",
-        payment_mode: "Cash",
-        partner_id: upfrontPartnerId || "",
-        notes: "",
-        tx_date: new Date().toISOString().split("T")[0]
-      });
+      const targetCust = customers.find((c) => c.id == collectForm.customer_id);
+      if (targetCust) {
+        const updatedTotalDue = Math.max(0, Number(targetCust.old_due || 0) - amt);
+        await db.from("customers").update({ old_due: updatedTotalDue }).eq("id", targetCust.id);
+      }
+
+      setShowCollectModal(false);
+      setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: "" });
       refreshData();
-      alert("Loan entry recorded!");
+      alert("Payment recorded and customer ledger updated!");
     } catch (err) {
-      alert(err.message);
+      alert("Error saving payment: " + err.message);
     }
   };
 
-  // Procurement Handlers
+  const savePartner = async (e) => {
+    e.preventDefault();
+    const { error } = await db.from("receivers").insert([
+      {
+        name: partnerForm.name.trim(),
+        opening_cash: Number(partnerForm.opening_cash || 0),
+        opening_upi: Number(partnerForm.opening_upi || 0)
+      }
+    ]);
+
+    if (!error) {
+      setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
+      setShowPartnerModal(false);
+      refreshData();
+    } else {
+      alert(error.message);
+    }
+  };
+
   const saveProcurement = async (e) => {
     e.preventDefault();
     const qty = Number(procureForm.procured_qty || 0);
@@ -601,8 +457,10 @@ Thank you for your business!`;
     const sellingRate = Number(procureForm.selling_rate || purchaseRate);
     const total = qty * purchaseRate;
 
-    const payload = {
-      supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+    const record = {
+      supplier_name: procureForm.is_opening
+        ? "Opening Stock"
+        : procureForm.supplier_name.trim() || "Vendor",
       item_name: procureForm.item_name.trim(),
       procured_qty: qty,
       remaining_qty: qty,
@@ -617,44 +475,53 @@ Thank you for your business!`;
       p2_mode: procureForm.p2_mode
     };
 
-    try {
-      if (editingProcureId) {
-        const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
-        if (error) throw error;
-      } else {
-        const { error } = await db.from("procurements").insert([payload]);
-        if (error) throw error;
-      }
+    const { error } = await db.from("procurements").insert([record]);
+    if (!error) {
       setShowProcureModal(false);
-      setEditingProcureId(null);
+      setProcureForm({
+        supplier_name: "",
+        item_name: "",
+        procured_qty: "",
+        purchase_rate: "",
+        selling_rate: "",
+        is_opening: false,
+        p1_id: "",
+        p1_amount: "",
+        p1_mode: "Cash",
+        split_p2: false,
+        p2_id: "",
+        p2_amount: "",
+        p2_mode: "UPI"
+      });
       refreshData();
-    } catch (err) {
-      alert(err.message);
+    } else {
+      alert(error.message);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-800 antialiased">
-      {/* Mobile Top Header */}
-      <header className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
+    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-800">
+      {/* Mobile Top Bar */}
+      <div className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">B</div>
-          <span className="font-bold text-sm tracking-wide">B Reddy Sales</span>
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black">B</div>
+          <span className="font-bold text-base">B Reddy Sales</span>
         </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 -mr-1 rounded-xl text-slate-300">
-          {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1">
+          {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
-      </header>
+      </div>
 
-      {/* SIDEBAR NAVIGATION */}
+      {/* LEFT SIDEBAR NAVIGATION */}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-slate-900 text-slate-300 flex flex-col justify-between z-40 transition-transform duration-200 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`
+        fixed md:sticky top-0 left-0 h-screen w-64 bg-slate-900 text-slate-300 flex flex-col justify-between z-30 transition-transform
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+      `}
       >
-        <div className="overflow-y-auto">
+        <div>
           <div className="p-6 border-b border-slate-800 hidden md:flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/30">
               B
             </div>
             <div>
@@ -663,83 +530,86 @@ Thank you for your business!`;
             </div>
           </div>
 
-          <nav className="p-3 space-y-1 mt-2">
+          <nav className="p-3 space-y-1.5 mt-2">
             <button
-              onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("sale");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "sale" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+                activeTab === "sale"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <ShoppingCart size={18} /> Point of Sale (Billing)
             </button>
 
             <button
-              onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("summary");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "summary" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+                activeTab === "summary"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <LayoutDashboard size={18} /> Business Summary
             </button>
 
             <button
-              onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("customers");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <FileSpreadsheet size={18} /> Invoices & Edit/Delete
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("borrowers"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "borrowers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <HandCoins size={18} /> Borrowers (Loans)
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "expenses" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <CreditCard size={18} /> Expenses & Master
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <FileText size={18} /> Excel Report (PDF)
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("customers"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+                activeTab === "customers"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <Users size={18} /> Customers & Dues
             </button>
 
             <button
-              onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("invoices");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+                activeTab === "invoices"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <FileSpreadsheet size={18} /> Invoices & Bills
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("procurement");
+                setSidebarOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "procurement"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <PackagePlus size={18} /> Procurements & Stock
             </button>
 
             <button
-              onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
+              onClick={() => {
+                setActiveTab("partners");
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "partners" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+                activeTab === "partners"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "hover:bg-slate-800 hover:text-white"
               }`}
             >
               <WalletCards size={18} /> Partner Accounts
@@ -749,44 +619,50 @@ Thank you for your business!`;
 
         <div className="p-4 border-t border-slate-800">
           <button
-            onClick={() => { setShowCollectModal(true); setSidebarOpen(false); }}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg"
+            onClick={() => setShowCollectModal(true)}
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
           >
-            <IndianRupee size={16} /> Collect Customer Due
+            <IndianRupee size={15} /> Collect Due (Bill/Account)
           </button>
         </div>
       </aside>
 
-      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-xs" />}
-
-      {/* MAIN VIEW AREA */}
-      <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {/* VIEW 1: POS BILLING */}
+      {/* RIGHT MAIN WORKSPACE */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        {/* VIEW 1: POINT OF SALE (BILLING) */}
         {activeTab === "sale" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
-            <div className="lg:col-span-8 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div>
-                  <h2 className="font-black text-lg text-slate-900 leading-tight">
-                    {editingInvoiceId ? "Edit Sales Invoice" : "Create Sales Invoice"}
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    {editingInvoiceId ? "Adjust items and rates, then re-save" : "Bills go to customer credit by default"}
-                  </p>
+                  <h2 className="font-black text-lg text-slate-900">Create Sales Invoice</h2>
+                  <p className="text-xs text-slate-400">Bills go to customer credit by default unless paid upfront</p>
                 </div>
                 <input
                   type="date"
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold"
                   value={saleDate}
                   onChange={(e) => setSaleDate(e.target.value)}
                 />
               </div>
 
               {/* Customer Selector */}
-              <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">Customer *</label>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-xs font-bold uppercase text-slate-500">Customer *</label>
+                  <button
+                    onClick={() => {
+                      setEditingCustId(null);
+                      setCustForm({ name: "", mobile: "", old_due: "" });
+                      setShowCustModal(true);
+                    }}
+                    className="text-xs font-bold text-indigo-600 hover:underline"
+                  >
+                    + Add New Customer
+                  </button>
+                </div>
                 <select
-                  className="w-full p-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold outline-none"
                   value={selectedCust ? selectedCust.id : ""}
                   onChange={(e) => {
                     const c = customers.find((x) => x.id == e.target.value);
@@ -796,16 +672,22 @@ Thank you for your business!`;
                   <option value="">-- Choose Customer --</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.mobile || "No Mobile"}) — Due: {money(c.old_due)}
+                      {c.name} ({c.mobile || "No Mobile"}) — Outstanding Due: {money(c.old_due)}
                     </option>
                   ))}
                 </select>
+                {selectedCust && (
+                  <div className="mt-2 text-xs flex gap-4 text-slate-600">
+                    <span>Phone: <b>{selectedCust.mobile || "N/A"}</b></span>
+                    <span>Total Existing Market Due: <b className="text-rose-600">{money(selectedCust.old_due)}</b></span>
+                  </div>
+                )}
               </div>
 
-              {/* Stock Items Cart */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold uppercase text-slate-500">Bill Items *</label>
+              {/* Cart Table with Pop-up Item Selector */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold uppercase text-slate-500">Stock Items to Bill *</label>
                   <button
                     onClick={() =>
                       setCart([
@@ -815,76 +697,153 @@ Thank you for your business!`;
                     }
                     className="text-xs font-bold text-indigo-600 flex items-center gap-1 hover:underline"
                   >
-                    <Plus size={15} /> Add Line
+                    <Plus size={14} /> Add Line
                   </button>
                 </div>
 
-                {cart.map((line, idx) => (
-                  <div key={idx} className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
-                    <button
-                      type="button"
-                      onClick={() => { setPickerActiveIndex(idx); setStockSearchQuery(""); }}
-                      className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs font-bold text-left flex justify-between items-center"
-                    >
-                      <span className={line.procure_id ? "text-indigo-600 font-black text-sm" : "text-slate-400"}>
-                        {line.procure_id ? `${line.item_name} [${line.supplier_name}]` : "🔍 Pick In-Stock Item..."}
-                      </span>
-                      <ChevronRight size={16} className="text-slate-400" />
-                    </button>
+                <div className="space-y-3">
+                  {cart.map((line, idx) => {
+                    const purchaseCost = Number(line.purchase_rate || 0);
+                    const sellingPrice = Number(line.rate || 0);
+                    const unitProfit = sellingPrice - purchaseCost;
+                    const marginPercent = sellingPrice > 0 ? ((unitProfit / sellingPrice) * 100).toFixed(1) : 0;
 
-                    <div className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Rate (₹)</label>
-                        <input
-                          type="number"
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
-                          value={line.rate}
-                          onChange={(e) => updateCart(idx, "rate", e.target.value)}
-                        />
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
+                      >
+                        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                          {/* Item Selector Picker Button */}
+                          <div className="flex-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPickerActiveIndex(idx);
+                                setStockSearchQuery("");
+                              }}
+                              className={`w-full p-2.5 rounded-lg text-xs font-bold text-left flex items-center justify-between border transition ${
+                                line.procure_id
+                                  ? "bg-white border-indigo-200 text-slate-900 shadow-sm"
+                                  : "bg-white border-dashed border-slate-300 text-slate-400 hover:border-indigo-400"
+                              }`}
+                            >
+                              <div className="truncate">
+                                {line.procure_id ? (
+                                  <div>
+                                    <span className="text-indigo-600 font-black">{line.item_name}</span>
+                                    <span className="text-slate-400 font-medium ml-2">[{line.supplier_name}]</span>
+                                  </div>
+                                ) : (
+                                  <span>🔍 Click to Pick Stock Item...</span>
+                                )}
+                              </div>
+                              <ChevronRight size={15} className="text-slate-400 shrink-0" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Selling Price / Rate Input */}
+                            <div className="w-28">
+                              <label className="text-[10px] font-bold text-slate-400 block mb-0.5 sm:hidden">Selling Rate</label>
+                              <input
+                                type="number"
+                                placeholder="Selling Rate"
+                                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900"
+                                value={line.rate}
+                                onChange={(e) => updateCart(idx, "rate", e.target.value)}
+                              />
+                            </div>
+                            <div className="w-20">
+                              <label className="text-[10px] font-bold text-slate-400 block mb-0.5 sm:hidden">Qty</label>
+                              <input
+                                type="number"
+                                min="1"
+                                max={line.max_qty || 9999}
+                                placeholder="Qty"
+                                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
+                                value={line.qty}
+                                onChange={(e) => updateCart(idx, "qty", e.target.value)}
+                              />
+                            </div>
+                            <div className="w-24 text-right font-black text-xs sm:text-sm text-slate-800">
+                              {money(line.total)}
+                            </div>
+                            <button
+                              onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
+                              className="text-slate-400 hover:text-rose-600 p-1"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Cost Rate, Selling Margin, & Profit Margin Indicator */}
+                        {line.procure_id && (
+                          <div className="pt-1.5 text-[11px] flex flex-wrap items-center justify-between border-t border-slate-200/60 text-slate-500 gap-2">
+                            <div className="flex items-center gap-3">
+                              <span>
+                                Purchase Cost: <b className="text-slate-700">₹{line.purchase_rate}</b>
+                              </span>
+                              <span>
+                                Available: <b className="text-slate-700">{line.max_qty} units</b>
+                              </span>
+                            </div>
+                            {sellingPrice > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`font-bold inline-flex items-center gap-1 ${
+                                    unitProfit >= 0 ? "text-emerald-600" : "text-rose-600"
+                                  }`}
+                                >
+                                  {unitProfit < 0 && <AlertCircle size={12} />}
+                                  Profit: ₹{unitProfit.toFixed(2)}/unit ({marginPercent}%)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
-                        <input
-                          type="number"
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
-                          value={line.qty}
-                          onChange={(e) => updateCart(idx, "qty", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-3 text-right">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Total</label>
-                        <span className="font-black text-xs sm:text-sm text-slate-900 block truncate">{money(line.total)}</span>
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <button
-                          onClick={() => cart.length > 1 && setCart(cart.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-slate-400 hover:text-rose-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* Bill Summary */}
-            <div className="lg:col-span-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 h-fit">
-              <h3 className="font-bold text-base text-slate-900 border-b pb-3">Payment Terms</h3>
-              <div className="flex justify-between text-sm font-black text-slate-900">
-                <span>Bill Total:</span>
-                <span>{money(cartTotal)}</span>
+            {/* Bill Summary & Upfront Payment to Partner */}
+            <div className="lg:col-span-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5 h-fit">
+              <h3 className="font-bold text-base text-slate-900 border-b border-slate-100 pb-3">Bill & Payment Terms</h3>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between text-slate-500">
+                  <span>Current Bill Total:</span>
+                  <span className="font-bold text-slate-800 text-sm">{money(cartTotal)}</span>
+                </div>
+                {selectedCust && (
+                  <div className="flex justify-between text-rose-600">
+                    <span>Previous Outstanding:</span>
+                    <span className="font-bold">{money(selectedCust.old_due)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-black pt-2 border-t text-slate-900">
+                  <span>Total With Past Due:</span>
+                  <span className="text-slate-900">{money(cartTotal + Number(selectedCust?.old_due || 0))}</span>
+                </div>
               </div>
 
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                <label className="text-xs font-bold uppercase text-slate-700 block">Upfront Payment</label>
+              {/* Upfront / Partial Payment directly to Partner */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase text-slate-700">Upfront Payment (If Any)</label>
+                  <span className="text-[11px] text-slate-400 font-medium">Leave 0 for full credit</span>
+                </div>
+
                 <div className="relative">
-                  <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">₹</span>
+                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">₹</span>
                   <input
                     type="number"
                     placeholder="0"
-                    className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-black text-emerald-600 outline-none"
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-black text-emerald-600 outline-none"
                     value={upfrontAmount}
                     onChange={(e) => setUpfrontAmount(e.target.value)}
                   />
@@ -896,8 +855,10 @@ Thank you for your business!`;
                       <button
                         type="button"
                         onClick={() => setUpfrontMode("Cash")}
-                        className={`py-2 rounded-xl text-xs font-bold border ${
-                          upfrontMode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white"
+                        className={`py-1.5 rounded-lg text-xs font-bold border ${
+                          upfrontMode === "Cash"
+                            ? "bg-emerald-600 text-white border-emerald-600"
+                            : "bg-white border-slate-300"
                         }`}
                       >
                         💵 Cash
@@ -905,93 +866,124 @@ Thank you for your business!`;
                       <button
                         type="button"
                         onClick={() => setUpfrontMode("UPI")}
-                        className={`py-2 rounded-xl text-xs font-bold border ${
-                          upfrontMode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white"
+                        className={`py-1.5 rounded-lg text-xs font-bold border ${
+                          upfrontMode === "UPI"
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : "bg-white border-slate-300"
                         }`}
                       >
                         📱 UPI
                       </button>
                     </div>
 
-                    <label className="text-[11px] font-bold text-slate-500 block mt-2">Partner Receiving Cash/UPI *</label>
-                    <select
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold"
-                      value={upfrontPartnerId}
-                      onChange={(e) => setUpfrontPartnerId(e.target.value)}
-                    >
-                      {partners.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Partner Receiving Amount *</label>
+                      <select
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
+                        value={upfrontPartnerId}
+                        onChange={(e) => setUpfrontPartnerId(e.target.value)}
+                      >
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs flex justify-between items-center text-amber-900 font-bold">
-                <span>Adding to Customer Due:</span>
-                <span className="text-sm text-rose-600 font-black">{money(remainingBillDue)}</span>
+              {/* Net Addition to Customer Due */}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs">
+                <div className="flex justify-between items-center text-amber-900 font-bold">
+                  <span>Adding to Customer Due:</span>
+                  <span className="text-sm text-rose-600 font-black">{money(remainingBillDue)}</span>
+                </div>
               </div>
 
               <button
                 disabled={savingSale || cartTotal <= 0}
                 onClick={saveSaleInvoice}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-black rounded-xl text-xs uppercase tracking-wider"
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-black rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-indigo-600/20"
               >
-                {savingSale ? "Saving..." : editingInvoiceId ? "Update & Save Invoice" : "Save Invoice & Bill"}
+                {savingSale ? "Finalizing..." : "Save Invoice & Update Ledger"}
               </button>
             </div>
           </div>
         )}
 
-        {/* VIEW 2: BUSINESS SUMMARY */}
+        {/* VIEW 2: EXECUTIVE SUMMARY */}
         {activeTab === "summary" && (
-          <div className="space-y-5">
+          <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-black text-slate-900">Business Snapshot</h2>
-              <p className="text-xs text-slate-500">Live operational ledger across partners, loans, and inventory</p>
+              <h2 className="text-xl font-black text-slate-900">Executive Overview</h2>
+              <p className="text-xs text-slate-500">Live operational snapshot across partners, dues, and inventory</p>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Sales Invoiced</p>
-                <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1">{money(businessSummary.totalSales)}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Sales Invoiced</p>
+                <h3 className="text-2xl font-black text-slate-900 mt-1">{money(businessSummary.totalSales)}</h3>
+                <span className="text-[11px] text-slate-500">{invoices.length} invoices generated</span>
               </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Customer Dues (కస్టమర్ బ్యాలెన్స్)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalCustomerDues)}</h3>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Customer Dues</p>
+                <h3 className="text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalMarketDues)}</h3>
+                <span className="text-[11px] text-slate-500">Pending market collections</span>
               </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts / Borrowings (అప్పులు)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts)}</h3>
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Available Stock Value</p>
+                <h3 className="text-2xl font-black text-indigo-600 mt-1">{money(businessSummary.stockValuation)}</h3>
+                <span className="text-[11px] text-slate-500">{businessSummary.stockUnits} units on hand</span>
               </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-emerald-600 mt-1">
-                  {money(businessSummary.bReddyNetProfit)}
+
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Cash & Bank</p>
+                <h3 className="text-2xl font-black text-emerald-600 mt-1">
+                  {money(businessSummary.totalCashInHand + businessSummary.totalUpiInBank)}
                 </h3>
+                <span className="text-[11px] text-slate-500">
+                  Cash: {money(businessSummary.totalCashInHand)} | UPI: {money(businessSummary.totalUpiInBank)}
+                </span>
               </div>
             </div>
 
-            {/* Individual Partner Direct Holdings */}
-            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-base text-slate-900 mb-4">Partner Cash / UPI In-Hand</h3>
+            {/* Partner Accounts Passbook */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-base text-slate-900">Partner Cash / UPI Holding</h3>
+                <button
+                  onClick={() => setShowPartnerModal(true)}
+                  className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                >
+                  <Plus size={14} /> Add Partner
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {partnerAccounts.map((p) => (
-                  <div key={p.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70">
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                  <div key={p.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-black text-lg text-slate-900">{p.name}</h4>
                       <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg">
-                        Total: {money(p.totalBalance)}
+                        Total In Hand: {money(p.totalBalance)}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-slate-400 text-[11px]">Physical Cash</span>
-                        <p className="font-black text-sm text-emerald-600 mt-0.5">{money(p.netCash)}</p>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <span className="text-slate-400 font-medium">Physical Cash</span>
+                        <p className="font-black text-base text-emerald-600 mt-0.5">{money(p.netCash)}</p>
+                        <span className="text-[10px] text-slate-400">Opening: {money(p.initCash)}</span>
                       </div>
-                      <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-slate-400 text-[11px]">UPI / Bank</span>
-                        <p className="font-black text-sm text-indigo-600 mt-0.5">{money(p.netUpi)}</p>
+
+                      <div className="bg-white p-3 rounded-xl border border-slate-200">
+                        <span className="text-slate-400 font-medium">UPI / Bank</span>
+                        <p className="font-black text-base text-indigo-600 mt-0.5">{money(p.netUpi)}</p>
+                        <span className="text-[10px] text-slate-400">Opening: {money(p.initUpi)}</span>
                       </div>
                     </div>
                   </div>
@@ -1001,252 +993,13 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 3: INVOICES (WITH EDIT & DELETE) */}
-        {activeTab === "invoices" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
-              <p className="text-xs text-slate-500">Edit quantities or delete bills and restore warehouse stock</p>
-            </div>
-
-            <div className="space-y-3">
-              {invoices.map((inv) => (
-                <div key={inv.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[11px] font-bold text-indigo-600 uppercase">{inv.invoice_number || `INV-${inv.id}`}</span>
-                      <h4 className="font-black text-sm text-slate-900">{inv.customer_name}</h4>
-                      <span className="text-[11px] text-slate-400">{inv.invoice_date || inv.created_at?.slice(0, 10)}</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                      Due: {money(inv.balance_due)}
-                    </span>
-                  </div>
-
-                  <div className="flex gap-2 pt-2 border-t border-slate-200 justify-end">
-                    <button
-                      onClick={() => handleEditInvoice(inv)}
-                      className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Edit2 size={13} /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteInvoice(inv)}
-                      className="px-3 py-1.5 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Trash2 size={13} /> Delete
-                    </button>
-                    <button
-                      onClick={() => handleShareWhatsApp(inv)}
-                      className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg flex items-center gap-1"
-                    >
-                      <Share2 size={13} /> WhatsApp
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 4: BORROWERS / LOANS */}
-        {activeTab === "borrowers" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Borrowers & Loans (అప్పులు)</h2>
-                <p className="text-xs text-slate-500">Track loans taken or given (e.g. Gold Loan, Srikanth Reddy, Swamy Ongole)</p>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  onClick={() => setShowBorrowerModal(true)}
-                  className="flex-1 sm:flex-none px-3.5 py-2.5 border border-slate-200 font-bold text-xs rounded-xl"
-                >
-                  + Add Borrower
-                </button>
-                <button
-                  onClick={() => {
-                    setBorrowerTxForm({
-                      borrower_id: borrowers[0]?.id ? String(borrowers[0].id) : "",
-                      tx_type: "Given",
-                      amount: "",
-                      payment_mode: "Cash",
-                      partner_id: upfrontPartnerId || "",
-                      notes: "",
-                      tx_date: new Date().toISOString().split("T")[0]
-                    });
-                    setShowBorrowerTxModal(true);
-                  }}
-                  className="flex-1 sm:flex-none px-3.5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                >
-                  Record Loan Tx
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {borrowers.map((b) => (
-                <div key={b.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900">{b.name}</h4>
-                    <span className="text-xs text-slate-400 block">{b.mobile || "No Mobile"}</span>
-                    <span className="text-[11px] text-slate-500">
-                      Total Borrowed: {money(b.total_borrowed)} | Repaid: {money(b.total_repaid)}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs text-slate-400 block uppercase font-bold">Outstanding Balance</span>
-                    <span className="font-black text-rose-600 text-sm">{money(b.balance_due)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 5: EXPENSES */}
-        {activeTab === "expenses" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Expenses</h2>
-                <p className="text-xs text-slate-500">Record shop outlays paid by partners</p>
-              </div>
-              <button
-                onClick={() => {
-                  setExpenseForm({
-                    title: "",
-                    category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
-                    amount: "",
-                    payment_mode: "Cash",
-                    paid_by_id: upfrontPartnerId || "",
-                    expense_date: new Date().toISOString().split("T")[0],
-                    notes: ""
-                  });
-                  setShowExpenseModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-              >
-                + Record Expense
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {expenses.map((e) => {
-                const partner = partners.find((p) => p.id == e.paid_by_id);
-                return (
-                  <div key={e.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase text-indigo-600">{e.category_name}</span>
-                      <h4 className="font-bold text-sm text-slate-900">{e.title}</h4>
-                      <p className="text-[11px] text-slate-400">
-                        Paid by: {partner?.name || "N/A"} ({e.payment_mode}) on {e.expense_date}
-                      </p>
-                    </div>
-                    <span className="font-black text-rose-600 text-sm">{money(e.amount)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 6: EXCEL-STYLE SHEET REPORT (PDF DOWNLOADABLE) */}
-        {activeTab === "reports" && (
-          <div className="space-y-5">
-            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div>
-                  <h2 className="text-lg font-black text-slate-900">B Reddy Statement (Excel Sheet Format)</h2>
-                  <p className="text-xs text-slate-500">Complete statement mirroring your B Reddy.xlsx balance sheet</p>
-                </div>
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow"
-                >
-                  <Download size={15} /> Download / Print PDF
-                </button>
-              </div>
-
-              {/* Excel Table Layout (Matches B Reddy.xlsx) */}
-              <div className="overflow-x-auto border border-slate-300 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse font-mono">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-bold">
-                      <th className="p-3 border border-slate-800">S.No</th>
-                      <th className="p-3 border border-slate-800">వివరణ (Description)</th>
-                      <th className="p-3 border border-slate-800 text-right">మొత్తం విలువ (Value ₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="bg-amber-50/70 font-bold">
-                      <td className="p-2.5 border border-slate-300 text-center">1</td>
-                      <td className="p-2.5 border border-slate-300">అప్పులు (Debts / Borrowings)</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts)}</td>
-                    </tr>
-                    <tr className="bg-slate-50 font-bold">
-                      <td className="p-2.5 border border-slate-300 text-center">2</td>
-                      <td className="p-2.5 border border-slate-300">కస్టమర్ బ్యాలెన్స్ (Customer Dues)</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-slate-900">{money(businessSummary.totalCustomerDues)}</td>
-                    </tr>
-                    <tr className="bg-slate-50 font-bold">
-                      <td className="p-2.5 border border-slate-300 text-center">3</td>
-                      <td className="p-2.5 border border-slate-300">నిలువలు (Stock Valuation)</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-slate-900">{money(businessSummary.stockValuation)}</td>
-                    </tr>
-                    <tr className="bg-emerald-100/80 font-black text-sm">
-                      <td colSpan={2} className="p-3 border border-slate-300 text-right uppercase">
-                        లాభం (Net Business Profit = 2 + 3 - 1)
-                      </td>
-                      <td className="p-3 border border-slate-300 text-right text-emerald-800">
-                        {money(businessSummary.bReddyNetProfit)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Sub-breakdown of Inventory Stocks */}
-              <div className="pt-2">
-                <h3 className="font-bold text-sm text-slate-900 mb-2">నిలువలు (Stock Batches Breakdown)</h3>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
-                    <thead className="bg-slate-100 text-slate-600 font-bold">
-                      <tr>
-                        <th className="p-2 border border-slate-200">S.No</th>
-                        <th className="p-2 border border-slate-200">Stock Item</th>
-                        <th className="p-2 border border-slate-200 text-center">Available Qty</th>
-                        <th className="p-2 border border-slate-200 text-right">Rate</th>
-                        <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {procurements.map((p, idx) => (
-                        <tr key={p.id}>
-                          <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                          <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
-                          <td className="p-2 border border-slate-200 text-center">{p.remaining_qty}</td>
-                          <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
-                          <td className="p-2 border border-slate-200 text-right font-bold">
-                            {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 7: CUSTOMERS */}
+        {/* VIEW 3: CUSTOMERS & DUES */}
         {activeTab === "customers" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Customer Directory</h2>
-                <p className="text-xs text-slate-500">Manage dues and mobile numbers</p>
+                <h2 className="text-lg font-black text-slate-900">Customers Directory & Ledgers</h2>
+                <p className="text-xs text-slate-500">Manage customer contacts, update dues, or collect balances</p>
               </div>
               <button
                 onClick={() => {
@@ -1254,99 +1007,267 @@ Thank you for your business!`;
                   setCustForm({ name: "", mobile: "", old_due: "" });
                   setShowCustModal(true);
                 }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
               >
-                + Add Customer
+                <Plus size={15} /> Add Customer
               </button>
             </div>
-            <div className="space-y-2">
-              {customers.map((c) => (
-                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900">{c.name}</h4>
-                    <span className="text-xs text-slate-400">{c.mobile || "No Mobile"}</span>
-                  </div>
-                  <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
-                </div>
-              ))}
+
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b text-slate-400 uppercase tracking-wider font-bold bg-slate-50">
+                    <th className="p-3">Customer Name</th>
+                    <th className="p-3">Phone</th>
+                    <th className="p-3">Total Outstanding</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-700 font-medium">
+                  {customers.map((c) => (
+                    <tr key={c.id}>
+                      <td className="p-3 font-bold text-slate-900">{c.name}</td>
+                      <td className="p-3">{c.mobile || "-"}</td>
+                      <td className="p-3 font-black text-rose-600">{money(c.old_due)}</td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {Number(c.old_due) > 0 && (
+                            <button
+                              onClick={() => {
+                                setCollectForm({
+                                  customer_id: c.id,
+                                  invoice_id: "",
+                                  amount: c.old_due,
+                                  payment_mode: "Cash",
+                                  receiver_id: upfrontPartnerId
+                                });
+                                setShowCollectModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] rounded-lg inline-flex items-center gap-1"
+                            >
+                              Collect Due
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleEditCustomer(c)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"
+                            title="Edit Customer"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCustomer(c)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Delete Customer"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* VIEW 8: PROCUREMENTS */}
-        {activeTab === "procurement" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+        {/* VIEW 4: INVOICES */}
+        {activeTab === "invoices" && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Invoices & Bill Status</h2>
+                <p className="text-xs text-slate-500">Track pending balances by bill number</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b text-slate-400 uppercase tracking-wider font-bold bg-slate-50">
+                    <th className="p-3">Bill #</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3">Total</th>
+                    <th className="p-3">Upfront Paid</th>
+                    <th className="p-3">Balance Due</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-700 font-medium">
+                  {invoices.map((inv) => {
+                    const due = Number(inv.balance_due || 0);
+                    return (
+                      <tr key={inv.id}>
+                        <td className="p-3 font-bold text-slate-900">INV-{inv.id}</td>
+                        <td className="p-3">{inv.invoice_date || inv.created_at?.slice(0, 10)}</td>
+                        <td className="p-3 font-bold">{inv.customer_name}</td>
+                        <td className="p-3">{money(inv.total_amount)}</td>
+                        <td className="p-3 text-emerald-600 font-semibold">{money(inv.upfront_paid)}</td>
+                        <td className="p-3 font-black text-rose-600">{money(due)}</td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              due === 0
+                                ? "bg-emerald-100 text-emerald-800"
+                                : Number(inv.upfront_paid || 0) > 0
+                                ? "bg-indigo-100 text-indigo-800"
+                                : "bg-amber-100 text-amber-800"
+                            }`}
+                          >
+                            {due === 0 ? "Paid" : Number(inv.upfront_paid || 0) > 0 ? "Partial" : "Unpaid"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          {due > 0 && (
+                            <button
+                              onClick={() => {
+                                setCollectForm({
+                                  customer_id: inv.customer_id,
+                                  invoice_id: inv.id,
+                                  amount: due,
+                                  payment_mode: "Cash",
+                                  receiver_id: upfrontPartnerId
+                                });
+                                setShowCollectModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg"
+                            >
+                              Settle Bill
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 5: PROCUREMENTS & STOCK */}
+        {activeTab === "procurement" && (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Procurements & Inventory</h2>
-                <p className="text-xs text-slate-500">Stock purchase entries and warehouse rates</p>
+                <p className="text-xs text-slate-500">Record supplier purchases with purchase cost and intended selling price</p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingProcureId(null);
-                  setProcureForm({
-                    supplier_name: "",
-                    item_name: "",
-                    procured_qty: "",
-                    purchase_rate: "",
-                    selling_rate: "",
-                    is_opening: false,
-                    p1_id: "",
-                    p1_amount: "",
-                    p1_mode: "Cash",
-                    split_p2: false,
-                    p2_id: "",
-                    p2_amount: "",
-                    p2_mode: "UPI"
-                  });
-                  setShowProcureModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-              >
-                + Add Procurement
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setProcureForm({ ...procureForm, is_opening: true, supplier_name: "Opening Stock" });
+                    setShowProcureModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+                >
+                  <Plus size={15} /> Add Opening Stock
+                </button>
+                <button
+                  onClick={() => {
+                    setProcureForm({ ...procureForm, is_opening: false });
+                    setShowProcureModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+                >
+                  <Plus size={15} /> Add Purchase Bill
+                </button>
+              </div>
             </div>
-            <div className="space-y-2">
-              {procurements.map((p) => (
-                <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 flex justify-between items-center">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{p.supplier_name}</span>
-                    <h4 className="font-bold text-sm text-slate-900">{p.item_name}</h4>
-                    <span className="text-xs text-slate-500">Cost: {money(p.purchase_rate)} | Sell: {money(p.selling_rate)}</span>
-                  </div>
-                  <span className="font-black text-emerald-600 text-xs bg-emerald-50 px-2.5 py-1 rounded-lg">
-                    {p.remaining_qty} in stock
-                  </span>
-                </div>
-              ))}
+
+            <div className="overflow-x-auto -mx-6 sm:mx-0">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b text-slate-400 uppercase tracking-wider font-bold bg-slate-50">
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Source / Supplier</th>
+                    <th className="p-3">Item Name</th>
+                    <th className="p-3">Purchased</th>
+                    <th className="p-3">Available</th>
+                    <th className="p-3">Purchase Rate</th>
+                    <th className="p-3">Selling Rate</th>
+                    <th className="p-3">Est. Margin</th>
+                    <th className="p-3">Total Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-700 font-medium">
+                  {procurements.map((p) => {
+                    const cost = Number(p.purchase_rate || 0);
+                    const sell = Number(p.selling_rate || cost);
+                    const margin = sell - cost;
+                    const marginPct = sell > 0 ? ((margin / sell) * 100).toFixed(1) : 0;
+
+                    return (
+                      <tr key={p.id}>
+                        <td className="p-3">{p.purchase_date || p.created_at?.slice(0, 10)}</td>
+                        <td className="p-3 font-bold text-slate-900">
+                          {p.supplier_name === "Opening Stock" ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px]">
+                              Opening Stock
+                            </span>
+                          ) : (
+                            p.supplier_name
+                          )}
+                        </td>
+                        <td className="p-3">{p.item_name}</td>
+                        <td className="p-3">{p.procured_qty}</td>
+                        <td className="p-3 font-black text-emerald-600">{p.remaining_qty}</td>
+                        <td className="p-3 font-bold text-slate-900">{money(p.purchase_rate)}</td>
+                        <td className="p-3 font-bold text-indigo-600">{money(sell)}</td>
+                        <td className="p-3">
+                          <span
+                            className={`font-semibold ${
+                              margin >= 0 ? "text-emerald-600" : "text-rose-600"
+                            }`}
+                          >
+                            {margin >= 0 ? "+" : ""}{money(margin)} ({marginPct}%)
+                          </span>
+                        </td>
+                        <td className="p-3 font-bold">{money(p.total_amount)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
 
-        {/* VIEW 9: PARTNER ACCOUNTS */}
+        {/* VIEW 6: PARTNER ACCOUNTS */}
         {activeTab === "partners" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Operating Partners</h2>
-                <p className="text-xs text-slate-500">Individual Partner Cash and Bank holdings</p>
+                <h2 className="text-lg font-black text-slate-900">Partner Ledgers & Books</h2>
+                <p className="text-xs text-slate-500">Individual cash and UPI reconciliation</p>
               </div>
-              <button onClick={() => setShowPartnerModal(true)} className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl">
-                + Add Partner
+              <button
+                onClick={() => setShowPartnerModal(true)}
+                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+              >
+                <Plus size={15} /> Add Partner
               </button>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {partnerAccounts.map((p) => (
-                <div key={p.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                  <h4 className="font-black text-base text-slate-900">{p.name}</h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
-                    <div>
-                      <span className="text-slate-400 block">Cash</span>
-                      <b className="text-emerald-600">{money(p.netCash)}</b>
+                <div key={p.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/50">
+                  <h3 className="font-black text-lg text-slate-900 mb-3">{p.name}</h3>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Opening Cash:</span>
+                      <span className="font-semibold">{money(p.initCash)}</span>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block">UPI</span>
-                      <b className="text-indigo-600">{money(p.netUpi)}</b>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Opening UPI:</span>
+                      <span className="font-semibold">{money(p.initUpi)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t font-black text-slate-900 text-sm">
+                      <span>Net Current In Hand:</span>
+                      <span className="text-indigo-600">{money(p.totalBalance)}</span>
                     </div>
                   </div>
                 </div>
@@ -1356,271 +1277,268 @@ Thank you for your business!`;
         )}
       </main>
 
-      {/* MODAL: STOCK PICKER */}
+      {/* --- POPUP WINDOW: SMALL SCREEN STOCK ITEM PICKER --- */}
       {pickerActiveIndex !== null && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex justify-between items-center pb-3 border-b">
-              <h3 className="font-black text-base text-slate-900">Select Item Batch</h3>
-              <button onClick={() => setPickerActiveIndex(null)} className="text-slate-400"><X size={20} /></button>
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-base text-slate-900">Select Stock Item</h3>
+                <p className="text-xs text-slate-400">Click any batch to populate cart item line</p>
+              </div>
+              <button
+                onClick={() => setPickerActiveIndex(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <input
-              type="text"
-              placeholder="Search items..."
-              className="w-full my-3 p-2.5 border border-slate-200 rounded-xl text-xs font-semibold outline-none"
-              value={stockSearchQuery}
-              onChange={(e) => setStockSearchQuery(e.target.value)}
-            />
-            <div className="overflow-y-auto space-y-2 flex-1">
-              {procurements
-                .filter((p) => Number(p.remaining_qty) > 0)
-                .filter((p) => !stockSearchQuery || p.item_name?.toLowerCase().includes(stockSearchQuery.toLowerCase()))
-                .map((item) => (
+
+            {/* Quick Search */}
+            <div className="my-3 relative">
+              <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search item name or supplier..."
+                className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500"
+                value={stockSearchQuery}
+                onChange={(e) => setStockSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* Stock List */}
+            <div className="overflow-y-auto space-y-2.5 flex-1 pr-1">
+              {filteredStock.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-400">
+                  No in-stock items found matching your search.
+                </div>
+              ) : (
+                filteredStock.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => handlePickStockItem(item)}
-                    className="p-3 border rounded-xl hover:border-indigo-500 cursor-pointer flex justify-between items-center"
+                    className="p-3 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/40 cursor-pointer transition flex items-center justify-between group"
                   >
                     <div>
-                      <h4 className="font-black text-sm text-slate-900">{item.item_name}</h4>
-                      <span className="text-xs text-slate-400">Rate: ₹{item.selling_rate || item.purchase_rate}</span>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-black text-sm text-slate-900 group-hover:text-indigo-600">
+                          {item.item_name}
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">
+                          {item.supplier_name}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1 flex gap-4">
+                        <span>Cost Rate: <b className="text-slate-800">₹{item.purchase_rate}</b></span>
+                        <span>Default Selling Price: <b className="text-indigo-600">₹{item.selling_rate || item.purchase_rate}</b></span>
+                      </div>
                     </div>
-                    <span className="text-xs font-bold text-emerald-600">{item.remaining_qty} in stock</span>
+
+                    <div className="text-right">
+                      <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                        {item.remaining_qty} in stock
+                      </span>
+                    </div>
                   </div>
-                ))}
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 mt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPickerActiveIndex(null)}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: ADD BORROWER */}
-      {showBorrowerModal && (
+      {/* MODAL: ADD / EDIT CUSTOMER */}
+      {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add New Borrower</h3>
-            <form onSubmit={saveBorrower} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Borrower Name (e.g. Swamy Ongole)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={borrowerForm.name}
-                onChange={(e) => setBorrowerForm({ ...borrowerForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Mobile Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={borrowerForm.mobile}
-                onChange={(e) => setBorrowerForm({ ...borrowerForm, mobile: e.target.value })}
-              />
-              <input
-                type="number"
-                placeholder="Opening Borrowed Balance (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={borrowerForm.initial_due}
-                onChange={(e) => setBorrowerForm({ ...borrowerForm, initial_due: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowBorrowerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: BORROWER TRANSACTION */}
-      {showBorrowerTxModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Record Loan Transaction</h3>
-            <form onSubmit={saveBorrowerTransaction} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={borrowerTxForm.borrower_id}
-                onChange={(e) => setBorrowerTxForm({ ...borrowerTxForm, borrower_id: e.target.value })}
-              >
-                <option value="">-- Choose Borrower --</option>
-                {borrowers.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name} (Due: {money(b.balance_due)})</option>
-                ))}
-              </select>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBorrowerTxForm({ ...borrowerTxForm, tx_type: "Given" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${borrowerTxForm.tx_type === "Given" ? "bg-rose-600 text-white" : "bg-white"}`}
-                >
-                  Outflow (Given)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBorrowerTxForm({ ...borrowerTxForm, tx_type: "Received" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${borrowerTxForm.tx_type === "Received" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  Inflow (Repaid)
-                </button>
-              </div>
-
-              <input
-                type="number"
-                required
-                placeholder="Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold"
-                value={borrowerTxForm.amount}
-                onChange={(e) => setBorrowerTxForm({ ...borrowerTxForm, amount: e.target.value })}
-              />
-
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={borrowerTxForm.partner_id}
-                onChange={(e) => setBorrowerTxForm({ ...borrowerTxForm, partner_id: e.target.value })}
-              >
-                <option value="">-- Partner In/Out Account --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowBorrowerTxModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Entry</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: RECORD EXPENSE */}
-      {showExpenseModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Record Shop Expense</h3>
-            <form onSubmit={saveExpense} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={expenseForm.category_id}
-                onChange={(e) => setExpenseForm({ ...expenseForm, category_id: e.target.value })}
-              >
-                <option value="">-- Choose Category --</option>
-                {expenseCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                required
-                placeholder="What was this expense for?"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={expenseForm.title}
-                onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
-              />
-              <input
-                type="number"
-                required
-                placeholder="Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
-                value={expenseForm.amount}
-                onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-              />
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={expenseForm.paid_by_id}
-                onChange={(e) => setExpenseForm({ ...expenseForm, paid_by_id: e.target.value })}
-              >
-                <option value="">-- Partner Who Paid --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowExpenseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Expense</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD PROCUREMENT */}
-      {showProcureModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Procurement</h3>
-            <form onSubmit={saveProcurement} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Supplier Name (e.g. JB Company)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={procureForm.supplier_name}
-                onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
-              />
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-900 mb-4">
+              {editingCustId ? "Edit Customer Details" : "Add New Customer"}
+            </h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 block mb-1">Item Name (Pick existing or type new)</label>
+                <label className="text-xs font-bold text-slate-500">Customer Name *</label>
                 <input
-                  list="item-master-list"
                   type="text"
                   required
-                  placeholder="Type or select existing item..."
-                  className="w-full p-2.5 border rounded-xl text-sm font-bold"
-                  value={procureForm.item_name}
-                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  value={custForm.name}
+                  onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
                 />
-                <datalist id="item-master-list">
-                  {uniqueItemSuggestions.map((item, idx) => (
-                    <option key={idx} value={item} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Phone Number</label>
+                <input
+                  type="text"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  value={custForm.mobile}
+                  onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500">Opening Due / Balance (₹)</label>
+                <input
+                  type="number"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  placeholder="0"
+                  value={custForm.old_due}
+                  onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustModal(false);
+                    setEditingCustId(null);
+                  }}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
+                  {editingCustId ? "Update Customer" : "Save Customer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: COLLECT DUE */}
+      {showCollectModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-900 mb-1">Customer Due Collection</h3>
+            <p className="text-xs text-slate-400 mb-4">Pay against specific invoice or on account</p>
+
+            <form onSubmit={saveCollection} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Customer *</label>
+                <select
+                  required
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  value={collectForm.customer_id}
+                  onChange={(e) => {
+                    const c = customers.find((x) => x.id == e.target.value);
+                    setCollectForm({
+                      ...collectForm,
+                      customer_id: e.target.value,
+                      invoice_id: "",
+                      amount: c ? c.old_due : ""
+                    });
+                  }}
+                >
+                  <option value="">-- Choose Customer --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (Total Due: {money(c.old_due)})
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              {customerUnpaidInvoices.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Select Bill (Optional)</label>
+                  <select
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    value={collectForm.invoice_id}
+                    onChange={(e) => {
+                      const inv = customerUnpaidInvoices.find((i) => i.id == e.target.value);
+                      setCollectForm({
+                        ...collectForm,
+                        invoice_id: e.target.value,
+                        amount: inv ? inv.balance_due : collectForm.amount
+                      });
+                    }}
+                  >
+                    <option value="">-- On Account (General Due) --</option>
+                    {customerUnpaidInvoices.map((inv) => (
+                      <option key={inv.id} value={inv.id}>
+                        INV-{inv.id} ({inv.invoice_date}) — Due: {money(inv.balance_due)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-slate-500">Amount Received (₹) *</label>
                 <input
                   type="number"
                   required
-                  placeholder="Qty"
-                  className="p-2.5 border rounded-xl text-xs font-bold"
-                  value={procureForm.procured_qty}
-                  onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
-                />
-                <input
-                  type="number"
-                  required
-                  placeholder="Cost Rate"
-                  className="p-2.5 border rounded-xl text-xs font-bold"
-                  value={procureForm.purchase_rate}
-                  onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
-                />
-                <input
-                  type="number"
-                  placeholder="Selling Rate"
-                  className="p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
-                  value={procureForm.selling_rate}
-                  onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
+                  min="1"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-black text-emerald-600"
+                  value={collectForm.amount}
+                  onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
                 />
               </div>
 
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={procureForm.p1_id}
-                onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
-              >
-                <option value="">-- Funded by Partner 1 --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Mode *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
+                    className={`py-2 rounded-xl text-xs font-bold border ${
+                      collectForm.payment_mode === "Cash"
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    💵 Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
+                    className={`py-2 rounded-xl text-xs font-bold border ${
+                      collectForm.payment_mode === "UPI"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    📱 UPI
+                  </button>
+                </div>
+              </div>
 
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Stock</button>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Partner Who Received *</label>
+                <select
+                  className="w-full p-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                  value={collectForm.receiver_id || upfrontPartnerId}
+                  onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
+                >
+                  {partners.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">
+                  Save Payment
+                </button>
               </div>
             </form>
           </div>
@@ -1630,174 +1548,222 @@ Thank you for your business!`;
       {/* MODAL: ADD PARTNER */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Partner</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              await db.from("receivers").insert([{
-                name: partnerForm.name.trim(),
-                opening_cash: Number(partnerForm.opening_cash || 0),
-                opening_upi: Number(partnerForm.opening_upi || 0)
-              }]);
-              setShowPartnerModal(false);
-              refreshData();
-            }} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Partner Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={partnerForm.name}
-                onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
-              />
-              <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h3 className="font-bold text-base text-slate-900 mb-4">Add Operating Partner</h3>
+            <form onSubmit={savePartner} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Partner Name *</label>
                 <input
-                  type="number"
-                  placeholder="Opening Cash (₹)"
-                  className="p-2.5 border rounded-xl text-xs"
-                  value={partnerForm.opening_cash}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
-                />
-                <input
-                  type="number"
-                  placeholder="Opening UPI (₹)"
-                  className="p-2.5 border rounded-xl text-xs"
-                  value={partnerForm.opening_upi}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  value={partnerForm.name}
+                  onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
                 />
               </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Opening Cash (₹)</label>
+                  <input
+                    type="number"
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                    value={partnerForm.opening_cash}
+                    onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Opening UPI (₹)</label>
+                  <input
+                    type="number"
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                    value={partnerForm.opening_upi}
+                    onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPartnerModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
+                  Save Partner
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL: ADD CUSTOMER */}
-      {showCustModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Customer</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              await db.from("customers").insert([{
-                name: custForm.name.trim(),
-                mobile: custForm.mobile.trim(),
-                old_due: Number(custForm.old_due || 0)
-              }]);
-              setShowCustModal(false);
-              refreshData();
-            }} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Customer Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.name}
-                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.mobile}
-                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
-              />
-              <input
-                type="number"
-                placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.old_due}
-                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
+      {/* MODAL: ADD PROCUREMENT */}
+      {showProcureModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full my-6">
+            <h3 className="font-bold text-base text-slate-900 mb-1">
+              {procureForm.is_opening ? "Add Opening Inventory" : "Add Purchase Invoice"}
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              {procureForm.is_opening
+                ? "Direct stock entry into warehouse"
+                : "Paid by Partner 1 and/or Partner 2"}
+            </p>
+
+            <form onSubmit={saveProcurement} className="space-y-3">
+              {!procureForm.is_opening && (
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Supplier Name *</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                    value={procureForm.supplier_name}
+                    onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-slate-500">Item Name *</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm"
+                  value={procureForm.item_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
+                />
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* MODAL: COLLECT CUSTOMER DUE */}
-      {showCollectModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Collect Due</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const amt = Number(collectForm.amount || 0);
-              await db.from("collections").insert([{
-                customer_id: Number(collectForm.customer_id),
-                amount: amt,
-                payment_mode: collectForm.payment_mode,
-                receiver_id: Number(collectForm.receiver_id)
-              }]);
-              const cust = customers.find((c) => c.id == collectForm.customer_id);
-              if (cust) {
-                await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
-              }
-              setShowCollectModal(false);
-              refreshData();
-            }} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={collectForm.customer_id}
-                onChange={(e) => {
-                  const c = customers.find((x) => x.id == e.target.value);
-                  setCollectForm({ ...collectForm, customer_id: e.target.value, amount: c ? c.old_due : "" });
-                }}
-              >
-                <option value="">-- Choose Customer --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} (Due: {money(c.old_due)})</option>
-                ))}
-              </select>
-
-              <input
-                type="number"
-                required
-                placeholder="Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
-                value={collectForm.amount}
-                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
-              />
+              <div>
+                <label className="text-xs font-bold text-slate-500">Quantity *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold"
+                  value={procureForm.procured_qty}
+                  onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                />
+              </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  💵 Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
-                >
-                  📱 UPI
-                </button>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Purchase Rate (Cost) *</label>
+                  <input
+                    type="number"
+                    required
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold"
+                    placeholder="e.g. 25000"
+                    value={procureForm.purchase_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Selling Rate (Default Sale/MRP)</label>
+                  <input
+                    type="number"
+                    className="w-full mt-1 p-2 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600"
+                    placeholder="e.g. 30000"
+                    value={procureForm.selling_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
+                  />
+                </div>
               </div>
 
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={collectForm.receiver_id || upfrontPartnerId}
-                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
-              >
-                <option value="">-- Partner Who Received --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              {!procureForm.is_opening && (
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <label className="text-xs font-bold uppercase text-slate-500 block">
+                    Payment Source (Partner 1)
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      className="p-2 border border-slate-200 rounded-lg text-xs"
+                      value={procureForm.p1_id}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
+                    >
+                      <option value="">-- Partner 1 --</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Amount"
+                      className="p-2 border border-slate-200 rounded-lg text-xs"
+                      value={procureForm.p1_amount}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_amount: e.target.value })}
+                    />
+                    <select
+                      className="p-2 border border-slate-200 rounded-lg text-xs font-bold"
+                      value={procureForm.p1_mode}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                    </select>
+                  </div>
 
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Payment</button>
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="split_p2"
+                      checked={procureForm.split_p2}
+                      onChange={(e) => setProcureForm({ ...procureForm, split_p2: e.target.checked })}
+                    />
+                    <label htmlFor="split_p2" className="text-xs font-bold text-slate-600">
+                      Split Bill with Partner 2
+                    </label>
+                  </div>
+
+                  {procureForm.split_p2 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        className="p-2 border border-slate-200 rounded-lg text-xs"
+                        value={procureForm.p2_id}
+                        onChange={(e) => setProcureForm({ ...procureForm, p2_id: e.target.value })}
+                      >
+                        <option value="">-- Partner 2 --</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Amount"
+                        className="p-2 border border-slate-200 rounded-lg text-xs"
+                        value={procureForm.p2_amount}
+                        onChange={(e) => setProcureForm({ ...procureForm, p2_amount: e.target.value })}
+                      />
+                      <select
+                        className="p-2 border border-slate-200 rounded-lg text-xs font-bold"
+                        value={procureForm.p2_mode}
+                        onChange={(e) => setProcureForm({ ...procureForm, p2_mode: e.target.value })}
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="Cash">Cash</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowProcureModal(false)}
+                  className="px-4 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">
+                  Save Stock
+                </button>
               </div>
             </form>
           </div>
