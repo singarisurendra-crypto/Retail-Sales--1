@@ -1,3 +1,4 @@
+// page.js
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -26,6 +27,9 @@ const Icon = ({ name, size = 18, className = "" }) => {
     ),
     users: (
       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    truck: (
+      <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8zM5.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM18.5 21a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
     package: (
       <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -104,6 +108,7 @@ export default function App() {
   const [partners, setPartners] = useState([]);
   const [procurements, setProcurements] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [collections, setCollections] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -115,6 +120,7 @@ export default function App() {
   // Modals
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [showCustModal, setShowCustModal] = useState(false);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
   const [showPayPurchaseModal, setShowPayPurchaseModal] = useState(false);
@@ -130,6 +136,10 @@ export default function App() {
   // Customer Form
   const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
+
+  // Supplier Form
+  const [editingSupplierId, setEditingSupplierId] = useState(null);
+  const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "" });
 
   // Partner Form
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
@@ -216,7 +226,7 @@ export default function App() {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [p, pr, c, inv, col, exp, cats, b, bTx] = await Promise.all([
+      const [p, pr, c, inv, col, exp, cats, b, bTx, sup] = await Promise.all([
         db.from("receivers").select("*").order("name", { ascending: true }),
         db.from("procurements").select("*").order("created_at", { ascending: false }),
         db.from("customers").select("*").order("name", { ascending: true }),
@@ -225,7 +235,8 @@ export default function App() {
         db.from("expenses").select("*").order("expense_date", { ascending: false }),
         db.from("expense_categories").select("*").order("name", { ascending: true }),
         db.from("borrowers").select("*").order("name", { ascending: true }),
-        db.from("borrower_transactions").select("*").order("tx_date", { ascending: false })
+        db.from("borrower_transactions").select("*").order("tx_date", { ascending: false }),
+        db.from("suppliers").select("*").order("name", { ascending: true })
       ]);
 
       if (p.data) {
@@ -240,6 +251,7 @@ export default function App() {
       if (cats.data) setExpenseCategories(cats.data);
       if (b.data) setBorrowers(b.data);
       if (bTx.data) setBorrowerTx(bTx.data);
+      if (sup.data) setSuppliers(sup.data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -260,6 +272,12 @@ export default function App() {
 
   const uniqueSupplierSuggestions = useMemo(() => {
     const map = new Map();
+    suppliers.forEach((s) => {
+      const trimmed = (s.name || "").trim();
+      if (trimmed && !map.has(trimmed.toLowerCase())) {
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
     procurements.forEach((p) => {
       const trimmed = (p.supplier_name || "").trim();
       if (trimmed && trimmed !== "Opening Stock" && !map.has(trimmed.toLowerCase())) {
@@ -267,7 +285,7 @@ export default function App() {
       }
     });
     return Array.from(map.values());
-  }, [procurements]);
+  }, [suppliers, procurements]);
 
   // Real-Time Partner Cash/UPI Ledger strictly tied to individual partners
   const partnerAccounts = useMemo(() => {
@@ -481,15 +499,13 @@ export default function App() {
     }
   };
 
-  // DELETE INVOICE (Cascades cleanup of linked collections and restores balances)
+  // DELETE INVOICE
   const handleDeleteInvoice = async (inv) => {
     if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? Any collections made against this bill will also be removed.`)) return;
 
     try {
-      // 1. Delete linked collections from database
       await db.from("collections").delete().eq("invoice_id", inv.id);
 
-      // 2. Return physical stock to procurements
       if (Array.isArray(inv.items)) {
         for (const item of inv.items) {
           const batch = procurements.find((p) => p.id == item.procure_id);
@@ -499,7 +515,6 @@ export default function App() {
         }
       }
 
-      // 3. Remove customer dues added by this invoice
       if (Number(inv.balance_due || 0) > 0) {
         const cust = customers.find((c) => c.id == inv.customer_id);
         if (cust) {
@@ -518,7 +533,6 @@ export default function App() {
   };
 
   const handleEditInvoice = (inv) => {
-    // Check if fully collected
     const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
     if (isCollected) {
       return alert("This invoice is fully Collected and locked from edits. If payments were recorded by mistake, delete or edit the collection receipts in the 'Payments & Collections' module first.");
@@ -570,7 +584,7 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // INVOICE-WISE DUE COLLECTION (Delete restores and unlocks invoice)
+  // DUE COLLECTIONS
   const handleEditCollection = (col) => {
     setEditingCollectionId(col.id);
     setCollectForm({
@@ -591,15 +605,12 @@ Thank you for your business!`;
     try {
       const amt = Number(col.amount || 0);
 
-      // 1. Restore invoice balance & unlock
       if (col.invoice_id) {
         const targetInv = invoices.find((i) => i.id == col.invoice_id);
         if (targetInv) {
           const newBal = Number(targetInv.balance_due || 0) + amt;
           const totalAmt = Number(targetInv.total_amount || 0);
           const upfrontAmt = Number(targetInv.upfront_paid || 0);
-          
-          // Revert status based on upfront payment vs total
           const newStatus = upfrontAmt >= totalAmt ? "Collected" : upfrontAmt > 0 ? "Partial" : "Due";
           
           await db.from("invoices").update({
@@ -609,7 +620,6 @@ Thank you for your business!`;
         }
       }
 
-      // 2. Restore customer old_due
       const cust = customers.find((c) => c.id == col.customer_id);
       if (cust) {
         await db.from("customers").update({
@@ -617,7 +627,6 @@ Thank you for your business!`;
         }).eq("id", cust.id);
       }
 
-      // 3. Delete the collection record
       await db.from("collections").delete().eq("id", col.id);
       alert("Collection deleted! Invoice and customer balance restored and unlocked.");
       refreshData();
@@ -699,7 +708,7 @@ Thank you for your business!`;
     }
   };
 
-  // BILL-WISE PURCHASE PAYMENT (Delete restores and unlocks purchase bill)
+  // BILL-WISE PURCHASE PAYMENT
   const handleEditPurchasePayment = (p) => {
     setEditingPaymentId(p.id);
     setPayPurchaseForm({
@@ -807,6 +816,49 @@ Thank you for your business!`;
     }
   };
 
+  // SUPPLIER HANDLERS
+  const handleEditSupplier = (s) => {
+    setEditingSupplierId(s.id);
+    setSupplierForm({ name: s.name || "", mobile: s.mobile || "", old_due: s.old_due || "" });
+    setShowSupplierModal(true);
+  };
+
+  const handleDeleteSupplier = async (s) => {
+    if (!confirm(`Delete supplier "${s.name}"? This removes their supplier record.`)) return;
+    try {
+      const { error } = await db.from("suppliers").delete().eq("id", s.id);
+      if (error) throw error;
+      alert("Supplier deleted!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const saveSupplier = async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: supplierForm.name.trim(),
+      mobile: supplierForm.mobile.trim(),
+      old_due: Number(supplierForm.old_due || 0)
+    };
+    try {
+      if (editingSupplierId) {
+        await db.from("suppliers").update(payload).eq("id", editingSupplierId);
+        alert("Supplier updated!");
+      } else {
+        await db.from("suppliers").insert([payload]);
+        alert("Supplier created!");
+      }
+      setShowSupplierModal(false);
+      setEditingSupplierId(null);
+      setSupplierForm({ name: "", mobile: "", old_due: "" });
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   // EXPENSE HANDLERS
   const handleEditExpense = (exp) => {
     setEditingExpenseId(exp.id);
@@ -861,6 +913,18 @@ Thank you for your business!`;
       }
       setShowExpenseModal(false);
       setEditingExpenseId(null);
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const saveCategory = async (e) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    try {
+      await db.from("expense_categories").insert([{ name: newCatName.trim() }]);
+      setNewCatName("");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1107,6 +1171,24 @@ Thank you for your business!`;
             </button>
 
             <button
+              onClick={() => { setActiveTab("customers"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <Icon name="users" size={18} /> Customers Directory
+            </button>
+
+            <button
+              onClick={() => { setActiveTab("suppliers"); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
+                activeTab === "suppliers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
+              }`}
+            >
+              <Icon name="truck" size={18} /> Suppliers Directory
+            </button>
+
+            <button
               onClick={() => { setActiveTab("borrowers"); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
                 activeTab === "borrowers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
@@ -1131,15 +1213,6 @@ Thank you for your business!`;
               }`}
             >
               <Icon name="filetext" size={18} /> Excel Report (PDF)
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("customers"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "customers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="users" size={18} /> Customers Directory
             </button>
 
             <button
@@ -1438,7 +1511,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 3: SEPARATE PAYMENTS & COLLECTIONS MODULE */}
+        {/* VIEW 3: PAYMENTS & COLLECTIONS */}
         {activeTab === "payments_collections" && (
           <div className="space-y-6">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
@@ -1473,7 +1546,7 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Section 1: Customer Collections */}
+              {/* Customer Collections */}
               <div className="pt-2">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">Customer Collections (వసూళ్లు)</h3>
                 <div className="space-y-2">
@@ -1521,7 +1594,7 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Section 2: Supplier Payments */}
+              {/* Supplier Payments */}
               <div className="pt-4 border-t">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">Supplier Purchase Payments (చెల్లింపులు)</h3>
                 <div className="space-y-2">
@@ -1776,7 +1849,119 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 6: BORROWERS */}
+        {/* VIEW 6: CUSTOMERS */}
+        {activeTab === "customers" && (
+          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Customer Directory</h2>
+                <p className="text-xs text-slate-500">Manage customer dues and contact details</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCustId(null);
+                  setCustForm({ name: "", mobile: "", old_due: "" });
+                  setShowCustModal(true);
+                }}
+                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+              >
+                + Add Customer
+              </button>
+            </div>
+            <div className="space-y-2">
+              {customers.map((c) => (
+                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900">{c.name}</h4>
+                    <span className="text-xs text-slate-400">{c.mobile || "No Mobile"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditCustomer(c)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomer(c)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 7: SUPPLIERS DIRECTORY */}
+        {activeTab === "suppliers" && (
+          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Suppliers Directory (సరఫరాదారులు)</h2>
+                <p className="text-xs text-slate-500">Manage supplier/vendor contact details and opening dues</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSupplierId(null);
+                  setSupplierForm({ name: "", mobile: "", old_due: "" });
+                  setShowSupplierModal(true);
+                }}
+                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+              >
+                + Add Supplier
+              </button>
+            </div>
+            <div className="space-y-2">
+              {suppliers.map((s) => (
+                <div key={s.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900">{s.name}</h4>
+                    <span className="text-xs text-slate-400">{s.mobile || "No Mobile"}</span>
+                  </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Opening Due</span>
+                      <span className="font-black text-amber-600 text-sm">{money(s.old_due)}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditSupplier(s)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSupplier(s)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                      >
+                        <Icon name="trash" size={13} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {suppliers.length === 0 && (
+                <div className="p-8 text-center text-slate-400 text-sm">
+                  No suppliers added yet. Click <b>+ Add Supplier</b> above to create one.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 8: BORROWERS */}
         {activeTab === "borrowers" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1855,7 +2040,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 7: EXPENSES */}
+        {/* VIEW 9: EXPENSES */}
         {activeTab === "expenses" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1931,7 +2116,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: EXCEL REPORT (ZERO QTY FILTERED OUT) */}
+        {/* VIEW 10: EXCEL REPORT */}
         {activeTab === "reports" && (
           <div className="space-y-6">
             <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-5">
@@ -1992,7 +2177,7 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* Available Stock Table (Filtered to non-zero qty) */}
+              {/* Available Stock Table */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock with Qty &gt; 0)</h3>
@@ -2065,59 +2250,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 9: CUSTOMERS */}
-        {activeTab === "customers" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Customer Directory</h2>
-                <p className="text-xs text-slate-500">Manage dues and contact details</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingCustId(null);
-                  setCustForm({ name: "", mobile: "", old_due: "" });
-                  setShowCustModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-              >
-                + Add Customer
-              </button>
-            </div>
-            <div className="space-y-2">
-              {customers.map((c) => (
-                <div key={c.id} className="p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div>
-                    <h4 className="font-bold text-sm text-slate-900">{c.name}</h4>
-                    <span className="text-xs text-slate-400">{c.mobile || "No Mobile"}</span>
-                  </div>
-                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                    <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEditCustomer(c)}
-                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                      >
-                        <Icon name="edit" size={13} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCustomer(c)}
-                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                      >
-                        <Icon name="trash" size={13} /> Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 10: PARTNER ACCOUNTS */}
+        {/* VIEW 11: PARTNER ACCOUNTS */}
         {activeTab === "partners" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -2393,7 +2526,20 @@ Thank you for your business!`;
             </h3>
             <form onSubmit={saveProcurement} className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Supplier / Vendor *</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Supplier / Vendor *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSupplierId(null);
+                      setSupplierForm({ name: "", mobile: "", old_due: "" });
+                      setShowSupplierModal(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline"
+                  >
+                    + Add New Supplier
+                  </button>
+                </div>
                 <input
                   list="supplier-master-list"
                   type="text"
@@ -2404,8 +2550,13 @@ Thank you for your business!`;
                   onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
                 />
                 <datalist id="supplier-master-list">
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name} {s.mobile ? `(${s.mobile})` : ""}
+                    </option>
+                  ))}
                   {uniqueSupplierSuggestions.map((s, idx) => (
-                    <option key={idx} value={s} />
+                    <option key={`sug-${idx}`} value={s} />
                   ))}
                 </datalist>
               </div>
@@ -2506,6 +2657,80 @@ Thank you for your business!`;
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT CUSTOMER */}
+      {showCustModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Customer Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.name}
+                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.mobile}
+                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.old_due}
+                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT SUPPLIER */}
+      {showSupplierModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
+            <form onSubmit={saveSupplier} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Supplier / Firm Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={supplierForm.name}
+                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={supplierForm.mobile}
+                onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={supplierForm.old_due}
+                onChange={(e) => setSupplierForm({ ...supplierForm, old_due: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Supplier</button>
               </div>
             </form>
           </div>
@@ -2661,43 +2886,6 @@ Thank you for your business!`;
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowExpenseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Expense</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT CUSTOMER */}
-      {showCustModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
-            <form onSubmit={saveCustomer} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Customer Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.name}
-                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.mobile}
-                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
-              />
-              <input
-                type="number"
-                placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={custForm.old_due}
-                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
               </div>
             </form>
           </div>
