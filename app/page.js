@@ -22,7 +22,7 @@ const Icon = ({ name, size = 18, className = "" }) => {
       <path d="M1 4h22v16H1zM1 10h22M5 15h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
     filetext: (
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M14 2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2zM8 7h8M8 11h8M8 15h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
     users: (
       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -112,6 +112,7 @@ export default function App() {
   const [procurements, setProcurements] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [masterItems, setMasterItems] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [collections, setCollections] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -124,6 +125,7 @@ export default function App() {
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [showCustModal, setShowCustModal] = useState(false);
   const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showCollectModal, setShowCollectModal] = useState(false);
   const [showPayPurchaseModal, setShowPayPurchaseModal] = useState(false);
@@ -148,6 +150,10 @@ export default function App() {
   // Supplier Form
   const [editingSupplierId, setEditingSupplierId] = useState(null);
   const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "" });
+
+  // Item Form
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "" });
 
   // Partner Form
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
@@ -234,7 +240,7 @@ export default function App() {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [p, pr, c, inv, col, exp, cats, b, bTx, sup] = await Promise.all([
+      const [p, pr, c, inv, col, exp, cats, b, bTx, sup, itemsRes] = await Promise.all([
         db.from("receivers").select("*").order("name", { ascending: true }),
         db.from("procurements").select("*").order("created_at", { ascending: false }),
         db.from("customers").select("*").order("name", { ascending: true }),
@@ -244,7 +250,8 @@ export default function App() {
         db.from("expense_categories").select("*").order("name", { ascending: true }),
         db.from("borrowers").select("*").order("name", { ascending: true }),
         db.from("borrower_transactions").select("*").order("tx_date", { ascending: false }),
-        db.from("suppliers").select("*").order("name", { ascending: true })
+        db.from("suppliers").select("*").order("name", { ascending: true }),
+        db.from("items").select("*").order("name", { ascending: true })
       ]);
 
       if (p.data) {
@@ -260,6 +267,7 @@ export default function App() {
       if (b.data) setBorrowers(b.data);
       if (bTx.data) setBorrowerTx(bTx.data);
       if (sup.data) setSuppliers(sup.data);
+      if (itemsRes.data) setMasterItems(itemsRes.data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -268,13 +276,29 @@ export default function App() {
   };
 
   const uniqueItemSuggestions = useMemo(() => {
-    const set = new Set();
+    const map = new Map();
+    masterItems.forEach((i) => {
+      const trimmed = (i.name || "").trim();
+      if (trimmed && !map.has(trimmed.toLowerCase())) {
+        map.set(trimmed.toLowerCase(), {
+          name: trimmed,
+          purchase_rate: i.purchase_rate,
+          selling_rate: i.selling_rate
+        });
+      }
+    });
     procurements.forEach((p) => {
       const trimmed = (p.item_name || "").trim();
-      if (trimmed) set.add(trimmed);
+      if (trimmed && !map.has(trimmed.toLowerCase())) {
+        map.set(trimmed.toLowerCase(), {
+          name: trimmed,
+          purchase_rate: p.purchase_rate,
+          selling_rate: p.selling_rate
+        });
+      }
     });
-    return Array.from(set);
-  }, [procurements]);
+    return Array.from(map.values());
+  }, [masterItems, procurements]);
 
   const uniqueSupplierSuggestions = useMemo(() => {
     const set = new Set();
@@ -377,7 +401,6 @@ export default function App() {
     return { totalSales, totalCustomerDues, totalDebts, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
 
-  // Combined Unified Transaction Audit Stream
   const combinedAuditTransactions = useMemo(() => {
     const invList = invoices.map((i) => ({
       txType: "sale",
@@ -905,9 +928,63 @@ Thank you for your business!`;
         await db.from("suppliers").insert([payload]);
         alert("Supplier created!");
       }
+      setProcureForm((prev) => ({ ...prev, supplier_name: payload.name }));
       setShowSupplierModal(false);
       setEditingSupplierId(null);
       setSupplierForm({ name: "", mobile: "", old_due: "" });
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // ITEM MASTER HANDLERS
+  const handleEditItem = (item) => {
+    setEditingItemId(item.id);
+    setItemForm({
+      name: item.name || "",
+      purchase_rate: item.purchase_rate || "",
+      selling_rate: item.selling_rate || ""
+    });
+    setShowItemModal(true);
+  };
+
+  const handleDeleteItem = async (item) => {
+    if (!confirm(`Delete item "${item.name}" from items master?`)) return;
+    try {
+      const { error } = await db.from("items").delete().eq("id", item.id);
+      if (error) throw error;
+      alert("Item deleted from master!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const saveItem = async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: itemForm.name.trim(),
+      purchase_rate: Number(itemForm.purchase_rate || 0),
+      selling_rate: Number(itemForm.selling_rate || 0)
+    };
+    try {
+      if (editingItemId) {
+        await db.from("items").update(payload).eq("id", editingItemId);
+        alert("Item updated!");
+      } else {
+        await db.from("items").insert([payload]);
+        alert("Item created!");
+      }
+      setProcureForm((prev) => ({
+        ...prev,
+        item_name: payload.name,
+        purchase_rate: payload.purchase_rate > 0 ? String(payload.purchase_rate) : prev.purchase_rate,
+        selling_rate: payload.selling_rate > 0 ? String(payload.selling_rate) : prev.selling_rate
+      }));
+      setShowItemModal(false);
+      setEditingItemId(null);
+      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1111,6 +1188,9 @@ Thank you for your business!`;
 
   const saveProcurement = async (e) => {
     e.preventDefault();
+    if (!procureForm.supplier_name) return alert("Select or add a Supplier");
+    if (!procureForm.item_name) return alert("Select or add an Item");
+
     const qty = Number(procureForm.procured_qty || 0);
     const purchaseRate = Number(procureForm.purchase_rate || 0);
     const sellingRate = Number(procureForm.selling_rate || purchaseRate);
@@ -1576,7 +1656,6 @@ Thank you for your business!`;
                   <p className="text-xs text-slate-500">Select any transaction row to inspect its full itemized breakdown and settlement history.</p>
                 </div>
 
-                {/* Filter Switcher */}
                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto">
                   <button
                     onClick={() => setAuditFilterType("all")}
@@ -1599,7 +1678,6 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Search Bar */}
               <div className="relative">
                 <span className="absolute left-3 top-3 text-slate-400">
                   <Icon name="search" size={16} />
@@ -1613,7 +1691,6 @@ Thank you for your business!`;
                 />
               </div>
 
-              {/* Transaction Stream Table */}
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
@@ -1679,7 +1756,7 @@ Thank you for your business!`;
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Master Creation Hub</h2>
-                <p className="text-xs text-slate-500">Configure master records for Customers, Suppliers, Partners, Borrowers, and Expense Categories.</p>
+                <p className="text-xs text-slate-500">Configure master records for Customers, Suppliers, Items, Borrowers, Partners, and Expense Categories.</p>
               </div>
               <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
                 <button
@@ -1693,6 +1770,12 @@ Thank you for your business!`;
                   className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "suppliers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
                 >
                   Suppliers ({suppliers.length})
+                </button>
+                <button
+                  onClick={() => setMastersSubTab("items")}
+                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "items" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                >
+                  Items / Products ({uniqueItemSuggestions.length})
                 </button>
                 <button
                   onClick={() => setMastersSubTab("borrowers")}
@@ -1786,7 +1869,57 @@ Thank you for your business!`;
               </div>
             )}
 
-            {/* Masters Sub-Tab 3: Borrowers */}
+            {/* Masters Sub-Tab 3: Items / Products */}
+            {mastersSubTab === "items" && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm text-slate-900">Items & Product Master</h3>
+                    <p className="text-xs text-slate-400">Pre-saved products with standard cost and selling prices</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingItemId(null);
+                      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+                      setShowItemModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                  >
+                    + Add Item Master
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {uniqueItemSuggestions.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-slate-200 flex justify-between items-center bg-slate-50/50">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{item.name}</h4>
+                        <span className="text-xs text-slate-500">
+                          Cost: {money(item.purchase_rate)} | Selling: {money(item.selling_rate)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingItemId(item.id || null);
+                            setItemForm({
+                              name: item.name,
+                              purchase_rate: item.purchase_rate ? String(item.purchase_rate) : "",
+                              selling_rate: item.selling_rate ? String(item.selling_rate) : ""
+                            });
+                            setShowItemModal(true);
+                          }}
+                          className="px-2.5 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Masters Sub-Tab 4: Borrowers */}
             {mastersSubTab === "borrowers" && (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -1820,7 +1953,7 @@ Thank you for your business!`;
               </div>
             )}
 
-            {/* Masters Sub-Tab 4: Partners */}
+            {/* Masters Sub-Tab 5: Partners */}
             {mastersSubTab === "partners" && (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -1845,7 +1978,7 @@ Thank you for your business!`;
               </div>
             )}
 
-            {/* Masters Sub-Tab 5: Categories */}
+            {/* Masters Sub-Tab 6: Categories */}
             {mastersSubTab === "categories" && (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -2109,7 +2242,6 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Customer Collections */}
               <div className="pt-2">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">Customer Collections (వసూళ్లు)</h3>
                 <div className="space-y-2">
@@ -2157,7 +2289,6 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Supplier Payments */}
               <div className="pt-4 border-t">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">Supplier Purchase Payments (చెల్లింపులు)</h3>
                 <div className="space-y-2">
@@ -2846,7 +2977,7 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PURCHASES WITH WORKING CLICKABLE DROPDOWNS */}
+      {/* MODAL: ADD / EDIT PURCHASES WITH CLEAN SINGLE DROPDOWNS */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
@@ -2854,7 +2985,7 @@ Thank you for your business!`;
               {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
             </h3>
             <form onSubmit={saveProcurement} className="space-y-3">
-              {/* Supplier Dropdown + Custom Field */}
+              {/* Supplier Clean Dropdown */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase block">Supplier / Vendor *</label>
@@ -2871,47 +3002,55 @@ Thank you for your business!`;
                   </button>
                 </div>
                 <select
+                  required
                   className="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white"
-                  value={uniqueSupplierSuggestions.includes(procureForm.supplier_name) || procureForm.supplier_name === "Opening Stock" ? procureForm.supplier_name : ""}
+                  value={procureForm.supplier_name}
                   onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
                 >
-                  <option value="">-- Choose Existing Supplier --</option>
+                  <option value="">-- Choose Supplier --</option>
                   {uniqueSupplierSuggestions.map((s, idx) => (
                     <option key={idx} value={s}>{s}</option>
                   ))}
                   <option value="Opening Stock">Opening Stock</option>
                 </select>
-                <input
-                  type="text"
-                  required
-                  placeholder="Or type/edit supplier name directly..."
-                  className="w-full mt-1.5 p-2 border border-slate-200 rounded-lg text-xs font-semibold"
-                  value={procureForm.supplier_name}
-                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
-                />
               </div>
 
-              {/* Item Name Dropdown + Custom Field */}
+              {/* Item Clean Dropdown */}
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Item Name *</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Item Name *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItemId(null);
+                      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+                      setShowItemModal(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline"
+                  >
+                    + Add New Item
+                  </button>
+                </div>
                 <select
+                  required
                   className="w-full p-2.5 border rounded-xl text-sm font-bold bg-white"
-                  value={uniqueItemSuggestions.includes(procureForm.item_name) ? procureForm.item_name : ""}
-                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
+                  value={procureForm.item_name}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const matchedItem = uniqueItemSuggestions.find((i) => i.name === selectedName);
+                    setProcureForm({
+                      ...procureForm,
+                      item_name: selectedName,
+                      purchase_rate: matchedItem?.purchase_rate ? String(matchedItem.purchase_rate) : procureForm.purchase_rate,
+                      selling_rate: matchedItem?.selling_rate ? String(matchedItem.selling_rate) : procureForm.selling_rate
+                    });
+                  }}
                 >
-                  <option value="">-- Choose Existing Item --</option>
+                  <option value="">-- Choose Item --</option>
                   {uniqueItemSuggestions.map((item, idx) => (
-                    <option key={idx} value={item}>{item}</option>
+                    <option key={idx} value={item.name}>{item.name}</option>
                   ))}
                 </select>
-                <input
-                  type="text"
-                  required
-                  placeholder="Or type/edit item name directly..."
-                  className="w-full mt-1.5 p-2 border border-slate-200 rounded-lg text-xs font-semibold"
-                  value={procureForm.item_name}
-                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
-                />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -2992,6 +3131,51 @@ Thank you for your business!`;
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT ITEM MASTER */}
+      {showItemModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingItemId ? "Edit Item Master" : "Add New Item Master"}</h3>
+            <form onSubmit={saveItem} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Item / Product Name (e.g. JB, Gold Leaf)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold"
+                value={itemForm.name}
+                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={itemForm.purchase_rate}
+                    onChange={(e) => setItemForm({ ...itemForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
+                    value={itemForm.selling_rate}
+                    onChange={(e) => setItemForm({ ...itemForm, selling_rate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Item</button>
               </div>
             </form>
           </div>
