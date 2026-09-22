@@ -268,31 +268,25 @@ export default function App() {
   };
 
   const uniqueItemSuggestions = useMemo(() => {
-    const map = new Map();
+    const set = new Set();
     procurements.forEach((p) => {
       const trimmed = (p.item_name || "").trim();
-      if (trimmed && !map.has(trimmed.toLowerCase())) {
-        map.set(trimmed.toLowerCase(), trimmed);
-      }
+      if (trimmed) set.add(trimmed);
     });
-    return Array.from(map.values());
+    return Array.from(set);
   }, [procurements]);
 
   const uniqueSupplierSuggestions = useMemo(() => {
-    const map = new Map();
+    const set = new Set();
     suppliers.forEach((s) => {
       const trimmed = (s.name || "").trim();
-      if (trimmed && !map.has(trimmed.toLowerCase())) {
-        map.set(trimmed.toLowerCase(), trimmed);
-      }
+      if (trimmed) set.add(trimmed);
     });
     procurements.forEach((p) => {
       const trimmed = (p.supplier_name || "").trim();
-      if (trimmed && trimmed !== "Opening Stock" && !map.has(trimmed.toLowerCase())) {
-        map.set(trimmed.toLowerCase(), trimmed);
-      }
+      if (trimmed && trimmed !== "Opening Stock") set.add(trimmed);
     });
-    return Array.from(map.values());
+    return Array.from(set);
   }, [suppliers, procurements]);
 
   const partnerAccounts = useMemo(() => {
@@ -2852,7 +2846,7 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PURCHASES */}
+      {/* MODAL: ADD / EDIT PURCHASES WITH WORKING CLICKABLE DROPDOWNS */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
@@ -2860,6 +2854,7 @@ Thank you for your business!`;
               {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
             </h3>
             <form onSubmit={saveProcurement} className="space-y-3">
+              {/* Supplier Dropdown + Custom Field */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase block">Supplier / Vendor *</label>
@@ -2875,43 +2870,48 @@ Thank you for your business!`;
                     + Add New Supplier
                   </button>
                 </div>
+                <select
+                  className="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white"
+                  value={uniqueSupplierSuggestions.includes(procureForm.supplier_name) || procureForm.supplier_name === "Opening Stock" ? procureForm.supplier_name : ""}
+                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                >
+                  <option value="">-- Choose Existing Supplier --</option>
+                  {uniqueSupplierSuggestions.map((s, idx) => (
+                    <option key={idx} value={s}>{s}</option>
+                  ))}
+                  <option value="Opening Stock">Opening Stock</option>
+                </select>
                 <input
-                  list="supplier-master-list"
                   type="text"
                   required
-                  placeholder="Type or select existing supplier..."
-                  className="w-full p-2.5 border rounded-xl text-sm font-semibold"
+                  placeholder="Or type/edit supplier name directly..."
+                  className="w-full mt-1.5 p-2 border border-slate-200 rounded-lg text-xs font-semibold"
                   value={procureForm.supplier_name}
                   onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
                 />
-                <datalist id="supplier-master-list">
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.name}>
-                      {s.name} {s.mobile ? `(${s.mobile})` : ""}
-                    </option>
-                  ))}
-                  {uniqueSupplierSuggestions.map((s, idx) => (
-                    <option key={`sug-${idx}`} value={s} />
-                  ))}
-                </datalist>
               </div>
 
+              {/* Item Name Dropdown + Custom Field */}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Item Name *</label>
+                <select
+                  className="w-full p-2.5 border rounded-xl text-sm font-bold bg-white"
+                  value={uniqueItemSuggestions.includes(procureForm.item_name) ? procureForm.item_name : ""}
+                  onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
+                >
+                  <option value="">-- Choose Existing Item --</option>
+                  {uniqueItemSuggestions.map((item, idx) => (
+                    <option key={idx} value={item}>{item}</option>
+                  ))}
+                </select>
                 <input
-                  list="item-master-list"
                   type="text"
                   required
-                  placeholder="Type or select existing item..."
-                  className="w-full p-2.5 border rounded-xl text-sm font-bold"
+                  placeholder="Or type/edit item name directly..."
+                  className="w-full mt-1.5 p-2 border border-slate-200 rounded-lg text-xs font-semibold"
                   value={procureForm.item_name}
                   onChange={(e) => setProcureForm({ ...procureForm, item_name: e.target.value })}
                 />
-                <datalist id="item-master-list">
-                  {uniqueItemSuggestions.map((item, idx) => (
-                    <option key={idx} value={item} />
-                  ))}
-                </datalist>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
