@@ -22,7 +22,7 @@ const Icon = ({ name, size = 18, className = "" }) => {
       <path d="M1 4h22v16H1zM1 10h22M5 15h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
     filetext: (
-      <path d="M14 2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2V4a2 2 0 00-2-2zM8 7h8M8 11h8M8 15h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
     users: (
       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -156,6 +156,7 @@ export default function App() {
   const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "" });
 
   // Partner Form
+  const [editingPartnerId, setEditingPartnerId] = useState(null);
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
   // Purchase Form
@@ -255,8 +256,13 @@ export default function App() {
       ]);
 
       if (p.data) {
-        setPartners(p.data);
-        if (p.data.length > 0 && !upfrontPartnerId) setUpfrontPartnerId(p.data[0].id);
+        // Strictly filter out the unwanted system drawers
+        const cleanPartners = p.data.filter((item) => {
+          const lower = (item.name || "").toLowerCase().trim();
+          return lower !== "main cash drawer" && lower !== "store upi";
+        });
+        setPartners(cleanPartners);
+        if (cleanPartners.length > 0 && !upfrontPartnerId) setUpfrontPartnerId(cleanPartners[0].id);
       }
       if (pr.data) setProcurements(pr.data);
       if (c.data) setCustomers(c.data);
@@ -281,6 +287,7 @@ export default function App() {
       const trimmed = (i.name || "").trim();
       if (trimmed && !map.has(trimmed.toLowerCase())) {
         map.set(trimmed.toLowerCase(), {
+          id: i.id,
           name: trimmed,
           purchase_rate: i.purchase_rate,
           selling_rate: i.selling_rate
@@ -291,6 +298,7 @@ export default function App() {
       const trimmed = (p.item_name || "").trim();
       if (trimmed && !map.has(trimmed.toLowerCase())) {
         map.set(trimmed.toLowerCase(), {
+          id: null,
           name: trimmed,
           purchase_rate: p.purchase_rate,
           selling_rate: p.selling_rate
@@ -401,6 +409,7 @@ export default function App() {
     return { totalSales, totalCustomerDues, totalDebts, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
   }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
 
+  // Combined Unified Transaction Audit Stream
   const combinedAuditTransactions = useMemo(() => {
     const invList = invoices.map((i) => ({
       txType: "sale",
@@ -985,6 +994,53 @@ Thank you for your business!`;
       setShowItemModal(false);
       setEditingItemId(null);
       setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // PARTNER HANDLERS (With Delete!)
+  const handleEditPartner = (p) => {
+    setEditingPartnerId(p.id);
+    setPartnerForm({
+      name: p.name || "",
+      opening_cash: String(p.opening_cash || ""),
+      opening_upi: String(p.opening_upi || "")
+    });
+    setShowPartnerModal(true);
+  };
+
+  const handleDeletePartner = async (p) => {
+    if (!confirm(`Permanently delete partner "${p.name}"?`)) return;
+    try {
+      const { error } = await db.from("receivers").delete().eq("id", p.id);
+      if (error) throw error;
+      alert("Partner deleted successfully!");
+      refreshData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const savePartner = async (e) => {
+    e.preventDefault();
+    const payload = {
+      name: partnerForm.name.trim(),
+      opening_cash: Number(partnerForm.opening_cash || 0),
+      opening_upi: Number(partnerForm.opening_upi || 0)
+    };
+    try {
+      if (editingPartnerId) {
+        await db.from("receivers").update(payload).eq("id", editingPartnerId);
+        alert("Partner updated!");
+      } else {
+        await db.from("receivers").insert([payload]);
+        alert("Partner added!");
+      }
+      setShowPartnerModal(false);
+      setEditingPartnerId(null);
+      setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1589,58 +1645,154 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 2: BUSINESS SUMMARY */}
+        {/* VIEW 2: REDESIGNED CLEAN BUSINESS SUMMARY (MOBILE & DESKTOP) */}
         {activeTab === "summary" && (
-          <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-black text-slate-900">Business Snapshot</h2>
-              <p className="text-xs text-slate-500">Live operational ledger across partners, loans, and inventory</p>
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Business Financial Snapshot</h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Real-time ledger across partners, loans, and inventory</p>
+              </div>
+              <button
+                onClick={() => refreshData()}
+                className="self-start sm:self-auto px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <Icon name="history" size={14} /> Refresh Data
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Total Sales Invoiced</p>
-                <h3 className="text-lg sm:text-2xl font-black text-slate-900 mt-1">{money(businessSummary.totalSales)}</h3>
+            {/* Top 4 Core Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
+              {/* Sales */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Sales Invoiced</span>
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <Icon name="cart" size={15} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mt-2 tracking-tight">{money(businessSummary.totalSales)}</h3>
+                <span className="text-[11px] font-semibold text-slate-400 mt-1 block">Cumulative gross sales</span>
               </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Customer Dues (కస్టమర్ బ్యాలెన్స్)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-rose-600 mt-1">{money(businessSummary.totalCustomerDues)}</h3>
+
+              {/* Customer Dues */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Customer Dues (కస్టమర్ బ్యాలెన్స్)</span>
+                  <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <Icon name="users" size={15} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-rose-600 mt-2 tracking-tight">{money(businessSummary.totalCustomerDues)}</h3>
+                <span className="text-[11px] font-semibold text-rose-400 mt-1 block">Pending market receivables</span>
               </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Debts & Purchase Dues (అప్పులు)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-amber-600 mt-1">{money(businessSummary.totalDebts + businessSummary.totalPurchaseDues)}</h3>
-              </div>
-              <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Net Profit (లాభం 2+3-1-4)</p>
-                <h3 className="text-lg sm:text-2xl font-black text-emerald-600 mt-1">
-                  {money(businessSummary.bReddyNetProfit)}
+
+              {/* Debts & Purchases */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Debts & Purchase Dues (అప్పులు)</span>
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Icon name="handcoins" size={15} />
+                  </div>
+                </div>
+                <h3 className="text-2xl font-black text-amber-600 mt-2 tracking-tight">
+                  {money(businessSummary.totalDebts + businessSummary.totalPurchaseDues)}
                 </h3>
+                <span className="text-[11px] font-semibold text-amber-400 mt-1 block">Loans + Supplier Payables</span>
+              </div>
+
+              {/* Net Profit */}
+              <div className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-600/20 relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Net Business Profit (లాభం)</span>
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/50 text-white flex items-center justify-center">
+                    <Icon name="rupee" size={15} />
+                  </div>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">{money(businessSummary.bReddyNetProfit)}</h3>
+                <span className="text-[11px] font-bold text-emerald-200 mt-1 block">Receivables + Stock - Payables</span>
               </div>
             </div>
 
-            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-base text-slate-900 mb-4">Partner Cash / UPI In-Hand</h3>
+            {/* Operating Partner Cash & UPI in Hand (Drawer & Store UPI removed completely) */}
+            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Partner Cash / UPI In-Hand</h3>
+                  <p className="text-xs text-slate-400">Actual physical cash and UPI holdings tied strictly to active partners</p>
+                </div>
+                {/* Total Combined Liquidity */}
+                <div className="flex items-center gap-3 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
+                  <span className="text-xs font-bold text-slate-500">Total Liquid Funds:</span>
+                  <span className="font-black text-sm text-slate-900">{money(businessSummary.totalCash + businessSummary.totalUpi)}</span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {partnerAccounts.map((p) => (
-                  <div key={p.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/70">
-                    <div className="flex justify-between items-center mb-3">
-                      <h4 className="font-black text-base text-slate-900">{p.name}</h4>
-                      <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-lg">
+                  <div key={p.id} className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center">
+                          {p.name.charAt(0)}
+                        </div>
+                        <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                      </div>
+                      <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs rounded-xl">
                         Total: {money(p.totalBalance)}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-slate-400 text-[11px]">Physical Cash</span>
-                        <p className="font-black text-sm text-emerald-600 mt-0.5">{money(p.netCash)}</p>
+
+                    <div className="grid grid-cols-2 gap-2.5 text-xs pt-1">
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold">
+                          <span>💵</span> Physical Cash
+                        </div>
+                        <p className="font-black text-base text-emerald-600 mt-1">{money(p.netCash)}</p>
                       </div>
-                      <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-slate-400 text-[11px]">UPI / Bank</span>
-                        <p className="font-black text-sm text-indigo-600 mt-0.5">{money(p.netUpi)}</p>
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold">
+                          <span>📱</span> UPI / Bank
+                        </div>
+                        <p className="font-black text-base text-indigo-600 mt-1">{money(p.netUpi)}</p>
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Quick Secondary Financial Indicators */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+              <div className="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Stock Valuation</span>
+                  <span className="text-sm font-black text-slate-900 mt-0.5 block">{money(businessSummary.stockValuation)}</span>
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs">
+                  <Icon name="package" size={16} />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Shop & Other Expenses</span>
+                  <span className="text-sm font-black text-rose-600 mt-0.5 block">{money(businessSummary.totalExpenses)}</span>
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold text-xs">
+                  <Icon name="creditcard" size={16} />
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Supplier Purchase Dues</span>
+                  <span className="text-sm font-black text-amber-600 mt-0.5 block">{money(businessSummary.totalPurchaseDues)}</span>
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 font-bold text-xs">
+                  <Icon name="truck" size={16} />
+                </div>
               </div>
             </div>
           </div>
@@ -1953,13 +2105,17 @@ Thank you for your business!`;
               </div>
             )}
 
-            {/* Masters Sub-Tab 5: Partners */}
+            {/* Masters Sub-Tab 5: Partners (Includes UI Delete) */}
             {mastersSubTab === "partners" && (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="font-bold text-sm text-slate-900">Operating Partners Master</h3>
                   <button
-                    onClick={() => setShowPartnerModal(true)}
+                    onClick={() => {
+                      setEditingPartnerId(null);
+                      setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
+                      setShowPartnerModal(true);
+                    }}
                     className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
                   >
                     + Add Partner
@@ -1967,11 +2123,17 @@ Thank you for your business!`;
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {partners.map((p) => (
-                    <div key={p.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                      <h4 className="font-black text-slate-900">{p.name}</h4>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Opening Cash: {money(p.opening_cash)} | Opening UPI: {money(p.opening_upi)}
-                      </p>
+                    <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex justify-between items-start">
+                      <div>
+                        <h4 className="font-black text-slate-900">{p.name}</h4>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Opening Cash: {money(p.opening_cash)} | Opening UPI: {money(p.opening_upi)}
+                        </p>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => handleEditPartner(p)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
+                        <button onClick={() => handleDeletePartner(p)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2624,7 +2786,7 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 11: PARTNER ACCOUNTS */}
+        {/* VIEW 11: PARTNER ACCOUNTS (Cleaned list with Edit and Delete) */}
         {activeTab === "partners" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
@@ -2634,7 +2796,11 @@ Thank you for your business!`;
               </div>
               <button
                 type="button"
-                onClick={() => setShowPartnerModal(true)}
+                onClick={() => {
+                  setEditingPartnerId(null);
+                  setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
+                  setShowPartnerModal(true);
+                }}
                 className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
               >
                 + Add Partner
@@ -2643,7 +2809,13 @@ Thank you for your business!`;
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {partnerAccounts.map((p) => (
                 <div key={p.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                  <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => handleEditPartner(p)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
+                      <button onClick={() => handleDeletePartner(p)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
                     <div>
                       <span className="text-slate-400 block">Cash</span>
@@ -3256,6 +3428,45 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: ADD / EDIT PARTNER */}
+      {showPartnerModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingPartnerId ? "Edit Partner" : "Add Partner"}</h3>
+            <form onSubmit={savePartner} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Partner Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={partnerForm.name}
+                onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Opening Cash (₹)"
+                  className="p-2.5 border rounded-xl text-xs"
+                  value={partnerForm.opening_cash}
+                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
+                />
+                <input
+                  type="number"
+                  placeholder="Opening UPI (₹)"
+                  className="p-2.5 border rounded-xl text-xs"
+                  value={partnerForm.opening_upi}
+                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: ADD / EDIT BORROWER */}
       {showBorrowerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
@@ -3405,54 +3616,6 @@ Thank you for your business!`;
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowExpenseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Expense</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD PARTNER */}
-      {showPartnerModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Add Partner</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              await db.from("receivers").insert([{
-                name: partnerForm.name.trim(),
-                opening_cash: Number(partnerForm.opening_cash || 0),
-                opening_upi: Number(partnerForm.opening_upi || 0)
-              }]);
-              setShowPartnerModal(false);
-              refreshData();
-            }} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Partner Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={partnerForm.name}
-                onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  placeholder="Opening Cash (₹)"
-                  className="p-2.5 border rounded-xl text-xs"
-                  value={partnerForm.opening_cash}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
-                />
-                <input
-                  type="number"
-                  placeholder="Opening UPI (₹)"
-                  className="p-2.5 border rounded-xl text-xs"
-                  value={partnerForm.opening_upi}
-                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
-                />
-              </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
               </div>
             </form>
           </div>
