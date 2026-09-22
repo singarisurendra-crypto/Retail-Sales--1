@@ -247,8 +247,11 @@ export default function App() {
           return lower !== "main cash drawer" && lower !== "store upi";
         });
         setPartners(cleanPartners);
-        if (cleanPartners.length > 0 && !upfrontPartnerId) setUpfrontPartnerId(cleanPartners[0].id);
+        if (cleanPartners.length > 0 && !upfrontPartnerId) {
+          setUpfrontPartnerId(cleanPartners[0].id);
+        }
       }
+
       if (pr.data) setProcurements(pr.data);
       if (c.data) setCustomers(c.data);
       if (inv.data) setInvoices(inv.data);
@@ -260,7 +263,7 @@ export default function App() {
       if (sup.data) setSuppliers(sup.data);
       if (itemsRes.data) setMasterItems(itemsRes.data);
     } catch (e) {
-      console.error(e);
+      console.error("Data refresh error:", e);
     } finally {
       setLoading(false);
     }
@@ -306,7 +309,7 @@ export default function App() {
     return Array.from(set);
   }, [suppliers, procurements]);
 
-  // Partner Accounts Calculation
+  // Partner cash ledger
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -1246,7 +1249,6 @@ Thank you for your business!`;
           </div>
 
           <nav className="p-3 space-y-4 mt-1">
-            {/* GROUP 1: OPERATIONS */}
             <div>
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Sales & Purchases</span>
               <div className="space-y-1">
@@ -1285,7 +1287,6 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* GROUP 2: FINANCIALS & LEDGERS */}
             <div>
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Financials & Accounts</span>
               <div className="space-y-1">
@@ -1332,7 +1333,6 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* GROUP 3: MASTERS & CONFIG */}
             <div>
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Administration</span>
               <div className="space-y-1">
@@ -1832,6 +1832,7 @@ Thank you for your business!`;
               </div>
             </div>
 
+            {/* In-Screen Filter Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
               <div className="relative w-full sm:max-w-md">
                 <span className="absolute left-3.5 top-3 text-slate-400">
@@ -2004,7 +2005,7 @@ Thank you for your business!`;
               </div>
             )}
 
-            {/* SUB-VIEW: LENDERS */}
+            {/* SUB-VIEW: LENDERS (BUSINESS LOANS) */}
             {mastersSubTab === "lenders" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                 {filteredLenders.map((l) => (
@@ -2080,7 +2081,7 @@ Thank you for your business!`;
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Business Borrowings & Loans (వ్యాపార రుణాలు / అప్పులు)</h2>
-                <p className="text-xs text-slate-500">Track loans taken for business operations (Gold loans, private finance) and record repayment installments.</p>
+                <p className="text-xs text-slate-500">Track loans taken for business operations and record repayment installments.</p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
@@ -2126,13 +2127,11 @@ Thank you for your business!`;
               {lenders.map((l) => (
                 <div key={l.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Lender / Finance Source</span>
-                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Lender / Finance Source</span>
                     <h4 className="font-black text-base text-slate-900 mt-0.5">{l.name}</h4>
                     <span className="text-xs text-slate-400 block">{l.mobile || "No Contact Stored"}</span>
                     <span className="text-[11px] font-semibold text-slate-500 mt-1 block">
-                      Total Borrowed: {money(l.total_borrowed)} | Total Repaid so far: <b className="text-emerald-600">{money(l.total_repaid)}</b>
+                      Total Borrowed: {money(l.total_borrowed)} | Total Repaid: <b className="text-emerald-600">{money(l.total_repaid)}</b>
                     </span>
                   </div>
 
@@ -2308,7 +2307,7 @@ Thank you for your business!`;
                 </table>
               </div>
 
-              {/* SECTION 2: AVAILABLE STOCK TABLE (Qty > 0) */}
+              {/* SECTION 2: AVAILABLE STOCK TABLE */}
               <div className="pt-2">
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock with Qty &gt; 0)</h3>
@@ -2432,104 +2431,695 @@ Thank you for your business!`;
         )}
       </main>
 
-      {/* DRAWER: AUDIT TRANSACTION INSPECTION */}
-      {selectedAuditTx && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex justify-end z-50">
-          <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col p-6 overflow-y-auto animate-in slide-in-from-right duration-200">
-            <div className="flex justify-between items-start pb-4 border-b">
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">
-                  {selectedAuditTx.txType === "sale" ? "Sales Invoice Audit" : "Purchase Bill Audit"}
-                </span>
-                <h3 className="font-black text-lg text-slate-900">{selectedAuditTx.docNumber}</h3>
-                <p className="text-xs text-slate-400">{selectedAuditTx.date}</p>
+      {/* MODAL: ADD / EDIT LENDER */}
+      {showLenderModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingLenderId ? "Edit Loan Source" : "Add Business Loan Source"}</h3>
+            <form onSubmit={saveLender} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Lender / Source (e.g. Muthoot Gold Loan, Srinivas)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={lenderForm.name}
+                onChange={(e) => setLenderForm({ ...lenderForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Contact Phone"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={lenderForm.mobile}
+                onChange={(e) => setLenderForm({ ...lenderForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Current Outstanding Loan (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                value={lenderForm.initial_loan}
+                onChange={(e) => setLenderForm({ ...lenderForm, initial_loan: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowLenderModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
               </div>
-              <button onClick={() => setSelectedAuditTx(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
-                <Icon name="close" size={20} />
-              </button>
-            </div>
-
-            <div className="py-4 space-y-4 flex-1">
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase block">Party Name</span>
-                <h4 className="font-black text-sm text-slate-900">{selectedAuditTx.partyName}</h4>
-              </div>
-
-              <div>
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Itemized Breakdown</h4>
-                <div className="space-y-2">
-                  {selectedAuditTx.items.map((item, idx) => (
-                    <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center text-xs">
-                      <div>
-                        <span className="font-bold text-slate-900 block">{item.item_name}</span>
-                        <span className="text-[11px] text-slate-400">{item.qty} pcs @ ₹{item.rate}</span>
-                      </div>
-                      <span className="font-black text-slate-900">{money(item.total)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">Total Bill Amount:</span>
-                  <span className="font-bold text-slate-900">{money(selectedAuditTx.totalAmount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">Settled / Paid:</span>
-                  <span className="font-bold text-emerald-600">{money(selectedAuditTx.paidAmount)}</span>
-                </div>
-                <div className="flex justify-between border-t pt-2">
-                  <span className="font-bold text-slate-900">Remaining Balance Due:</span>
-                  <span className="font-black text-rose-600">{money(selectedAuditTx.balanceDue)}</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setSelectedAuditTx(null)}
-              className="w-full py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl"
-            >
-              Close Audit
-            </button>
+            </form>
           </div>
         </div>
       )}
 
-      {/* MODAL: STOCK PICKER */}
-      {pickerActiveIndex !== null && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex justify-between items-center pb-3 border-b">
-              <h3 className="font-black text-base text-slate-900">Select Item Batch</h3>
-              <button type="button" onClick={() => setPickerActiveIndex(null)} className="text-slate-400">
-                <Icon name="close" size={20} />
+      {/* MODAL: RECORD LOAN REPAYMENT */}
+      {showLoanPaymentModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">Repay Business Loan / Interest</h3>
+            <form onSubmit={saveLoanRepayment} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={loanPaymentForm.borrower_id}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, borrower_id: e.target.value })}
+              >
+                <option value="">-- Choose Lender / Loan Source --</option>
+                {lenders.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name} (Due: {money(l.balance_due)})</option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                required
+                placeholder="Repayment Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                value={loanPaymentForm.amount}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={loanPaymentForm.partner_id}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, partner_id: e.target.value })}
+              >
+                <option value="">-- Partner Account Paying --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="Notes / Cheque / Voucher Ref (Optional)"
+                className="w-full p-2 border rounded-xl text-xs"
+                value={loanPaymentForm.notes}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, notes: e.target.value })}
+              />
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowLoanPaymentModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Repayment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
+      {showPayPurchaseModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
+            <form onSubmit={savePurchasePayment} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={payPurchaseForm.purchase_id}
+                onChange={(e) => {
+                  const target = procurements.find((p) => p.id == e.target.value);
+                  const remDue = target ? Math.max(0, Number(target.total_amount || 0) - Number(target.p1_amount || 0)) : "";
+                  setPayPurchaseForm({
+                    ...payPurchaseForm,
+                    purchase_id: e.target.value,
+                    amount: remDue ? String(remDue) : ""
+                  });
+                }}
+              >
+                <option value="">-- Choose Purchase Bill --</option>
+                {procurements
+                  .filter((p) => editingPaymentId || Number(p.total_amount || 0) > Number(p.p1_amount || 0))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.item_name} ({p.supplier_name}) — Total: {money(p.total_amount)}
+                    </option>
+                  ))}
+              </select>
+
+              <input
+                type="number"
+                required
+                placeholder="Payment Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-indigo-600"
+                value={payPurchaseForm.amount}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={payPurchaseForm.partner_id}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, partner_id: e.target.value })}
+              >
+                <option value="">-- Partner Paying Bill --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="Reference No / Voucher (Optional)"
+                className="w-full p-2 border rounded-xl text-xs"
+                value={payPurchaseForm.reference_no}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, reference_no: e.target.value })}
+              />
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowPayPurchaseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Payment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INVOICE-WISE DUE COLLECTION */}
+      {showCollectModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
+            <form onSubmit={saveInvoiceCollection} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={collectForm.customer_id}
+                onChange={(e) => {
+                  const custId = e.target.value;
+                  const firstInv = invoices.find((i) => i.customer_id == custId && Number(i.balance_due || 0) > 0);
+                  setCollectForm({
+                    ...collectForm,
+                    customer_id: custId,
+                    invoice_id: firstInv ? String(firstInv.id) : "",
+                    amount: firstInv ? String(firstInv.balance_due) : ""
+                  });
+                }}
+              >
+                <option value="">-- Choose Customer --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} (Total Due: {money(c.old_due)})</option>
+                ))}
+              </select>
+
+              {collectForm.customer_id && (
+                <select
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                  value={collectForm.invoice_id}
+                  onChange={(e) => {
+                    const inv = invoices.find((i) => i.id == e.target.value);
+                    setCollectForm({
+                      ...collectForm,
+                      invoice_id: e.target.value,
+                      amount: inv ? String(inv.balance_due) : collectForm.amount
+                    });
+                  }}
+                >
+                  <option value="">-- Select Specific Invoice (Optional) --</option>
+                  {invoices
+                    .filter((i) => i.customer_id == collectForm.customer_id && (editingCollectionId || Number(i.balance_due || 0) > 0))
+                    .map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.invoice_number || `INV-${i.id}`} — Due: {money(i.balance_due)}
+                      </option>
+                    ))}
+                </select>
+              )}
+
+              <input
+                type="number"
+                required
+                placeholder="Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
+                value={collectForm.amount}
+                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={collectForm.receiver_id || upfrontPartnerId}
+                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
+              >
+                <option value="">-- Partner Who Received --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Receipt</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT PURCHASES */}
+      {showProcureModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">
+              {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
+            </h3>
+            <form onSubmit={saveProcurement} className="space-y-3">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Supplier / Vendor *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingSupplierId(null);
+                      setSupplierForm({ name: "", mobile: "", old_due: "" });
+                      setShowSupplierModal(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline"
+                  >
+                    + Add New Supplier
+                  </button>
+                </div>
+                <select
+                  required
+                  className="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white"
+                  value={procureForm.supplier_name}
+                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                >
+                  <option value="">-- Choose Supplier --</option>
+                  {uniqueSupplierSuggestions.map((s, idx) => (
+                    <option key={idx} value={s}>{s}</option>
+                  ))}
+                  <option value="Opening Stock">Opening Stock</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Item Name *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItemId(null);
+                      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+                      setShowItemModal(true);
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 hover:underline"
+                  >
+                    + Add New Item
+                  </button>
+                </div>
+                <select
+                  required
+                  className="w-full p-2.5 border rounded-xl text-sm font-bold bg-white"
+                  value={procureForm.item_name}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const matchedItem = uniqueItemSuggestions.find((i) => i.name === selectedName);
+                    setProcureForm({
+                      ...procureForm,
+                      item_name: selectedName,
+                      purchase_rate: matchedItem?.purchase_rate ? String(matchedItem.purchase_rate) : procureForm.purchase_rate,
+                      selling_rate: matchedItem?.selling_rate ? String(matchedItem.selling_rate) : procureForm.selling_rate
+                    });
+                  }}
+                >
+                  <option value="">-- Choose Item --</option>
+                  {uniqueItemSuggestions.map((item, idx) => (
+                    <option key={idx} value={item.name}>{item.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Qty</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Qty"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={procureForm.procured_qty}
+                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Cost Rate"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={procureForm.purchase_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate</label>
+                  <input
+                    type="number"
+                    placeholder="Selling Rate"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
+                    value={procureForm.selling_rate}
+                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-700">
+                  <span>Total Purchase Cost:</span>
+                  <span>{money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}</span>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Paid Now by Partner (Leave 0 if full Due)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-600"
+                    value={procureForm.paid_now}
+                    onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
+                  />
+                </div>
+
+                {Number(procureForm.paid_now || 0) > 0 && (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <select
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      value={procureForm.p1_id}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
+                    >
+                      <option value="">-- Funding Partner --</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      value={procureForm.p1_mode}
+                      onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT ITEM MASTER */}
+      {showItemModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingItemId ? "Edit Item Master" : "Add New Item Master"}</h3>
+            <form onSubmit={saveItem} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Item / Product Name"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold"
+                value={itemForm.name}
+                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={itemForm.purchase_rate}
+                    onChange={(e) => setItemForm({ ...itemForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
+                    value={itemForm.selling_rate}
+                    onChange={(e) => setItemForm({ ...itemForm, selling_rate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Item</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT CUSTOMER */}
+      {showCustModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Customer Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.name}
+                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.mobile}
+                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={custForm.old_due}
+                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT SUPPLIER */}
+      {showSupplierModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
+            <form onSubmit={saveSupplier} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Supplier / Firm Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={supplierForm.name}
+                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={supplierForm.mobile}
+                onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={supplierForm.old_due}
+                onChange={(e) => setSupplierForm({ ...supplierForm, old_due: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Supplier</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT PARTNER */}
+      {showPartnerModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingPartnerId ? "Edit Partner" : "Add Partner"}</h3>
+            <form onSubmit={savePartner} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Partner Name"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={partnerForm.name}
+                onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  placeholder="Opening Cash (₹)"
+                  className="p-2.5 border rounded-xl text-xs"
+                  value={partnerForm.opening_cash}
+                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
+                />
+                <input
+                  type="number"
+                  placeholder="Opening UPI (₹)"
+                  className="p-2.5 border rounded-xl text-xs"
+                  value={partnerForm.opening_upi}
+                  onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT EXPENSE */}
+      {showExpenseModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingExpenseId ? "Edit Shop Expense" : "Record Shop Expense"}</h3>
+            <form onSubmit={saveExpense} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={expenseForm.category_id}
+                onChange={(e) => setExpenseForm({ ...expenseForm, category_id: e.target.value })}
+              >
+                <option value="">-- Choose Category --</option>
+                {expenseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                required
+                placeholder="What was this expense for?"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={expenseForm.title}
+                onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
+              />
+              <input
+                type="number"
+                required
+                placeholder="Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                value={expenseForm.amount}
+                onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+              />
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={expenseForm.paid_by_id}
+                onChange={(e) => setExpenseForm({ ...expenseForm, paid_by_id: e.target.value })}
+              >
+                <option value="">-- Partner Who Paid --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowExpenseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Expense</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EXPENSE CATEGORIES */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-base text-slate-900">Expense Categories</h3>
+              <button type="button" onClick={() => setShowCategoryModal(false)} className="text-slate-400">
+                <Icon name="close" size={18} />
               </button>
             </div>
-            <input
-              type="text"
-              placeholder="Search items..."
-              className="w-full my-3 p-2.5 border border-slate-200 rounded-xl text-xs font-semibold outline-none"
-              value={stockSearchQuery}
-              onChange={(e) => setStockSearchQuery(e.target.value)}
-            />
-            <div className="overflow-y-auto space-y-2 flex-1">
-              {procurements
-                .filter((p) => Number(p.remaining_qty) > 0)
-                .filter((p) => !stockSearchQuery || p.item_name?.toLowerCase().includes(stockSearchQuery.toLowerCase()))
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handlePickStockItem(item)}
-                    className="p-3 border rounded-xl hover:border-indigo-500 cursor-pointer flex justify-between items-center"
-                  >
-                    <div>
-                      <h4 className="font-black text-sm text-slate-900">{item.item_name}</h4>
-                      <span className="text-xs text-slate-400">Rate: ₹{item.selling_rate || item.purchase_rate}</span>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-600">{item.remaining_qty} in stock</span>
-                  </div>
-                ))}
+            <form onSubmit={saveCategory} className="flex gap-2">
+              <input
+                type="text"
+                required
+                placeholder="New Category Name..."
+                className="flex-1 p-2.5 border rounded-xl text-xs"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+              />
+              <button type="submit" className="px-3 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl">Add</button>
+            </form>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {expenseCategories.map((c) => (
+                <div key={c.id} className="p-2.5 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
+                  <span>{c.name}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
