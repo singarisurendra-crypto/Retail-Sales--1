@@ -87,13 +87,8 @@ const Icon = ({ name, size = 18, className = "" }) => {
   );
 };
 
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  "https://yfptlgypcmykkwxnzgcw.supabase.co";
-const supabaseKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
-
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yfptlgypcmykkwxnzgcw.supabase.co";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
 const db = createClient(supabaseUrl, supabaseKey);
 
 const money = (n) =>
@@ -117,8 +112,8 @@ export default function App() {
   const [collections, setCollections] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [expenseCategories, setExpenseCategories] = useState([]);
-  const [borrowers, setBorrowers] = useState([]);
-  const [borrowerTx, setBorrowerTx] = useState([]);
+  const [lenders, setLenders] = useState([]);
+  const [loanTransactions, setLoanTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -131,35 +126,42 @@ export default function App() {
   const [showPayPurchaseModal, setShowPayPurchaseModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showBorrowerModal, setShowBorrowerModal] = useState(false);
-  const [showBorrowerTxModal, setShowBorrowerTxModal] = useState(false);
+  const [showLenderModal, setShowLenderModal] = useState(false);
+  const [showLoanPaymentModal, setShowLoanPaymentModal] = useState(false);
 
-  // Stock Picker Modal
+  // Search & Filter State
+  const [masterSearchQuery, setMasterSearchQuery] = useState("");
   const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
-
-  // Audit Inspection State
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
   const [auditFilterType, setAuditFilterType] = useState("all");
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
 
-  // Customer Form
+  // Forms
   const [editingCustId, setEditingCustId] = useState(null);
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
-  // Supplier Form
   const [editingSupplierId, setEditingSupplierId] = useState(null);
   const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "" });
 
-  // Item Form
   const [editingItemId, setEditingItemId] = useState(null);
   const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "" });
 
-  // Partner Form
   const [editingPartnerId, setEditingPartnerId] = useState(null);
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
 
-  // Purchase Form
+  const [editingLenderId, setEditingLenderId] = useState(null);
+  const [lenderForm, setLenderForm] = useState({ name: "", mobile: "", initial_loan: "" });
+
+  const [loanPaymentForm, setLoanPaymentForm] = useState({
+    borrower_id: "",
+    amount: "",
+    payment_mode: "Cash",
+    partner_id: "",
+    notes: "",
+    tx_date: new Date().toISOString().split("T")[0]
+  });
+
   const [editingProcureId, setEditingProcureId] = useState(null);
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
@@ -173,7 +175,6 @@ export default function App() {
     p1_mode: "Cash"
   });
 
-  // Pay Supplier Purchase Bill Form
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [payPurchaseForm, setPayPurchaseForm] = useState({
     purchase_id: "",
@@ -184,7 +185,6 @@ export default function App() {
     notes: ""
   });
 
-  // Expense Form
   const [editingExpenseId, setEditingExpenseId] = useState(null);
   const [expenseForm, setExpenseForm] = useState({
     title: "",
@@ -197,20 +197,6 @@ export default function App() {
   });
   const [newCatName, setNewCatName] = useState("");
 
-  // Borrower Form
-  const [editingBorrowerId, setEditingBorrowerId] = useState(null);
-  const [borrowerForm, setBorrowerForm] = useState({ name: "", mobile: "", initial_due: "" });
-  const [borrowerTxForm, setBorrowerTxForm] = useState({
-    borrower_id: "",
-    tx_type: "Given",
-    amount: "",
-    payment_mode: "Cash",
-    partner_id: "",
-    notes: "",
-    tx_date: new Date().toISOString().split("T")[0]
-  });
-
-  // Due Collection Form
   const [editingCollectionId, setEditingCollectionId] = useState(null);
   const [collectForm, setCollectForm] = useState({
     customer_id: "",
@@ -256,7 +242,6 @@ export default function App() {
       ]);
 
       if (p.data) {
-        // Strictly filter out the unwanted system drawers
         const cleanPartners = p.data.filter((item) => {
           const lower = (item.name || "").toLowerCase().trim();
           return lower !== "main cash drawer" && lower !== "store upi";
@@ -270,8 +255,8 @@ export default function App() {
       if (col.data) setCollections(col.data);
       if (exp.data) setExpenses(exp.data);
       if (cats.data) setExpenseCategories(cats.data);
-      if (b.data) setBorrowers(b.data);
-      if (bTx.data) setBorrowerTx(bTx.data);
+      if (b.data) setLenders(b.data);
+      if (bTx.data) setLoanTransactions(bTx.data);
       if (sup.data) setSuppliers(sup.data);
       if (itemsRes.data) setMasterItems(itemsRes.data);
     } catch (e) {
@@ -321,6 +306,7 @@ export default function App() {
     return Array.from(set);
   }, [suppliers, procurements]);
 
+  // Partner Accounts Calculation (Updated: Loan repayments are OUTFLOWS paid by business)
   const partnerAccounts = useMemo(() => {
     return partners.map((partner) => {
       const pid = partner.id;
@@ -359,22 +345,24 @@ export default function App() {
         .filter((e) => e.paid_by_id == pid && e.payment_mode === "UPI")
         .reduce((s, e) => s + Number(e.amount || 0), 0);
 
-      const bGivenCash = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Given" && b.payment_mode === "Cash")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
-      const bGivenUpi = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Given" && b.payment_mode === "UPI")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
+      // Business Loan Repayments (Money paid out to Lenders)
+      const loanPaidCash = loanTransactions
+        .filter((tx) => tx.partner_id == pid && tx.tx_type === "Repayment" && tx.payment_mode === "Cash")
+        .reduce((s, tx) => s + Number(tx.amount || 0), 0);
+      const loanPaidUpi = loanTransactions
+        .filter((tx) => tx.partner_id == pid && tx.tx_type === "Repayment" && tx.payment_mode === "UPI")
+        .reduce((s, tx) => s + Number(tx.amount || 0), 0);
 
-      const bRecCash = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Received" && b.payment_mode === "Cash")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
-      const bRecUpi = borrowerTx
-        .filter((b) => b.partner_id == pid && b.tx_type === "Received" && b.payment_mode === "UPI")
-        .reduce((s, b) => s + Number(b.amount || 0), 0);
+      // Inflow when new business loan is taken
+      const loanTakenCash = loanTransactions
+        .filter((tx) => tx.partner_id == pid && tx.tx_type === "LoanTaken" && tx.payment_mode === "Cash")
+        .reduce((s, tx) => s + Number(tx.amount || 0), 0);
+      const loanTakenUpi = loanTransactions
+        .filter((tx) => tx.partner_id == pid && tx.tx_type === "LoanTaken" && tx.payment_mode === "UPI")
+        .reduce((s, tx) => s + Number(tx.amount || 0), 0);
 
-      const netCash = initCash + saleCash + colCash + bRecCash - procCash - expCash - bGivenCash;
-      const netUpi = initUpi + saleUpi + colUpi + bRecUpi - procUpi - expUpi - bGivenUpi;
+      const netCash = initCash + saleCash + colCash + loanTakenCash - procCash - expCash - loanPaidCash;
+      const netUpi = initUpi + saleUpi + colUpi + loanTakenUpi - procUpi - expUpi - loanPaidUpi;
 
       return {
         ...partner,
@@ -385,12 +373,13 @@ export default function App() {
         totalBalance: netCash + netUpi
       };
     });
-  }, [partners, invoices, collections, procurements, expenses, borrowerTx]);
+  }, [partners, invoices, collections, procurements, expenses, loanTransactions]);
 
+  // Overall Business Statement Summary
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
-    const totalDebts = borrowers.reduce((s, b) => s + Number(b.balance_due || 0), 0);
+    const totalLoansPayable = lenders.reduce((s, l) => s + Number(l.balance_due || 0), 0);
     const totalPurchaseDues = procurements.reduce((s, p) => {
       const total = Number(p.total_amount || 0);
       const paid = Number(p.p1_amount || 0);
@@ -402,14 +391,13 @@ export default function App() {
     );
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
-    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalDebts + totalPurchaseDues + totalExpenses);
+    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalLoansPayable + totalPurchaseDues + totalExpenses);
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    return { totalSales, totalCustomerDues, totalDebts, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
-  }, [invoices, customers, borrowers, procurements, expenses, partnerAccounts]);
+    return { totalSales, totalCustomerDues, totalLoansPayable, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
+  }, [invoices, customers, lenders, procurements, expenses, partnerAccounts]);
 
-  // Combined Unified Transaction Audit Stream
   const combinedAuditTransactions = useMemo(() => {
     const invList = invoices.map((i) => ({
       txType: "sale",
@@ -622,7 +610,7 @@ export default function App() {
   const handleEditInvoice = (inv) => {
     const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
     if (isCollected) {
-      return alert("This invoice is fully Collected and locked from edits. Delete or edit the collection receipts in Payments & Collections first.");
+      return alert("This invoice is fully Collected and locked from edits.");
     }
 
     setEditingInvoiceId(inv.id);
@@ -671,7 +659,7 @@ Thank you for your business!`;
     window.open(targetUrl, "_blank");
   };
 
-  // DUE COLLECTIONS
+  // CUSTOMER DUES COLLECTIONS
   const handleEditCollection = (col) => {
     setEditingCollectionId(col.id);
     setCollectForm({
@@ -687,7 +675,7 @@ Thank you for your business!`;
   };
 
   const handleDeleteCollection = async (col) => {
-    if (!confirm(`Delete collection receipt of ₹${col.amount}? This will restore the customer and invoice dues, unlocking the invoice for edit.`)) return;
+    if (!confirm(`Delete collection receipt of ₹${col.amount}?`)) return;
 
     try {
       const amt = Number(col.amount || 0);
@@ -784,7 +772,7 @@ Thank you for your business!`;
           await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
         }
 
-        alert(`Collection receipt recorded (${refNo})!`);
+        alert(`Collection recorded (${refNo})!`);
       }
 
       setShowCollectModal(false);
@@ -795,7 +783,7 @@ Thank you for your business!`;
     }
   };
 
-  // BILL-WISE PURCHASE PAYMENT
+  // PURCHASES PAYMENTS
   const handleEditPurchasePayment = (p) => {
     setEditingPaymentId(p.id);
     setPayPurchaseForm({
@@ -810,7 +798,7 @@ Thank you for your business!`;
   };
 
   const handleDeletePurchasePayment = async (p) => {
-    if (!confirm(`Void payment for purchase bill "${p.item_name}"? This restores the supplier due to full.`)) return;
+    if (!confirm(`Void payment for purchase bill "${p.item_name}"?`)) return;
 
     try {
       await db.from("procurements").update({
@@ -818,7 +806,7 @@ Thank you for your business!`;
         p1_id: null
       }).eq("id", p.id);
 
-      alert("Purchase payment voided! Bill restored to unpaid.");
+      alert("Purchase payment voided!");
       refreshData();
     } catch (err) {
       alert("Error deleting payment: " + err.message);
@@ -847,17 +835,9 @@ Thank you for your business!`;
         p1_mode: payPurchaseForm.payment_mode
       }).eq("id", targetP.id);
 
-      alert(`Purchase bill payment recorded! Remaining due: ${money(currentTotal - amt)}`);
+      alert(`Purchase payment recorded!`);
       setShowPayPurchaseModal(false);
       setEditingPaymentId(null);
-      setPayPurchaseForm({
-        purchase_id: "",
-        amount: "",
-        partner_id: upfrontPartnerId || "",
-        payment_mode: "Cash",
-        reference_no: "",
-        notes: ""
-      });
       refreshData();
     } catch (err) {
       alert("Error recording payment: " + err.message);
@@ -874,8 +854,7 @@ Thank you for your business!`;
   const handleDeleteCustomer = async (c) => {
     if (!confirm(`Delete customer "${c.name}"?`)) return;
     try {
-      const { error } = await db.from("customers").delete().eq("id", c.id);
-      if (error) throw error;
+      await db.from("customers").delete().eq("id", c.id);
       alert("Customer deleted!");
       refreshData();
     } catch (err) {
@@ -913,8 +892,7 @@ Thank you for your business!`;
   const handleDeleteSupplier = async (s) => {
     if (!confirm(`Delete supplier "${s.name}"?`)) return;
     try {
-      const { error } = await db.from("suppliers").delete().eq("id", s.id);
-      if (error) throw error;
+      await db.from("suppliers").delete().eq("id", s.id);
       alert("Supplier deleted!");
       refreshData();
     } catch (err) {
@@ -959,11 +937,10 @@ Thank you for your business!`;
   };
 
   const handleDeleteItem = async (item) => {
-    if (!confirm(`Delete item "${item.name}" from items master?`)) return;
+    if (!confirm(`Delete item "${item.name}" from master?`)) return;
     try {
-      const { error } = await db.from("items").delete().eq("id", item.id);
-      if (error) throw error;
-      alert("Item deleted from master!");
+      await db.from("items").delete().eq("id", item.id);
+      alert("Item deleted!");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1000,7 +977,7 @@ Thank you for your business!`;
     }
   };
 
-  // PARTNER HANDLERS (With Delete!)
+  // PARTNER HANDLERS
   const handleEditPartner = (p) => {
     setEditingPartnerId(p.id);
     setPartnerForm({
@@ -1014,9 +991,8 @@ Thank you for your business!`;
   const handleDeletePartner = async (p) => {
     if (!confirm(`Permanently delete partner "${p.name}"?`)) return;
     try {
-      const { error } = await db.from("receivers").delete().eq("id", p.id);
-      if (error) throw error;
-      alert("Partner deleted successfully!");
+      await db.from("receivers").delete().eq("id", p.id);
+      alert("Partner deleted!");
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1047,161 +1023,92 @@ Thank you for your business!`;
     }
   };
 
-  // EXPENSE HANDLERS
-  const handleEditExpense = (exp) => {
-    setEditingExpenseId(exp.id);
-    setExpenseForm({
-      title: exp.title || "",
-      category_id: exp.category_id ? String(exp.category_id) : "",
-      amount: exp.amount || "",
-      payment_mode: exp.payment_mode || "Cash",
-      paid_by_id: exp.paid_by_id ? String(exp.paid_by_id) : "",
-      expense_date: exp.expense_date || new Date().toISOString().split("T")[0],
-      notes: exp.notes || ""
+  // BUSINESS LOANS / LENDER HANDLERS (Business Takes Loan, Pays Back Principal/Interest)
+  const handleEditLender = (l) => {
+    setEditingLenderId(l.id);
+    setLenderForm({
+      name: l.name || "",
+      mobile: l.mobile || "",
+      initial_loan: l.balance_due || l.total_borrowed || ""
     });
-    setShowExpenseModal(true);
+    setShowLenderModal(true);
   };
 
-  const handleDeleteExpense = async (exp) => {
-    if (!confirm(`Delete expense "${exp.title}" of ₹${exp.amount}?`)) return;
+  const handleDeleteLender = async (l) => {
+    if (!confirm(`Delete lender account "${l.name}"?`)) return;
     try {
-      await db.from("expenses").delete().eq("id", exp.id);
-      alert("Expense deleted!");
+      await db.from("borrower_transactions").delete().eq("borrower_id", l.id);
+      await db.from("borrowers").delete().eq("id", l.id);
+      alert("Lender record deleted!");
       refreshData();
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const saveExpense = async (e) => {
+  const saveLender = async (e) => {
     e.preventDefault();
-    const amt = Number(expenseForm.amount || 0);
-    if (amt <= 0) return alert("Enter a valid amount");
-    if (!expenseForm.paid_by_id) return alert("Select which partner paid");
-
-    const cat = expenseCategories.find((c) => c.id == expenseForm.category_id);
-    const payload = {
-      title: expenseForm.title.trim(),
-      category_id: expenseForm.category_id ? Number(expenseForm.category_id) : null,
-      category_name: cat ? cat.name : "General",
-      amount: amt,
-      payment_mode: expenseForm.payment_mode,
-      paid_by_id: Number(expenseForm.paid_by_id),
-      expense_date: expenseForm.expense_date,
-      notes: expenseForm.notes.trim()
-    };
+    if (!lenderForm.name.trim()) return alert("Enter lender or finance source name");
+    const initialAmount = Number(lenderForm.initial_loan || 0);
 
     try {
-      if (editingExpenseId) {
-        await db.from("expenses").update(payload).eq("id", editingExpenseId);
-        alert("Expense updated!");
-      } else {
-        await db.from("expenses").insert([payload]);
-        alert("Expense recorded!");
-      }
-      setShowExpenseModal(false);
-      setEditingExpenseId(null);
-      refreshData();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const saveCategory = async (e) => {
-    e.preventDefault();
-    if (!newCatName.trim()) return;
-    try {
-      await db.from("expense_categories").insert([{ name: newCatName.trim() }]);
-      setNewCatName("");
-      refreshData();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  // BORROWER HANDLERS
-  const handleEditBorrower = (b) => {
-    setEditingBorrowerId(b.id);
-    setBorrowerForm({ name: b.name, mobile: b.mobile || "", initial_due: b.balance_due || b.total_borrowed || "" });
-    setShowBorrowerModal(true);
-  };
-
-  const handleDeleteBorrower = async (b) => {
-    if (!confirm(`Delete borrower "${b.name}"?`)) return;
-    try {
-      await db.from("borrower_transactions").delete().eq("borrower_id", b.id);
-      await db.from("borrowers").delete().eq("id", b.id);
-      alert("Borrower deleted!");
-      refreshData();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  const saveBorrower = async (e) => {
-    e.preventDefault();
-    if (!borrowerForm.name.trim()) return alert("Borrower name is required");
-    const initialDue = Number(borrowerForm.initial_due || 0);
-
-    try {
-      if (editingBorrowerId) {
+      if (editingLenderId) {
         await db.from("borrowers").update({
-          name: borrowerForm.name.trim(),
-          mobile: borrowerForm.mobile.trim(),
-          balance_due: initialDue
-        }).eq("id", editingBorrowerId);
-        alert("Borrower updated!");
+          name: lenderForm.name.trim(),
+          mobile: lenderForm.mobile.trim(),
+          balance_due: initialAmount
+        }).eq("id", editingLenderId);
+        alert("Lender updated!");
       } else {
         await db.from("borrowers").insert([{
-          name: borrowerForm.name.trim(),
-          mobile: borrowerForm.mobile.trim(),
-          total_borrowed: initialDue,
-          balance_due: initialDue
+          name: lenderForm.name.trim(),
+          mobile: lenderForm.mobile.trim(),
+          total_borrowed: initialAmount,
+          balance_due: initialAmount
         }]);
-        alert("Borrower added!");
+        alert("Lender added!");
       }
-      setShowBorrowerModal(false);
-      setEditingBorrowerId(null);
+      setShowLenderModal(false);
+      setEditingLenderId(null);
+      setLenderForm({ name: "", mobile: "", initial_loan: "" });
       refreshData();
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const saveBorrowerTransaction = async (e) => {
+  const saveLoanRepayment = async (e) => {
     e.preventDefault();
-    const amt = Number(borrowerTxForm.amount || 0);
-    if (amt <= 0) return alert("Enter valid loan amount");
+    const amt = Number(loanPaymentForm.amount || 0);
+    if (amt <= 0) return alert("Enter valid repayment amount");
+    if (!loanPaymentForm.partner_id) return alert("Select which partner account is paying");
 
     try {
       await db.from("borrower_transactions").insert([{
-        borrower_id: Number(borrowerTxForm.borrower_id),
-        tx_type: borrowerTxForm.tx_type,
+        borrower_id: Number(loanPaymentForm.borrower_id),
+        tx_type: "Repayment", // Strictly outward repayment to lender
         amount: amt,
-        payment_mode: borrowerTxForm.payment_mode,
-        partner_id: Number(borrowerTxForm.partner_id),
-        notes: borrowerTxForm.notes.trim(),
-        tx_date: borrowerTxForm.tx_date
+        payment_mode: loanPaymentForm.payment_mode,
+        partner_id: Number(loanPaymentForm.partner_id),
+        notes: loanPaymentForm.notes.trim(),
+        tx_date: loanPaymentForm.tx_date
       }]);
 
-      const targetB = borrowers.find((b) => b.id == borrowerTxForm.borrower_id);
-      if (targetB) {
-        let newBorrowed = Number(targetB.total_borrowed || 0);
-        let newRepaid = Number(targetB.total_repaid || 0);
-
-        if (borrowerTxForm.tx_type === "Given") newBorrowed += amt;
-        else newRepaid += amt;
+      const targetL = lenders.find((l) => l.id == loanPaymentForm.borrower_id);
+      if (targetL) {
+        const currentBal = Number(targetL.balance_due || targetL.total_borrowed || 0);
+        const newBal = Math.max(0, currentBal - amt);
+        const newRepaid = Number(targetL.total_repaid || 0) + amt;
 
         await db.from("borrowers").update({
-          total_borrowed: newBorrowed,
           total_repaid: newRepaid,
-          balance_due: Math.max(0, newBorrowed - newRepaid)
-        }).eq("id", targetB.id);
+          balance_due: newBal
+        }).eq("id", targetL.id);
       }
 
-      setShowBorrowerTxModal(false);
+      setShowLoanPaymentModal(false);
       refreshData();
-      alert("Loan transaction saved!");
+      alert("Loan repayment recorded!");
     } catch (err) {
       alert(err.message);
     }
@@ -1213,7 +1120,7 @@ Thank you for your business!`;
     const paid = Number(p.p1_amount || 0);
     const isPaid = paid >= total && total > 0;
     if (isPaid) {
-      return alert("This purchase bill is fully Paid and locked from edits. Void the payment in Payments & Collections first.");
+      return alert("This purchase bill is fully Paid and locked from edits.");
     }
 
     setEditingProcureId(p.id);
@@ -1275,7 +1182,7 @@ Thank you for your business!`;
         alert("Purchase record updated!");
       } else {
         await db.from("procurements").insert([payload]);
-        alert(`Purchase saved! Supplier Due: ${money(total - paidNowNum)}`);
+        alert(`Purchase saved!`);
       }
       setShowProcureModal(false);
       setEditingProcureId(null);
@@ -1284,6 +1191,31 @@ Thank you for your business!`;
       alert(err.message);
     }
   };
+
+  // Filtered Masters Collections
+  const filteredCustomers = useMemo(() => {
+    if (!masterSearchQuery) return customers;
+    const q = masterSearchQuery.toLowerCase();
+    return customers.filter((c) => c.name?.toLowerCase().includes(q) || c.mobile?.includes(q));
+  }, [customers, masterSearchQuery]);
+
+  const filteredSuppliers = useMemo(() => {
+    if (!masterSearchQuery) return suppliers;
+    const q = masterSearchQuery.toLowerCase();
+    return suppliers.filter((s) => s.name?.toLowerCase().includes(q) || s.mobile?.includes(q));
+  }, [suppliers, masterSearchQuery]);
+
+  const filteredItems = useMemo(() => {
+    if (!masterSearchQuery) return uniqueItemSuggestions;
+    const q = masterSearchQuery.toLowerCase();
+    return uniqueItemSuggestions.filter((i) => i.name?.toLowerCase().includes(q));
+  }, [uniqueItemSuggestions, masterSearchQuery]);
+
+  const filteredLenders = useMemo(() => {
+    if (!masterSearchQuery) return lenders;
+    const q = masterSearchQuery.toLowerCase();
+    return lenders.filter((l) => l.name?.toLowerCase().includes(q) || l.mobile?.includes(q));
+  }, [lenders, masterSearchQuery]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-800 antialiased">
@@ -1298,125 +1230,137 @@ Thank you for your business!`;
         </button>
       </header>
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR (Grouped by Business Logic) */}
       <aside
         className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-slate-900 text-slate-300 flex flex-col justify-between z-40 transition-transform duration-200 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         <div className="overflow-y-auto">
-          <div className="p-6 border-b border-slate-800 hidden md:flex items-center gap-3">
+          {/* Logo Brand */}
+          <div className="p-5 border-b border-slate-800 hidden md:flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
               B
             </div>
             <div>
-              <h1 className="font-black text-white text-base tracking-wide">B REDDY SALES</h1>
-              <p className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold">Wholesale & Retail</p>
+              <h1 className="font-black text-white text-base tracking-wide leading-tight">B REDDY SALES</h1>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Wholesale & Retail</p>
             </div>
           </div>
 
-          <nav className="p-3 space-y-1 mt-2">
-            <button
-              onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "sale" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="cart" size={18} /> Point of Sale (Billing)
-            </button>
+          <nav className="p-3 space-y-4 mt-1">
+            {/* GROUP 1: OPERATIONS */}
+            <div>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Sales & Purchases</span>
+              <div className="space-y-1">
+                <button
+                  onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "sale" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="cart" size={17} /> Point of Sale (Billing)
+                </button>
+                <button
+                  onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "invoices" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="invoice" size={17} /> Sales Invoices Directory
+                </button>
+                <button
+                  onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "procurement" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="package" size={17} /> Purchases & Stock
+                </button>
+                <button
+                  onClick={() => { setActiveTab("payments_collections"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "payments_collections" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="receipt" size={17} /> Payments & Collections
+                </button>
+              </div>
+            </div>
 
-            <button
-              onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "summary" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="dashboard" size={18} /> Business Summary
-            </button>
+            {/* GROUP 2: FINANCIALS & LEDGERS */}
+            <div>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Financials & Accounts</span>
+              <div className="space-y-1">
+                <button
+                  onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "summary" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="dashboard" size={17} /> Business Snapshot
+                </button>
+                <button
+                  onClick={() => { setActiveTab("history_audit"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "history_audit" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="history" size={17} /> Transaction Audit Ledger
+                </button>
+                <button
+                  onClick={() => { setActiveTab("lenders"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "lenders" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="handcoins" size={17} /> Business Loans (అప్పులు)
+                </button>
+                <button
+                  onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "expenses" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="creditcard" size={17} /> Shop Expenses & Outflow
+                </button>
+                <button
+                  onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "reports" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="filetext" size={17} /> B Reddy Excel Sheet (PDF)
+                </button>
+              </div>
+            </div>
 
-            <button
-              onClick={() => { setActiveTab("history_audit"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "history_audit" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="history" size={18} /> History & Audit Ledger
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("payments_collections"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "payments_collections" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="receipt" size={18} /> Payments & Collections
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "invoices" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="invoice" size={18} /> Invoices Directory
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "procurement" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="package" size={18} /> Purchases & Stock
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("masters"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "masters" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="layers" size={18} /> Master Management
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("borrowers"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "borrowers" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="handcoins" size={18} /> Borrowers (Loans)
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "expenses" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="creditcard" size={18} /> Expenses & Cash Out
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "reports" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="filetext" size={18} /> Excel Report (PDF)
-            </button>
-
-            <button
-              onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition ${
-                activeTab === "partners" ? "bg-indigo-600 text-white shadow-md" : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <Icon name="wallet" size={18} /> Partner Accounts
-            </button>
+            {/* GROUP 3: MASTERS & CONFIG */}
+            <div>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Administration</span>
+              <div className="space-y-1">
+                <button
+                  onClick={() => { setActiveTab("masters"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "masters" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="layers" size={17} /> Master Management
+                </button>
+                <button
+                  onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "partners" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="wallet" size={17} /> Partner Capital Accounts
+                </button>
+              </div>
+            </div>
           </nav>
         </div>
 
+        {/* Quick Drawer Action Buttons */}
         <div className="p-4 border-t border-slate-800 space-y-2">
           <button
             onClick={() => {
@@ -1445,7 +1389,7 @@ Thank you for your business!`;
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-xs" />}
 
-      {/* MAIN VIEW */}
+      {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
@@ -1645,10 +1589,9 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 2: REDESIGNED CLEAN BUSINESS SUMMARY (MOBILE & DESKTOP) */}
+        {/* VIEW 2: BUSINESS SNAPSHOT */}
         {activeTab === "summary" && (
           <div className="space-y-6">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Business Financial Snapshot</h2>
@@ -1662,67 +1605,41 @@ Thank you for your business!`;
               </button>
             </div>
 
-            {/* Top 4 Core Metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
-              {/* Sales */}
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Sales Invoiced</span>
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                    <Icon name="cart" size={15} />
-                  </div>
-                </div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales Invoiced</span>
                 <h3 className="text-2xl font-black text-slate-900 mt-2 tracking-tight">{money(businessSummary.totalSales)}</h3>
                 <span className="text-[11px] font-semibold text-slate-400 mt-1 block">Cumulative gross sales</span>
               </div>
 
-              {/* Customer Dues */}
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Customer Dues (కస్టమర్ బ్యాలెన్స్)</span>
-                  <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                    <Icon name="users" size={15} />
-                  </div>
-                </div>
+                <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider block">Customer Dues (కస్టమర్ బ్యాలెన్స్)</span>
                 <h3 className="text-2xl font-black text-rose-600 mt-2 tracking-tight">{money(businessSummary.totalCustomerDues)}</h3>
                 <span className="text-[11px] font-semibold text-rose-400 mt-1 block">Pending market receivables</span>
               </div>
 
-              {/* Debts & Purchases */}
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider">Debts & Purchase Dues (అప్పులు)</span>
-                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <Icon name="handcoins" size={15} />
-                  </div>
-                </div>
+                <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider block">Debts & Purchase Dues (అప్పులు)</span>
                 <h3 className="text-2xl font-black text-amber-600 mt-2 tracking-tight">
-                  {money(businessSummary.totalDebts + businessSummary.totalPurchaseDues)}
+                  {money(businessSummary.totalLoansPayable + businessSummary.totalPurchaseDues)}
                 </h3>
-                <span className="text-[11px] font-semibold text-amber-400 mt-1 block">Loans + Supplier Payables</span>
+                <span className="text-[11px] font-semibold text-amber-400 mt-1 block">External Loans + Supplier Payables</span>
               </div>
 
-              {/* Net Profit */}
               <div className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-600/20 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100">Net Business Profit (లాభం)</span>
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/50 text-white flex items-center justify-center">
-                    <Icon name="rupee" size={15} />
-                  </div>
-                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 block">Net Business Profit (లాభం)</span>
                 <h3 className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">{money(businessSummary.bReddyNetProfit)}</h3>
                 <span className="text-[11px] font-bold text-emerald-200 mt-1 block">Receivables + Stock - Payables</span>
               </div>
             </div>
 
-            {/* Operating Partner Cash & UPI in Hand (Drawer & Store UPI removed completely) */}
+            {/* Operating Partner Liquidity */}
             <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="font-black text-base text-slate-900">Partner Cash / UPI In-Hand</h3>
                   <p className="text-xs text-slate-400">Actual physical cash and UPI holdings tied strictly to active partners</p>
                 </div>
-                {/* Total Combined Liquidity */}
                 <div className="flex items-center gap-3 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
                   <span className="text-xs font-bold text-slate-500">Total Liquid Funds:</span>
                   <span className="font-black text-sm text-slate-900">{money(businessSummary.totalCash + businessSummary.totalUpi)}</span>
@@ -1746,53 +1663,16 @@ Thank you for your business!`;
 
                     <div className="grid grid-cols-2 gap-2.5 text-xs pt-1">
                       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold">
-                          <span>💵</span> Physical Cash
-                        </div>
+                        <span className="text-slate-400 text-[11px] font-bold block">💵 Physical Cash</span>
                         <p className="font-black text-base text-emerald-600 mt-1">{money(p.netCash)}</p>
                       </div>
                       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold">
-                          <span>📱</span> UPI / Bank
-                        </div>
+                        <span className="text-slate-400 text-[11px] font-bold block">📱 UPI / Bank</span>
                         <p className="font-black text-base text-indigo-600 mt-1">{money(p.netUpi)}</p>
                       </div>
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* Quick Secondary Financial Indicators */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
-              <div className="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-xs">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Stock Valuation</span>
-                  <span className="text-sm font-black text-slate-900 mt-0.5 block">{money(businessSummary.stockValuation)}</span>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xs">
-                  <Icon name="package" size={16} />
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-xs">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Shop & Other Expenses</span>
-                  <span className="text-sm font-black text-rose-600 mt-0.5 block">{money(businessSummary.totalExpenses)}</span>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 font-bold text-xs">
-                  <Icon name="creditcard" size={16} />
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-white border border-slate-200 flex justify-between items-center shadow-xs">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Supplier Purchase Dues</span>
-                  <span className="text-sm font-black text-amber-600 mt-0.5 block">{money(businessSummary.totalPurchaseDues)}</span>
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 font-bold text-xs">
-                  <Icon name="truck" size={16} />
-                </div>
               </div>
             </div>
           </div>
@@ -1805,7 +1685,7 @@ Thank you for your business!`;
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Transaction History & Audit Ledger</h2>
-                  <p className="text-xs text-slate-500">Select any transaction row to inspect its full itemized breakdown and settlement history.</p>
+                  <p className="text-xs text-slate-500">Drill into any sales or purchase bill to inspect line items and payment settlements.</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto">
@@ -1819,13 +1699,13 @@ Thank you for your business!`;
                     onClick={() => setAuditFilterType("sale")}
                     className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg ${auditFilterType === "sale" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
                   >
-                    Sales Only
+                    Sales
                   </button>
                   <button
                     onClick={() => setAuditFilterType("purchase")}
                     className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg ${auditFilterType === "purchase" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
                   >
-                    Purchases Only
+                    Purchases
                   </button>
                 </div>
               </div>
@@ -1850,7 +1730,7 @@ Thank you for your business!`;
                       <th className="p-3">Doc #</th>
                       <th className="p-3">Type</th>
                       <th className="p-3">Date</th>
-                      <th className="p-3">Party (Customer / Supplier)</th>
+                      <th className="p-3">Party</th>
                       <th className="p-3 text-right">Total (₹)</th>
                       <th className="p-3 text-right">Paid (₹)</th>
                       <th className="p-3 text-right">Balance Due</th>
@@ -1888,13 +1768,6 @@ Thank you for your business!`;
                         </td>
                       </tr>
                     ))}
-                    {combinedAuditTransactions.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="p-6 text-center text-slate-400">
-                          No transactions found matching your filter criteria.
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>
@@ -1902,274 +1775,321 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 4: UNIFIED MASTERS HUB */}
+        {/* VIEW 4: REDESIGNED MASTER MANAGEMENT HUB (MODERN CARD VIEW WITH LIVE SEARCH) */}
         {activeTab === "masters" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+            {/* Header & Sub-Tab Switcher */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 pb-4 border-b border-slate-100">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Master Creation Hub</h2>
-                <p className="text-xs text-slate-500">Configure master records for Customers, Suppliers, Items, Borrowers, Partners, and Expense Categories.</p>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Master Creation Hub</h2>
+                <p className="text-xs text-slate-500">Configure entities, catalogue prices, and financial accounts</p>
               </div>
-              <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+
+              {/* Sub-tab Pills */}
+              <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold w-full lg:w-auto">
                 <button
-                  onClick={() => setMastersSubTab("customers")}
-                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "customers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                  onClick={() => { setMastersSubTab("customers"); setMasterSearchQuery(""); }}
+                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
+                    mastersSubTab === "customers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
                   Customers ({customers.length})
                 </button>
                 <button
-                  onClick={() => setMastersSubTab("suppliers")}
-                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "suppliers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                  onClick={() => { setMastersSubTab("suppliers"); setMasterSearchQuery(""); }}
+                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
+                    mastersSubTab === "suppliers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
                   Suppliers ({suppliers.length})
                 </button>
                 <button
-                  onClick={() => setMastersSubTab("items")}
-                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "items" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                  onClick={() => { setMastersSubTab("items"); setMasterSearchQuery(""); }}
+                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
+                    mastersSubTab === "items" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                  Items / Products ({uniqueItemSuggestions.length})
+                  Items ({uniqueItemSuggestions.length})
                 </button>
                 <button
-                  onClick={() => setMastersSubTab("borrowers")}
-                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "borrowers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                  onClick={() => { setMastersSubTab("lenders"); setMasterSearchQuery(""); }}
+                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
+                    mastersSubTab === "lenders" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
-                  Borrowers ({borrowers.length})
+                  Lenders ({lenders.length})
                 </button>
                 <button
-                  onClick={() => setMastersSubTab("partners")}
-                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "partners" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                  onClick={() => { setMastersSubTab("partners"); setMasterSearchQuery(""); }}
+                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
+                    mastersSubTab === "partners" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
                   Partners ({partners.length})
                 </button>
                 <button
-                  onClick={() => setMastersSubTab("categories")}
-                  className={`px-3 py-1.5 rounded-lg ${mastersSubTab === "categories" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                  onClick={() => { setMastersSubTab("categories"); setMasterSearchQuery(""); }}
+                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
+                    mastersSubTab === "categories" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
                 >
                   Categories ({expenseCategories.length})
                 </button>
               </div>
             </div>
 
-            {/* Masters Sub-Tab 1: Customers */}
+            {/* In-Screen Filter Bar for Active Master */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+              <div className="relative w-full sm:max-w-md">
+                <span className="absolute left-3.5 top-3 text-slate-400">
+                  <Icon name="search" size={15} />
+                </span>
+                <input
+                  type="text"
+                  placeholder={`Search ${mastersSubTab}...`}
+                  className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500"
+                  value={masterSearchQuery}
+                  onChange={(e) => setMasterSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {/* Master Action Add Trigger */}
+              {mastersSubTab === "customers" && (
+                <button
+                  onClick={() => { setEditingCustId(null); setCustForm({ name: "", mobile: "", old_due: "" }); setShowCustModal(true); }}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icon name="plus" size={14} /> Add Customer
+                </button>
+              )}
+              {mastersSubTab === "suppliers" && (
+                <button
+                  onClick={() => { setEditingSupplierId(null); setSupplierForm({ name: "", mobile: "", old_due: "" }); setShowSupplierModal(true); }}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icon name="plus" size={14} /> Add Supplier
+                </button>
+              )}
+              {mastersSubTab === "items" && (
+                <button
+                  onClick={() => { setEditingItemId(null); setItemForm({ name: "", purchase_rate: "", selling_rate: "" }); setShowItemModal(true); }}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icon name="plus" size={14} /> Add Item Master
+                </button>
+              )}
+              {mastersSubTab === "lenders" && (
+                <button
+                  onClick={() => { setEditingLenderId(null); setLenderForm({ name: "", mobile: "", initial_loan: "" }); setShowLenderModal(true); }}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icon name="plus" size={14} /> Add Lender
+                </button>
+              )}
+              {mastersSubTab === "partners" && (
+                <button
+                  onClick={() => { setEditingPartnerId(null); setPartnerForm({ name: "", opening_cash: "", opening_upi: "" }); setShowPartnerModal(true); }}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icon name="plus" size={14} /> Add Partner
+                </button>
+              )}
+              {mastersSubTab === "categories" && (
+                <button
+                  onClick={() => setShowCategoryModal(true)}
+                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Icon name="plus" size={14} /> Add Category
+                </button>
+              )}
+            </div>
+
+            {/* SUB-VIEW: CUSTOMERS */}
             {mastersSubTab === "customers" && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-900">Customer Records</h3>
-                  <button
-                    onClick={() => {
-                      setEditingCustId(null);
-                      setCustForm({ name: "", mobile: "", old_due: "" });
-                      setShowCustModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Add Customer
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {customers.map((c) => (
-                    <div key={c.id} className="p-3 rounded-xl border border-slate-200 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900">{c.name}</h4>
-                        <span className="text-xs text-slate-400">{c.mobile || "No Mobile"}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {filteredCustomers.map((c) => (
+                  <div key={c.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 font-black text-sm flex items-center justify-center">
+                        {c.name.charAt(0)}
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div>
+                        <h4 className="font-black text-sm text-slate-900">{c.name}</h4>
+                        <span className="text-xs text-slate-400 block">{c.mobile || "No Mobile"}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Due Balance</span>
                         <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
-                        <button onClick={() => handleEditCustomer(c)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
-                        <button onClick={() => handleDeleteCustomer(c)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Masters Sub-Tab 2: Suppliers */}
-            {mastersSubTab === "suppliers" && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-900">Supplier / Vendor Records</h3>
-                  <button
-                    onClick={() => {
-                      setEditingSupplierId(null);
-                      setSupplierForm({ name: "", mobile: "", old_due: "" });
-                      setShowSupplierModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Add Supplier
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {suppliers.map((s) => (
-                    <div key={s.id} className="p-3 rounded-xl border border-slate-200 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900">{s.name}</h4>
-                        <span className="text-xs text-slate-400">{s.mobile || "No Mobile"}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-amber-600 text-sm">{money(s.old_due)}</span>
-                        <button onClick={() => handleEditSupplier(s)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
-                        <button onClick={() => handleDeleteSupplier(s)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
-                      </div>
-                    </div>
-                  ))}
-                  {suppliers.length === 0 && (
-                    <div className="p-4 text-center text-slate-400 text-xs">No suppliers registered yet. Click + Add Supplier above.</div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Masters Sub-Tab 3: Items / Products */}
-            {mastersSubTab === "items" && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">Items & Product Master</h3>
-                    <p className="text-xs text-slate-400">Pre-saved products with standard cost and selling prices</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditingItemId(null);
-                      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
-                      setShowItemModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Add Item Master
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {uniqueItemSuggestions.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-200 flex justify-between items-center bg-slate-50/50">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900">{item.name}</h4>
-                        <span className="text-xs text-slate-500">
-                          Cost: {money(item.purchase_rate)} | Selling: {money(item.selling_rate)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingItemId(item.id || null);
-                            setItemForm({
-                              name: item.name,
-                              purchase_rate: item.purchase_rate ? String(item.purchase_rate) : "",
-                              selling_rate: item.selling_rate ? String(item.selling_rate) : ""
-                            });
-                            setShowItemModal(true);
-                          }}
-                          className="px-2.5 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg"
-                        >
-                          Edit
+                      <div className="flex gap-1.5">
+                        <button onClick={() => handleEditCustomer(c)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
+                          <Icon name="edit" size={14} />
+                        </button>
+                        <button onClick={() => handleDeleteCustomer(c)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
+                          <Icon name="trash" size={14} />
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Masters Sub-Tab 4: Borrowers */}
-            {mastersSubTab === "borrowers" && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-900">Loan Borrowers Master</h3>
-                  <button
-                    onClick={() => {
-                      setEditingBorrowerId(null);
-                      setBorrowerForm({ name: "", mobile: "", initial_due: "" });
-                      setShowBorrowerModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Add Borrower
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {borrowers.map((b) => (
-                    <div key={b.id} className="p-3 rounded-xl border border-slate-200 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900">{b.name}</h4>
-                        <span className="text-xs text-slate-400">{b.mobile || "No Mobile"}</span>
+            {/* SUB-VIEW: SUPPLIERS */}
+            {mastersSubTab === "suppliers" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {filteredSuppliers.map((s) => (
+                  <div key={s.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 font-black text-sm flex items-center justify-center">
+                        {s.name.charAt(0)}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-rose-600 text-sm">{money(b.balance_due)}</span>
-                        <button onClick={() => handleEditBorrower(b)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
-                        <button onClick={() => handleDeleteBorrower(b)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-900">{s.name}</h4>
+                        <span className="text-xs text-slate-400 block">{s.mobile || "No Mobile"}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Masters Sub-Tab 5: Partners (Includes UI Delete) */}
-            {mastersSubTab === "partners" && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-900">Operating Partners Master</h3>
-                  <button
-                    onClick={() => {
-                      setEditingPartnerId(null);
-                      setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
-                      setShowPartnerModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Add Partner
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {partners.map((p) => (
-                    <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex justify-between items-start">
-                      <div>
-                        <h4 className="font-black text-slate-900">{p.name}</h4>
-                        <p className="text-xs text-slate-500 mt-1">
-                          Opening Cash: {money(p.opening_cash)} | Opening UPI: {money(p.opening_upi)}
-                        </p>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Payable Due</span>
+                        <span className="font-black text-amber-600 text-sm">{money(s.old_due)}</span>
                       </div>
                       <div className="flex gap-1.5">
-                        <button onClick={() => handleEditPartner(p)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
-                        <button onClick={() => handleDeletePartner(p)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
+                        <button onClick={() => handleEditSupplier(s)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
+                          <Icon name="edit" size={14} />
+                        </button>
+                        <button onClick={() => handleDeleteSupplier(s)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
+                          <Icon name="trash" size={14} />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Masters Sub-Tab 6: Categories */}
-            {mastersSubTab === "categories" && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-900">Expense Categories Master</h3>
-                  <button
-                    onClick={() => setShowCategoryModal(true)}
-                    className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Add Category
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  {expenseCategories.map((c) => (
-                    <div key={c.id} className="p-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-slate-50">
-                      {c.name}
+            {/* SUB-VIEW: ITEMS */}
+            {mastersSubTab === "items" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {filteredItems.map((item, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 font-black text-sm flex items-center justify-center">
+                        <Icon name="package" size={17} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-900">{item.name}</h4>
+                        <span className="text-xs text-slate-400">
+                          Cost: {money(item.purchase_rate)} | Selling: <b className="text-indigo-600">{money(item.selling_rate)}</b>
+                        </span>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => {
+                          setEditingItemId(item.id || null);
+                          setItemForm({
+                            name: item.name,
+                            purchase_rate: item.purchase_rate ? String(item.purchase_rate) : "",
+                            selling_rate: item.selling_rate ? String(item.selling_rate) : ""
+                          });
+                          setShowItemModal(true);
+                        }}
+                        className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-200 flex items-center gap-1"
+                      >
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      {item.id && (
+                        <button onClick={() => handleDeleteItem(item)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
+                          <Icon name="trash" size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* SUB-VIEW: LENDERS (BUSINESS LOANS) */}
+            {mastersSubTab === "lenders" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {filteredLenders.map((l) => (
+                  <div key={l.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-700 font-black text-sm flex items-center justify-center">
+                        <Icon name="handcoins" size={17} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-900">{l.name}</h4>
+                        <span className="text-xs text-slate-400 block">{l.mobile || "No Mobile"}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Pending Loan</span>
+                        <span className="font-black text-rose-600 text-sm">{money(l.balance_due)}</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => handleEditLender(l)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
+                          <Icon name="edit" size={14} />
+                        </button>
+                        <button onClick={() => handleDeleteLender(l)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
+                          <Icon name="trash" size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* SUB-VIEW: PARTNERS */}
+            {mastersSubTab === "partners" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                {partners.map((p) => (
+                  <div key={p.id} className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs flex justify-between items-center">
+                    <div>
+                      <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Opening Cash: {money(p.opening_cash)} | Opening UPI: {money(p.opening_upi)}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => handleEditPartner(p)} className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-200 flex items-center gap-1">
+                        <Icon name="edit" size={13} /> Edit
+                      </button>
+                      <button onClick={() => handleDeletePartner(p)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* SUB-VIEW: CATEGORIES */}
+            {mastersSubTab === "categories" && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
+                {expenseCategories.map((c) => (
+                  <div key={c.id} className="p-3.5 rounded-2xl border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-2xs flex items-center justify-between">
+                    <span>{c.name}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* VIEW 5: INVOICES DIRECTORY */}
+        {/* VIEW 5: INVOICES DIRECTORY (With Search & Status Filter) */}
         {activeTab === "invoices" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
-              <p className="text-xs text-slate-500">Track invoices. Fully collected invoices are locked. Deleting invoice removes linked collections.</p>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Invoices Directory</h2>
+                <p className="text-xs text-slate-500">Track and manage sales invoices</p>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -2376,34 +2296,11 @@ Thank you for your business!`;
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Payments & Collections Ledger</h2>
-                  <p className="text-xs text-slate-500">Edit or delete payments. Deleting all collections/payments restores bills to unpaid and unlocks them for edit.</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingCollectionId(null);
-                      setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
-                      setShowCollectModal(true);
-                    }}
-                    className="px-3.5 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Customer Collection
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingPaymentId(null);
-                      setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
-                      setShowPayPurchaseModal(true);
-                    }}
-                    className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-                  >
-                    + Supplier Payment
-                  </button>
+                  <p className="text-xs text-slate-500">Record customer collections and supplier bill settlements.</p>
                 </div>
               </div>
 
+              {/* Customer Collections */}
               <div className="pt-2">
                 <h3 className="font-bold text-sm text-slate-900 mb-2">Customer Collections (వసూళ్లు)</h3>
                 <div className="space-y-2">
@@ -2422,28 +2319,13 @@ Thank you for your business!`;
                             <h4 className="font-bold text-sm text-slate-900">{cust?.name || "Customer"}</h4>
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            Invoice: <b>{inv?.invoice_number || (c.invoice_id ? `INV-${c.invoice_id}` : "Account Credit")}</b> | Collected by: {p?.name || "Partner"} ({c.payment_mode})
+                            Invoice: <b>{inv?.invoice_number || (c.invoice_id ? `INV-${c.invoice_id}` : "Account Credit")}</b> | Received by: {p?.name || "Partner"} ({c.payment_mode})
                           </p>
-                          {c.notes && <p className="text-[11px] text-slate-400 italic">"{c.notes}"</p>}
                         </div>
-                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                        <div className="flex items-center gap-3">
                           <span className="font-black text-emerald-600 text-sm">{money(c.amount)}</span>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleEditCollection(c)}
-                              className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                            >
-                              <Icon name="edit" size={13} /> Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCollection(c)}
-                              className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                            >
-                              <Icon name="trash" size={13} /> Void / Delete
-                            </button>
-                          </div>
+                          <button onClick={() => handleEditCollection(c)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
+                          <button onClick={() => handleDeleteCollection(c)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
                         </div>
                       </div>
                     );
@@ -2451,8 +2333,9 @@ Thank you for your business!`;
                 </div>
               </div>
 
+              {/* Supplier Payments */}
               <div className="pt-4 border-t">
-                <h3 className="font-bold text-sm text-slate-900 mb-2">Supplier Purchase Payments (చెల్లింపులు)</h3>
+                <h3 className="font-bold text-sm text-slate-900 mb-2">Supplier Payments (చెల్లింపులు)</h3>
                 <div className="space-y-2">
                   {procurements
                     .filter((p) => Number(p.p1_amount || 0) > 0)
@@ -2462,34 +2345,14 @@ Thank you for your business!`;
                       return (
                         <div key={p.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                           <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
-                                PAY-{p.id}
-                              </span>
-                              <h4 className="font-bold text-sm text-slate-900">{p.supplier_name}</h4>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              Item: <b>{p.item_name}</b> | Paid by: {partner?.name || "Partner"} ({p.p1_mode || "Cash"})
-                            </p>
+                            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded block w-fit mb-1">PAY-{p.id}</span>
+                            <h4 className="font-bold text-sm text-slate-900">{p.supplier_name}</h4>
+                            <p className="text-xs text-slate-500">Item: <b>{p.item_name}</b> | Paid by: {partner?.name || "Partner"} ({p.p1_mode || "Cash"})</p>
                           </div>
-                          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                          <div className="flex items-center gap-3">
                             <span className="font-black text-indigo-600 text-sm">{money(p.p1_amount)}</span>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleEditPurchasePayment(p)}
-                                className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                              >
-                                <Icon name="edit" size={13} /> Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePurchasePayment(p)}
-                                className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                              >
-                                <Icon name="trash" size={13} /> Void / Delete
-                              </button>
-                            </div>
+                            <button onClick={() => handleEditPurchasePayment(p)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
+                            <button onClick={() => handleDeletePurchasePayment(p)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
                           </div>
                         </div>
                       );
@@ -2500,81 +2363,116 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 8: BORROWERS */}
-        {activeTab === "borrowers" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        {/* VIEW 8: BUSINESS LOANS & LENDERS (RE-ENGINEERED: LOANS TAKEN BY BUSINESS) */}
+        {activeTab === "lenders" && (
+          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Borrowers & Loans (అప్పులు)</h2>
-                <p className="text-xs text-slate-500">Track loans taken or given (e.g. Gold Loan, Srikanth Reddy)</p>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Business Borrowings & Loans (వ్యాపార రుణాలు / అప్పులు)</h2>
+                <p className="text-xs text-slate-500">Track loans taken for business operations (Gold loans, private finance) and record repayment installments.</p>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
-                    setEditingBorrowerId(null);
-                    setBorrowerForm({ name: "", mobile: "", initial_due: "" });
-                    setShowBorrowerModal(true);
+                    setEditingLenderId(null);
+                    setLenderForm({ name: "", mobile: "", initial_loan: "" });
+                    setShowLenderModal(true);
                   }}
-                  className="flex-1 sm:flex-none px-3.5 py-2.5 border border-slate-200 font-bold text-xs rounded-xl"
+                  className="flex-1 sm:flex-none px-3.5 py-2 border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-xl"
                 >
-                  + Add Borrower
+                  + Add Loan Source
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setBorrowerTxForm({
-                      borrower_id: borrowers[0]?.id ? String(borrowers[0].id) : "",
-                      tx_type: "Given",
+                    setLoanPaymentForm({
+                      borrower_id: lenders[0]?.id ? String(lenders[0].id) : "",
                       amount: "",
                       payment_mode: "Cash",
                       partner_id: upfrontPartnerId || "",
                       notes: "",
                       tx_date: new Date().toISOString().split("T")[0]
                     });
-                    setShowBorrowerTxModal(true);
+                    setShowLoanPaymentModal(true);
                   }}
-                  className="flex-1 sm:flex-none px-3.5 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl"
+                  className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
                 >
-                  Record Loan Tx
+                  <Icon name="rupee" size={14} /> Pay Installment / Due
                 </button>
               </div>
             </div>
 
+            {/* Total Borrowing Status */}
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex justify-between items-center">
+              <div>
+                <span className="text-[11px] font-bold uppercase text-amber-800 tracking-wider block">Total Outstanding Loan Liability</span>
+                <span className="text-xl font-black text-amber-900 mt-0.5 block">{money(businessSummary.totalLoansPayable)}</span>
+              </div>
+              <span className="text-xs font-semibold text-amber-700">Payable to outside lenders</span>
+            </div>
+
+            {/* List of Active Lenders */}
             <div className="space-y-3">
-              {borrowers.map((b) => (
-                <div key={b.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              {lenders.map((l) => (
+                <div key={l.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <h4 className="font-bold text-sm text-slate-900">{b.name}</h4>
-                    <span className="text-xs text-slate-400 block">{b.mobile || "No Mobile"}</span>
-                    <span className="text-[11px] text-slate-500">
-                      Total Borrowed: {money(b.total_borrowed)} | Repaid: {money(b.total_repaid)}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Lender / Finance Source</span>
+                    </div>
+                    <h4 className="font-black text-base text-slate-900 mt-0.5">{l.name}</h4>
+                    <span className="text-xs text-slate-400 block">{l.mobile || "No Contact Stored"}</span>
+                    <span className="text-[11px] font-semibold text-slate-500 mt-1 block">
+                      Total Borrowed: {money(l.total_borrowed)} | Total Repaid so far: <b className="text-emerald-600">{money(l.total_repaid)}</b>
                     </span>
                   </div>
+
                   <div className="flex sm:flex-col items-end justify-between w-full sm:w-auto gap-2">
                     <div className="text-right">
-                      <span className="text-xs text-slate-400 block uppercase font-bold">Outstanding Balance</span>
-                      <span className="font-black text-rose-600 text-sm">{money(b.balance_due)}</span>
+                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Remaining Loan Due</span>
+                      <span className="font-black text-rose-600 text-base">{money(l.balance_due)}</span>
                     </div>
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => handleEditBorrower(b)}
-                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
+                        onClick={() => {
+                          setLoanPaymentForm({
+                            borrower_id: String(l.id),
+                            amount: String(l.balance_due || ""),
+                            payment_mode: "Cash",
+                            partner_id: upfrontPartnerId || "",
+                            notes: `Repayment to ${l.name}`,
+                            tx_date: new Date().toISOString().split("T")[0]
+                          });
+                          setShowLoanPaymentModal(true);
+                        }}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg"
                       >
-                        <Icon name="edit" size={13} /> Edit
+                        Repay
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteBorrower(b)}
-                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
+                        onClick={() => handleEditLender(l)}
+                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg"
                       >
-                        <Icon name="trash" size={13} /> Delete
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLender(l)}
+                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg"
+                      >
+                        Delete
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
+              {lenders.length === 0 && (
+                <div className="p-8 text-center text-slate-400 text-sm">
+                  No active business loans recorded. Click <b>+ Add Loan Source</b> to add Gold Loans or outside finance.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2587,34 +2485,25 @@ Thank you for your business!`;
                 <h2 className="text-lg font-black text-slate-900">Expenses & Cash Outflow</h2>
                 <p className="text-xs text-slate-500">Record shop costs and manage master categories</p>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setShowCategoryModal(true)}
-                  className="flex-1 sm:flex-none px-3.5 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
-                >
-                  <Icon name="layers" size={15} /> Categories
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingExpenseId(null);
-                    setExpenseForm({
-                      title: "",
-                      category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
-                      amount: "",
-                      payment_mode: "Cash",
-                      paid_by_id: upfrontPartnerId || "",
-                      expense_date: new Date().toISOString().split("T")[0],
-                      notes: ""
-                    });
-                    setShowExpenseModal(true);
-                  }}
-                  className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
-                >
-                  + Add Expense
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingExpenseId(null);
+                  setExpenseForm({
+                    title: "",
+                    category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
+                    amount: "",
+                    payment_mode: "Cash",
+                    paid_by_id: upfrontPartnerId || "",
+                    expense_date: new Date().toISOString().split("T")[0],
+                    notes: ""
+                  });
+                  setShowExpenseModal(true);
+                }}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
+              >
+                + Add Expense
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -2629,24 +2518,10 @@ Thank you for your business!`;
                         Paid by: {partner?.name || "N/A"} ({e.payment_mode}) on {e.expense_date}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    <div className="flex items-center gap-3">
                       <span className="font-black text-rose-600 text-sm">{money(e.amount)}</span>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditExpense(e)}
-                          className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1"
-                        >
-                          <Icon name="edit" size={13} /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteExpense(e)}
-                          className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg flex items-center gap-1"
-                        >
-                          <Icon name="trash" size={13} /> Delete
-                        </button>
-                      </div>
+                      <button onClick={() => handleEditExpense(e)} className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg">Edit</button>
+                      <button onClick={() => handleDeleteExpense(e)} className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg">Delete</button>
                     </div>
                   </div>
                 );
@@ -2662,7 +2537,7 @@ Thank you for your business!`;
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">B Reddy Statement (Excel Sheet Format)</h2>
-                  <p className="text-xs text-slate-500">Complete balance sheet. Zero stock batches are excluded.</p>
+                  <p className="text-xs text-slate-500">Complete balance sheet format. Zero stock batches are excluded.</p>
                 </div>
                 <button
                   type="button"
@@ -2686,7 +2561,7 @@ Thank you for your business!`;
                     <tr className="bg-amber-50/70 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">1</td>
                       <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Purchase Dues)</td>
-                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalDebts + businessSummary.totalPurchaseDues)}</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-rose-600">{money(businessSummary.totalLoansPayable + businessSummary.totalPurchaseDues)}</td>
                     </tr>
                     <tr className="bg-slate-50 font-bold">
                       <td className="p-2.5 border border-slate-300 text-center">2</td>
@@ -2714,85 +2589,17 @@ Thank you for your business!`;
                   </tbody>
                 </table>
               </div>
-
-              <div className="pt-2">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock with Qty &gt; 0)</h3>
-                  <span className="text-xs font-bold text-slate-600">Total Valuation: {money(businessSummary.stockValuation)}</span>
-                </div>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
-                    <thead className="bg-slate-100 text-slate-600 font-bold">
-                      <tr>
-                        <th className="p-2 border border-slate-200 text-center">S.No</th>
-                        <th className="p-2 border border-slate-200">Stock Item</th>
-                        <th className="p-2 border border-slate-200">Supplier</th>
-                        <th className="p-2 border border-slate-200 text-center">Available Qty</th>
-                        <th className="p-2 border border-slate-200 text-right">Cost Rate</th>
-                        <th className="p-2 border border-slate-200 text-right">Selling Rate</th>
-                        <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {procurements
-                        .filter((p) => Number(p.remaining_qty || 0) > 0)
-                        .map((p, idx) => (
-                          <tr key={p.id}>
-                            <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                            <td className="p-2 border border-slate-200 font-bold">{p.item_name}</td>
-                            <td className="p-2 border border-slate-200 text-slate-500">{p.supplier_name}</td>
-                            <td className="p-2 border border-slate-200 text-center font-bold text-indigo-600">{p.remaining_qty}</td>
-                            <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
-                            <td className="p-2 border border-slate-200 text-right">{money(p.selling_rate)}</td>
-                            <td className="p-2 border border-slate-200 text-right font-bold text-slate-900">
-                              {money(Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0))}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold text-sm text-slate-900">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
-                  <span className="text-xs font-bold text-rose-600">Total Dues: {money(businessSummary.totalCustomerDues)}</span>
-                </div>
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
-                    <thead className="bg-slate-100 text-slate-600 font-bold">
-                      <tr>
-                        <th className="p-2 border border-slate-200 text-center">S.No</th>
-                        <th className="p-2 border border-slate-200">Customer Name</th>
-                        <th className="p-2 border border-slate-200">Mobile</th>
-                        <th className="p-2 border border-slate-200 text-right">Outstanding Due</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {customers.map((c, idx) => (
-                        <tr key={c.id}>
-                          <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                          <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
-                          <td className="p-2 border border-slate-200">{c.mobile || "N/A"}</td>
-                          <td className="p-2 border border-slate-200 text-right font-bold text-rose-600">{money(c.old_due)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           </div>
         )}
 
-        {/* VIEW 11: PARTNER ACCOUNTS (Cleaned list with Edit and Delete) */}
+        {/* VIEW 11: PARTNER ACCOUNTS */}
         {activeTab === "partners" && (
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-lg font-black text-slate-900">Operating Partners</h2>
-                <p className="text-xs text-slate-500">Individual Partner Cash and UPI holdings</p>
+                <h2 className="text-lg font-black text-slate-900">Operating Partner Capital Accounts</h2>
+                <p className="text-xs text-slate-500">Track liquid cash and UPI holdings tied to partners</p>
               </div>
               <button
                 type="button"
@@ -2885,28 +2692,6 @@ Thank you for your business!`;
                   <span className="font-black text-rose-600">{money(selectedAuditTx.balanceDue)}</span>
                 </div>
               </div>
-
-              {selectedAuditTx.txType === "sale" && (
-                <div>
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Linked Collections</h4>
-                  <div className="space-y-1.5">
-                    {collections
-                      .filter((c) => c.invoice_id == selectedAuditTx.id)
-                      .map((c) => (
-                        <div key={c.id} className="p-2 border border-slate-200 rounded-lg text-xs flex justify-between items-center">
-                          <div>
-                            <span className="font-bold text-slate-900">{c.reference_no || `REC-${c.id}`}</span>
-                            <span className="text-[10px] text-slate-400 block">{c.payment_mode}</span>
-                          </div>
-                          <span className="font-bold text-emerald-600">{money(c.amount)}</span>
-                        </div>
-                      ))}
-                    {collections.filter((c) => c.invoice_id == selectedAuditTx.id).length === 0 && (
-                      <p className="text-xs text-slate-400 italic">No secondary collection receipts against this invoice.</p>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             <button
@@ -2954,6 +2739,116 @@ Thank you for your business!`;
                   </div>
                 ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RECORD LOAN REPAYMENT (INSTALLMENT TO LENDER) */}
+      {showLoanPaymentModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">Repay Business Loan / Interest</h3>
+            <form onSubmit={saveLoanRepayment} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={loanPaymentForm.borrower_id}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, borrower_id: e.target.value })}
+              >
+                <option value="">-- Choose Lender / Loan Source --</option>
+                {lenders.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name} (Due: {money(l.balance_due)})</option>
+                ))}
+              </select>
+
+              <input
+                type="number"
+                required
+                placeholder="Repayment Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                value={loanPaymentForm.amount}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={loanPaymentForm.partner_id}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, partner_id: e.target.value })}
+              >
+                <option value="">-- Partner Account Paying --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="Notes / Cheque / Voucher Ref (Optional)"
+                className="w-full p-2 border rounded-xl text-xs"
+                value={loanPaymentForm.notes}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, notes: e.target.value })}
+              />
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowLoanPaymentModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Repayment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT LENDER */}
+      {showLenderModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingLenderId ? "Edit Loan Source" : "Add Business Loan Source"}</h3>
+            <form onSubmit={saveLender} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Lender / Source (e.g. Muthoot Gold Loan, Srinivas)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={lenderForm.name}
+                onChange={(e) => setLenderForm({ ...lenderForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Contact Phone"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={lenderForm.mobile}
+                onChange={(e) => setLenderForm({ ...lenderForm, mobile: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Current Outstanding Loan (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                value={lenderForm.initial_loan}
+                onChange={(e) => setLenderForm({ ...lenderForm, initial_loan: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowLenderModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -3132,14 +3027,6 @@ Thank you for your business!`;
                 ))}
               </select>
 
-              <input
-                type="text"
-                placeholder="Reference / Receipt No (Auto-generated if empty)"
-                className="w-full p-2 border rounded-xl text-xs"
-                value={collectForm.reference_no}
-                onChange={(e) => setCollectForm({ ...collectForm, reference_no: e.target.value })}
-              />
-
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Receipt</button>
@@ -3149,7 +3036,7 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PURCHASES WITH CLEAN SINGLE DROPDOWNS */}
+      {/* MODAL: ADD / EDIT PURCHASES */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
@@ -3157,7 +3044,6 @@ Thank you for your business!`;
               {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
             </h3>
             <form onSubmit={saveProcurement} className="space-y-3">
-              {/* Supplier Clean Dropdown */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase block">Supplier / Vendor *</label>
@@ -3187,7 +3073,6 @@ Thank you for your business!`;
                 </select>
               </div>
 
-              {/* Item Clean Dropdown */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase block">Item Name *</label>
@@ -3318,7 +3203,7 @@ Thank you for your business!`;
               <input
                 type="text"
                 required
-                placeholder="Item / Product Name (e.g. JB, Gold Leaf)"
+                placeholder="Item / Product Name"
                 className="w-full p-2.5 border rounded-xl text-sm font-bold"
                 value={itemForm.name}
                 onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
@@ -3461,108 +3346,6 @@ Thank you for your business!`;
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT BORROWER */}
-      {showBorrowerModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingBorrowerId ? "Edit Borrower" : "Add New Borrower"}</h3>
-            <form onSubmit={saveBorrower} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Borrower Name (e.g. Swamy Ongole)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={borrowerForm.name}
-                onChange={(e) => setBorrowerForm({ ...borrowerForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Mobile Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={borrowerForm.mobile}
-                onChange={(e) => setBorrowerForm({ ...borrowerForm, mobile: e.target.value })}
-              />
-              <input
-                type="number"
-                placeholder="Outstanding Due Balance (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={borrowerForm.initial_due}
-                onChange={(e) => setBorrowerForm({ ...borrowerForm, initial_due: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowBorrowerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: BORROWER TRANSACTION */}
-      {showBorrowerTxModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Record Loan Transaction</h3>
-            <form onSubmit={saveBorrowerTransaction} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={borrowerTxForm.borrower_id}
-                onChange={(e) => setBorrowerTxForm({ ...borrowerTxForm, borrower_id: e.target.value })}
-              >
-                <option value="">-- Choose Borrower --</option>
-                {borrowers.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name} (Due: {money(b.balance_due)})</option>
-                ))}
-              </select>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBorrowerTxForm({ ...borrowerTxForm, tx_type: "Given" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${borrowerTxForm.tx_type === "Given" ? "bg-rose-600 text-white" : "bg-white"}`}
-                >
-                  Outflow (Given)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBorrowerTxForm({ ...borrowerTxForm, tx_type: "Received" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${borrowerTxForm.tx_type === "Received" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  Inflow (Repaid)
-                </button>
-              </div>
-
-              <input
-                type="number"
-                required
-                placeholder="Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold"
-                value={borrowerTxForm.amount}
-                onChange={(e) => setBorrowerTxForm({ ...borrowerTxForm, amount: e.target.value })}
-              />
-
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={borrowerTxForm.partner_id}
-                onChange={(e) => setBorrowerTxForm({ ...borrowerTxForm, partner_id: e.target.value })}
-              >
-                <option value="">-- Partner In/Out Account --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowBorrowerTxModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Entry</button>
               </div>
             </form>
           </div>
