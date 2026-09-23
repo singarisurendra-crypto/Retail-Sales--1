@@ -136,6 +136,13 @@ export default function App() {
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
   const [auditFilterType, setAuditFilterType] = useState("all");
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const [procureSearchQuery, setProcureSearchQuery] = useState("");
+  const [procureStockFilter, setProcureStockFilter] = useState("all");
+  const [paymentsSubTab, setPaymentsSubTab] = useState("collections");
+  const [paymentsSearchQuery, setPaymentsSearchQuery] = useState("");
+  const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
 
   // Forms
   const [editingCustId, setEditingCustId] = useState(null);
@@ -453,6 +460,69 @@ export default function App() {
 
     return combined;
   }, [invoices, procurements, auditFilterType, auditSearchQuery]);
+
+  const filteredInvoices = useMemo(() => {
+    let list = invoices;
+    if (invoiceStatusFilter !== "all") {
+      list = list.filter((i) => {
+        const bal = Number(i.balance_due || 0);
+        const up = Number(i.upfront_paid || 0);
+        const s = i.status || (bal <= 0 ? "Collected" : up > 0 ? "Partial" : "Due");
+        return s.toLowerCase() === invoiceStatusFilter.toLowerCase();
+      });
+    }
+    if (invoiceSearchQuery.trim()) {
+      const q = invoiceSearchQuery.toLowerCase();
+      list = list.filter((i) =>
+        (i.invoice_number || `INV-${i.id}`)?.toLowerCase().includes(q) ||
+        i.customer_name?.toLowerCase().includes(q) ||
+        i.invoice_date?.includes(q)
+      );
+    }
+    return list;
+  }, [invoices, invoiceStatusFilter, invoiceSearchQuery]);
+
+  const filteredProcurements = useMemo(() => {
+    let list = procurements;
+    if (procureStockFilter === "in_stock") {
+      list = list.filter((p) => Number(p.remaining_qty || 0) > 0);
+    } else if (procureStockFilter === "out_of_stock") {
+      list = list.filter((p) => Number(p.remaining_qty || 0) <= 0);
+    }
+    if (procureSearchQuery.trim()) {
+      const q = procureSearchQuery.toLowerCase();
+      list = list.filter((p) =>
+        p.item_name?.toLowerCase().includes(q) ||
+        p.supplier_name?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [procurements, procureStockFilter, procureSearchQuery]);
+
+  const filteredCollections = useMemo(() => {
+    if (!paymentsSearchQuery.trim()) return collections;
+    const q = paymentsSearchQuery.toLowerCase();
+    return collections.filter((c) => {
+      const cust = customers.find((cu) => cu.id === c.customer_id);
+      return (
+        c.reference_no?.toLowerCase().includes(q) ||
+        cust?.name?.toLowerCase().includes(q) ||
+        c.notes?.toLowerCase().includes(q)
+      );
+    });
+  }, [collections, customers, paymentsSearchQuery]);
+
+  const filteredSupplierPayments = useMemo(() => {
+    let list = procurements.filter((p) => Number(p.p1_amount || 0) > 0 || Number(p.total_amount || 0) > 0);
+    if (paymentsSearchQuery.trim()) {
+      const q = paymentsSearchQuery.toLowerCase();
+      list = list.filter((p) =>
+        p.supplier_name?.toLowerCase().includes(q) ||
+        p.item_name?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [procurements, paymentsSearchQuery]);
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
@@ -1582,6 +1652,786 @@ Thank you for your business!`;
                 {savingSale ? "Saving..." : editingInvoiceId ? "Update & Save Invoice" : "Save Invoice & Bill"}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* VIEW: SALES INVOICES DIRECTORY */}
+        {activeTab === "invoices" && (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Sales Invoices Directory</h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Track, review, print, and collect on customer invoices</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingInvoiceId(null);
+                  setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
+                  setSelectedCust(null);
+                  setUpfrontAmount("");
+                  setActiveTab("sale");
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Icon name="plus" size={15} /> + Create New Bill
+              </button>
+            </div>
+
+            {/* Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Invoices</span>
+                <b className="text-xl font-black text-slate-900 mt-1 block">{invoices.length}</b>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Lifetime bills generated</span>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales Billed</span>
+                <b className="text-xl font-black text-indigo-600 mt-1 block">
+                  {money(invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0))}
+                </b>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Gross sales volume</span>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Collected</span>
+                <b className="text-xl font-black text-emerald-600 mt-1 block">
+                  {money(invoices.reduce((s, i) => s + Math.max(0, Number(i.total_amount || 0) - Number(i.balance_due || 0)), 0))}
+                </b>
+                <span className="text-[11px] text-emerald-600/80 mt-0.5 block">Upfront & dues recovered</span>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Outstanding Dues</span>
+                <b className="text-xl font-black text-rose-600 mt-1 block">
+                  {money(invoices.reduce((s, i) => s + Number(i.balance_due || 0), 0))}
+                </b>
+                <span className="text-[11px] text-rose-500/80 mt-0.5 block">Pending payment recovery</span>
+              </div>
+            </div>
+
+            {/* Search & Filters */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2.5 text-slate-400">
+                    <Icon name="search" size={15} />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search by invoice #, customer name, date..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                    value={invoiceSearchQuery}
+                    onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
+                  {[
+                    { id: "all", label: "All Bills" },
+                    { id: "collected", label: "Collected" },
+                    { id: "partial", label: "Partial" },
+                    { id: "due", label: "Unpaid Due" }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setInvoiceStatusFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                        invoiceStatusFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Invoices List / Table */}
+              <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
+                    <tr>
+                      <th className="p-3">Invoice #</th>
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Customer</th>
+                      <th className="p-3">Items Summary</th>
+                      <th className="p-3 text-right">Total</th>
+                      <th className="p-3 text-right">Paid</th>
+                      <th className="p-3 text-right">Balance Due</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredInvoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-slate-400">
+                          No invoices found matching your criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredInvoices.map((inv) => {
+                        const isPaid = Number(inv.balance_due || 0) <= 0;
+                        const isPartial = !isPaid && Number(inv.upfront_paid || 0) > 0;
+                        const statusLabel = isPaid ? "Collected" : isPartial ? "Partial" : "Due";
+                        const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
+                        const firstItemName = Array.isArray(inv.items) && inv.items[0]?.item_name;
+
+                        return (
+                          <tr key={inv.id} className="hover:bg-slate-50 transition">
+                            <td className="p-3 font-mono font-bold text-indigo-600">
+                              {inv.invoice_number || `INV-${inv.id}`}
+                            </td>
+                            <td className="p-3 text-slate-500 whitespace-nowrap">
+                              {inv.invoice_date || inv.created_at?.slice(0, 10)}
+                            </td>
+                            <td className="p-3 font-bold text-slate-900">
+                              <div>{inv.customer_name}</div>
+                            </td>
+                            <td className="p-3 text-slate-500 text-[11px]">
+                              {itemCount > 0 ? (
+                                <span>
+                                  {firstItemName}
+                                  {itemCount > 1 && <span className="text-slate-400"> +{itemCount - 1} more</span>}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Standard Bill</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-right font-black text-slate-900">
+                              {money(inv.total_amount)}
+                            </td>
+                            <td className="p-3 text-right text-emerald-600 font-bold">
+                              {money(inv.upfront_paid)}
+                            </td>
+                            <td className="p-3 text-right font-black text-rose-600">
+                              {money(inv.balance_due)}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                isPaid
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : isPartial
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-rose-100 text-rose-800"
+                              }`}>
+                                {statusLabel}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  title="View / Print Invoice"
+                                  onClick={() => setSelectedViewInvoice(inv)}
+                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                >
+                                  <Icon name="receipt" size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Share to WhatsApp"
+                                  onClick={() => handleShareWhatsApp(inv)}
+                                  className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition"
+                                >
+                                  <Icon name="share" size={14} />
+                                </button>
+                                {!isPaid && (
+                                  <button
+                                    type="button"
+                                    title="Collect Payment"
+                                    onClick={() => {
+                                      setEditingCollectionId(null);
+                                      setCollectForm({
+                                        customer_id: String(inv.customer_id),
+                                        invoice_id: String(inv.id),
+                                        amount: String(inv.balance_due),
+                                        payment_mode: "Cash",
+                                        receiver_id: upfrontPartnerId || "",
+                                        reference_no: "",
+                                        notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
+                                      });
+                                      setShowCollectModal(true);
+                                    }}
+                                    className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition"
+                                  >
+                                    <Icon name="handcoins" size={14} />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  title="Edit Invoice"
+                                  onClick={() => handleEditInvoice(inv)}
+                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                >
+                                  <Icon name="edit" size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Delete Invoice"
+                                  onClick={() => handleDeleteInvoice(inv)}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                >
+                                  <Icon name="trash" size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: PURCHASES & STOCK */}
+        {activeTab === "procurement" && (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Purchases & Stock (కొనుగోళ్లు & స్టాక్)</h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage vendor procurements, batch inventory, and supplier dues</p>
+              </div>
+              <button
+                onClick={() => {
+                  setEditingProcureId(null);
+                  setProcureForm({
+                    supplier_name: "",
+                    item_name: "",
+                    procured_qty: "",
+                    purchase_rate: "",
+                    selling_rate: "",
+                    is_opening: false,
+                    paid_now: "",
+                    p1_id: "",
+                    p1_mode: "Cash"
+                  });
+                  setShowProcureModal(true);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Icon name="plus" size={15} /> + Record Purchase & Stock
+              </button>
+            </div>
+
+            {/* Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Purchases</span>
+                <b className="text-xl font-black text-slate-900 mt-1 block">
+                  {money(procurements.reduce((s, p) => s + Number(p.total_amount || 0), 0))}
+                </b>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">{procurements.length} total procurement entries</span>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Stock Valuation (Cost)</span>
+                <b className="text-xl font-black text-indigo-600 mt-1 block">
+                  {money(procurements.reduce((s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0), 0))}
+                </b>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Current remaining unsold stock</span>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Paid to Suppliers</span>
+                <b className="text-xl font-black text-emerald-600 mt-1 block">
+                  {money(procurements.reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
+                </b>
+                <span className="text-[11px] text-emerald-600/80 mt-0.5 block">Cleared supplier payments</span>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Supplier Dues Pending</span>
+                <b className="text-xl font-black text-rose-600 mt-1 block">
+                  {money(procurements.reduce((s, p) => s + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)), 0))}
+                </b>
+                <span className="text-[11px] text-rose-500/80 mt-0.5 block">Outstanding vendor payables</span>
+              </div>
+            </div>
+
+            {/* Search & Filter Toolbar */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-2.5 text-slate-400">
+                    <Icon name="search" size={15} />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search by item name, supplier..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                    value={procureSearchQuery}
+                    onChange={(e) => setProcureSearchQuery(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
+                  {[
+                    { id: "all", label: "All Items" },
+                    { id: "in_stock", label: "In Stock" },
+                    { id: "out_of_stock", label: "Out of Stock" }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setProcureStockFilter(tab.id)}
+                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                        procureStockFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
+                    <tr>
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Item Name</th>
+                      <th className="p-3">Supplier</th>
+                      <th className="p-3 text-center">Stock (Left / Total)</th>
+                      <th className="p-3 text-right">Cost Rate</th>
+                      <th className="p-3 text-right">Selling Rate</th>
+                      <th className="p-3 text-right">Total Bill</th>
+                      <th className="p-3 text-right">Paid</th>
+                      <th className="p-3 text-right">Due</th>
+                      <th className="p-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {filteredProcurements.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-slate-400">
+                          No purchases or stock records found.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredProcurements.map((p) => {
+                        const total = Number(p.total_amount || 0);
+                        const paid = Number(p.p1_amount || 0);
+                        const due = Math.max(0, total - paid);
+                        const inStock = Number(p.remaining_qty || 0) > 0;
+                        const costRate = Number(p.purchase_rate || 0);
+                        const sellRate = Number(p.selling_rate || costRate);
+                        const margin = costRate > 0 ? Math.round(((sellRate - costRate) / costRate) * 100) : 0;
+
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50 transition">
+                            <td className="p-3 text-slate-500 whitespace-nowrap">
+                              {p.created_at?.slice(0, 10)}
+                            </td>
+                            <td className="p-3 font-bold text-slate-900">
+                              <div>{p.item_name}</div>
+                            </td>
+                            <td className="p-3 text-slate-600">
+                              {p.supplier_name}
+                            </td>
+                            <td className="p-3 text-center">
+                              <div className="inline-flex items-center gap-1.5">
+                                <span className={`font-black text-xs ${inStock ? "text-emerald-700" : "text-rose-600"}`}>
+                                  {p.remaining_qty}
+                                </span>
+                                <span className="text-slate-400 text-[10px]">/ {p.procured_qty}</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                  inStock ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                                }`}>
+                                  {inStock ? "In Stock" : "Sold Out"}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-right font-medium text-slate-700">
+                              {money(costRate)}
+                            </td>
+                            <td className="p-3 text-right font-bold text-indigo-600">
+                              {money(sellRate)}
+                              {margin > 0 && <span className="text-[10px] text-emerald-600 ml-1 font-semibold">(+{margin}%)</span>}
+                            </td>
+                            <td className="p-3 text-right font-black text-slate-900">
+                              {money(total)}
+                            </td>
+                            <td className="p-3 text-right text-emerald-600 font-bold">
+                              {money(paid)}
+                            </td>
+                            <td className="p-3 text-right font-black text-rose-600">
+                              {money(due)}
+                            </td>
+                            <td className="p-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {due > 0 && (
+                                  <button
+                                    type="button"
+                                    title="Pay Supplier Bill"
+                                    onClick={() => handleEditPurchasePayment(p)}
+                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition"
+                                  >
+                                    <Icon name="wallet" size={14} />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  title="Edit Procurement"
+                                  onClick={() => handleEditProcurement(p)}
+                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                >
+                                  <Icon name="edit" size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Delete Procurement"
+                                  onClick={() => handleDeleteProcurement(p)}
+                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                >
+                                  <Icon name="trash" size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: PAYMENTS & COLLECTIONS */}
+        {activeTab === "payments_collections" && (
+          <div className="space-y-5">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Payments & Collections (చెల్లింపులు & వసూళ్లు)</h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage customer due collections and supplier purchase payments</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {paymentsSubTab === "collections" ? (
+                  <button
+                    onClick={() => {
+                      setEditingCollectionId(null);
+                      setCollectForm({
+                        customer_id: "",
+                        invoice_id: "",
+                        amount: "",
+                        payment_mode: "Cash",
+                        receiver_id: upfrontPartnerId || "",
+                        reference_no: "",
+                        notes: ""
+                      });
+                      setShowCollectModal(true);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                  >
+                    <Icon name="handcoins" size={15} /> + Collect Customer Due
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingPaymentId(null);
+                      setPayPurchaseForm({
+                        purchase_id: "",
+                        amount: "",
+                        partner_id: upfrontPartnerId || "",
+                        payment_mode: "Cash",
+                        reference_no: "",
+                        notes: ""
+                      });
+                      setShowPayPurchaseModal(true);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                  >
+                    <Icon name="wallet" size={15} /> + Pay Supplier Bill
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sub-Tab Navigation */}
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold w-full sm:w-auto self-start">
+              <button
+                onClick={() => { setPaymentsSubTab("collections"); setPaymentsSearchQuery(""); }}
+                className={`px-4 py-2 rounded-xl transition ${
+                  paymentsSubTab === "collections" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                📥 Customer Collections ({collections.length})
+              </button>
+              <button
+                onClick={() => { setPaymentsSubTab("supplier_payments"); setPaymentsSearchQuery(""); }}
+                className={`px-4 py-2 rounded-xl transition ${
+                  paymentsSubTab === "supplier_payments" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                📤 Supplier Payments ({procurements.filter((p) => Number(p.p1_amount || 0) > 0).length})
+              </button>
+            </div>
+
+            {/* SUB-VIEW 1: CUSTOMER COLLECTIONS */}
+            {paymentsSubTab === "collections" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Recoveries</span>
+                    <b className="text-xl font-black text-emerald-600 mt-1 block">
+                      {money(collections.reduce((s, c) => s + Number(c.amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">{collections.length} payment receipts recorded</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cash Collected</span>
+                    <b className="text-xl font-black text-slate-900 mt-1 block">
+                      {money(collections.filter((c) => c.payment_mode === "Cash").reduce((s, c) => s + Number(c.amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Physical cash receipts</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs col-span-2 lg:col-span-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI Collected</span>
+                    <b className="text-xl font-black text-indigo-600 mt-1 block">
+                      {money(collections.filter((c) => c.payment_mode === "UPI").reduce((s, c) => s + Number(c.amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Direct bank transfers</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-400">
+                      <Icon name="search" size={15} />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search receipt #, customer name, notes..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                      value={paymentsSearchQuery}
+                      onChange={(e) => setPaymentsSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
+                        <tr>
+                          <th className="p-3">Receipt #</th>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Customer</th>
+                          <th className="p-3">Invoice Ref</th>
+                          <th className="p-3 text-right">Amount</th>
+                          <th className="p-3 text-center">Mode</th>
+                          <th className="p-3">Receiver Partner</th>
+                          <th className="p-3">Notes</th>
+                          <th className="p-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {filteredCollections.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="p-8 text-center text-slate-400">
+                              No customer collections recorded yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredCollections.map((c) => {
+                            const cust = customers.find((cu) => cu.id === c.customer_id);
+                            const receiver = partners.find((p) => p.id === c.receiver_id);
+                            const inv = invoices.find((i) => i.id === c.invoice_id);
+
+                            return (
+                              <tr key={c.id} className="hover:bg-slate-50 transition">
+                                <td className="p-3 font-mono font-bold text-emerald-700">
+                                  {c.reference_no || `REC-${c.id}`}
+                                </td>
+                                <td className="p-3 text-slate-500 whitespace-nowrap">
+                                  {c.created_at?.slice(0, 10)}
+                                </td>
+                                <td className="p-3 font-bold text-slate-900">
+                                  {cust?.name || "Customer"}
+                                </td>
+                                <td className="p-3 font-mono text-[11px] text-indigo-600">
+                                  {inv ? (inv.invoice_number || `INV-${inv.id}`) : "-"}
+                                </td>
+                                <td className="p-3 text-right font-black text-emerald-700">
+                                  {money(c.amount)}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                    c.payment_mode === "UPI" ? "bg-indigo-100 text-indigo-800" : "bg-emerald-100 text-emerald-800"
+                                  }`}>
+                                    {c.payment_mode || "Cash"}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-slate-700 font-medium">
+                                  {receiver?.name || "-"}
+                                </td>
+                                <td className="p-3 text-slate-400 text-[11px] max-w-xs truncate">
+                                  {c.notes || "-"}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      title="Edit Collection"
+                                      onClick={() => handleEditCollection(c)}
+                                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
+                                    >
+                                      <Icon name="edit" size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Delete Collection"
+                                      onClick={() => handleDeleteCollection(c)}
+                                      className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                    >
+                                      <Icon name="trash" size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-VIEW 2: SUPPLIER PAYMENTS */}
+            {paymentsSubTab === "supplier_payments" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Supplier Disbursements</span>
+                    <b className="text-xl font-black text-indigo-600 mt-1 block">
+                      {money(procurements.reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Total payments made for procurements</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cash Paid</span>
+                    <b className="text-xl font-black text-slate-900 mt-1 block">
+                      {money(procurements.filter((p) => p.p1_mode === "Cash").reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Paid by partners in cash</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs col-span-2 lg:col-span-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI Paid</span>
+                    <b className="text-xl font-black text-indigo-600 mt-1 block">
+                      {money(procurements.filter((p) => p.p1_mode === "UPI").reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Paid by partners via UPI</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-400">
+                      <Icon name="search" size={15} />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search by supplier name, purchased item..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                      value={paymentsSearchQuery}
+                      onChange={(e) => setPaymentsSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Supplier Name</th>
+                          <th className="p-3">Item Procured</th>
+                          <th className="p-3 text-right">Total Bill</th>
+                          <th className="p-3 text-right">Amount Paid</th>
+                          <th className="p-3 text-right">Remaining Due</th>
+                          <th className="p-3 text-center">Payment Mode</th>
+                          <th className="p-3">Funding Partner</th>
+                          <th className="p-3 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {filteredSupplierPayments.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="p-8 text-center text-slate-400">
+                              No supplier payments recorded.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredSupplierPayments.map((p) => {
+                            const partner = partners.find((pa) => pa.id === p.p1_id);
+                            const total = Number(p.total_amount || 0);
+                            const paid = Number(p.p1_amount || 0);
+                            const due = Math.max(0, total - paid);
+
+                            return (
+                              <tr key={p.id} className="hover:bg-slate-50 transition">
+                                <td className="p-3 text-slate-500 whitespace-nowrap">
+                                  {p.created_at?.slice(0, 10)}
+                                </td>
+                                <td className="p-3 font-bold text-slate-900">
+                                  {p.supplier_name}
+                                </td>
+                                <td className="p-3 text-slate-700">
+                                  {p.item_name}
+                                </td>
+                                <td className="p-3 text-right font-medium text-slate-700">
+                                  {money(total)}
+                                </td>
+                                <td className="p-3 text-right font-black text-emerald-600">
+                                  {money(paid)}
+                                </td>
+                                <td className="p-3 text-right font-black text-rose-600">
+                                  {money(due)}
+                                </td>
+                                <td className="p-3 text-center">
+                                  {paid > 0 ? (
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                      p.p1_mode === "UPI" ? "bg-indigo-100 text-indigo-800" : "bg-emerald-100 text-emerald-800"
+                                    }`}>
+                                      {p.p1_mode || "Cash"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[11px]">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-slate-700 font-medium">
+                                  {partner?.name || (paid > 0 ? "Partner" : "-")}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      title="Edit / Record Payment"
+                                      onClick={() => handleEditPurchasePayment(p)}
+                                      className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition"
+                                    >
+                                      <Icon name="edit" size={14} />
+                                    </button>
+                                    {paid > 0 && (
+                                      <button
+                                        type="button"
+                                        title="Void / Reset Payment"
+                                        onClick={() => handleDeletePurchasePayment(p)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                      >
+                                        <Icon name="trash" size={14} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3120,6 +3970,107 @@ Thank you for your business!`;
                   <span>{c.name}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW / PRINT INVOICE */}
+      {selectedViewInvoice && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex justify-between items-start border-b pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block">Retail Invoice Bill</span>
+                <h3 className="text-lg font-black text-slate-900">{selectedViewInvoice.invoice_number || `INV-${selectedViewInvoice.id}`}</h3>
+                <p className="text-xs text-slate-500">Date: {selectedViewInvoice.invoice_date || selectedViewInvoice.created_at?.slice(0, 10)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedViewInvoice(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Customer / Recipient</span>
+                <b className="text-slate-900 text-sm">{selectedViewInvoice.customer_name}</b>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Bill Status</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                  Number(selectedViewInvoice.balance_due || 0) <= 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                }`}>
+                  {Number(selectedViewInvoice.balance_due || 0) <= 0 ? "Collected" : "Due"}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Itemized Breakdown</h4>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 font-bold border-b">
+                    <tr>
+                      <th className="p-2.5">Item</th>
+                      <th className="p-2.5 text-center">Qty</th>
+                      <th className="p-2.5 text-right">Rate</th>
+                      <th className="p-2.5 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Array.isArray(selectedViewInvoice.items) && selectedViewInvoice.items.length > 0 ? (
+                      selectedViewInvoice.items.map((it, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5 font-bold text-slate-800">{it.item_name}</td>
+                          <td className="p-2.5 text-center font-semibold">{it.qty}</td>
+                          <td className="p-2.5 text-right text-slate-600">{money(it.rate)}</td>
+                          <td className="p-2.5 text-right font-black text-slate-900">{money(it.total)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="p-3 text-center text-slate-400">Standard sales billing</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-xl space-y-1.5 text-xs">
+              <div className="flex justify-between font-bold text-slate-600">
+                <span>Subtotal:</span>
+                <span>{money(selectedViewInvoice.total_amount)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-emerald-600">
+                <span>Upfront Paid:</span>
+                <span>{money(selectedViewInvoice.upfront_paid)}</span>
+              </div>
+              <div className="flex justify-between font-black text-sm text-slate-900 border-t pt-1.5">
+                <span>Balance Due:</span>
+                <span className="text-rose-600">{money(selectedViewInvoice.balance_due)}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handleShareWhatsApp(selectedViewInvoice)}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+              >
+                <Icon name="share" size={15} /> WhatsApp Bill
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+              >
+                <Icon name="download" size={15} /> Print / Save PDF
+              </button>
             </div>
           </div>
         </div>
