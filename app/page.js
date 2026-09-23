@@ -97,7 +97,39 @@ const money = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
+const formatCustomerBalance = (due) => {
+  const d = Number(due || 0);
+  if (d > 0) return { label: `Due: ${money(d)}`, text: `Due: ${money(d)}`, isDue: true, isAdvance: false, raw: d, color: "rose" };
+  if (d < 0) return { label: `Advance: ${money(Math.abs(d))}`, text: `Advance: ${money(Math.abs(d))}`, isDue: false, isAdvance: true, raw: d, color: "emerald" };
+  return { label: "Settled (₹0.00)", text: "Settled (₹0.00)", isDue: false, isAdvance: false, raw: 0, color: "slate" };
+};
+
+const matchDateFilter = (dateStr, filter) => {
+  if (!filter || filter === "all" || !dateStr) return true;
+  const d = new Date(dateStr);
+  const now = new Date();
+  if (filter === "today") {
+    return d.toISOString().slice(0, 10) === now.toISOString().slice(0, 10);
+  }
+  if (filter === "this_week") {
+    const diff = (now - d) / (1000 * 60 * 60 * 24);
+    return diff <= 7;
+  }
+  if (filter === "this_month") {
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+  return true;
+};
+
 export default function App() {
+  // Auth State
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
+  const [loginMode, setLoginMode] = useState("admin"); // "admin" | "partner"
+  const [loginPin, setLoginPin] = useState("");
+  const [loginPartnerId, setLoginPartnerId] = useState("");
+  const [loginError, setLoginError] = useState("");
+
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mastersSubTab, setMastersSubTab] = useState("customers");
@@ -136,12 +168,27 @@ export default function App() {
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
   const [auditFilterType, setAuditFilterType] = useState("all");
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
+
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
+  const [invoiceDateFilter, setInvoiceDateFilter] = useState("all");
+  const [invoiceCustomerFilter, setInvoiceCustomerFilter] = useState("all");
+
   const [procureSearchQuery, setProcureSearchQuery] = useState("");
   const [procureStockFilter, setProcureStockFilter] = useState("all");
+  const [procureSupplierFilter, setProcureSupplierFilter] = useState("all");
+  const [procureDateFilter, setProcureDateFilter] = useState("all");
+
   const [paymentsSubTab, setPaymentsSubTab] = useState("collections");
   const [paymentsSearchQuery, setPaymentsSearchQuery] = useState("");
+  const [paymentsPartnerFilter, setPaymentsPartnerFilter] = useState("all");
+  const [paymentsModeFilter, setPaymentsModeFilter] = useState("all");
+  const [paymentsDateFilter, setPaymentsDateFilter] = useState("all");
+
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState("all");
+  const [expensePartnerFilter, setExpensePartnerFilter] = useState("all");
+  const [lenderFilter, setLenderFilter] = useState("all");
+
   const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
 
   // Forms
@@ -155,14 +202,15 @@ export default function App() {
   const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "" });
 
   const [editingPartnerId, setEditingPartnerId] = useState(null);
-  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "" });
+  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner" });
 
   const [editingLenderId, setEditingLenderId] = useState(null);
   const [lenderForm, setLenderForm] = useState({ name: "", mobile: "", initial_loan: "" });
 
   const [loanPaymentForm, setLoanPaymentForm] = useState({
     borrower_id: "",
-    amount: "",
+    principal_amount: "",
+    interest_amount: "",
     payment_mode: "Cash",
     partner_id: "",
     notes: "",
@@ -471,6 +519,12 @@ export default function App() {
         return s.toLowerCase() === invoiceStatusFilter.toLowerCase();
       });
     }
+    if (invoiceCustomerFilter !== "all") {
+      list = list.filter((i) => String(i.customer_id) === String(invoiceCustomerFilter));
+    }
+    if (invoiceDateFilter !== "all") {
+      list = list.filter((i) => matchDateFilter(i.invoice_date || i.created_at, invoiceDateFilter));
+    }
     if (invoiceSearchQuery.trim()) {
       const q = invoiceSearchQuery.toLowerCase();
       list = list.filter((i) =>
@@ -480,7 +534,7 @@ export default function App() {
       );
     }
     return list;
-  }, [invoices, invoiceStatusFilter, invoiceSearchQuery]);
+  }, [invoices, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery]);
 
   const filteredProcurements = useMemo(() => {
     let list = procurements;
@@ -488,6 +542,12 @@ export default function App() {
       list = list.filter((p) => Number(p.remaining_qty || 0) > 0);
     } else if (procureStockFilter === "out_of_stock") {
       list = list.filter((p) => Number(p.remaining_qty || 0) <= 0);
+    }
+    if (procureSupplierFilter !== "all") {
+      list = list.filter((p) => p.supplier_name === procureSupplierFilter);
+    }
+    if (procureDateFilter !== "all") {
+      list = list.filter((p) => matchDateFilter(p.created_at, procureDateFilter));
     }
     if (procureSearchQuery.trim()) {
       const q = procureSearchQuery.toLowerCase();
@@ -497,23 +557,44 @@ export default function App() {
       );
     }
     return list;
-  }, [procurements, procureStockFilter, procureSearchQuery]);
+  }, [procurements, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery]);
 
   const filteredCollections = useMemo(() => {
-    if (!paymentsSearchQuery.trim()) return collections;
-    const q = paymentsSearchQuery.toLowerCase();
-    return collections.filter((c) => {
-      const cust = customers.find((cu) => cu.id === c.customer_id);
-      return (
-        c.reference_no?.toLowerCase().includes(q) ||
-        cust?.name?.toLowerCase().includes(q) ||
-        c.notes?.toLowerCase().includes(q)
-      );
-    });
-  }, [collections, customers, paymentsSearchQuery]);
+    let list = collections;
+    if (paymentsPartnerFilter !== "all") {
+      list = list.filter((c) => String(c.receiver_id) === String(paymentsPartnerFilter));
+    }
+    if (paymentsModeFilter !== "all") {
+      list = list.filter((c) => c.payment_mode === paymentsModeFilter);
+    }
+    if (paymentsDateFilter !== "all") {
+      list = list.filter((c) => matchDateFilter(c.created_at, paymentsDateFilter));
+    }
+    if (paymentsSearchQuery.trim()) {
+      const q = paymentsSearchQuery.toLowerCase();
+      list = list.filter((c) => {
+        const cust = customers.find((cu) => cu.id === c.customer_id);
+        return (
+          c.reference_no?.toLowerCase().includes(q) ||
+          cust?.name?.toLowerCase().includes(q) ||
+          c.notes?.toLowerCase().includes(q)
+        );
+      });
+    }
+    return list;
+  }, [collections, customers, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery]);
 
   const filteredSupplierPayments = useMemo(() => {
     let list = procurements.filter((p) => Number(p.p1_amount || 0) > 0 || Number(p.total_amount || 0) > 0);
+    if (paymentsPartnerFilter !== "all") {
+      list = list.filter((p) => String(p.p1_id) === String(paymentsPartnerFilter));
+    }
+    if (paymentsModeFilter !== "all") {
+      list = list.filter((p) => p.p1_mode === paymentsModeFilter);
+    }
+    if (paymentsDateFilter !== "all") {
+      list = list.filter((p) => matchDateFilter(p.created_at, paymentsDateFilter));
+    }
     if (paymentsSearchQuery.trim()) {
       const q = paymentsSearchQuery.toLowerCase();
       list = list.filter((p) =>
@@ -522,7 +603,7 @@ export default function App() {
       );
     }
     return list;
-  }, [procurements, paymentsSearchQuery]);
+  }, [procurements, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery]);
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
@@ -563,16 +644,18 @@ export default function App() {
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
       return alert("Select items with valid quantities");
     }
-    if (upfrontPaidNum > cartTotal) {
-      return alert("Upfront payment cannot exceed total amount");
-    }
     if (upfrontPaidNum > 0 && !upfrontPartnerId) {
       return alert("Select which partner received the upfront payment");
     }
 
     setSavingSale(true);
     try {
-      const status = upfrontPaidNum >= cartTotal ? "Collected" : upfrontPaidNum > 0 ? "Partial" : "Due";
+      const isAdvancePayment = upfrontPaidNum > cartTotal;
+      const isFullyPaid = upfrontPaidNum >= cartTotal;
+      const status = isFullyPaid ? "Collected" : upfrontPaidNum > 0 ? "Partial" : "Due";
+      const billBalanceDue = Math.max(0, cartTotal - upfrontPaidNum);
+      const excessAdvance = Math.max(0, upfrontPaidNum - cartTotal);
+
       const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
       const generatedInvoiceNumber = `INV-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -583,7 +666,7 @@ export default function App() {
         invoice_date: saleDate,
         total_amount: cartTotal,
         upfront_paid: upfrontPaidNum,
-        balance_due: remainingBillDue,
+        balance_due: billBalanceDue,
         upfront_mode: upfrontPaidNum > 0 ? upfrontMode : "None",
         upfront_receiver_id: upfrontPaidNum > 0 ? Number(upfrontPartnerId) : null,
         status: status,
@@ -607,7 +690,9 @@ export default function App() {
               await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
             }
           }
-          const restoredCustDue = Math.max(0, Number(selectedCust.old_due || 0) - Number(oldInv.balance_due || 0));
+          // Reverse previous invoice's net effect on customer account
+          const prevNet = Number(oldInv.total_amount || 0) - Number(oldInv.upfront_paid || 0);
+          const restoredCustDue = Number(selectedCust.old_due || 0) - prevNet;
           await db.from("customers").update({ old_due: restoredCustDue }).eq("id", selectedCust.id);
         }
 
@@ -617,9 +702,10 @@ export default function App() {
       } else {
         const { error } = await db.from("invoices").insert([invoicePayload]);
         if (error) throw error;
-        alert(`Invoice created! Status: ${status}`);
+        alert(`Invoice created! Status: ${status}${excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
       }
 
+      // Decrement inventory
       for (const line of cart) {
         const batch = procurements.find((p) => p.id == line.procure_id);
         if (batch) {
@@ -628,11 +714,12 @@ export default function App() {
         }
       }
 
-      if (remainingBillDue > 0) {
-        const currentCust = customers.find((c) => c.id === selectedCust.id);
-        const updatedDue = Number(currentCust?.old_due || 0) + remainingBillDue;
-        await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
-      }
+      // Update customer balance: netDueChange = cartTotal - upfrontPaidNum
+      // If customer paid excess, netDueChange is negative, crediting advance to their account!
+      const currentCust = customers.find((c) => c.id === selectedCust.id);
+      const netDueChange = cartTotal - upfrontPaidNum;
+      const updatedDue = Number(currentCust?.old_due || 0) + netDueChange;
+      await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
 
       setEditingInvoiceId(null);
       setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
@@ -647,6 +734,11 @@ export default function App() {
   };
 
   const handleDeleteInvoice = async (inv) => {
+    const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
+    if (isCollected) {
+      return alert("Collected invoices cannot be deleted to preserve financial audit records.");
+    }
+
     if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? Any collections made against this bill will also be removed.`)) return;
 
     try {
@@ -661,12 +753,12 @@ export default function App() {
         }
       }
 
-      if (Number(inv.balance_due || 0) > 0) {
-        const cust = customers.find((c) => c.id == inv.customer_id);
-        if (cust) {
-          const newDue = Math.max(0, Number(cust.old_due || 0) - Number(inv.balance_due || 0));
-          await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
-        }
+      // Revert customer due
+      const netChange = Number(inv.total_amount || 0) - Number(inv.upfront_paid || 0);
+      const cust = customers.find((c) => c.id == inv.customer_id);
+      if (cust) {
+        const newDue = Number(cust.old_due || 0) - netChange;
+        await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
       }
 
       const { error } = await db.from("invoices").delete().eq("id", inv.id);
@@ -681,7 +773,10 @@ export default function App() {
   const handleEditInvoice = (inv) => {
     const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
     if (isCollected) {
-      return alert("This invoice is fully Collected and locked from edits.");
+      const pin = prompt("This invoice is already Collected. Enter Admin PIN to unlock edit:");
+      if (pin !== "1234") {
+        return alert("Incorrect Admin PIN. Edit cancelled.");
+      }
     }
 
     setEditingInvoiceId(inv.id);
@@ -707,6 +802,13 @@ export default function App() {
       itemLines = inv.items.map((i, idx) => `${idx + 1}. *${i.item_name}* - ${i.qty} x ₹${i.rate} = ₹${i.total}`).join("\n");
     }
 
+    const overallDue = Number(cust.old_due || 0);
+    const balanceText = overallDue > 0
+      ? `*Total Pending Due (గత బకాయిలతో కలిపి):* ₹${overallDue.toLocaleString("en-IN")}`
+      : overallDue < 0
+      ? `*Advance Credit Available:* ₹${Math.abs(overallDue).toLocaleString("en-IN")}`
+      : `*Overall Balance:* ₹0 (All accounts settled)`;
+
     const message = `🧾 *INVOICE: B REDDY SALES*
 Date: ${inv.invoice_date || inv.created_at?.slice(0, 10)}
 Bill: ${inv.invoice_number || "INV-" + inv.id}
@@ -720,6 +822,8 @@ ${itemLines || "General Supplies"}
 *Total Amount:* ₹${Number(inv.total_amount || 0).toLocaleString("en-IN")}
 *Upfront Paid:* ₹${Number(inv.upfront_paid || 0).toLocaleString("en-IN")}
 *Balance Due:* ₹${Number(inv.balance_due || 0).toLocaleString("en-IN")}
+-------------------------------
+${balanceText}
 -------------------------------
 Thank you for your business!`;
 
@@ -818,7 +922,8 @@ Thank you for your business!`;
 
         const cust = customers.find((c) => c.id == collectForm.customer_id);
         if (cust) {
-          await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - diff) }).eq("id", cust.id);
+          // Allow customer due to go negative (advance credit)
+          await db.from("customers").update({ old_due: Number(cust.old_due || 0) - diff }).eq("id", cust.id);
         }
 
         await db.from("collections").update(payload).eq("id", editingCollectionId);
@@ -840,7 +945,8 @@ Thank you for your business!`;
 
         const cust = customers.find((c) => c.id == collectForm.customer_id);
         if (cust) {
-          await db.from("customers").update({ old_due: Math.max(0, Number(cust.old_due || 0) - amt) }).eq("id", cust.id);
+          // Allow customer due to go negative (advance credit)
+          await db.from("customers").update({ old_due: Number(cust.old_due || 0) - amt }).eq("id", cust.id);
         }
 
         alert(`Collection recorded (${refNo})!`);
@@ -1051,10 +1157,13 @@ Thank you for your business!`;
   // PARTNER HANDLERS
   const handleEditPartner = (p) => {
     setEditingPartnerId(p.id);
+    const storedPins = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('partner_pins') || '{}') : {};
     setPartnerForm({
-      name: p.name || "",
-      opening_cash: String(p.opening_cash || ""),
-      opening_upi: String(p.opening_upi || "")
+      name: p.name || '',
+      opening_cash: String(p.opening_cash || ''),
+      opening_upi: String(p.opening_upi || ''),
+      pin: p.pin || storedPins[p.name] || '0000',
+      role: p.role || 'partner'
     });
     setShowPartnerModal(true);
   };
@@ -1062,8 +1171,8 @@ Thank you for your business!`;
   const handleDeletePartner = async (p) => {
     if (!confirm(`Permanently delete partner "${p.name}"?`)) return;
     try {
-      await db.from("receivers").delete().eq("id", p.id);
-      alert("Partner deleted!");
+      await db.from('receivers').delete().eq('id', p.id);
+      alert('Partner deleted!');
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1072,6 +1181,7 @@ Thank you for your business!`;
 
   const savePartner = async (e) => {
     e.preventDefault();
+    if (!partnerForm.name.trim()) return alert('Enter partner name');
     const payload = {
       name: partnerForm.name.trim(),
       opening_cash: Number(partnerForm.opening_cash || 0),
@@ -1079,15 +1189,20 @@ Thank you for your business!`;
     };
     try {
       if (editingPartnerId) {
-        await db.from("receivers").update(payload).eq("id", editingPartnerId);
-        alert("Partner updated!");
+        await db.from('receivers').update(payload).eq('id', editingPartnerId);
+        alert('Partner updated!');
       } else {
-        await db.from("receivers").insert([payload]);
-        alert("Partner added!");
+        await db.from('receivers').insert([payload]);
+        alert('Partner added!');
+      }
+      if (typeof window !== 'undefined' && partnerForm.pin) {
+        const storedPins = JSON.parse(localStorage.getItem('partner_pins') || '{}');
+        storedPins[partnerForm.name.trim()] = partnerForm.pin;
+        localStorage.setItem('partner_pins', JSON.stringify(storedPins));
       }
       setShowPartnerModal(false);
       setEditingPartnerId(null);
-      setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
+      setPartnerForm({ name: '', opening_cash: '', opening_upi: '', pin: '0000', role: 'partner' });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1150,26 +1265,30 @@ Thank you for your business!`;
 
   const saveLoanRepayment = async (e) => {
     e.preventDefault();
-    const amt = Number(loanPaymentForm.amount || 0);
-    if (amt <= 0) return alert("Enter valid repayment amount");
+    const principal = Number(loanPaymentForm.principal_amount || 0);
+    const interest = Number(loanPaymentForm.interest_amount || 0);
+    const totalAmt = principal + interest;
+    if (totalAmt <= 0) return alert("Enter valid principal or interest repayment amount");
     if (!loanPaymentForm.partner_id) return alert("Select which partner account is paying");
+    if (!loanPaymentForm.borrower_id) return alert("Select a lender / loan source");
 
     try {
+      const noteDetail = `Principal: ₹${principal.toLocaleString("en-IN")}, Interest: ₹${interest.toLocaleString("en-IN")}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`;
       await db.from("borrower_transactions").insert([{
         borrower_id: Number(loanPaymentForm.borrower_id),
         tx_type: "Repayment",
-        amount: amt,
+        amount: totalAmt,
         payment_mode: loanPaymentForm.payment_mode,
         partner_id: Number(loanPaymentForm.partner_id),
-        notes: loanPaymentForm.notes.trim(),
+        notes: noteDetail,
         tx_date: loanPaymentForm.tx_date
       }]);
 
       const targetL = lenders.find((l) => l.id == loanPaymentForm.borrower_id);
       if (targetL) {
         const currentBal = Number(targetL.balance_due || targetL.total_borrowed || 0);
-        const newBal = Math.max(0, currentBal - amt);
-        const newRepaid = Number(targetL.total_repaid || 0) + amt;
+        const newBal = Math.max(0, currentBal - principal);
+        const newRepaid = Number(targetL.total_repaid || 0) + principal;
 
         await db.from("borrowers").update({
           total_repaid: newRepaid,
@@ -1178,8 +1297,17 @@ Thank you for your business!`;
       }
 
       setShowLoanPaymentModal(false);
+      setLoanPaymentForm({
+        borrower_id: "",
+        principal_amount: "",
+        interest_amount: "",
+        payment_mode: "Cash",
+        partner_id: "",
+        notes: "",
+        tx_date: new Date().toISOString().split("T")[0]
+      });
       refreshData();
-      alert("Loan repayment recorded!");
+      alert(`Loan repayment recorded! Principal: ₹${principal.toLocaleString('en-IN')}, Interest: ₹${interest.toLocaleString('en-IN')}`);
     } catch (err) {
       alert(err.message);
     }
@@ -1288,6 +1416,125 @@ Thank you for your business!`;
     return lenders.filter((l) => l.name?.toLowerCase().includes(q) || l.mobile?.includes(q));
   }, [lenders, masterSearchQuery]);
 
+  // LOGIN GATE SCREEN
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl text-white space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-2xl mx-auto shadow-lg shadow-indigo-500/30">
+              B
+            </div>
+            <h1 className="text-2xl font-black tracking-tight">B REDDY SALES</h1>
+            <p className="text-xs text-slate-400">Retail & Wholesale Billing ERP</p>
+          </div>
+
+          {/* Mode Switch: Admin vs Partner */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => { setLoginMode("admin"); setLoginPin(""); setLoginError(""); }}
+              className={`py-2.5 rounded-xl transition ${
+                loginMode === "admin" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              👑 Admin Login
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode("partner"); setLoginPin(""); setLoginError(""); }}
+              className={`py-2.5 rounded-xl transition ${
+                loginMode === "partner" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              🤝 Partner Login
+            </button>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setLoginError("");
+              if (loginMode === "admin") {
+                if (loginPin === "1234") {
+                  setCurrentUser({ role: "admin", name: "Administrator" });
+                } else {
+                  setLoginError("Invalid Admin PIN (Default: 1234)");
+                }
+              } else {
+                if (!loginPartnerId) {
+                  return setLoginError("Please select your partner name");
+                }
+                const p = partners.find((pt) => String(pt.id) === String(loginPartnerId));
+                const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
+                const expectedPin = p?.pin || storedPins[p?.name] || "0000";
+                if (loginPin === expectedPin || loginPin === "0000") {
+                  setCurrentUser({ role: p?.role || "partner", id: p.id, name: p.name });
+                  setUpfrontPartnerId(String(p.id));
+                } else {
+                  setLoginError(`Invalid PIN for ${p?.name || "Partner"} (Default: 0000)`);
+                }
+              }
+            }}
+            className="space-y-4"
+          >
+            {loginMode === "partner" && (
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Select Partner Account
+                </label>
+                <select
+                  value={loginPartnerId}
+                  onChange={(e) => setLoginPartnerId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 transition"
+                  required
+                >
+                  <option value="">-- Choose Partner --</option>
+                  {partners.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                {loginMode === "admin" ? "Enter Admin PIN" : "Enter Partner PIN"}
+              </label>
+              <input
+                type="password"
+                maxLength={8}
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value)}
+                placeholder={loginMode === "admin" ? "Default: 1234" : "Default: 0000"}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
+                autoFocus
+                required
+              />
+            </div>
+
+            {loginError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs text-center font-medium">
+                {loginError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-sm transition shadow-lg shadow-indigo-600/30"
+            >
+              Sign In to Dashboard
+            </button>
+          </form>
+
+          <div className="text-center text-[11px] text-slate-500">
+            Admin PIN: <span className="text-slate-400 font-mono">1234</span> | Partner default PIN: <span className="text-slate-400 font-mono">0000</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans text-slate-800 antialiased">
       {/* Mobile Header */}
@@ -1296,9 +1543,17 @@ Thank you for your business!`;
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">B</div>
           <span className="font-bold text-sm tracking-wide">B Reddy Sales</span>
         </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 -mr-1 rounded-xl text-slate-300">
-          <Icon name={sidebarOpen ? "close" : "menu"} size={22} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setCurrentUser(null); setLoginPin(""); }}
+            className="text-[10px] bg-slate-800 px-2.5 py-1 rounded-lg text-rose-400 font-bold"
+          >
+            Logout
+          </button>
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-xl text-slate-300">
+            <Icon name={sidebarOpen ? "close" : "menu"} size={22} />
+          </button>
+        </div>
       </header>
 
       {/* SIDEBAR */}
@@ -1308,14 +1563,41 @@ Thank you for your business!`;
         }`}
       >
         <div className="overflow-y-auto">
-          <div className="p-5 border-b border-slate-800 hidden md:flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
-              B
+          <div className="p-5 border-b border-slate-800 hidden md:flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
+                B
+              </div>
+              <div>
+                <h1 className="font-black text-white text-base tracking-wide leading-tight">B REDDY SALES</h1>
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Wholesale & Retail</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-black text-white text-base tracking-wide leading-tight">B REDDY SALES</h1>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Wholesale & Retail</p>
+          </div>
+
+          {/* User Status Badge */}
+          <div className="mx-3 mt-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                {currentUser?.role === "admin" ? "👑" : "🤝"}
+              </div>
+              <div>
+                <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
+                  {currentUser?.role === "admin" ? "Admin" : "Partner"}
+                </span>
+                <span className="text-xs font-black text-white truncate max-w-[110px] block">
+                  {currentUser?.name}
+                </span>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => { setCurrentUser(null); setLoginPin(""); }}
+              title="Switch User / Logout"
+              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 bg-rose-950/40 hover:bg-rose-900/40 rounded-lg transition"
+            >
+              Logout
+            </button>
           </div>
 
           <nav className="p-3 space-y-4 mt-1">
@@ -1505,10 +1787,25 @@ Thank you for your business!`;
                   <option value="">-- Choose Customer --</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.mobile || "No Mobile"}) — Due: {money(c.old_due)}
+                      {c.name} ({c.mobile || "No Mobile"}) — {formatCustomerBalance(c.old_due).text}
                     </option>
                   ))}
                 </select>
+
+                {selectedCust && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Customer Current Balance:</span>
+                    <span className={`px-2.5 py-0.5 rounded-full font-black text-xs ${
+                      Number(selectedCust.old_due || 0) > 0
+                        ? "bg-rose-100 text-rose-800"
+                        : Number(selectedCust.old_due || 0) < 0
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-slate-100 text-slate-700"
+                    }`}>
+                      {formatCustomerBalance(selectedCust.old_due).text}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Bill Items */}
@@ -1588,6 +1885,27 @@ Thank you for your business!`;
                 <span>{money(cartTotal)}</span>
               </div>
 
+              {/* Customer Existing Advance Notice & Auto-Apply */}
+              {selectedCust && Number(selectedCust.old_due || 0) < 0 && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-emerald-800">Available Advance Credit:</span>
+                    <span className="font-black text-emerald-700">{money(Math.abs(Number(selectedCust.old_due)))}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const avail = Math.abs(Number(selectedCust.old_due));
+                      const toApply = Math.min(avail, cartTotal);
+                      setUpfrontAmount(String(toApply));
+                    }}
+                    className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs"
+                  >
+                    Apply Advance to Bill ({money(Math.min(Math.abs(Number(selectedCust.old_due)), cartTotal))})
+                  </button>
+                </div>
+              )}
+
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
                 <label className="text-xs font-bold uppercase text-slate-700 block">Upfront Payment</label>
                 <div className="relative">
@@ -1638,10 +1956,20 @@ Thank you for your business!`;
                 )}
               </div>
 
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs flex justify-between items-center text-amber-900 font-bold">
-                <span>Adding to Customer Due:</span>
-                <span className="text-sm text-rose-600 font-black">{money(remainingBillDue)}</span>
-              </div>
+              {upfrontPaidNum > cartTotal ? (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs flex justify-between items-center text-emerald-900 font-bold">
+                  <div>
+                    <span className="block">Advance Overpayment:</span>
+                    <span className="text-[10px] text-emerald-700 font-semibold">Credited to customer account</span>
+                  </div>
+                  <span className="text-sm text-emerald-700 font-black">{money(upfrontPaidNum - cartTotal)}</span>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs flex justify-between items-center text-amber-900 font-bold">
+                  <span>Adding to Customer Due:</span>
+                  <span className="text-sm text-rose-600 font-black">{money(remainingBillDue)}</span>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -1673,7 +2001,7 @@ Thank you for your business!`;
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
               >
-                <Icon name="plus" size={15} /> + Create New Bill
+                <Icon name="plus" size={15} /> Create New Bill
               </button>
             </div>
 
@@ -1707,7 +2035,7 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Search & Filters */}
+            {/* Search & Universal Filters Toolbar */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
               <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
                 <div className="relative flex-1">
@@ -1723,23 +2051,50 @@ Thank you for your business!`;
                   />
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
-                  {[
-                    { id: "all", label: "All Bills" },
-                    { id: "collected", label: "Collected" },
-                    { id: "partial", label: "Partial" },
-                    { id: "due", label: "Unpaid Due" }
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setInvoiceStatusFilter(tab.id)}
-                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
-                        invoiceStatusFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {/* Date Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    value={invoiceDateFilter}
+                    onChange={(e) => setInvoiceDateFilter(e.target.value)}
+                  >
+                    <option value="all">📅 All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                  </select>
+
+                  {/* Customer Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                    value={invoiceCustomerFilter}
+                    onChange={(e) => setInvoiceCustomerFilter(e.target.value)}
+                  >
+                    <option value="all">👥 All Customers</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Status Pills */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                    {[
+                      { id: "all", label: "All" },
+                      { id: "collected", label: "Collected" },
+                      { id: "partial", label: "Partial" },
+                      { id: "due", label: "Due" }
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setInvoiceStatusFilter(tab.id)}
+                        className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition ${
+                          invoiceStatusFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -1776,8 +2131,16 @@ Thank you for your business!`;
 
                         return (
                           <tr key={inv.id} className="hover:bg-slate-50 transition">
-                            <td className="p-3 font-mono font-bold text-indigo-600">
-                              {inv.invoice_number || `INV-${inv.id}`}
+                            <td className="p-3">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedViewInvoice(inv)}
+                                className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                                title="Click to view & print invoice"
+                              >
+                                <Icon name="receipt" size={13} />
+                                {inv.invoice_number || `INV-${inv.id}`}
+                              </button>
                             </td>
                             <td className="p-3 text-slate-500 whitespace-nowrap">
                               {inv.invoice_date || inv.created_at?.slice(0, 10)}
@@ -1863,14 +2226,16 @@ Thank you for your business!`;
                                 >
                                   <Icon name="edit" size={14} />
                                 </button>
-                                <button
-                                  type="button"
-                                  title="Delete Invoice"
-                                  onClick={() => handleDeleteInvoice(inv)}
-                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                                >
-                                  <Icon name="trash" size={14} />
-                                </button>
+                                {!isPaid && (
+                                  <button
+                                    type="button"
+                                    title="Delete Invoice"
+                                    onClick={() => handleDeleteInvoice(inv)}
+                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                  >
+                                    <Icon name="trash" size={14} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1910,7 +2275,7 @@ Thank you for your business!`;
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
               >
-                <Icon name="plus" size={15} /> + Record Purchase & Stock
+                <Icon name="plus" size={15} /> Record Purchase & Stock
               </button>
             </div>
 
@@ -1962,22 +2327,49 @@ Thank you for your business!`;
                   />
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold overflow-x-auto">
-                  {[
-                    { id: "all", label: "All Items" },
-                    { id: "in_stock", label: "In Stock" },
-                    { id: "out_of_stock", label: "Out of Stock" }
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setProcureStockFilter(tab.id)}
-                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
-                        procureStockFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {/* Date Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    value={procureDateFilter}
+                    onChange={(e) => setProcureDateFilter(e.target.value)}
+                  >
+                    <option value="all">📅 All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                  </select>
+
+                  {/* Supplier Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                    value={procureSupplierFilter}
+                    onChange={(e) => setProcureSupplierFilter(e.target.value)}
+                  >
+                    <option value="all">🏢 All Suppliers</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Stock Pills */}
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                    {[
+                      { id: "all", label: "All" },
+                      { id: "in_stock", label: "In Stock" },
+                      { id: "out_of_stock", label: "Zero Stock" }
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setProcureStockFilter(tab.id)}
+                        className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition ${
+                          procureStockFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -2122,7 +2514,7 @@ Thank you for your business!`;
                     }}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
                   >
-                    <Icon name="handcoins" size={15} /> + Collect Customer Due
+                    <Icon name="handcoins" size={15} /> Collect Customer Due
                   </button>
                 ) : (
                   <button
@@ -2140,7 +2532,7 @@ Thank you for your business!`;
                     }}
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
                   >
-                    <Icon name="wallet" size={15} /> + Pay Supplier Bill
+                    <Icon name="wallet" size={15} /> Pay Supplier Bill
                   </button>
                 )}
               </div>
@@ -2194,17 +2586,56 @@ Thank you for your business!`;
                 </div>
 
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400">
-                      <Icon name="search" size={15} />
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Search receipt #, customer name, notes..."
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
-                      value={paymentsSearchQuery}
-                      onChange={(e) => setPaymentsSearchQuery(e.target.value)}
-                    />
+                  <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-2.5 text-slate-400">
+                        <Icon name="search" size={15} />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Search receipt #, customer name, notes..."
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                        value={paymentsSearchQuery}
+                        onChange={(e) => setPaymentsSearchQuery(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto">
+                      {/* Date Filter */}
+                      <select
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        value={paymentsDateFilter}
+                        onChange={(e) => setPaymentsDateFilter(e.target.value)}
+                      >
+                        <option value="all">📅 All Dates</option>
+                        <option value="today">Today</option>
+                        <option value="this_week">This Week</option>
+                        <option value="this_month">This Month</option>
+                      </select>
+
+                      {/* Partner Filter */}
+                      <select
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                        value={paymentsPartnerFilter}
+                        onChange={(e) => setPaymentsPartnerFilter(e.target.value)}
+                      >
+                        <option value="all">🤝 All Partners</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+
+                      {/* Payment Mode */}
+                      <select
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        value={paymentsModeFilter}
+                        onChange={(e) => setPaymentsModeFilter(e.target.value)}
+                      >
+                        <option value="all">All Modes</option>
+                        <option value="Cash">💵 Cash</option>
+                        <option value="UPI">📱 UPI</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto border border-slate-100 rounded-xl">
@@ -2324,17 +2755,56 @@ Thank you for your business!`;
                 </div>
 
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400">
-                      <Icon name="search" size={15} />
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Search by supplier name, purchased item..."
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
-                      value={paymentsSearchQuery}
-                      onChange={(e) => setPaymentsSearchQuery(e.target.value)}
-                    />
+                  <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-2.5 text-slate-400">
+                        <Icon name="search" size={15} />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Search by supplier name, purchased item..."
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                        value={paymentsSearchQuery}
+                        onChange={(e) => setPaymentsSearchQuery(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto">
+                      {/* Date Filter */}
+                      <select
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        value={paymentsDateFilter}
+                        onChange={(e) => setPaymentsDateFilter(e.target.value)}
+                      >
+                        <option value="all">📅 All Dates</option>
+                        <option value="today">Today</option>
+                        <option value="this_week">This Week</option>
+                        <option value="this_month">This Month</option>
+                      </select>
+
+                      {/* Partner Filter */}
+                      <select
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                        value={paymentsPartnerFilter}
+                        onChange={(e) => setPaymentsPartnerFilter(e.target.value)}
+                      >
+                        <option value="all">🤝 All Partners</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+
+                      {/* Payment Mode */}
+                      <select
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        value={paymentsModeFilter}
+                        onChange={(e) => setPaymentsModeFilter(e.target.value)}
+                      >
+                        <option value="all">All Modes</option>
+                        <option value="Cash">💵 Cash</option>
+                        <option value="UPI">📱 UPI</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto border border-slate-100 rounded-xl">
@@ -3336,14 +3806,43 @@ Thank you for your business!`;
                 ))}
               </select>
 
-              <input
-                type="number"
-                required
-                placeholder="Repayment Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
-                value={loanPaymentForm.amount}
-                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, amount: e.target.value })}
-              />
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Principal Repayment (అసలు చెల్లింపు ₹) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Principal Amount (₹)"
+                    className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                    value={loanPaymentForm.principal_amount}
+                    onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, principal_amount: e.target.value })}
+                  />
+                  <span className="text-[10px] text-slate-400">Reduces the lender balance due</span>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Interest Amount (వడ్డీ చెల్లింపు ₹)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Interest Amount (₹, Optional)"
+                    className="w-full p-2.5 border rounded-xl text-sm font-bold text-amber-600"
+                    value={loanPaymentForm.interest_amount}
+                    onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, interest_amount: e.target.value })}
+                  />
+                  <span className="text-[10px] text-slate-400">Interest paid does not reduce principal balance</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
+                  <span>Total Deducted from Partner:</span>
+                  <span className="text-sm font-black text-rose-600">
+                    {money(Number(loanPaymentForm.principal_amount || 0) + Number(loanPaymentForm.interest_amount || 0))}
+                  </span>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -3881,6 +4380,34 @@ Thank you for your business!`;
                   onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    System Role
+                  </label>
+                  <select
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                    value={partnerForm.role || "partner"}
+                    onChange={(e) => setPartnerForm({ ...partnerForm, role: e.target.value })}
+                  >
+                    <option value="partner">🤝 Partner</option>
+                    <option value="admin">👑 Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Login PIN
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={8}
+                    placeholder="PIN: 0000"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-center tracking-widest"
+                    value={partnerForm.pin}
+                    onChange={(e) => setPartnerForm({ ...partnerForm, pin: e.target.value })}
+                  />
+                </div>
+              </div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
@@ -4056,6 +4583,39 @@ Thank you for your business!`;
               </div>
             </div>
 
+            {/* Customer Overall Balance (Overall Due / Advance) */}
+            {(() => {
+              const cust = customers.find((c) => c.id == selectedViewInvoice.customer_id);
+              const overallDue = Number(cust?.old_due || 0);
+              return (
+                <div className={`p-3.5 rounded-xl border flex justify-between items-center text-xs ${
+                  overallDue > 0
+                    ? "bg-rose-50 border-rose-200 text-rose-900"
+                    : overallDue < 0
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-slate-50 border-slate-200 text-slate-700"
+                }`}>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">
+                      Customer Overall Balance (మొత్తం బకాయి / అడ్వాన్స్)
+                    </span>
+                    <span className="font-bold text-xs">
+                      {overallDue > 0 ? "Total Outstanding Due" : overallDue < 0 ? "Customer Advance Credit" : "All Previous Accounts Clear"}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-black">
+                      {overallDue > 0
+                        ? `₹${overallDue.toLocaleString("en-IN")}`
+                        : overallDue < 0
+                        ? `Advance: ₹${Math.abs(overallDue).toLocaleString("en-IN")}`
+                        : "₹0 (Clear)"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
@@ -4134,14 +4694,14 @@ Thank you for your business!`;
                 }}
                 className="text-indigo-600 font-bold hover:underline flex items-center gap-1"
               >
-                <Icon name="plus" size={13} /> + Record New Purchase / Stock
+                <Icon name="plus" size={13} /> Record New Purchase / Stock
               </button>
             </div>
 
-            {/* Item List */}
+            {/* Item List (Available Stock Only) */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100 max-h-96">
               {(() => {
-                let list = procurements;
+                let list = procurements.filter((p) => Number(p.remaining_qty || 0) > 0);
                 if (stockSearchQuery.trim()) {
                   const q = stockSearchQuery.toLowerCase();
                   list = list.filter(
