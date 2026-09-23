@@ -269,8 +269,37 @@ export default function App() {
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "", confirmPin: "", error: "", success: "" });
 
-  // Lender duplicate save prevention
+  // Lender and Procurement duplicate save prevention
   const [savingLender, setSavingLender] = useState(false);
+  const [savingProcure, setSavingProcure] = useState(false);
+
+  // Sorting States
+  const [invoiceSort, setInvoiceSort] = useState("date_desc");
+  const [procureSort, setProcureSort] = useState("date_desc");
+  const [paymentsSort, setPaymentsSort] = useState("date_desc");
+  const [masterSort, setMasterSort] = useState("name_asc");
+
+  // Dual Suppliers (Suppliers who are also Customers eligible for sales billing)
+  const [dualSuppliers, setDualSuppliers] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("dual_suppliers") || "{}");
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  const toggleSupplierBuyer = (supplierIdOrName) => {
+    setDualSuppliers((prev) => {
+      const updated = { ...prev, [supplierIdOrName]: !prev[supplierIdOrName] };
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dual_suppliers", JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
 
   // Customer Bulk Excel / CSV Import State
   const [showCustomerImportModal, setShowCustomerImportModal] = useState(false);
@@ -370,7 +399,7 @@ export default function App() {
         db.from("borrowers").select("*").order("name", { ascending: true }),
         db.from("borrower_transactions").select("*").order("tx_date", { ascending: false }),
         db.from("suppliers").select("*").order("name", { ascending: true }),
-        db.from("items").select("*").order("name", { ascending: true })
+        db.from("items").select("*").order("item_name", { ascending: true })
       ]);
 
       if (p.data) {
@@ -404,13 +433,13 @@ export default function App() {
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     masterItems.forEach((i) => {
-      const trimmed = (i.name || "").trim();
+      const trimmed = (i.item_name || i.name || "").trim();
       if (trimmed && !map.has(trimmed.toLowerCase())) {
         map.set(trimmed.toLowerCase(), {
           id: i.id,
           name: trimmed,
-          purchase_rate: i.purchase_rate,
-          selling_rate: i.selling_rate
+          purchase_rate: i.unit_price || i.purchase_rate || 0,
+          selling_rate: i.unit_price || i.selling_rate || 0
         });
       }
     });
@@ -507,6 +536,31 @@ export default function App() {
       };
     });
   }, [partners, invoices, collections, procurements, expenses, loanTransactions]);
+
+  // Validation helper: Partner amount should not go negative (-amount)
+  const validatePartnerFunds = (partnerId, amount, mode) => {
+    const p = partnerAccounts.find((acc) => String(acc.id) === String(partnerId));
+    if (!p) return { valid: false, message: "Please select an active partner account!" };
+    const amt = Number(amount || 0);
+    if (amt <= 0) return { valid: true };
+
+    if (mode === "Cash") {
+      if (p.netCash < amt) {
+        return {
+          valid: false,
+          message: `Insufficient Cash with partner "${p.name}"! Available: ${money(p.netCash)}, Required: ${money(amt)}. Payment cancelled to prevent negative balance.`
+        };
+      }
+    } else if (mode === "UPI") {
+      if (p.netUpi < amt) {
+        return {
+          valid: false,
+          message: `Insufficient UPI funds with partner "${p.name}"! Available: ${money(p.netUpi)}, Required: ${money(amt)}. Payment cancelled to prevent negative balance.`
+        };
+      }
+    }
+    return { valid: true };
+  };
 
   // Overall Business Statement Summary (Standard Retail Financial Accounting)
   const businessSummary = useMemo(() => {
@@ -680,8 +734,19 @@ export default function App() {
         i.invoice_date?.includes(q)
       );
     }
-    return list;
-  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery]);
+
+    const sorted = [...list];
+    if (invoiceSort === "date_desc") {
+      sorted.sort((a, b) => new Date(b.invoice_date || b.created_at) - new Date(a.invoice_date || a.created_at));
+    } else if (invoiceSort === "date_asc") {
+      sorted.sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at));
+    } else if (invoiceSort === "amount_desc") {
+      sorted.sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0));
+    } else if (invoiceSort === "due_desc") {
+      sorted.sort((a, b) => Number(b.balance_due || 0) - Number(a.balance_due || 0));
+    }
+    return sorted;
+  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSort]);
 
   const filteredProcurements = useMemo(() => {
     let list = procurements;
@@ -703,8 +768,19 @@ export default function App() {
         p.supplier_name?.toLowerCase().includes(q)
       );
     }
-    return list;
-  }, [procurements, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery]);
+
+    const sorted = [...list];
+    if (procureSort === "date_desc") {
+      sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (procureSort === "date_asc") {
+      sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    } else if (procureSort === "stock_desc") {
+      sorted.sort((a, b) => Number(b.remaining_qty || 0) - Number(a.remaining_qty || 0));
+    } else if (procureSort === "valuation_desc") {
+      sorted.sort((a, b) => (Number(b.remaining_qty || 0) * Number(b.purchase_rate || 0)) - (Number(a.remaining_qty || 0) * Number(a.purchase_rate || 0)));
+    }
+    return sorted;
+  }, [procurements, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery, procureSort]);
 
   const filteredCollections = useMemo(() => {
     let list = collections;
@@ -1184,7 +1260,17 @@ Thank you for your business!`;
     const amt = Number(payPurchaseForm.amount || 0);
     if (amt <= 0) return alert("Enter valid payment amount");
     if (!payPurchaseForm.purchase_id) return alert("Select purchase bill");
-    if (!payPurchaseForm.partner_id) return alert("Select partner paying this bill");
+
+    const isAdvanceAdjusted = payPurchaseForm.payment_mode === "Advance Adjusted";
+    if (!isAdvanceAdjusted && !payPurchaseForm.partner_id) {
+      return alert("Select partner paying this bill");
+    }
+
+    // Validate partner cash/UPI funds
+    if (!isAdvanceAdjusted) {
+      const fundCheck = validatePartnerFunds(payPurchaseForm.partner_id, amt, payPurchaseForm.payment_mode);
+      if (!fundCheck.valid) return alert(fundCheck.message);
+    }
 
     const targetP = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
     if (!targetP) return alert("Purchase not found");
@@ -1197,12 +1283,19 @@ Thank you for your business!`;
       const newPaid = Math.min(currentTotal, existingPaid + amt);
       await db.from("procurements").update({
         p1_amount: newPaid,
-        p1_id: Number(payPurchaseForm.partner_id),
+        p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
         p1_mode: payPurchaseForm.payment_mode
       }).eq("id", targetP.id);
 
-      // If payment exceeds current bill due, credit the excess to supplier balance as an advance!
-      if (amt > currentDue) {
+      // If settled via Advance Adjusted, increase supplier.old_due (reduces the negative advance balance)
+      if (isAdvanceAdjusted) {
+        const sup = suppliers.find((s) => s.name === targetP.supplier_name);
+        if (sup) {
+          const updatedDue = Number(sup.old_due || 0) + amt;
+          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+        }
+      } else if (amt > currentDue) {
+        // If payment exceeds current bill due, credit the excess to supplier balance as an advance!
         const excessAdv = amt - currentDue;
         const sup = suppliers.find((s) => s.name === targetP.supplier_name);
         if (sup) {
@@ -1240,21 +1333,28 @@ Thank you for your business!`;
 
   const saveCustomer = async (e) => {
     e.preventDefault();
-    const payload = { name: custForm.name.trim(), mobile: custForm.mobile.trim(), old_due: Number(custForm.old_due || 0) };
+    const name = custForm.name.trim();
+    if (!name) return alert("Enter customer name");
+    const payload = { name: name, mobile: custForm.mobile.trim(), old_due: Number(custForm.old_due || 0) };
     try {
       if (editingCustId) {
-        await db.from("customers").update(payload).eq("id", editingCustId);
+        const { error } = await db.from("customers").update(payload).eq("id", editingCustId);
+        if (error) throw error;
         alert("Customer updated!");
       } else {
-        await db.from("customers").insert([payload]);
-        alert("Customer created!");
+        const { data, error } = await db.from("customers").insert([payload]).select();
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setCustomers((prev) => [...prev, data[0]].sort((a, b) => (a.name || "").localeCompare(b.name || "")));
+        }
+        alert("Customer created successfully!");
       }
       setShowCustModal(false);
       setEditingCustId(null);
       setCustForm({ name: "", mobile: "", old_due: "" });
       refreshData();
     } catch (err) {
-      alert(err.message);
+      alert("Error saving customer: " + err.message);
     }
   };
 
@@ -1328,13 +1428,14 @@ Thank you for your business!`;
     const itemName = itemForm.name.trim();
     if (!itemName) return alert("Enter item name");
     const purchaseRate = Number(itemForm.purchase_rate || 0);
-    const sellingRate = Number(itemForm.selling_rate || 0);
+    const sellingRate = Number(itemForm.selling_rate || purchaseRate);
     const openingQty = Number(itemForm.opening_qty || 0);
 
+    // Schema in Supabase items table: item_name, unit_price, current_stock
     const payload = {
-      name: itemName,
-      purchase_rate: purchaseRate,
-      selling_rate: sellingRate
+      item_name: itemName,
+      unit_price: sellingRate,
+      current_stock: openingQty
     };
     try {
       if (editingItemId) {
@@ -1342,7 +1443,7 @@ Thank you for your business!`;
         if (error) throw error;
         alert("Item updated!");
       } else {
-        const { error } = await db.from("items").insert([payload]);
+        const { error, data } = await db.from("items").insert([payload]).select();
         if (error) throw error;
         // If opening stock qty > 0, create an opening stock entry in procurements
         if (openingQty > 0) {
@@ -1352,7 +1453,7 @@ Thank you for your business!`;
             procured_qty: openingQty,
             remaining_qty: openingQty,
             purchase_rate: purchaseRate,
-            selling_rate: sellingRate || purchaseRate,
+            selling_rate: sellingRate,
             total_amount: openingQty * purchaseRate,
             p1_id: null,
             p1_amount: openingQty * purchaseRate,
@@ -1506,15 +1607,22 @@ Thank you for your business!`;
     const principal = Number(loanPaymentForm.principal_amount || 0);
     const interest = Number(loanPaymentForm.interest_amount || 0);
     const totalAmt = principal + interest;
-    if (totalAmt <= 0) return alert("Enter valid principal or interest repayment amount");
+    if (totalAmt <= 0) return alert("Enter valid repayment amount (Principal or Interest)");
     if (!loanPaymentForm.partner_id) return alert("Select which partner account is paying");
     if (!loanPaymentForm.borrower_id) return alert("Select a lender / loan source");
 
+    // Partner fund validation: prevent negative partner balance
+    const fundCheck = validatePartnerFunds(loanPaymentForm.partner_id, totalAmt, loanPaymentForm.payment_mode);
+    if (!fundCheck.valid) return alert(fundCheck.message);
+
     try {
-      const noteDetail = `Principal: ₹${principal.toLocaleString("en-IN")}, Interest: ₹${interest.toLocaleString("en-IN")}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`;
+      const noteDetail = principal > 0
+        ? `Principal: ₹${principal.toLocaleString("en-IN")}, Interest: ₹${interest.toLocaleString("en-IN")}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`
+        : `Monthly Interest: ₹${interest.toLocaleString("en-IN")}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`;
+
       await db.from("borrower_transactions").insert([{
         borrower_id: Number(loanPaymentForm.borrower_id),
-        tx_type: "Repayment",
+        tx_type: principal > 0 ? "Repayment" : "Interest",
         amount: totalAmt,
         payment_mode: loanPaymentForm.payment_mode,
         partner_id: Number(loanPaymentForm.partner_id),
@@ -1592,6 +1700,7 @@ Thank you for your business!`;
 
   const saveProcurement = async (e) => {
     e.preventDefault();
+    if (savingProcure) return;
     if (!procureForm.supplier_name) return alert("Select or add a Supplier");
     if (!procureForm.item_name) return alert("Select or add an Item");
 
@@ -1600,8 +1709,17 @@ Thank you for your business!`;
     const sellingRate = Number(procureForm.selling_rate || purchaseRate);
     const total = qty * purchaseRate;
     const paidNowNum = Number(procureForm.paid_now || 0);
+    const isAdvanceAdjusted = procureForm.p1_mode === "Advance Adjusted";
 
-    if (paidNowNum > 0 && !procureForm.p1_id) return alert("Select funding partner.");
+    if (paidNowNum > 0 && !isAdvanceAdjusted && !procureForm.p1_id) {
+      return alert("Select funding partner.");
+    }
+
+    // Partner fund validation: prevent negative partner balance
+    if (paidNowNum > 0 && !isAdvanceAdjusted) {
+      const fundCheck = validatePartnerFunds(procureForm.p1_id, paidNowNum, procureForm.p1_mode);
+      if (!fundCheck.valid) return alert(fundCheck.message);
+    }
 
     const payload = {
       supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
@@ -1611,11 +1729,12 @@ Thank you for your business!`;
       purchase_rate: purchaseRate,
       selling_rate: sellingRate,
       total_amount: total,
-      p1_id: paidNowNum > 0 ? Number(procureForm.p1_id) : null,
+      p1_id: paidNowNum > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : null,
       p1_amount: Math.min(total, paidNowNum),
       p1_mode: procureForm.p1_mode
     };
 
+    setSavingProcure(true);
     try {
       if (editingProcureId) {
         const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
@@ -1624,8 +1743,16 @@ Thank you for your business!`;
       } else {
         const { error } = await db.from("procurements").insert([payload]);
         if (error) throw error;
-        // If paid more than bill total, credit the excess to supplier as advance!
-        if (paidNowNum > total && !procureForm.is_opening) {
+
+        // If paid via Advance Adjusted, reduce the supplier's negative advance balance (increases toward 0)
+        if (isAdvanceAdjusted && !procureForm.is_opening) {
+          const sup = suppliers.find((s) => s.name === procureForm.supplier_name.trim());
+          if (sup) {
+            const updatedDue = Number(sup.old_due || 0) + Math.min(total, paidNowNum);
+            await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+          }
+        } else if (paidNowNum > total && !procureForm.is_opening) {
+          // If paid more than bill total, credit the excess to supplier as advance!
           const excessAdv = paidNowNum - total;
           const sup = suppliers.find((s) => s.name === procureForm.supplier_name.trim());
           if (sup) {
@@ -1640,6 +1767,8 @@ Thank you for your business!`;
       refreshData();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setSavingProcure(false);
     }
   };
 
@@ -1676,6 +1805,10 @@ Thank you for your business!`;
     if (amt <= 0) return alert("Enter valid expense amount");
     if (!expenseForm.title.trim()) return alert("Enter expense description / title");
     if (!expenseForm.paid_by_id) return alert("Select partner who paid");
+
+    // Partner fund check: prevent negative partner balance
+    const fundCheck = validatePartnerFunds(expenseForm.paid_by_id, amt, expenseForm.payment_mode);
+    if (!fundCheck.valid) return alert(fundCheck.message);
 
     const cat = expenseCategories.find((c) => String(c.id) === String(expenseForm.category_id));
     const payload = {
@@ -1791,16 +1924,34 @@ Thank you for your business!`;
 
   // Filtered Masters Collections
   const filteredCustomers = useMemo(() => {
-    if (!masterSearchQuery) return customers;
-    const q = masterSearchQuery.toLowerCase();
-    return customers.filter((c) => c.name?.toLowerCase().includes(q) || c.mobile?.includes(q));
-  }, [customers, masterSearchQuery]);
+    let list = customers;
+    if (masterSearchQuery.trim()) {
+      const q = masterSearchQuery.toLowerCase();
+      list = list.filter((c) => c.name?.toLowerCase().includes(q) || c.mobile?.includes(q));
+    }
+    const sorted = [...list];
+    if (masterSort === "name_asc") {
+      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } else if (masterSort === "due_desc") {
+      sorted.sort((a, b) => Number(b.old_due || 0) - Number(a.old_due || 0));
+    }
+    return sorted;
+  }, [customers, masterSearchQuery, masterSort]);
 
   const filteredSuppliers = useMemo(() => {
-    if (!masterSearchQuery) return suppliers;
-    const q = masterSearchQuery.toLowerCase();
-    return suppliers.filter((s) => s.name?.toLowerCase().includes(q) || s.mobile?.includes(q));
-  }, [suppliers, masterSearchQuery]);
+    let list = suppliers;
+    if (masterSearchQuery.trim()) {
+      const q = masterSearchQuery.toLowerCase();
+      list = list.filter((s) => s.name?.toLowerCase().includes(q) || s.mobile?.includes(q));
+    }
+    const sorted = [...list];
+    if (masterSort === "name_asc") {
+      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    } else if (masterSort === "due_desc") {
+      sorted.sort((a, b) => Number(b.old_due || 0) - Number(a.old_due || 0));
+    }
+    return sorted;
+  }, [suppliers, masterSearchQuery, masterSort]);
 
   const filteredItems = useMemo(() => {
     if (!masterSearchQuery) return uniqueItemSuggestions;
@@ -2275,11 +2426,13 @@ Thank you for your business!`;
                     ))}
                   </optgroup>
                   <optgroup label="Suppliers / Vendors (సరుకు వ్యాపారులు - Contra Sale)">
-                    {suppliers.map((s) => (
-                      <option key={`sup_${s.id}`} value={`sup_${s.id}`}>
-                        {s.name} ({s.mobile || "No Mobile"}) — {formatCustomerBalance(s.old_due).text}
-                      </option>
-                    ))}
+                    {suppliers
+                      .filter((s) => dualSuppliers[s.id] || dualSuppliers[s.name])
+                      .map((s) => (
+                        <option key={`sup_${s.id}`} value={`sup_${s.id}`}>
+                          {s.name} ({s.mobile || "No Mobile"}) — {formatCustomerBalance(s.old_due).text}
+                        </option>
+                      ))}
                   </optgroup>
                 </select>
 
@@ -2565,6 +2718,18 @@ Thank you for your business!`;
                     <option value="this_month">This Month</option>
                   </select>
 
+                  {/* Sort Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    value={invoiceSort}
+                    onChange={(e) => setInvoiceSort(e.target.value)}
+                  >
+                    <option value="date_desc">↕️ Sort: Newest First</option>
+                    <option value="date_asc">↕️ Sort: Oldest First</option>
+                    <option value="amount_desc">↕️ Sort: Amount High-Low</option>
+                    <option value="due_desc">↕️ Sort: Due High-Low</option>
+                  </select>
+
                   {/* Customer Filter */}
                   <select
                     className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[160px]"
@@ -2845,6 +3010,18 @@ Thank you for your business!`;
                     <option value="today">Today</option>
                     <option value="this_week">This Week</option>
                     <option value="this_month">This Month</option>
+                  </select>
+
+                  {/* Sort Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    value={procureSort}
+                    onChange={(e) => setProcureSort(e.target.value)}
+                  >
+                    <option value="date_desc">↕️ Sort: Newest First</option>
+                    <option value="date_asc">↕️ Sort: Oldest First</option>
+                    <option value="stock_desc">↕️ Sort: Stock High-Low</option>
+                    <option value="valuation_desc">↕️ Sort: Valuation High-Low</option>
                   </select>
 
                   {/* Supplier Filter */}
@@ -3681,6 +3858,16 @@ Thank you for your business!`;
                 />
               </div>
 
+              {/* Master Sort */}
+              <select
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                value={masterSort}
+                onChange={(e) => setMasterSort(e.target.value)}
+              >
+                <option value="name_asc">↕️ Sort: Name (A-Z)</option>
+                <option value="due_desc">↕️ Sort: Balance Due (High-Low)</option>
+              </select>
+
               {mastersSubTab === "customers" && (
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <button
@@ -3796,13 +3983,24 @@ Thank you for your business!`;
                           {Number(s.old_due || 0) < 0 ? `Advance: ${money(Math.abs(s.old_due))}` : money(s.old_due)}
                         </span>
                       </div>
-                      <div className="flex gap-1.5">
-                        <button onClick={() => handleEditSupplier(s)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
-                          <Icon name="edit" size={14} />
-                        </button>
-                        <button onClick={() => handleDeleteSupplier(s)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
-                          <Icon name="trash" size={14} />
-                        </button>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex gap-1.5">
+                          <button onClick={() => handleEditSupplier(s)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
+                            <Icon name="edit" size={14} />
+                          </button>
+                          <button onClick={() => handleDeleteSupplier(s)} className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg border border-rose-100">
+                            <Icon name="trash" size={14} />
+                          </button>
+                        </div>
+                        <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 cursor-pointer hover:text-indigo-600">
+                          <input
+                            type="checkbox"
+                            checked={!!(dualSuppliers[s.id] || dualSuppliers[s.name])}
+                            onChange={() => toggleSupplierBuyer(s.id)}
+                            className="rounded text-indigo-600 cursor-pointer"
+                          />
+                          <span>Allow in Sale Invoice</span>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -4300,10 +4498,62 @@ Thank you for your business!`;
                         <tr key={c.id}>
                           <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
                           <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
-                          <td className="p-2 border border-slate-200">{c.mobile || "N/A"}</td>
-                          <td className="p-2 border border-slate-200 text-right font-bold text-rose-600">{money(c.old_due)}</td>
+                          <td className="p-2 border border-slate-200 text-slate-500">{c.mobile || "N/A"}</td>
+                          <td className="p-2 border border-slate-200 text-right font-black text-rose-600">{money(c.old_due)}</td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 4: SUPPLIER LEDGER (సరుకు వ్యాపారుల లెడ్జర్ - PAYABLES & ADVANCES) */}
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-sm text-slate-900">సరుకు వ్యాపారుల లెడ్జర్ (Supplier Payables & Advance Ledger)</h3>
+                  <div className="flex items-center gap-3 text-xs font-bold">
+                    <span className="text-amber-600">
+                      Total Payables: {money(suppliers.reduce((s, sup) => s + (Number(sup.old_due || 0) > 0 ? Number(sup.old_due) : 0), 0))}
+                    </span>
+                    <span className="text-emerald-600">
+                      Total Advances: {money(suppliers.reduce((s, sup) => s + (Number(sup.old_due || 0) < 0 ? Math.abs(Number(sup.old_due)) : 0), 0))}
+                    </span>
+                  </div>
+                </div>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-100 text-slate-600 font-bold">
+                      <tr>
+                        <th className="p-2 border border-slate-200 text-center">S.No</th>
+                        <th className="p-2 border border-slate-200">Supplier / Vendor Name</th>
+                        <th className="p-2 border border-slate-200">Mobile</th>
+                        <th className="p-2 border border-slate-200 text-center">Account Status</th>
+                        <th className="p-2 border border-slate-200 text-right">Balance Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {suppliers.map((s, idx) => {
+                        const bal = Number(s.old_due || 0);
+                        const isAdv = bal < 0;
+                        const isDue = bal > 0;
+                        return (
+                          <tr key={s.id} className={isAdv ? "bg-emerald-50/40" : ""}>
+                            <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
+                            <td className="p-2 border border-slate-200 font-bold">{s.name}</td>
+                            <td className="p-2 border border-slate-200 text-slate-500">{s.mobile || "N/A"}</td>
+                            <td className="p-2 border border-slate-200 text-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isAdv ? "bg-emerald-100 text-emerald-800" : isDue ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
+                              }`}>
+                                {isAdv ? "Advance Credit" : isDue ? "Payable Due" : "Settled"}
+                              </span>
+                            </td>
+                            <td className={`p-2 border border-slate-200 text-right font-black ${isAdv ? "text-emerald-700" : "text-amber-700"}`}>
+                              {isAdv ? `Advance: ${money(Math.abs(bal))}` : money(bal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -4417,12 +4667,11 @@ Thank you for your business!`;
               <div className="space-y-2">
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Principal Repayment (అసలు చెల్లింపు ₹) *
+                    Principal Repayment (అసలు చెల్లింపు ₹ - Optional if paying interest only)
                   </label>
                   <input
                     type="number"
-                    required
-                    placeholder="Principal Amount (₹)"
+                    placeholder="Principal Amount (₹, Leave 0 for interest only)"
                     className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
                     value={loanPaymentForm.principal_amount}
                     onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, principal_amount: e.target.value })}
@@ -4574,6 +4823,32 @@ Thank you for your business!`;
                       <span>Paid: <strong className="text-emerald-600">{money(paid)}</strong></span>
                       <span>Due: <strong className="text-rose-600">{money(due)}</strong></span>
                     </div>
+
+                    {/* Settle from Supplier Advance Button */}
+                    {(() => {
+                      const sup = suppliers.find((s) => s.name === target.supplier_name);
+                      const adv = Number(sup?.old_due || 0) < 0 ? Math.abs(Number(sup?.old_due)) : 0;
+                      if (adv <= 0) return null;
+                      return (
+                        <div className="pt-2 border-t border-indigo-100 flex justify-between items-center">
+                          <span className="text-[10px] text-emerald-700 font-bold">Advance Credit: {money(adv)}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const useAmt = Math.min(adv, due);
+                              setPayPurchaseForm({
+                                ...payPurchaseForm,
+                                amount: String(useAmt),
+                                payment_mode: "Advance Adjusted"
+                              });
+                            }}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg"
+                          >
+                            ⚡ Settle via Advance
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -4732,6 +5007,36 @@ Thank you for your business!`;
                   ))}
                   <option value="Opening Stock">Opening Stock</option>
                 </select>
+
+                {/* Supplier Advance Notification & Quick Apply */}
+                {(() => {
+                  const targetSup = suppliers.find((s) => s.name === procureForm.supplier_name);
+                  const adv = Number(targetSup?.old_due || 0) < 0 ? Math.abs(Number(targetSup?.old_due)) : 0;
+                  if (adv <= 0) return null;
+                  return (
+                    <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex justify-between items-center text-emerald-950 font-bold">
+                      <div>
+                        <span className="block text-emerald-800">✨ Available Advance with Supplier:</span>
+                        <span className="text-[11px] text-emerald-700 font-black">{money(adv)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const billTotal = Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
+                          const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
+                          setProcureForm({
+                            ...procureForm,
+                            paid_now: String(applyAmt),
+                            p1_mode: "Advance Adjusted"
+                          });
+                        }}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs"
+                      >
+                        ⚡ Apply Advance
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>
@@ -4848,7 +5153,7 @@ Thank you for your business!`;
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Purchase</button>
+                <button type="submit" disabled={savingProcure} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer">{savingProcure ? "Saving..." : "Save Purchase"}</button>
               </div>
             </form>
           </div>
@@ -5153,23 +5458,40 @@ Thank you for your business!`;
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <style>{`
             @media print {
-              body * {
-                visibility: hidden;
+              @page {
+                size: auto;
+                margin: 8mm;
               }
-              #printable-receipt, #printable-receipt * {
-                visibility: visible;
+              html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                height: auto !important;
+              }
+              body > * {
+                visibility: hidden !important;
               }
               #printable-receipt {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                margin: 0;
-                padding: 15px;
-                box-shadow: none !important;
+                visibility: visible !important;
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 12px !important;
                 border: none !important;
+                box-shadow: none !important;
+                background: white !important;
+                color: black !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                z-index: 99999999 !important;
               }
-              .no-print {
+              #printable-receipt * {
+                visibility: visible !important;
+              }
+              .no-print, header, aside, nav, button {
                 display: none !important;
               }
             }
