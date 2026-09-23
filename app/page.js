@@ -4075,6 +4075,156 @@ Thank you for your business!`;
           </div>
         </div>
       )}
+
+      {/* MODAL: PICK IN-STOCK ITEM */}
+      {pickerActiveIndex !== null && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 space-y-4 max-h-[85vh] flex flex-col shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <div>
+                <h3 className="font-black text-base text-slate-900">Select In-Stock Item</h3>
+                <p className="text-xs text-slate-500">Pick an item batch from current inventory</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setPickerActiveIndex(null); setStockSearchQuery(""); }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="relative">
+              <span className="absolute left-3 top-2.5 text-slate-400">
+                <Icon name="search" size={16} />
+              </span>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search items by name or supplier..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                value={stockSearchQuery}
+                onChange={(e) => setStockSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {/* In-Stock Stats & Shortcut */}
+            <div className="flex justify-between items-center text-xs px-1">
+              <span className="text-slate-500 font-semibold">
+                Available Batches ({procurements.filter(p => Number(p.remaining_qty || 0) > 0).length})
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPickerActiveIndex(null);
+                  setEditingProcureId(null);
+                  setProcureForm({
+                    supplier_name: "",
+                    item_name: "",
+                    procured_qty: "",
+                    purchase_rate: "",
+                    selling_rate: "",
+                    is_opening: false,
+                    paid_now: "",
+                    p1_id: "",
+                    p1_mode: "Cash"
+                  });
+                  setShowProcureModal(true);
+                }}
+                className="text-indigo-600 font-bold hover:underline flex items-center gap-1"
+              >
+                <Icon name="plus" size={13} /> + Record New Purchase / Stock
+              </button>
+            </div>
+
+            {/* Item List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-100 max-h-96">
+              {(() => {
+                let list = procurements;
+                if (stockSearchQuery.trim()) {
+                  const q = stockSearchQuery.toLowerCase();
+                  list = list.filter(
+                    (p) =>
+                      p.item_name?.toLowerCase().includes(q) ||
+                      p.supplier_name?.toLowerCase().includes(q)
+                  );
+                }
+                if (list.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-slate-400 space-y-3">
+                      <p className="text-xs">No stock batches found{stockSearchQuery ? ` matching "${stockSearchQuery}"` : ""}.</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickerActiveIndex(null);
+                          setEditingProcureId(null);
+                          setProcureForm({
+                            supplier_name: "",
+                            item_name: stockSearchQuery.trim() || "",
+                            procured_qty: "",
+                            purchase_rate: "",
+                            selling_rate: "",
+                            is_opening: false,
+                            paid_now: "",
+                            p1_id: "",
+                            p1_mode: "Cash"
+                          });
+                          setShowProcureModal(true);
+                        }}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs"
+                      >
+                        + Add "{stockSearchQuery || "New Item"}" to Stock
+                      </button>
+                    </div>
+                  );
+                }
+
+                // Sort: items with stock first, then by latest created
+                const sorted = [...list].sort((a, b) => Number(b.remaining_qty || 0) - Number(a.remaining_qty || 0));
+
+                return sorted.map((p) => {
+                  const rem = Number(p.remaining_qty || 0);
+                  const inStock = rem > 0;
+                  const sellRate = Number(p.selling_rate || p.purchase_rate || 0);
+
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => handlePickStockItem(p)}
+                      className="pt-2.5 pb-2.5 px-3 rounded-xl hover:bg-indigo-50/70 cursor-pointer transition flex justify-between items-center group border border-transparent hover:border-indigo-100"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-black text-sm text-slate-900 group-hover:text-indigo-600 transition">
+                            {p.item_name}
+                          </h4>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            inStock ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                          }`}>
+                            {inStock ? `${rem} In Stock` : "Sold Out"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Supplier: <span className="font-semibold text-slate-600">{p.supplier_name}</span> • Batch: {p.created_at?.slice(0, 10)}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Selling Rate</span>
+                        <span className="font-black text-sm text-indigo-600 block">
+                          {money(sellRate)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">Cost: {money(p.purchase_rate)}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
