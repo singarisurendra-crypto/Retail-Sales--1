@@ -658,7 +658,16 @@ export default function App() {
       });
     }
     if (invoiceCustomerFilter !== "all") {
-      list = list.filter((i) => String(i.customer_id) === String(invoiceCustomerFilter));
+      list = list.filter((i) => {
+        if (invoiceCustomerFilter.startsWith("cust_")) {
+          return String(i.customer_id) === invoiceCustomerFilter.replace("cust_", "");
+        }
+        if (invoiceCustomerFilter.startsWith("sup_")) {
+          const sup = suppliers.find((s) => String(s.id) === invoiceCustomerFilter.replace("sup_", ""));
+          return i.customer_name === sup?.name;
+        }
+        return String(i.customer_id) === String(invoiceCustomerFilter);
+      });
     }
     if (invoiceDateFilter !== "all") {
       list = list.filter((i) => matchDateFilter(i.invoice_date || i.created_at, invoiceDateFilter));
@@ -672,7 +681,7 @@ export default function App() {
       );
     }
     return list;
-  }, [invoices, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery]);
+  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery]);
 
   const filteredProcurements = useMemo(() => {
     let list = procurements;
@@ -788,18 +797,21 @@ export default function App() {
 
     setSavingSale(true);
     try {
-      const isAdvancePayment = upfrontPaidNum > cartTotal;
-      const isFullyPaid = upfrontPaidNum >= cartTotal;
+      const isSupplierSale = !!selectedCust.isSupplier;
+      // For contra supplier sales, the bill is settled against their payable ledger
+      const isAdvancePayment = !isSupplierSale && upfrontPaidNum > cartTotal;
+      const isFullyPaid = isSupplierSale || upfrontPaidNum >= cartTotal;
       const status = isFullyPaid ? "Collected" : upfrontPaidNum > 0 ? "Partial" : "Due";
-      const billBalanceDue = Math.max(0, cartTotal - upfrontPaidNum);
-      const excessAdvance = Math.max(0, upfrontPaidNum - cartTotal);
+      const billBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - upfrontPaidNum);
+      const excessAdvance = isSupplierSale ? 0 : Math.max(0, upfrontPaidNum - cartTotal);
 
       const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
       const generatedInvoiceNumber = `INV-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const invoicePayload = {
         invoice_number: editingInvoiceId ? undefined : generatedInvoiceNumber,
-        customer_id: selectedCust.id,
+        // When selling to a supplier (contra), customer_id must be null to respect DB foreign key constraint to customers table
+        customer_id: isSupplierSale ? null : selectedCust.id,
         customer_name: selectedCust.name,
         invoice_date: saleDate,
         total_amount: cartTotal,
@@ -808,7 +820,9 @@ export default function App() {
         upfront_mode: upfrontPaidNum > 0 ? upfrontMode : "None",
         upfront_receiver_id: upfrontPaidNum > 0 ? Number(upfrontPartnerId) : null,
         status: status,
-        payment_mode: upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial",
+        payment_mode: isSupplierSale
+          ? (upfrontPaidNum >= cartTotal ? upfrontMode : upfrontPaidNum > 0 ? `${upfrontMode} + Contra` : "Contra Offset")
+          : (upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"),
         items: cart.map((c) => ({
           procure_id: c.procure_id,
           item_name: c.item_name,
@@ -829,10 +843,17 @@ export default function App() {
               await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
             }
           }
-          // Reverse previous invoice's net effect on customer account
+          // Reverse previous invoice's net effect
           const prevNet = Number(oldInv.total_amount || 0) - Number(oldInv.upfront_paid || 0);
-          const restoredCustDue = Number(selectedCust.old_due || 0) - prevNet;
-          await db.from("customers").update({ old_due: restoredCustDue }).eq("id", selectedCust.id);
+          if (selectedCust.isSupplier) {
+            const currentSup = suppliers.find((s) => s.id === selectedCust.id);
+            const restoredDue = Number(currentSup?.old_due || 0) + prevNet;
+            await db.from("suppliers").update({ old_due: restoredDue }).eq("id", selectedCust.id);
+          } else {
+            const currentCust = customers.find((c) => c.id === selectedCust.id);
+            const restoredCustDue = Number(currentCust?.old_due || 0) - prevNet;
+            await db.from("customers").update({ old_due: restoredCustDue }).eq("id", selectedCust.id);
+          }
         }
 
         const { error } = await db.from("invoices").update(invoicePayload).eq("id", editingInvoiceId);
@@ -841,7 +862,7 @@ export default function App() {
       } else {
         const { error } = await db.from("invoices").insert([invoicePayload]);
         if (error) throw error;
-        alert(`Invoice created! Status: ${status}${excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
+        alert(`Invoice created! Status: ${status}${selectedCust.isSupplier ? ` (Contra offset against ${selectedCust.name} Supplier Account)` : excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
       }
 
       // Decrement inventory
@@ -856,8 +877,9 @@ export default function App() {
       // Update customer balance or supplier balance (contra account): netDueChange = cartTotal - upfrontPaidNum
       const netDueChange = cartTotal - upfrontPaidNum;
       if (selectedCust.isSupplier) {
+        // Selling to supplier reduces what we owe the supplier!
         const currentSup = suppliers.find((s) => s.id === selectedCust.id);
-        const updatedDue = Number(currentSup?.old_due || 0) + netDueChange;
+        const updatedDue = Number(currentSup?.old_due || 0) - netDueChange;
         await db.from("suppliers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
       } else {
         const currentCust = customers.find((c) => c.id === selectedCust.id);
@@ -900,12 +922,13 @@ export default function App() {
       // Revert customer or supplier due
       const netChange = Number(inv.total_amount || 0) - Number(inv.upfront_paid || 0);
       const cust = customers.find((c) => c.id == inv.customer_id);
-      const sup = suppliers.find((s) => s.id == inv.customer_id);
+      const sup = suppliers.find((s) => s.name === inv.customer_name || (inv.customer_id && s.id == inv.customer_id));
       if (cust) {
         const newDue = Number(cust.old_due || 0) - netChange;
         await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
       } else if (sup) {
-        const newDue = Number(sup.old_due || 0) - netChange;
+        // Restores the supplier payable balance
+        const newDue = Number(sup.old_due || 0) + netChange;
         await db.from("suppliers").update({ old_due: newDue }).eq("id", sup.id);
       }
 
@@ -930,7 +953,7 @@ export default function App() {
 
     setEditingInvoiceId(inv.id);
     const cust = customers.find((c) => c.id == inv.customer_id);
-    const sup = suppliers.find((s) => s.id == inv.customer_id);
+    const sup = suppliers.find((s) => s.name === inv.customer_name || (inv.customer_id && s.id == inv.customer_id));
     if (cust) {
       setSelectedCust(cust);
     } else if (sup) {
@@ -960,7 +983,7 @@ export default function App() {
   };
 
   const handleShareWhatsApp = (inv) => {
-    const cust = customers.find((c) => c.id === inv.customer_id) || {};
+    const cust = customers.find((c) => c.id === inv.customer_id) || suppliers.find((s) => s.name === inv.customer_name) || {};
     const cleanMobile = (cust.mobile || "").replace(/[^0-9]/g, "");
 
     let itemLines = "";
@@ -2424,7 +2447,17 @@ Thank you for your business!`;
                 )}
               </div>
 
-              {upfrontPaidNum > cartTotal ? (
+              {selectedCust?.isSupplier ? (
+                <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs flex justify-between items-center text-indigo-950 font-bold">
+                  <div>
+                    <span className="block">Supplier Contra Offset (ఖాతా జమ):</span>
+                    <span className="text-[10px] text-indigo-700 font-semibold">
+                      Deducted from {selectedCust.name} payable balance
+                    </span>
+                  </div>
+                  <span className="text-sm text-indigo-800 font-black">{money(cartTotal - upfrontPaidNum)}</span>
+                </div>
+              ) : upfrontPaidNum > cartTotal ? (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs flex justify-between items-center text-emerald-900 font-bold">
                   <div>
                     <span className="block">Advance Overpayment:</span>
@@ -2443,9 +2476,9 @@ Thank you for your business!`;
                 type="button"
                 disabled={savingSale || cartTotal <= 0}
                 onClick={saveSaleInvoice}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-black rounded-xl text-xs uppercase tracking-wider"
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 text-white font-black rounded-xl text-xs uppercase tracking-wider cursor-pointer"
               >
-                {savingSale ? "Saving..." : editingInvoiceId ? "Update & Save Invoice" : "Save Invoice & Bill"}
+                {savingSale ? "Saving..." : editingInvoiceId ? "Update & Save Invoice" : selectedCust?.isSupplier ? "Save & Offset Against Supplier" : "Save Invoice & Bill"}
               </button>
             </div>
           </div>
@@ -2534,14 +2567,21 @@ Thank you for your business!`;
 
                   {/* Customer Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[160px]"
                     value={invoiceCustomerFilter}
                     onChange={(e) => setInvoiceCustomerFilter(e.target.value)}
                   >
-                    <option value="all">👥 All Customers</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
+                    <option value="all">👥 All Accounts</option>
+                    <optgroup label="Customers (ఖాతాదారులు)">
+                      {customers.map((c) => (
+                        <option key={c.id} value={`cust_${c.id}`}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Suppliers (సరుకు వ్యాపారులు)">
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={`sup_${s.id}`}>{s.name}</option>
+                      ))}
+                    </optgroup>
                   </select>
 
                   {/* Status Pills */}
@@ -2614,7 +2654,14 @@ Thank you for your business!`;
                               {inv.invoice_date || inv.created_at?.slice(0, 10)}
                             </td>
                             <td className="p-3 font-bold text-slate-900">
-                              <div>{inv.customer_name}</div>
+                              <div>
+                                <span>{inv.customer_name}</span>
+                                {!inv.customer_id && (
+                                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                    Supplier Contra
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3 text-slate-500 text-[11px]">
                               {itemCount > 0 ? (
@@ -5207,7 +5254,7 @@ Thank you for your business!`;
 
             {/* Customer Overall Balance (Overall Due / Advance) */}
             {(() => {
-              const cust = customers.find((c) => c.id == selectedViewInvoice.customer_id);
+              const cust = customers.find((c) => c.id == selectedViewInvoice.customer_id) || suppliers.find((s) => s.name === selectedViewInvoice.customer_name);
               const overallDue = Number(cust?.old_due || 0);
               return (
                 <div className={`p-3.5 rounded-xl border flex justify-between items-center text-xs ${
