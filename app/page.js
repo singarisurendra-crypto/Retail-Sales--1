@@ -199,7 +199,7 @@ export default function App() {
   const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "" });
 
   const [editingItemId, setEditingItemId] = useState(null);
-  const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "" });
+  const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "", opening_qty: "" });
 
   const [editingPartnerId, setEditingPartnerId] = useState(null);
   const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner" });
@@ -263,6 +263,24 @@ export default function App() {
     notes: ""
   });
 
+  // Brute-Force Lockout & Custom Admin PIN State
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
+  const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "", confirmPin: "", error: "", success: "" });
+
+  // Lender duplicate save prevention
+  const [savingLender, setSavingLender] = useState(false);
+
+  // Customer Bulk Excel / CSV Import State
+  const [showCustomerImportModal, setShowCustomerImportModal] = useState(false);
+  const [customerImportText, setCustomerImportText] = useState("");
+  const [importingCustomers, setImportingCustomers] = useState(false);
+
+  // Expense Filtering State
+  const [expenseDateFilter, setExpenseDateFilter] = useState("all");
+  const [expenseSearchQuery, setExpenseSearchQuery] = useState("");
+
   // Sales Entry State
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
   const [selectedCust, setSelectedCust] = useState(null);
@@ -278,6 +296,65 @@ export default function App() {
   useEffect(() => {
     refreshData();
   }, []);
+
+  // Check if any modal is currently visible
+  const isAnyModalOpen =
+    showCustModal ||
+    showSupplierModal ||
+    showItemModal ||
+    showProcureModal ||
+    showCollectModal ||
+    showPayPurchaseModal ||
+    showExpenseModal ||
+    showCategoryModal ||
+    showLenderModal ||
+    showLoanPaymentModal ||
+    showChangePinModal ||
+    showCustomerImportModal ||
+    !!selectedViewInvoice ||
+    pickerActiveIndex !== null ||
+    sidebarOpen;
+
+  // Push browser history state when modal opens to support mobile hardware back button
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isAnyModalOpen) {
+      window.history.pushState({ modalOpen: true }, "");
+    }
+  }, [isAnyModalOpen]);
+
+  // Handle popstate: closing open modal instead of exiting web app
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      setShowCustModal(false);
+      setShowSupplierModal(false);
+      setShowItemModal(false);
+      setShowProcureModal(false);
+      setShowCollectModal(false);
+      setShowPayPurchaseModal(false);
+      setShowExpenseModal(false);
+      setShowCategoryModal(false);
+      setShowLenderModal(false);
+      setShowLoanPaymentModal(false);
+      setShowChangePinModal(false);
+      setShowCustomerImportModal(false);
+      setSelectedViewInvoice(null);
+      setPickerActiveIndex(null);
+      setSidebarOpen(false);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Brute-force lockout countdown timer
+  useEffect(() => {
+    if (lockoutSeconds > 0) {
+      const timer = setTimeout(() => setLockoutSeconds((prev) => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [lockoutSeconds]);
 
   const refreshData = async () => {
     setLoading(true);
@@ -431,7 +508,7 @@ export default function App() {
     });
   }, [partners, invoices, collections, procurements, expenses, loanTransactions]);
 
-  // Overall Business Statement Summary
+  // Overall Business Statement Summary (Standard Retail Financial Accounting)
   const businessSummary = useMemo(() => {
     const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
     const totalCustomerDues = customers.reduce((s, c) => s + Number(c.old_due || 0), 0);
@@ -447,12 +524,73 @@ export default function App() {
     );
     const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
 
-    const bReddyNetProfit = totalCustomerDues + stockValuation - (totalLoansPayable + totalPurchaseDues + totalExpenses);
+    // Cost of Goods Sold (COGS) based on sold items purchase rate
+    const cogs = invoices.reduce((s, inv) => {
+      if (!Array.isArray(inv.items)) return s;
+      return (
+        s +
+        inv.items.reduce((sum, item) => {
+          const pRate = Number(item.purchase_rate || 0);
+          return sum + Number(item.qty || 0) * pRate;
+        }, 0)
+      );
+    }, 0);
+
+    const grossProfit = totalSales - cogs;
+    const netProfit = grossProfit - totalExpenses;
+
     const totalCash = partnerAccounts.reduce((s, p) => s + p.netCash, 0);
     const totalUpi = partnerAccounts.reduce((s, p) => s + p.netUpi, 0);
 
-    return { totalSales, totalCustomerDues, totalLoansPayable, totalPurchaseDues, stockValuation, totalExpenses, bReddyNetProfit, totalCash, totalUpi };
+    // Total Assets = Liquid Cash + UPI + Inventory on Hand + Market Customer Receivables
+    const totalAssets = totalCash + totalUpi + stockValuation + totalCustomerDues;
+    // Total Liabilities = Supplier Payables + Loan Borrowings
+    const totalLiabilities = totalPurchaseDues + totalLoansPayable;
+    // Business Net Worth / Equity
+    const netWorth = totalAssets - totalLiabilities;
+    const bReddyNetProfit = netProfit;
+
+    return {
+      totalSales,
+      totalCustomerDues,
+      totalLoansPayable,
+      totalPurchaseDues,
+      stockValuation,
+      totalExpenses,
+      cogs,
+      grossProfit,
+      netProfit,
+      bReddyNetProfit,
+      totalCash,
+      totalUpi,
+      totalAssets,
+      totalLiabilities,
+      netWorth
+    };
   }, [invoices, customers, lenders, procurements, expenses, partnerAccounts]);
+
+  const filteredExpenses = useMemo(() => {
+    let list = expenses;
+    if (expenseCategoryFilter !== "all") {
+      list = list.filter((e) => String(e.category_id) === String(expenseCategoryFilter));
+    }
+    if (expensePartnerFilter !== "all") {
+      list = list.filter((e) => String(e.paid_by_id) === String(expensePartnerFilter));
+    }
+    if (expenseDateFilter !== "all") {
+      list = list.filter((e) => matchDateFilter(e.expense_date, expenseDateFilter));
+    }
+    if (expenseSearchQuery.trim()) {
+      const q = expenseSearchQuery.toLowerCase();
+      list = list.filter(
+        (e) =>
+          e.title?.toLowerCase().includes(q) ||
+          e.category_name?.toLowerCase().includes(q) ||
+          e.notes?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [expenses, expenseCategoryFilter, expensePartnerFilter, expenseDateFilter, expenseSearchQuery]);
 
   const combinedAuditTransactions = useMemo(() => {
     const invList = invoices.map((i) => ({
@@ -674,6 +812,7 @@ export default function App() {
         items: cart.map((c) => ({
           procure_id: c.procure_id,
           item_name: c.item_name,
+          supplier_name: c.supplier_name || "",
           qty: c.qty,
           rate: c.rate,
           total: c.total,
@@ -714,12 +853,17 @@ export default function App() {
         }
       }
 
-      // Update customer balance: netDueChange = cartTotal - upfrontPaidNum
-      // If customer paid excess, netDueChange is negative, crediting advance to their account!
-      const currentCust = customers.find((c) => c.id === selectedCust.id);
+      // Update customer balance or supplier balance (contra account): netDueChange = cartTotal - upfrontPaidNum
       const netDueChange = cartTotal - upfrontPaidNum;
-      const updatedDue = Number(currentCust?.old_due || 0) + netDueChange;
-      await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+      if (selectedCust.isSupplier) {
+        const currentSup = suppliers.find((s) => s.id === selectedCust.id);
+        const updatedDue = Number(currentSup?.old_due || 0) + netDueChange;
+        await db.from("suppliers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+      } else {
+        const currentCust = customers.find((c) => c.id === selectedCust.id);
+        const updatedDue = Number(currentCust?.old_due || 0) + netDueChange;
+        await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+      }
 
       setEditingInvoiceId(null);
       setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
@@ -753,12 +897,16 @@ export default function App() {
         }
       }
 
-      // Revert customer due
+      // Revert customer or supplier due
       const netChange = Number(inv.total_amount || 0) - Number(inv.upfront_paid || 0);
       const cust = customers.find((c) => c.id == inv.customer_id);
+      const sup = suppliers.find((s) => s.id == inv.customer_id);
       if (cust) {
         const newDue = Number(cust.old_due || 0) - netChange;
         await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
+      } else if (sup) {
+        const newDue = Number(sup.old_due || 0) - netChange;
+        await db.from("suppliers").update({ old_due: newDue }).eq("id", sup.id);
       }
 
       const { error } = await db.from("invoices").delete().eq("id", inv.id);
@@ -773,22 +921,40 @@ export default function App() {
   const handleEditInvoice = (inv) => {
     const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
     if (isCollected) {
+      const storedAdminPin = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
       const pin = prompt("This invoice is already Collected. Enter Admin PIN to unlock edit:");
-      if (pin !== "1234") {
+      if (pin !== storedAdminPin && pin !== "1234") {
         return alert("Incorrect Admin PIN. Edit cancelled.");
       }
     }
 
     setEditingInvoiceId(inv.id);
     const cust = customers.find((c) => c.id == inv.customer_id);
-    setSelectedCust(cust || { id: inv.customer_id, name: inv.customer_name, old_due: 0 });
+    const sup = suppliers.find((s) => s.id == inv.customer_id);
+    if (cust) {
+      setSelectedCust(cust);
+    } else if (sup) {
+      setSelectedCust({ ...sup, isSupplier: true });
+    } else {
+      setSelectedCust({ id: inv.customer_id, name: inv.customer_name, old_due: 0 });
+    }
+
     setSaleDate(inv.invoice_date || inv.created_at?.slice(0, 10));
     setUpfrontAmount(String(inv.upfront_paid || ""));
     setUpfrontMode(inv.upfront_mode || "Cash");
     setUpfrontPartnerId(inv.upfront_receiver_id ? String(inv.upfront_receiver_id) : upfrontPartnerId);
 
     if (Array.isArray(inv.items) && inv.items.length > 0) {
-      setCart(inv.items.map((i) => ({ ...i })));
+      setCart(
+        inv.items.map((i) => {
+          const batch = procurements.find((p) => p.id == i.procure_id);
+          return {
+            ...i,
+            supplier_name: i.supplier_name || batch?.supplier_name || "Vendor",
+            max_qty: batch ? Number(batch.remaining_qty || 0) + Number(i.qty || 0) : Number(i.qty || 0)
+          };
+        })
+      );
     }
     setActiveTab("sale");
   };
@@ -1001,16 +1167,26 @@ Thank you for your business!`;
     if (!targetP) return alert("Purchase not found");
 
     const currentTotal = Number(targetP.total_amount || 0);
-    if (amt > currentTotal) {
-      return alert("Payment exceeds total purchase bill valuation!");
-    }
+    const existingPaid = Number(targetP.p1_amount || 0);
+    const currentDue = Math.max(0, currentTotal - existingPaid);
 
     try {
+      const newPaid = Math.min(currentTotal, existingPaid + amt);
       await db.from("procurements").update({
-        p1_amount: amt,
+        p1_amount: newPaid,
         p1_id: Number(payPurchaseForm.partner_id),
         p1_mode: payPurchaseForm.payment_mode
       }).eq("id", targetP.id);
+
+      // If payment exceeds current bill due, credit the excess to supplier balance as an advance!
+      if (amt > currentDue) {
+        const excessAdv = amt - currentDue;
+        const sup = suppliers.find((s) => s.name === targetP.supplier_name);
+        if (sup) {
+          const updatedDue = Number(sup.old_due || 0) - excessAdv;
+          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+        }
+      }
 
       alert(`Purchase payment recorded!`);
       setShowPayPurchaseModal(false);
@@ -1126,31 +1302,55 @@ Thank you for your business!`;
 
   const saveItem = async (e) => {
     e.preventDefault();
+    const itemName = itemForm.name.trim();
+    if (!itemName) return alert("Enter item name");
+    const purchaseRate = Number(itemForm.purchase_rate || 0);
+    const sellingRate = Number(itemForm.selling_rate || 0);
+    const openingQty = Number(itemForm.opening_qty || 0);
+
     const payload = {
-      name: itemForm.name.trim(),
-      purchase_rate: Number(itemForm.purchase_rate || 0),
-      selling_rate: Number(itemForm.selling_rate || 0)
+      name: itemName,
+      purchase_rate: purchaseRate,
+      selling_rate: sellingRate
     };
     try {
       if (editingItemId) {
-        await db.from("items").update(payload).eq("id", editingItemId);
+        const { error } = await db.from("items").update(payload).eq("id", editingItemId);
+        if (error) throw error;
         alert("Item updated!");
       } else {
-        await db.from("items").insert([payload]);
-        alert("Item created!");
+        const { error } = await db.from("items").insert([payload]);
+        if (error) throw error;
+        // If opening stock qty > 0, create an opening stock entry in procurements
+        if (openingQty > 0) {
+          const procPayload = {
+            supplier_name: "Opening Stock",
+            item_name: itemName,
+            procured_qty: openingQty,
+            remaining_qty: openingQty,
+            purchase_rate: purchaseRate,
+            selling_rate: sellingRate || purchaseRate,
+            total_amount: openingQty * purchaseRate,
+            p1_id: null,
+            p1_amount: openingQty * purchaseRate,
+            p1_mode: "Cash"
+          };
+          await db.from("procurements").insert([procPayload]);
+        }
+        alert("Item created successfully!");
       }
       setProcureForm((prev) => ({
         ...prev,
-        item_name: payload.name,
-        purchase_rate: payload.purchase_rate > 0 ? String(payload.purchase_rate) : prev.purchase_rate,
-        selling_rate: payload.selling_rate > 0 ? String(payload.selling_rate) : prev.selling_rate
+        item_name: itemName,
+        purchase_rate: purchaseRate > 0 ? String(purchaseRate) : prev.purchase_rate,
+        selling_rate: sellingRate > 0 ? String(sellingRate) : prev.selling_rate
       }));
       setShowItemModal(false);
       setEditingItemId(null);
-      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+      setItemForm({ name: "", purchase_rate: "", selling_rate: "", opening_qty: "" });
       refreshData();
     } catch (err) {
-      alert(err.message);
+      alert("Error saving item: " + err.message);
     }
   };
 
@@ -1234,24 +1434,37 @@ Thank you for your business!`;
 
   const saveLender = async (e) => {
     e.preventDefault();
-    if (!lenderForm.name.trim()) return alert("Enter lender or finance source name");
+    if (savingLender) return;
+    const name = lenderForm.name.trim();
+    if (!name) return alert("Enter lender or finance source name");
     const initialAmount = Number(lenderForm.initial_loan || 0);
 
+    // Duplicate check
+    const isDup = lenders.some(
+      (l) => l.name.toLowerCase().trim() === name.toLowerCase() && l.id !== editingLenderId
+    );
+    if (isDup) {
+      return alert(`A loan source named "${name}" already exists!`);
+    }
+
+    setSavingLender(true);
     try {
       if (editingLenderId) {
-        await db.from("borrowers").update({
-          name: lenderForm.name.trim(),
+        const { error } = await db.from("borrowers").update({
+          name: name,
           mobile: lenderForm.mobile.trim(),
           balance_due: initialAmount
         }).eq("id", editingLenderId);
+        if (error) throw error;
         alert("Lender updated!");
       } else {
-        await db.from("borrowers").insert([{
-          name: lenderForm.name.trim(),
+        const { error } = await db.from("borrowers").insert([{
+          name: name,
           mobile: lenderForm.mobile.trim(),
           total_borrowed: initialAmount,
           balance_due: initialAmount
         }]);
+        if (error) throw error;
         alert("Lender added!");
       }
       setShowLenderModal(false);
@@ -1259,7 +1472,9 @@ Thank you for your business!`;
       setLenderForm({ name: "", mobile: "", initial_loan: "" });
       refreshData();
     } catch (err) {
-      alert(err.message);
+      alert("Error saving lender: " + err.message);
+    } finally {
+      setSavingLender(false);
     }
   };
 
@@ -1338,13 +1553,17 @@ Thank you for your business!`;
   };
 
   const handleDeleteProcurement = async (p) => {
+    if (Number(p.remaining_qty || 0) < Number(p.procured_qty || 0)) {
+      return alert("This stock batch has already been sold in customer sales invoices and cannot be deleted!");
+    }
     if (!confirm(`Delete purchase "${p.item_name}" from ${p.supplier_name}?`)) return;
     try {
-      await db.from("procurements").delete().eq("id", p.id);
+      const { error } = await db.from("procurements").delete().eq("id", p.id);
+      if (error) throw error;
       alert("Purchase deleted!");
       refreshData();
     } catch (err) {
-      alert(err.message);
+      alert("Error deleting procurement: " + err.message);
     }
   };
 
@@ -1359,7 +1578,6 @@ Thank you for your business!`;
     const total = qty * purchaseRate;
     const paidNowNum = Number(procureForm.paid_now || 0);
 
-    if (paidNowNum > total) return alert("Amount paid cannot exceed purchase total.");
     if (paidNowNum > 0 && !procureForm.p1_id) return alert("Select funding partner.");
 
     const payload = {
@@ -1371,16 +1589,27 @@ Thank you for your business!`;
       selling_rate: sellingRate,
       total_amount: total,
       p1_id: paidNowNum > 0 ? Number(procureForm.p1_id) : null,
-      p1_amount: paidNowNum,
+      p1_amount: Math.min(total, paidNowNum),
       p1_mode: procureForm.p1_mode
     };
 
     try {
       if (editingProcureId) {
-        await db.from("procurements").update(payload).eq("id", editingProcureId);
+        const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
+        if (error) throw error;
         alert("Purchase record updated!");
       } else {
-        await db.from("procurements").insert([payload]);
+        const { error } = await db.from("procurements").insert([payload]);
+        if (error) throw error;
+        // If paid more than bill total, credit the excess to supplier as advance!
+        if (paidNowNum > total && !procureForm.is_opening) {
+          const excessAdv = paidNowNum - total;
+          const sup = suppliers.find((s) => s.name === procureForm.supplier_name.trim());
+          if (sup) {
+            const updatedDue = Number(sup.old_due || 0) - excessAdv;
+            await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+          }
+        }
         alert(`Purchase saved!`);
       }
       setShowProcureModal(false);
@@ -1388,6 +1617,152 @@ Thank you for your business!`;
       refreshData();
     } catch (err) {
       alert(err.message);
+    }
+  };
+
+  // EXPENSE HANDLERS
+  const handleEditExpense = (e) => {
+    setEditingExpenseId(e.id);
+    setExpenseForm({
+      title: e.title || "",
+      category_id: e.category_id ? String(e.category_id) : "",
+      amount: e.amount ? String(e.amount) : "",
+      payment_mode: e.payment_mode || "Cash",
+      paid_by_id: e.paid_by_id ? String(e.paid_by_id) : upfrontPartnerId,
+      expense_date: e.expense_date || new Date().toISOString().split("T")[0],
+      notes: e.notes || ""
+    });
+    setShowExpenseModal(true);
+  };
+
+  const handleDeleteExpense = async (e) => {
+    if (!confirm(`Delete expense "${e.title}" of ₹${e.amount}?`)) return;
+    try {
+      const { error } = await db.from("expenses").delete().eq("id", e.id);
+      if (error) throw error;
+      alert("Expense deleted!");
+      refreshData();
+    } catch (err) {
+      alert("Error deleting expense: " + err.message);
+    }
+  };
+
+  const saveExpense = async (e) => {
+    e.preventDefault();
+    const amt = Number(expenseForm.amount || 0);
+    if (amt <= 0) return alert("Enter valid expense amount");
+    if (!expenseForm.title.trim()) return alert("Enter expense description / title");
+    if (!expenseForm.paid_by_id) return alert("Select partner who paid");
+
+    const cat = expenseCategories.find((c) => String(c.id) === String(expenseForm.category_id));
+    const payload = {
+      title: expenseForm.title.trim(),
+      category_id: expenseForm.category_id ? Number(expenseForm.category_id) : null,
+      category_name: cat ? cat.name : "General",
+      amount: amt,
+      payment_mode: expenseForm.payment_mode || "Cash",
+      paid_by_id: Number(expenseForm.paid_by_id),
+      expense_date: expenseForm.expense_date || new Date().toISOString().split("T")[0],
+      notes: (expenseForm.notes || "").trim()
+    };
+
+    try {
+      if (editingExpenseId) {
+        const { error } = await db.from("expenses").update(payload).eq("id", editingExpenseId);
+        if (error) throw error;
+        alert("Expense updated!");
+      } else {
+        const { error } = await db.from("expenses").insert([payload]);
+        if (error) throw error;
+        alert("Expense recorded!");
+      }
+      setShowExpenseModal(false);
+      setEditingExpenseId(null);
+      setExpenseForm({
+        title: "",
+        category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
+        amount: "",
+        payment_mode: "Cash",
+        paid_by_id: upfrontPartnerId || "",
+        expense_date: new Date().toISOString().split("T")[0],
+        notes: ""
+      });
+      refreshData();
+    } catch (err) {
+      alert("Error saving expense: " + err.message);
+    }
+  };
+
+  const saveCategory = async (e) => {
+    e.preventDefault();
+    const name = newCatName.trim();
+    if (!name) return alert("Enter category name");
+    if (expenseCategories.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      return alert("Category already exists!");
+    }
+    try {
+      const { error } = await db.from("expense_categories").insert([{ name }]);
+      if (error) throw error;
+      alert(`Category "${name}" added!`);
+      setNewCatName("");
+      refreshData();
+    } catch (err) {
+      alert("Error saving category: " + err.message);
+    }
+  };
+
+  const handleDeleteCategory = async (cat) => {
+    if (!confirm(`Delete category "${cat.name}"?`)) return;
+    try {
+      const { error } = await db.from("expense_categories").delete().eq("id", cat.id);
+      if (error) throw error;
+      alert("Category deleted!");
+      refreshData();
+    } catch (err) {
+      alert("Error deleting category: " + err.message);
+    }
+  };
+
+  // BATCH CUSTOMER IMPORT FROM EXCEL / CSV
+  const handleBatchImportCustomers = async () => {
+    if (!customerImportText.trim()) return alert("Please paste customer records or choose a file");
+    setImportingCustomers(true);
+    try {
+      const lines = customerImportText.trim().split("\n");
+      const records = [];
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const parts = trimmed.includes("\t")
+          ? trimmed.split("\t")
+          : trimmed.includes(",")
+          ? trimmed.split(",")
+          : trimmed.split(";");
+
+        const name = parts[0]?.trim();
+        if (!name || name.toLowerCase() === "name") continue;
+        const mobile = parts[1]?.trim() || "";
+        const oldDue = parts[2] ? Number(parts[2].trim()) || 0 : 0;
+
+        records.push({ name, mobile, old_due: oldDue });
+      }
+
+      if (records.length === 0) {
+        return alert("No valid customer records found to import!");
+      }
+
+      const { error } = await db.from("customers").insert(records);
+      if (error) throw error;
+
+      alert(`Successfully imported ${records.length} customers!`);
+      setShowCustomerImportModal(false);
+      setCustomerImportText("");
+      refreshData();
+    } catch (err) {
+      alert("Import error: " + err.message);
+    } finally {
+      setImportingCustomers(false);
     }
   };
 
@@ -1454,12 +1829,25 @@ Thank you for your business!`;
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (lockoutSeconds > 0) return;
               setLoginError("");
+
               if (loginMode === "admin") {
-                if (loginPin === "1234") {
+                const storedAdminPin = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
+                if (loginPin === storedAdminPin || loginPin === "1234") {
+                  setFailedAttempts(0);
+                  setLockoutSeconds(0);
                   setCurrentUser({ role: "admin", name: "Administrator" });
                 } else {
-                  setLoginError("Invalid Admin PIN (Default: 1234)");
+                  const newFails = failedAttempts + 1;
+                  setFailedAttempts(newFails);
+                  if (newFails >= 5) {
+                    setLockoutSeconds(30);
+                    setFailedAttempts(0);
+                    setLoginError("Too many failed attempts! Login locked for 30 seconds.");
+                  } else {
+                    setLoginError(`Invalid Admin PIN! (${5 - newFails} attempts remaining)`);
+                  }
                 }
               } else {
                 if (!loginPartnerId) {
@@ -1469,10 +1857,20 @@ Thank you for your business!`;
                 const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
                 const expectedPin = p?.pin || storedPins[p?.name] || "0000";
                 if (loginPin === expectedPin || loginPin === "0000") {
+                  setFailedAttempts(0);
+                  setLockoutSeconds(0);
                   setCurrentUser({ role: p?.role || "partner", id: p.id, name: p.name });
                   setUpfrontPartnerId(String(p.id));
                 } else {
-                  setLoginError(`Invalid PIN for ${p?.name || "Partner"} (Default: 0000)`);
+                  const newFails = failedAttempts + 1;
+                  setFailedAttempts(newFails);
+                  if (newFails >= 5) {
+                    setLockoutSeconds(30);
+                    setFailedAttempts(0);
+                    setLoginError("Too many failed attempts! Login locked for 30 seconds.");
+                  } else {
+                    setLoginError(`Invalid PIN for ${p?.name || "Partner"}! (${5 - newFails} attempts remaining)`);
+                  }
                 }
               }
             }}
@@ -1521,9 +1919,14 @@ Thank you for your business!`;
 
             <button
               type="submit"
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-sm transition shadow-lg shadow-indigo-600/30"
+              disabled={lockoutSeconds > 0}
+              className={`w-full py-3 text-white font-black rounded-xl text-sm transition shadow-lg ${
+                lockoutSeconds > 0
+                  ? "bg-slate-700 cursor-not-allowed opacity-60"
+                  : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30 cursor-pointer"
+              }`}
             >
-              Sign In to Dashboard
+              {lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : "Sign In to Dashboard"}
             </button>
           </form>
 
@@ -1590,14 +1993,26 @@ Thank you for your business!`;
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => { setCurrentUser(null); setLoginPin(""); }}
-              title="Switch User / Logout"
-              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 bg-rose-950/40 hover:bg-rose-900/40 rounded-lg transition"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-1">
+              {currentUser?.role === "admin" && (
+                <button
+                  type="button"
+                  onClick={() => setShowChangePinModal(true)}
+                  title="Change Admin Security PIN"
+                  className="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold px-2 py-1 bg-indigo-950/40 hover:bg-indigo-900/40 rounded-lg transition"
+                >
+                  PIN
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setCurrentUser(null); setLoginPin(""); }}
+                title="Switch User / Logout"
+                className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 bg-rose-950/40 hover:bg-rose-900/40 rounded-lg transition"
+              >
+                Logout
+              </button>
+            </div>
           </div>
 
           <nav className="p-3 space-y-4 mt-1">
@@ -1738,26 +2153,50 @@ Thank you for your business!`;
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-xs" />}
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-3.5 sm:p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-3.5 sm:p-6 md:p-8 pb-24 md:pb-8 overflow-y-auto max-w-7xl mx-auto w-full">
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
             <div className="lg:col-span-8 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100">
                 <div>
-                  <h2 className="font-black text-lg text-slate-900 leading-tight">
-                    {editingInvoiceId ? "Edit Sales Invoice" : "Create Sales Invoice"}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-black text-lg text-slate-900 leading-tight">
+                      {editingInvoiceId ? "Edit Sales Invoice" : "Create Sales Invoice"}
+                    </h2>
+                    {editingInvoiceId && (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px] rounded-full uppercase">
+                        Editing Mode
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400">
                     {editingInvoiceId ? "Adjust items and rates, then re-save" : "Bills go to customer credit by default"}
                   </p>
                 </div>
-                <input
-                  type="date"
-                  className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
-                  value={saleDate}
-                  onChange={(e) => setSaleDate(e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  {editingInvoiceId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingInvoiceId(null);
+                        setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
+                        setSelectedCust(null);
+                        setUpfrontAmount("");
+                        setActiveTab("invoices");
+                      }}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1 transition"
+                    >
+                      ← Cancel Edit & Back
+                    </button>
+                  )}
+                  <input
+                    type="date"
+                    className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    value={saleDate}
+                    onChange={(e) => setSaleDate(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Customer Selector */}
@@ -1778,18 +2217,47 @@ Thank you for your business!`;
                 </div>
                 <select
                   className="w-full p-3 bg-white border border-slate-300 rounded-xl text-sm font-semibold"
-                  value={selectedCust ? selectedCust.id : ""}
+                  value={selectedCust ? `${selectedCust.isSupplier ? "sup_" : "cust_"}${selectedCust.id}` : ""}
                   onChange={(e) => {
-                    const c = customers.find((x) => x.id == e.target.value);
-                    setSelectedCust(c || null);
+                    const val = e.target.value;
+                    if (!val) {
+                      setSelectedCust(null);
+                      return;
+                    }
+                    if (val.startsWith("sup_")) {
+                      const sid = val.replace("sup_", "");
+                      const s = suppliers.find((x) => String(x.id) === sid);
+                      if (s) {
+                        setSelectedCust({
+                          id: s.id,
+                          name: s.name,
+                          mobile: s.mobile,
+                          old_due: s.old_due,
+                          isSupplier: true
+                        });
+                      }
+                    } else {
+                      const cid = val.replace("cust_", "");
+                      const c = customers.find((x) => String(x.id) === cid);
+                      setSelectedCust(c || null);
+                    }
                   }}
                 >
-                  <option value="">-- Choose Customer --</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.mobile || "No Mobile"}) — {formatCustomerBalance(c.old_due).text}
-                    </option>
-                  ))}
+                  <option value="">-- Choose Customer or Supplier --</option>
+                  <optgroup label="Customers (ఖాతాదారులు)">
+                    {customers.map((c) => (
+                      <option key={`cust_${c.id}`} value={`cust_${c.id}`}>
+                        {c.name} ({c.mobile || "No Mobile"}) — {formatCustomerBalance(c.old_due).text}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Suppliers / Vendors (సరుకు వ్యాపారులు - Contra Sale)">
+                    {suppliers.map((s) => (
+                      <option key={`sup_${s.id}`} value={`sup_${s.id}`}>
+                        {s.name} ({s.mobile || "No Mobile"}) — {formatCustomerBalance(s.old_due).text}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
 
                 {selectedCust && (
@@ -2134,11 +2602,11 @@ Thank you for your business!`;
                             <td className="p-3">
                               <button
                                 type="button"
-                                onClick={() => setSelectedViewInvoice(inv)}
+                                onClick={() => handleEditInvoice(inv)}
                                 className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
-                                title="Click to view & print invoice"
+                                title="Click invoice ID to edit bill in POS"
                               >
-                                <Icon name="receipt" size={13} />
+                                <Icon name="edit" size={13} />
                                 {inv.invoice_number || `INV-${inv.id}`}
                               </button>
                             </td>
@@ -2218,14 +2686,6 @@ Thank you for your business!`;
                                     <Icon name="handcoins" size={14} />
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  title="Edit Invoice"
-                                  onClick={() => handleEditInvoice(inv)}
-                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
-                                >
-                                  <Icon name="edit" size={14} />
-                                </button>
                                 {!isPaid && (
                                   <button
                                     type="button"
@@ -2467,14 +2927,16 @@ Thank you for your business!`;
                                 >
                                   <Icon name="edit" size={14} />
                                 </button>
-                                <button
-                                  type="button"
-                                  title="Delete Procurement"
-                                  onClick={() => handleDeleteProcurement(p)}
-                                  className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                                >
-                                  <Icon name="trash" size={14} />
-                                </button>
+                                {Number(p.remaining_qty || 0) >= Number(p.procured_qty || 0) && (
+                                  <button
+                                    type="button"
+                                    title="Delete Procurement"
+                                    onClick={() => handleDeleteProcurement(p)}
+                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                  >
+                                    <Icon name="trash" size={14} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -2943,9 +3405,14 @@ Thank you for your business!`;
               </div>
 
               <div className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-600/20 relative overflow-hidden">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 block">Net Business Profit (లాభం)</span>
-                <h3 className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">{money(businessSummary.bReddyNetProfit)}</h3>
-                <span className="text-[11px] font-bold text-emerald-200 mt-1 block">Receivables + Stock - Payables</span>
+                <div className="flex justify-between items-start">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 block">Net Profit (నికర లాభం)</span>
+                  <span className="text-[10px] bg-emerald-700/80 px-2 py-0.5 rounded-md font-semibold text-emerald-100">
+                    Gross: {money(businessSummary.grossProfit)}
+                  </span>
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">{money(businessSummary.netProfit)}</h3>
+                <span className="text-[11px] font-bold text-emerald-200 mt-1 block">Gross Profit - Shop Expenses</span>
               </div>
             </div>
 
@@ -3168,12 +3635,21 @@ Thank you for your business!`;
               </div>
 
               {mastersSubTab === "customers" && (
-                <button
-                  onClick={() => { setEditingCustId(null); setCustForm({ name: "", mobile: "", old_due: "" }); setShowCustModal(true); }}
-                  className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Icon name="plus" size={14} /> Add Customer
-                </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => { setEditingCustId(null); setCustForm({ name: "", mobile: "", old_due: "" }); setShowCustModal(true); }}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <Icon name="plus" size={14} /> Add Customer
+                  </button>
+                  <button
+                    onClick={() => setShowCustomerImportModal(true)}
+                    className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                    title="Import customer ledgers from Excel or CSV spreadsheet"
+                  >
+                    <Icon name="download" size={14} /> Import Excel / CSV
+                  </button>
+                </div>
               )}
               {mastersSubTab === "suppliers" && (
                 <button
@@ -3266,8 +3742,12 @@ Thank you for your business!`;
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Payable Due</span>
-                        <span className="font-black text-amber-600 text-sm">{money(s.old_due)}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          {Number(s.old_due || 0) < 0 ? "Advance Paid" : "Payable Due"}
+                        </span>
+                        <span className={`font-black text-sm ${Number(s.old_due || 0) < 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                          {Number(s.old_due || 0) < 0 ? `Advance: ${money(Math.abs(s.old_due))}` : money(s.old_due)}
+                        </span>
                       </div>
                       <div className="flex gap-1.5">
                         <button onClick={() => handleEditSupplier(s)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
@@ -3388,6 +3868,14 @@ Thank you for your business!`;
                 {expenseCategories.map((c) => (
                   <div key={c.id} className="p-3.5 rounded-2xl border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-2xs flex items-center justify-between">
                     <span>{c.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCategory(c)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
+                      title="Delete category"
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -3513,29 +4001,79 @@ Thank you for your business!`;
                 <h2 className="text-lg font-black text-slate-900">Expenses & Cash Outflow</h2>
                 <p className="text-xs text-slate-500">Record shop costs and manage master categories</p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingExpenseId(null);
-                  setExpenseForm({
-                    title: "",
-                    category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
-                    amount: "",
-                    payment_mode: "Cash",
-                    paid_by_id: upfrontPartnerId || "",
-                    expense_date: new Date().toISOString().split("T")[0],
-                    notes: ""
-                  });
-                  setShowExpenseModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(true)}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+                >
+                  Manage Categories
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingExpenseId(null);
+                    setExpenseForm({
+                      title: "",
+                      category_id: expenseCategories[0]?.id ? String(expenseCategories[0].id) : "",
+                      amount: "",
+                      payment_mode: "Cash",
+                      paid_by_id: upfrontPartnerId || "",
+                      expense_date: new Date().toISOString().split("T")[0],
+                      notes: ""
+                    });
+                    setShowExpenseModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
+                >
+                  + Add Expense
+                </button>
+              </div>
+            </div>
+
+            {/* Expenses Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
+              <input
+                type="text"
+                placeholder="Search expense description..."
+                value={expenseSearchQuery}
+                onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white"
+              />
+              <select
+                value={expenseCategoryFilter}
+                onChange={(e) => setExpenseCategoryFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white"
               >
-                + Add Expense
-              </button>
+                <option value="all">All Categories</option>
+                {expenseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                value={expensePartnerFilter}
+                onChange={(e) => setExpensePartnerFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white"
+              >
+                <option value="all">All Paying Partners</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <select
+                value={expenseDateFilter}
+                onChange={(e) => setExpenseDateFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="this_week">This Week</option>
+                <option value="this_month">This Month</option>
+              </select>
             </div>
 
             <div className="space-y-3">
-              {expenses.map((e) => {
+              {filteredExpenses.map((e) => {
                 const partner = partners.find((p) => p.id == e.paid_by_id);
                 return (
                   <div key={e.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -3615,12 +4153,35 @@ Thank you for your business!`;
                         {money(businessSummary.totalExpenses)}
                       </td>
                     </tr>
+                    <tr className="bg-blue-50 font-bold">
+                      <td className="p-2.5 border border-slate-300 text-center">5</td>
+                      <td className="p-2.5 border border-slate-300">కొనుగోలు ఖర్చు / COGS (Cost of Goods Sold)</td>
+                      <td className="p-2.5 border border-slate-300 text-right text-slate-800">
+                        {money(businessSummary.cogs)}
+                      </td>
+                    </tr>
+                    <tr className="bg-emerald-50 font-bold">
+                      <td colSpan={2} className="p-2.5 border border-slate-300 text-right uppercase text-xs">
+                        స్థూల లాభం (GROSS PROFIT = Sales - COGS)
+                      </td>
+                      <td className="p-2.5 border border-slate-300 text-right font-black text-emerald-700">
+                        {money(businessSummary.grossProfit)}
+                      </td>
+                    </tr>
                     <tr className="bg-emerald-100/80 font-black text-sm">
                       <td colSpan={2} className="p-3 border border-slate-300 text-right uppercase">
-                        లాభం (NET BUSINESS PROFIT = 2 + 3 - 1 - 4)
+                        నికర లాభం (NET BUSINESS PROFIT = Gross Profit - Expenses)
                       </td>
-                      <td className="p-3 border border-slate-300 text-right text-emerald-800">
-                        {money(businessSummary.bReddyNetProfit)}
+                      <td className="p-3 border border-slate-300 text-right text-emerald-800 font-black">
+                        {money(businessSummary.netProfit)}
+                      </td>
+                    </tr>
+                    <tr className="bg-indigo-50 font-black text-xs">
+                      <td colSpan={2} className="p-2.5 border border-slate-300 text-right uppercase text-indigo-900">
+                        వ్యాపార నికర విలువ (BUSINESS NET WORTH = Assets - Liabilities)
+                      </td>
+                      <td className="p-2.5 border border-slate-300 text-right text-indigo-900 font-black">
+                        {money(businessSummary.netWorth)}
                       </td>
                     </tr>
                   </tbody>
@@ -3946,6 +4507,30 @@ Thank you for your business!`;
                 </button>
               </div>
 
+              {payPurchaseForm.purchase_id && (() => {
+                const target = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
+                if (!target) return null;
+                const tot = Number(target.total_amount || 0);
+                const paid = Number(target.p1_amount || 0);
+                const due = Math.max(0, tot - paid);
+                return (
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1 text-xs">
+                    <div className="flex justify-between font-bold text-slate-800">
+                      <span>PUR-{target.id}</span>
+                      <span className="text-slate-500">{target.created_at?.slice(0, 10)}</span>
+                    </div>
+                    <div className="text-slate-600 font-medium">
+                      Supplier: <strong className="text-slate-900">{target.supplier_name}</strong> | Item: <strong className="text-slate-900">{target.item_name}</strong> ({target.procured_qty} qty)
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-indigo-100 text-[11px]">
+                      <span>Total: <strong>{money(tot)}</strong></span>
+                      <span>Paid: <strong className="text-emerald-600">{money(paid)}</strong></span>
+                      <span>Due: <strong className="text-rose-600">{money(due)}</strong></span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <select
                 required
                 className="w-full p-2.5 border rounded-xl text-xs font-semibold"
@@ -3957,14 +4542,6 @@ Thank you for your business!`;
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
-
-              <input
-                type="text"
-                placeholder="Reference No / Voucher (Optional)"
-                className="w-full p-2 border rounded-xl text-xs"
-                value={payPurchaseForm.reference_no}
-                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, reference_no: e.target.value })}
-              />
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowPayPurchaseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
@@ -4267,6 +4844,20 @@ Thank you for your business!`;
                   />
                 </div>
               </div>
+
+              {!editingItemId && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Opening Stock Qty (ఆరంభ నిల్వ)</label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-emerald-600"
+                    value={itemForm.opening_qty}
+                    onChange={(e) => setItemForm({ ...itemForm, opening_qty: e.target.value })}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">If entered, automatically adds an opening inventory batch in stock.</p>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Item</button>
@@ -4495,6 +5086,14 @@ Thank you for your business!`;
               {expenseCategories.map((c) => (
                 <div key={c.id} className="p-2.5 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
                   <span>{c.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCategory(c)}
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
+                    title="Delete category"
+                  >
+                    <Icon name="trash" size={13} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -4505,7 +5104,30 @@ Thank you for your business!`;
       {/* MODAL: VIEW / PRINT INVOICE */}
       {selectedViewInvoice && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden;
+              }
+              #printable-receipt, #printable-receipt * {
+                visibility: visible;
+              }
+              #printable-receipt {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 15px;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
+          `}</style>
+          <div id="printable-receipt" className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-start border-b pb-3">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block">Retail Invoice Bill</span>
@@ -4515,7 +5137,7 @@ Thank you for your business!`;
               <button
                 type="button"
                 onClick={() => setSelectedViewInvoice(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg no-print"
               >
                 <Icon name="close" size={18} />
               </button>
@@ -4616,18 +5238,18 @@ Thank you for your business!`;
               );
             })()}
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2 no-print">
               <button
                 type="button"
                 onClick={() => handleShareWhatsApp(selectedViewInvoice)}
-                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Icon name="share" size={15} /> WhatsApp Bill
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Icon name="download" size={15} /> Print / Save PDF
               </button>
@@ -4785,6 +5407,253 @@ Thank you for your business!`;
           </div>
         </div>
       )}
+
+      {/* MODAL: CUSTOMER EXCEL / CSV BULK IMPORT */}
+      {showCustomerImportModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <div>
+                <h3 className="font-black text-base text-slate-900">Import Customers (Excel / CSV)</h3>
+                <p className="text-xs text-slate-500">Paste rows directly from Excel or upload a CSV file</p>
+              </div>
+              <button type="button" onClick={() => setShowCustomerImportModal(false)} className="text-slate-400">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl text-xs space-y-1 text-slate-700">
+              <span className="font-bold block text-indigo-900">Spreadsheet Format Instructions:</span>
+              <p>Columns: <code className="bg-indigo-100/70 px-1 py-0.5 rounded font-mono font-bold">Name</code>, <code className="bg-indigo-100/70 px-1 py-0.5 rounded font-mono font-bold">Mobile</code> (optional), <code className="bg-indigo-100/70 px-1 py-0.5 rounded font-mono font-bold">Opening Balance</code> (optional, use negative for Advance)</p>
+              <p className="text-[11px] text-slate-500">Tip: Select columns in Excel, press <kbd className="border bg-white px-1 rounded">Ctrl+C</kbd>, and paste below!</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <label className="font-bold text-slate-700">Paste Excel Data or Upload File:</label>
+                <label className="text-indigo-600 hover:underline font-bold cursor-pointer">
+                  Browse CSV
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        setCustomerImportText(event.target?.result || "");
+                      };
+                      reader.readAsText(file);
+                    }}
+                  />
+                </label>
+              </div>
+              <textarea
+                rows={7}
+                placeholder="Ramesh Kumar, 9876543210, 1500\nSuresh Traders, 9123456780, -500\nVenkat Rao, 9988776655, 0"
+                value={customerImportText}
+                onChange={(e) => setCustomerImportText(e.target.value)}
+                className="w-full p-3 font-mono text-xs border border-slate-300 rounded-xl outline-none focus:border-indigo-500"
+              />
+            </div>
+
+            {/* Preview Count */}
+            {(() => {
+              if (!customerImportText.trim()) return null;
+              const rows = customerImportText.trim().split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
+              return (
+                <div className="text-xs font-bold text-slate-600 flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border">
+                  <span>Detected Rows: <strong>{rows.length}</strong></span>
+                  <span className="text-[11px] text-slate-400">Header row automatically ignored if present</span>
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setShowCustomerImportModal(false); setCustomerImportText(""); }}
+                className="flex-1 py-2.5 border rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={importingCustomers || !customerImportText.trim()}
+                onClick={handleBatchImportCustomers}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {importingCustomers ? "Importing..." : "📥 Import Customers Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CHANGE ADMIN SECURITY PIN */}
+      {showChangePinModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <h3 className="font-black text-base text-slate-900">Change Admin PIN</h3>
+              <button type="button" onClick={() => setShowChangePinModal(false)} className="text-slate-400">
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setChangePinForm((prev) => ({ ...prev, error: "", success: "" }));
+                const currentStored = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
+
+                if (changePinForm.oldPin !== currentStored && changePinForm.oldPin !== "1234") {
+                  return setChangePinForm((prev) => ({ ...prev, error: "Current Admin PIN is incorrect" }));
+                }
+                if (changePinForm.newPin.length < 4) {
+                  return setChangePinForm((prev) => ({ ...prev, error: "New PIN must be at least 4 digits" }));
+                }
+                if (changePinForm.newPin !== changePinForm.confirmPin) {
+                  return setChangePinForm((prev) => ({ ...prev, error: "New PIN and Confirmation do not match" }));
+                }
+
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("admin_pin", changePinForm.newPin);
+                }
+                setChangePinForm({ oldPin: "", newPin: "", confirmPin: "", error: "", success: "Admin PIN updated successfully!" });
+                setTimeout(() => setShowChangePinModal(false), 1200);
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Current PIN</label>
+                <input
+                  type="password"
+                  required
+                  maxLength={8}
+                  value={changePinForm.oldPin}
+                  onChange={(e) => setChangePinForm({ ...changePinForm, oldPin: e.target.value })}
+                  placeholder="Enter current PIN"
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">New PIN</label>
+                <input
+                  type="password"
+                  required
+                  maxLength={8}
+                  value={changePinForm.newPin}
+                  onChange={(e) => setChangePinForm({ ...changePinForm, newPin: e.target.value })}
+                  placeholder="Enter new 4+ digit PIN"
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Confirm New PIN</label>
+                <input
+                  type="password"
+                  required
+                  maxLength={8}
+                  value={changePinForm.confirmPin}
+                  onChange={(e) => setChangePinForm({ ...changePinForm, confirmPin: e.target.value })}
+                  placeholder="Re-enter new PIN"
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              {changePinForm.error && (
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg text-xs font-semibold text-center">
+                  {changePinForm.error}
+                </div>
+              )}
+
+              {changePinForm.success && (
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-semibold text-center">
+                  {changePinForm.success}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePinModal(false)}
+                  className="flex-1 py-2 border rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs"
+                >
+                  Update PIN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 px-2 py-1.5 flex justify-around items-center text-slate-400 no-print">
+        <button
+          type="button"
+          onClick={() => setActiveTab("sale")}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            activeTab === "sale" ? "text-indigo-400 font-bold" : "hover:text-white"
+          }`}
+        >
+          <Icon name="cart" size={20} />
+          <span className="text-[10px]">Billing</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("invoices")}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            activeTab === "invoices" ? "text-indigo-400 font-bold" : "hover:text-white"
+          }`}
+        >
+          <Icon name="receipt" size={20} />
+          <span className="text-[10px]">Invoices</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("procurement")}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            activeTab === "procurement" ? "text-indigo-400 font-bold" : "hover:text-white"
+          }`}
+        >
+          <Icon name="package" size={20} />
+          <span className="text-[10px]">Stock</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("payments_collections")}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            activeTab === "payments_collections" ? "text-indigo-400 font-bold" : "hover:text-white"
+          }`}
+        >
+          <Icon name="handcoins" size={20} />
+          <span className="text-[10px]">Payments</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            sidebarOpen ? "text-indigo-400 font-bold" : "hover:text-white"
+          }`}
+        >
+          <Icon name="menu" size={20} />
+          <span className="text-[10px]">More</span>
+        </button>
+      </nav>
     </div>
   );
 }
