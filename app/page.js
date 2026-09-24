@@ -168,6 +168,11 @@ export default function App() {
 
   // Search & Filter State
   const [masterSearchQuery, setMasterSearchQuery] = useState("");
+  const [paySupplierMode, setPaySupplierMode] = useState("single"); // "single" | "multi"
+  const [multiSupplierId, setMultiSupplierId] = useState("");
+  const [isBillLocked, setIsBillLocked] = useState(false);
+  const [showRefreshToast, setShowRefreshToast] = useState(false);
+  const [expandedLenderId, setExpandedLenderId] = useState(null);
   const [pickerActiveIndex, setPickerActiveIndex] = useState(null);
   const [stockSearchQuery, setStockSearchQuery] = useState("");
   const [selectedAuditTx, setSelectedAuditTx] = useState(null);
@@ -413,6 +418,25 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [lockoutSeconds]);
+
+  // Scenario 9: Multi-partner live synchronization (window focus + periodic polling)
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshData();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    const syncInterval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        refreshData();
+      }
+    }, 15000);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(syncInterval);
+    };
+  }, []);
 
   const refreshData = async () => {
     setLoading(true);
@@ -728,7 +752,82 @@ export default function App() {
       };
     });
 
-    let combined = [...invList, ...procList].sort((a, b) => new Date(b.date || b.rawTimestamp) - new Date(a.date || a.rawTimestamp));
+    const colList = collections.map((c) => ({
+      txType: "collection",
+      id: c.id,
+      docNumber: `REC-${c.id}`,
+      partyName: c.customer_name || "Customer",
+      partyId: c.customer_id,
+      date: c.collection_date || c.created_at?.slice(0, 10),
+      rawTimestamp: c.created_at,
+      totalAmount: Number(c.amount || 0),
+      paidAmount: Number(c.amount || 0),
+      balanceDue: 0,
+      status: "Collected",
+      items: [{ item_name: `Due Collection - ${c.notes || c.payment_mode}`, qty: 1, rate: Number(c.amount || 0), total: Number(c.amount || 0) }],
+      rawDoc: c
+    }));
+
+    const supPayList = procurements
+      .filter((p) => Number(p.p1_amount || 0) > 0)
+      .map((p) => ({
+        txType: "supplier_payment",
+        id: p.id,
+        docNumber: `PAY-${p.id}`,
+        partyName: p.supplier_name,
+        partyId: null,
+        date: p.created_at?.slice(0, 10),
+        rawTimestamp: p.created_at,
+        totalAmount: Number(p.p1_amount || 0),
+        paidAmount: Number(p.p1_amount || 0),
+        balanceDue: 0,
+        status: "Paid",
+        items: [{ item_name: `Payment for ${p.item_name} (${p.p1_mode || 'Cash'})`, qty: 1, rate: Number(p.p1_amount || 0), total: Number(p.p1_amount || 0) }],
+        rawDoc: p
+      }));
+
+    const loanTxList = loanTransactions.map((tx) => {
+      const targetL = lenders.find((l) => l.id == tx.borrower_id);
+      const targetP = partners.find((p) => p.id == tx.partner_id);
+      return {
+        txType: "loan_repay",
+        id: tx.id,
+        docNumber: `LOAN-${tx.id}`,
+        partyName: targetL?.name || "Lender",
+        partyId: tx.borrower_id,
+        date: tx.tx_date || tx.created_at?.slice(0, 10),
+        rawTimestamp: tx.created_at,
+        totalAmount: Number(tx.amount || 0),
+        paidAmount: Number(tx.amount || 0),
+        balanceDue: 0,
+        status: tx.tx_type === "Repayment" ? "Principal Repaid" : "Interest Paid",
+        items: [{ item_name: tx.notes || `${tx.tx_type} (${tx.payment_mode || 'Cash'} via ${targetP?.name || 'Partner'})`, qty: 1, rate: Number(tx.amount || 0), total: Number(tx.amount || 0) }],
+        rawDoc: tx
+      };
+    });
+
+    const expList = expenses.map((e) => {
+      const targetP = partners.find((p) => p.id == e.paid_by_id);
+      return {
+        txType: "expense",
+        id: e.id,
+        docNumber: `EXP-${e.id}`,
+        partyName: e.category_name || "General Expense",
+        partyId: e.category_id,
+        date: e.expense_date || e.created_at?.slice(0, 10),
+        rawTimestamp: e.created_at,
+        totalAmount: Number(e.amount || 0),
+        paidAmount: Number(e.amount || 0),
+        balanceDue: 0,
+        status: "Expense Paid",
+        items: [{ item_name: `${e.title} (${e.payment_mode || 'Cash'} via ${targetP?.name || 'Partner'})`, qty: 1, rate: Number(e.amount || 0), total: Number(e.amount || 0) }],
+        rawDoc: e
+      };
+    });
+
+    let combined = [...invList, ...procList, ...colList, ...supPayList, ...loanTxList, ...expList].sort(
+      (a, b) => new Date(b.date || b.rawTimestamp) - new Date(a.date || a.rawTimestamp)
+    );
 
     if (auditFilterType !== "all") {
       combined = combined.filter((tx) => tx.txType === auditFilterType);
@@ -744,7 +843,7 @@ export default function App() {
     }
 
     return combined;
-  }, [invoices, procurements, auditFilterType, auditSearchQuery]);
+  }, [invoices, procurements, collections, loanTransactions, expenses, lenders, partners, auditFilterType, auditSearchQuery]);
 
   const filteredInvoices = useMemo(() => {
     let list = invoices;
@@ -799,6 +898,9 @@ export default function App() {
       list = list.filter((p) => Number(p.remaining_qty || 0) > 0);
     } else if (procureStockFilter === "out_of_stock") {
       list = list.filter((p) => Number(p.remaining_qty || 0) <= 0);
+    } else if (procureStockFilter === "hide_settled") {
+      // Scenario 5: Skip records that are fully paid and have 0 stock
+      list = list.filter((p) => !(Number(p.remaining_qty || 0) <= 0 && Number(p.p1_amount || 0) >= Number(p.total_amount || 0)));
     }
     if (procureSupplierFilter !== "all") {
       list = list.filter((p) => p.supplier_name === procureSupplierFilter);
@@ -1366,9 +1468,12 @@ Thank you for your business!`;
   // PURCHASES PAYMENTS
   const handleEditPurchasePayment = (p) => {
     setEditingPaymentId(p.id);
+    setIsBillLocked(true);
+    setPaySupplierMode("single");
+    const remDue = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
     setPayPurchaseForm({
       purchase_id: String(p.id),
-      amount: String(p.p1_amount || ""),
+      amount: String(remDue > 0 ? remDue : p.p1_amount || ""),
       partner_id: p.p1_id ? String(p.p1_id) : upfrontPartnerId,
       payment_mode: p.p1_mode || "Cash",
       reference_no: `PAY-${p.id}`,
@@ -1410,41 +1515,73 @@ Thank you for your business!`;
       if (!fundCheck.valid) return alert(fundCheck.message);
     }
 
-    const targetP = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
-    if (!targetP) return alert("Purchase not found");
-
-    const currentTotal = Number(targetP.total_amount || 0);
-    const existingPaid = Number(targetP.p1_amount || 0);
-    const currentDue = Math.max(0, currentTotal - existingPaid);
-
     try {
-      const newPaid = Math.min(currentTotal, existingPaid + amt);
-      await db.from("procurements").update({
-        p1_amount: newPaid,
-        p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
-        p1_mode: payPurchaseForm.payment_mode
-      }).eq("id", targetP.id);
+      if (paySupplierMode === "multi") {
+        // Scenario 2: Multi-bill FIFO payment across all pending bills for this supplier
+        const targetSup = suppliers.find((s) => String(s.id) === String(multiSupplierId) || s.name === multiSupplierId);
+        if (!targetSup) return alert("Select a supplier to settle bills for");
 
-      // If settled via Advance Adjusted, increase supplier.old_due (reduces the negative advance balance)
-      if (isAdvanceAdjusted) {
-        const sup = suppliers.find((s) => s.name === targetP.supplier_name);
-        if (sup) {
-          const updatedDue = Number(sup.old_due || 0) + amt;
-          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+        const supplierBills = procurements
+          .filter((p) => p.supplier_name === targetSup.name && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0)
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+        let rem = amt;
+        for (const bill of supplierBills) {
+          if (rem <= 0) break;
+          const due = Math.max(0, Number(bill.total_amount || 0) - Number(bill.p1_amount || 0));
+          const alloc = Math.min(due, rem);
+          await db.from("procurements").update({
+            p1_amount: Number(bill.p1_amount || 0) + alloc,
+            p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
+            p1_mode: payPurchaseForm.payment_mode
+          }).eq("id", bill.id);
+          rem -= alloc;
         }
-      } else if (amt > currentDue) {
-        // If payment exceeds current bill due, credit the excess to supplier balance as an advance!
-        const excessAdv = amt - currentDue;
-        const sup = suppliers.find((s) => s.name === targetP.supplier_name);
-        if (sup) {
-          const updatedDue = Number(sup.old_due || 0) - excessAdv;
-          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+
+        // If payment exceeded all pending bills, credit excess as Advance to supplier
+        if (rem > 0) {
+          const updatedDue = Number(targetSup.old_due || 0) - rem;
+          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", targetSup.id);
         }
+
+        alert(`Supplier payment of ${money(amt)} distributed across bills successfully!`);
+      } else {
+        const targetP = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
+        if (!targetP) return alert("Purchase not found");
+
+        const currentTotal = Number(targetP.total_amount || 0);
+        const existingPaid = Number(targetP.p1_amount || 0);
+        const currentDue = Math.max(0, currentTotal - existingPaid);
+
+        const newPaid = Math.min(currentTotal, existingPaid + amt);
+        await db.from("procurements").update({
+          p1_amount: newPaid,
+          p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
+          p1_mode: payPurchaseForm.payment_mode
+        }).eq("id", targetP.id);
+
+        if (isAdvanceAdjusted) {
+          const sup = suppliers.find((s) => s.name === targetP.supplier_name);
+          if (sup) {
+            const updatedDue = Number(sup.old_due || 0) + amt;
+            await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+          }
+        } else if (amt > currentDue) {
+          const excessAdv = amt - currentDue;
+          const sup = suppliers.find((s) => s.name === targetP.supplier_name);
+          if (sup) {
+            const updatedDue = Number(sup.old_due || 0) - excessAdv;
+            await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+          }
+        }
+
+        alert(`Purchase payment recorded!`);
       }
 
-      alert(`Purchase payment recorded!`);
       setShowPayPurchaseModal(false);
       setEditingPaymentId(null);
+      setIsBillLocked(false);
+      setPaySupplierMode("single");
       refreshData();
     } catch (err) {
       alert("Error recording payment: " + err.message);
@@ -2503,6 +2640,8 @@ Thank you for your business!`;
           <button
             onClick={() => {
               setEditingPaymentId(null);
+              setIsBillLocked(false);
+              setPaySupplierMode("single");
               setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
               setShowPayPurchaseModal(true);
               setSidebarOpen(false);
@@ -2611,7 +2750,7 @@ Thank you for your business!`;
                   <optgroup label="Customers (ఖాతాదారులు)">
                     {customers.map((c) => (
                       <option key={`cust_${c.id}`} value={`cust_${c.id}`}>
-                        {c.name} ({c.mobile || "No Mobile"}) — {formatCustomerBalance(c.old_due).text}
+                        {c.name}
                       </option>
                     ))}
                   </optgroup>
@@ -2620,7 +2759,7 @@ Thank you for your business!`;
                       .filter((s) => dualSuppliers[s.id] || dualSuppliers[s.name] || (s.mobile && s.mobile.includes("#vendor")))
                       .map((s) => (
                         <option key={`sup_${s.id}`} value={`sup_${s.id}`}>
-                          {s.name} ({formatSupplierMobile(s.mobile) || "No Mobile"}) — {formatCustomerBalance(s.old_due).text}
+                          {s.name}
                         </option>
                       ))}
                   </optgroup>
@@ -2719,8 +2858,8 @@ Thank you for your business!`;
                 <span>{money(cartTotal)}</span>
               </div>
 
-              {/* Customer Existing Advance Notice & Auto-Apply */}
-              {selectedCust && Number(selectedCust.old_due || 0) < 0 && (
+              {/* Customer Existing Advance Notice & Auto-Apply — ONLY for actual customers, NEVER for suppliers */}
+              {selectedCust && !selectedCust.isSupplier && Number(selectedCust.old_due || 0) < 0 && (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-emerald-800">Available Advance Credit:</span>
@@ -3226,11 +3365,12 @@ Thank you for your business!`;
                     ))}
                   </select>
 
-                  {/* Stock Pills */}
+                  {/* Stock Pills (Scenario 5: Skip/Hide Settled) */}
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
                     {[
                       { id: "all", label: "All" },
                       { id: "in_stock", label: "In Stock" },
+                      { id: "hide_settled", label: "Hide Settled (0 Stock & Paid)" },
                       { id: "out_of_stock", label: "Zero Stock" }
                     ].map((tab) => (
                       <button
@@ -3431,6 +3571,14 @@ Thank you for your business!`;
                 }`}
               >
                 📤 Supplier Payments ({procurements.filter((p) => Number(p.p1_amount || 0) > 0).length})
+              </button>
+              <button
+                onClick={() => { setPaymentsSubTab("loan_repayments"); setPaymentsSearchQuery(""); }}
+                className={`px-4 py-2 rounded-xl transition ${
+                  paymentsSubTab === "loan_repayments" ? "bg-white text-purple-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                🏦 Loan Repayments ({loanTransactions.length})
               </button>
             </div>
 
@@ -3830,6 +3978,110 @@ Thank you for your business!`;
                 </div>
               </div>
             )}
+
+            {/* Scenario 3: SUB-VIEW: LOAN REPAYMENTS */}
+            {paymentsSubTab === "loan_repayments" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Loan Outflows</span>
+                    <b className="text-xl font-black text-purple-600 mt-1 block">
+                      {money(loanTransactions.reduce((s, tx) => s + Number(tx.amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Lifetime principal & interest paid</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Principal Repaid</span>
+                    <b className="text-xl font-black text-emerald-600 mt-1 block">
+                      {money(loanTransactions.filter((tx) => tx.tx_type === "Repayment").reduce((s, tx) => s + Number(tx.amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Reduces lender outstanding debt</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Interest Paid</span>
+                    <b className="text-xl font-black text-amber-600 mt-1 block">
+                      {money(loanTransactions.filter((tx) => tx.tx_type === "Interest").reduce((s, tx) => s + Number(tx.amount || 0), 0))}
+                    </b>
+                    <span className="text-[11px] text-slate-400 mt-0.5 block">Recorded under Expenses & P&L</span>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <h3 className="font-black text-sm text-slate-900">Loan Repayment Ledger ({loanTransactions.length})</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoanPaymentForm({
+                          borrower_id: lenders[0]?.id ? String(lenders[0].id) : "",
+                          principal_amount: "",
+                          interest_amount: "",
+                          payment_mode: "Cash",
+                          partner_id: upfrontPartnerId || "",
+                          notes: "",
+                          tx_date: new Date().toISOString().split("T")[0]
+                        });
+                        setShowLoanPaymentModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                    >
+                      <Icon name="rupee" size={13} /> + Record Repayment
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Lender / Source</th>
+                          <th className="p-3 text-center">Type</th>
+                          <th className="p-3">Partner & Mode</th>
+                          <th className="p-3 text-right">Amount (₹)</th>
+                          <th className="p-3">Notes / Ref</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {loanTransactions.map((tx) => {
+                          const targetL = lenders.find((l) => l.id == tx.borrower_id);
+                          const targetP = partners.find((p) => p.id == tx.partner_id);
+                          const isPrincipal = tx.tx_type === "Repayment";
+                          return (
+                            <tr key={tx.id} className="hover:bg-slate-50/70 transition">
+                              <td className="p-3 text-slate-500 whitespace-nowrap">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
+                              <td className="p-3 font-bold text-slate-900">{targetL?.name || "Lender"}</td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                  isPrincipal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {isPrincipal ? "Principal Repayment" : "Monthly Interest"}
+                                </span>
+                              </td>
+                              <td className="p-3 text-slate-600">
+                                {targetP?.name || "Partner"} ({tx.payment_mode || "Cash"})
+                              </td>
+                              <td className="p-3 text-right font-black text-purple-700">
+                                {money(tx.amount)}
+                              </td>
+                              <td className="p-3 text-slate-500 text-[11px] max-w-[200px] truncate">
+                                {tx.notes || "-"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {loanTransactions.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-slate-400">
+                              No loan repayments recorded yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3841,12 +4093,25 @@ Thank you for your business!`;
                 <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Business Financial Snapshot</h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Real-time ledger across partners, loans, and inventory</p>
               </div>
-              <button
-                onClick={() => refreshData()}
-                className="self-start sm:self-auto px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
-              >
-                <Icon name="history" size={14} /> Refresh Data
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={loading}
+                  onClick={async () => {
+                    await refreshData();
+                    setShowRefreshToast(true);
+                    setTimeout(() => setShowRefreshToast(false), 3000);
+                  }}
+                  className="self-start sm:self-auto px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                >
+                  <Icon name="history" size={14} className={loading ? "animate-spin text-indigo-600" : ""} />
+                  {loading ? "Refreshing..." : "Refresh Data"}
+                </button>
+                {showRefreshToast && (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    ✓ Data Refreshed Just Now
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
@@ -3937,25 +4202,26 @@ Thank you for your business!`;
                   <p className="text-xs text-slate-500">Drill into any sales or purchase bill to inspect line items and payment settlements.</p>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto">
-                  <button
-                    onClick={() => setAuditFilterType("all")}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg ${auditFilterType === "all" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
-                  >
-                    All Transactions
-                  </button>
-                  <button
-                    onClick={() => setAuditFilterType("sale")}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg ${auditFilterType === "sale" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
-                  >
-                    Sales
-                  </button>
-                  <button
-                    onClick={() => setAuditFilterType("purchase")}
-                    className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg ${auditFilterType === "purchase" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
-                  >
-                    Purchases
-                  </button>
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto">
+                  {[
+                    { id: "all", label: "All Transactions" },
+                    { id: "sale", label: "Sales" },
+                    { id: "purchase", label: "Purchases" },
+                    { id: "collection", label: "Collections" },
+                    { id: "supplier_payment", label: "Supplier Payments" },
+                    { id: "loan_repay", label: "Loan Repayments" },
+                    { id: "expense", label: "Expenses" }
+                  ].map((filterTab) => (
+                    <button
+                      key={filterTab.id}
+                      onClick={() => setAuditFilterType(filterTab.id)}
+                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                        auditFilterType === filterTab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {filterTab.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -3996,9 +4262,19 @@ Thank you for your business!`;
                         <td className="p-3 font-mono font-bold text-indigo-600">{tx.docNumber}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                            tx.txType === "sale" ? "bg-indigo-100 text-indigo-800" : "bg-emerald-100 text-emerald-800"
+                            tx.txType === "sale" ? "bg-indigo-100 text-indigo-800"
+                            : tx.txType === "purchase" ? "bg-emerald-100 text-emerald-800"
+                            : tx.txType === "collection" ? "bg-teal-100 text-teal-800"
+                            : tx.txType === "supplier_payment" ? "bg-sky-100 text-sky-800"
+                            : tx.txType === "loan_repay" ? "bg-purple-100 text-purple-800"
+                            : "bg-rose-100 text-rose-800"
                           }`}>
-                            {tx.txType === "sale" ? "Sales Bill" : "Purchase"}
+                            {tx.txType === "sale" ? "Sales Bill"
+                              : tx.txType === "purchase" ? "Purchase"
+                              : tx.txType === "collection" ? "Collection"
+                              : tx.txType === "supplier_payment" ? "Supplier Payment"
+                              : tx.txType === "loan_repay" ? "Loan Repayment"
+                              : "Expense"}
                           </span>
                         </td>
                         <td className="p-3 text-slate-500">{tx.date}</td>
@@ -4439,6 +4715,13 @@ Thank you for your business!`;
                     <div className="flex gap-2">
                       <button
                         type="button"
+                        onClick={() => setExpandedLenderId(expandedLenderId === l.id ? null : l.id)}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg"
+                      >
+                        {expandedLenderId === l.id ? "Hide History" : `History (${loanTransactions.filter((t) => t.borrower_id == l.id).length})`}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           setLoanPaymentForm({
                             borrower_id: String(l.id),
@@ -4471,6 +4754,39 @@ Thank you for your business!`;
                       </button>
                     </div>
                   </div>
+                  {/* Scenario 3: Expandable Lender Repayment History */}
+                  {expandedLenderId === l.id && (
+                    <div className="w-full mt-2.5 p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                      <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
+                        Repayments & Interest History for {l.name}
+                      </span>
+                      <div className="space-y-1.5">
+                        {loanTransactions
+                          .filter((tx) => tx.borrower_id == l.id)
+                          .map((tx) => {
+                            const p = partners.find((part) => part.id == tx.partner_id);
+                            return (
+                              <div key={tx.id} className="p-2 bg-slate-50 rounded-lg flex justify-between items-center text-xs">
+                                <div>
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase mr-2 ${
+                                    tx.tx_type === "Repayment" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                                  }`}>
+                                    {tx.tx_type === "Repayment" ? "Principal Repaid" : "Interest Paid"}
+                                  </span>
+                                  <span className="font-semibold text-slate-800">{tx.tx_date || tx.created_at?.slice(0, 10)}</span>
+                                  <span className="text-slate-400 ml-2">Paid by: {p?.name || "Partner"} ({tx.payment_mode})</span>
+                                  {tx.notes && <span className="text-slate-500 block text-[10px] mt-0.5">{tx.notes}</span>}
+                                </div>
+                                <span className="font-black text-purple-700">{money(tx.amount)}</span>
+                              </div>
+                            );
+                          })}
+                        {loanTransactions.filter((tx) => tx.borrower_id == l.id).length === 0 && (
+                          <span className="text-xs text-slate-400 block py-1">No repayment transactions found for this lender.</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {lenders.length === 0 && (
@@ -5061,11 +5377,37 @@ Thank you for your business!`;
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
+
+            {!isBillLocked && (
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPaySupplierMode("single")}
+                  className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "single" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                >
+                  Pay Single Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaySupplierMode("multi")}
+                  className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "multi" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                >
+                  Pay Supplier (Multiple Bills)
+                </button>
+              </div>
+            )}
+
             <form onSubmit={savePurchasePayment} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={payPurchaseForm.purchase_id}
+              {paySupplierMode === "single" ? (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Select Purchase Bill {isBillLocked && "(Locked)"}
+                  </label>
+                  <select
+                    required
+                    disabled={isBillLocked}
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-600"
+                    value={payPurchaseForm.purchase_id}
                 onChange={(e) => {
                   const target = procurements.find((p) => p.id == e.target.value);
                   const remDue = target ? Math.max(0, Number(target.total_amount || 0) - Number(target.p1_amount || 0)) : "";
@@ -5076,15 +5418,54 @@ Thank you for your business!`;
                   });
                 }}
               >
-                <option value="">-- Choose Purchase Bill --</option>
+                <option value="">-- Choose Purchase Bill with Due --</option>
                 {procurements
-                  .filter((p) => editingPaymentId || Number(p.total_amount || 0) > Number(p.p1_amount || 0))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.item_name} ({p.supplier_name}) — Total: {money(p.total_amount)}
-                    </option>
-                  ))}
-              </select>
+                  .filter((p) => editingPaymentId || p.id == payPurchaseForm.purchase_id || Number(p.total_amount || 0) > Number(p.p1_amount || 0))
+                  .map((p) => {
+                    const due = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.item_name} ({p.supplier_name}) — Due: {money(due)} (Total: {money(p.total_amount)})
+                      </option>
+                    );
+                  })}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Choose Supplier (Settle Multiple Bills FIFO)
+                  </label>
+                  <select
+                    required
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                    value={multiSupplierId}
+                    onChange={(e) => {
+                      const sid = e.target.value;
+                      setMultiSupplierId(sid);
+                      const targetSup = suppliers.find((s) => String(s.id) === sid);
+                      if (targetSup) {
+                        const totalDue = procurements
+                          .filter((p) => p.supplier_name === targetSup.name)
+                          .reduce((s, p) => s + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)), 0);
+                        setPayPurchaseForm((prev) => ({ ...prev, amount: totalDue > 0 ? String(totalDue) : "" }));
+                      }
+                    }}
+                  >
+                    <option value="">-- Choose Supplier --</option>
+                    {suppliers.map((s) => {
+                      const totalDue = procurements
+                        .filter((p) => p.supplier_name === s.name)
+                        .reduce((sum, p) => sum + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)), 0);
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {s.name} — Pending Bills Due: {money(totalDue)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
 
               <input
                 type="number"
@@ -5204,12 +5585,14 @@ Thank you for your business!`;
                   });
                 }}
               >
-                <option value="">-- Choose Customer --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({Number(c.old_due || 0) < 0 ? `Advance: ${money(Math.abs(c.old_due))}` : `Total Due: ${money(c.old_due)}`})
-                  </option>
-                ))}
+                <option value="">-- Choose Customer with Outstanding Due --</option>
+                {customers
+                  .filter((c) => editingCollectionId || Number(c.old_due || 0) > 0)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (Total Due: {money(c.old_due)})
+                    </option>
+                  ))}
               </select>
 
               {collectForm.customer_id && (
@@ -5721,6 +6104,42 @@ Thank you for your business!`;
                 value={expenseForm.amount}
                 onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
               />
+
+              {/* Scenario 4: Payment Mode Selection (Cash / UPI) */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExpenseForm({ ...expenseForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border transition ${
+                    expenseForm.payment_mode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-700"
+                  }`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpenseForm({ ...expenseForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border transition ${
+                    expenseForm.payment_mode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-700"
+                  }`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Expense Date (ఖర్చు తేదీ)
+                </label>
+                <input
+                  type="date"
+                  required
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold text-slate-800"
+                  value={expenseForm.expense_date}
+                  onChange={(e) => setExpenseForm({ ...expenseForm, expense_date: e.target.value })}
+                />
+              </div>
+
               <select
                 required
                 className="w-full p-2.5 border rounded-xl text-xs font-semibold"
