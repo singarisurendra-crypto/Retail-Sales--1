@@ -97,6 +97,11 @@ const money = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
+const formatSupplierMobile = (mobile) => {
+  if (!mobile) return "";
+  return mobile.replace(/#vendor/gi, "").trim();
+};
+
 const formatCustomerBalance = (due) => {
   const d = Number(due || 0);
   if (d > 0) return { label: `Due: ${money(d)}`, text: `Due: ${money(d)}`, isDue: true, isAdvance: false, raw: d, color: "rose" };
@@ -196,7 +201,7 @@ export default function App() {
   const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
 
   const [editingSupplierId, setEditingSupplierId] = useState(null);
-  const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "" });
+  const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "", is_dual: false });
 
   const [editingItemId, setEditingItemId] = useState(null);
   const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "", opening_qty: "" });
@@ -292,14 +297,37 @@ export default function App() {
     return {};
   });
 
-  const toggleSupplierBuyer = (supplierIdOrName) => {
+  const toggleSupplierBuyer = async (supplierId) => {
+    const targetSupplier = suppliers.find((s) => s.id === supplierId || s.name === supplierId);
+    const currentVal = targetSupplier
+      ? (targetSupplier.mobile && targetSupplier.mobile.includes("#vendor")) || !!(dualSuppliers[targetSupplier.id] || dualSuppliers[targetSupplier.name])
+      : !!dualSuppliers[supplierId];
+    const newVal = !currentVal;
+
     setDualSuppliers((prev) => {
-      const updated = { ...prev, [supplierIdOrName]: !prev[supplierIdOrName] };
+      const updated = { ...prev, [supplierId]: newVal };
+      if (targetSupplier) {
+        updated[targetSupplier.id] = newVal;
+        updated[targetSupplier.name] = newVal;
+      }
       if (typeof window !== "undefined") {
         localStorage.setItem("dual_suppliers", JSON.stringify(updated));
       }
       return updated;
     });
+
+    if (targetSupplier) {
+      const cleanMob = formatSupplierMobile(targetSupplier.mobile);
+      const updatedMobile = newVal ? (cleanMob ? `${cleanMob} #vendor` : "#vendor") : cleanMob;
+      setSuppliers((prev) =>
+        prev.map((s) => (s.id === targetSupplier.id ? { ...s, mobile: updatedMobile } : s))
+      );
+      try {
+        await db.from("suppliers").update({ mobile: updatedMobile }).eq("id", targetSupplier.id);
+      } catch (err) {
+        console.error("Failed to persist supplier vendor flag to Supabase:", err);
+      }
+    }
   };
 
   // Customer Bulk Excel / CSV Import State
@@ -422,7 +450,23 @@ export default function App() {
       if (cats.data) setExpenseCategories(cats.data);
       if (b.data) setLenders(b.data);
       if (bTx.data) setLoanTransactions(bTx.data);
-      if (sup.data) setSuppliers(sup.data);
+      if (sup.data) {
+        setSuppliers(sup.data);
+        const dualMap = {};
+        sup.data.forEach((s) => {
+          if (s.mobile && s.mobile.includes("#vendor")) {
+            dualMap[s.id] = true;
+            dualMap[s.name] = true;
+          }
+        });
+        setDualSuppliers((prev) => {
+          const merged = { ...prev, ...dualMap };
+          if (typeof window !== "undefined") {
+            localStorage.setItem("dual_suppliers", JSON.stringify(merged));
+          }
+          return merged;
+        });
+      }
       if (itemsRes.data) setMasterItems(itemsRes.data);
     } catch (e) {
       console.error("Data refresh error:", e);
@@ -511,10 +555,10 @@ export default function App() {
         .reduce((s, e) => s + Number(e.amount || 0), 0);
 
       const loanPaidCash = loanTransactions
-        .filter((tx) => String(tx.partner_id) === String(pid) && (tx.tx_type === "Repayment" || tx.tx_type === "Interest") && (tx.payment_mode || "").toUpperCase() === "CASH")
+        .filter((tx) => String(tx.partner_id) === String(pid) && tx.tx_type === "Repayment" && (tx.payment_mode || "").toUpperCase() === "CASH")
         .reduce((s, tx) => s + Number(tx.amount || 0), 0);
       const loanPaidUpi = loanTransactions
-        .filter((tx) => String(tx.partner_id) === String(pid) && (tx.tx_type === "Repayment" || tx.tx_type === "Interest") && (tx.payment_mode || "").toUpperCase() === "UPI")
+        .filter((tx) => String(tx.partner_id) === String(pid) && tx.tx_type === "Repayment" && (tx.payment_mode || "").toUpperCase() === "UPI")
         .reduce((s, tx) => s + Number(tx.amount || 0), 0);
 
       const loanTakenCash = loanTransactions
@@ -1455,7 +1499,13 @@ Thank you for your business!`;
   // SUPPLIER HANDLERS
   const handleEditSupplier = (s) => {
     setEditingSupplierId(s.id);
-    setSupplierForm({ name: s.name || "", mobile: s.mobile || "", old_due: s.old_due || "" });
+    const isDual = (s.mobile && s.mobile.includes("#vendor")) || !!(dualSuppliers[s.id] || dualSuppliers[s.name]);
+    setSupplierForm({
+      name: s.name || "",
+      mobile: formatSupplierMobile(s.mobile),
+      old_due: s.old_due || "",
+      is_dual: isDual
+    });
     setShowSupplierModal(true);
   };
 
@@ -1472,23 +1522,35 @@ Thank you for your business!`;
 
   const saveSupplier = async (e) => {
     e.preventDefault();
+    const cleanMob = formatSupplierMobile(supplierForm.mobile);
+    const finalMobile = supplierForm.is_dual ? (cleanMob ? `${cleanMob} #vendor` : "#vendor") : cleanMob;
     const payload = {
       name: supplierForm.name.trim(),
-      mobile: supplierForm.mobile.trim(),
+      mobile: finalMobile,
       old_due: Number(supplierForm.old_due || 0)
     };
     try {
+      let savedId = editingSupplierId;
       if (editingSupplierId) {
         await db.from("suppliers").update(payload).eq("id", editingSupplierId);
         alert("Supplier updated!");
       } else {
-        await db.from("suppliers").insert([payload]);
+        const { data, error } = await db.from("suppliers").insert([payload]).select();
+        if (error) throw error;
+        if (data && data[0]) savedId = data[0].id;
         alert("Supplier created!");
+      }
+      if (savedId) {
+        setDualSuppliers((prev) => {
+          const next = { ...prev, [savedId]: !!supplierForm.is_dual, [payload.name]: !!supplierForm.is_dual };
+          if (typeof window !== "undefined") localStorage.setItem("dual_suppliers", JSON.stringify(next));
+          return next;
+        });
       }
       setProcureForm((prev) => ({ ...prev, supplier_name: payload.name }));
       setShowSupplierModal(false);
       setEditingSupplierId(null);
-      setSupplierForm({ name: "", mobile: "", old_due: "" });
+      setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -1710,22 +1772,56 @@ Thank you for your business!`;
     if (!fundCheck.valid) return alert(fundCheck.message);
 
     try {
-      const noteDetail = principal > 0
-        ? `Principal: ₹${principal.toLocaleString("en-IN")}, Interest: ₹${interest.toLocaleString("en-IN")}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`
-        : `Monthly Interest: ₹${interest.toLocaleString("en-IN")}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`;
-
-      await db.from("borrower_transactions").insert([{
-        borrower_id: Number(loanPaymentForm.borrower_id),
-        tx_type: principal > 0 ? "Repayment" : "Interest",
-        amount: totalAmt,
-        payment_mode: loanPaymentForm.payment_mode,
-        partner_id: Number(loanPaymentForm.partner_id),
-        notes: noteDetail,
-        tx_date: loanPaymentForm.tx_date
-      }]);
-
       const targetL = lenders.find((l) => l.id == loanPaymentForm.borrower_id);
-      if (targetL) {
+      const lenderName = targetL ? targetL.name : "Lender";
+      const paymentDate = loanPaymentForm.tx_date || new Date().toISOString().split("T")[0];
+
+      // 1. Record interest under expenses module so it appears in Expenses and P&L
+      if (interest > 0) {
+        const interestCat = expenseCategories.find((c) => (c.name || "").toLowerCase() === "loan interest");
+        const categoryId = interestCat ? interestCat.id : 12;
+
+        await db.from("expenses").insert([{
+          expense_date: paymentDate,
+          category_id: categoryId,
+          category_name: "Loan Interest",
+          title: `Loan Interest - ${lenderName}`,
+          amount: interest,
+          payment_mode: loanPaymentForm.payment_mode,
+          paid_by_id: Number(loanPaymentForm.partner_id),
+          notes: loanPaymentForm.notes
+            ? `Monthly Interest on ${lenderName} - ${loanPaymentForm.notes.trim()}`
+            : `Monthly Interest on ${lenderName}`
+        }]);
+      }
+
+      // 2. Record borrower transactions for audit trail and lender statements
+      if (principal > 0) {
+        await db.from("borrower_transactions").insert([{
+          borrower_id: Number(loanPaymentForm.borrower_id),
+          tx_type: "Repayment",
+          amount: principal,
+          payment_mode: loanPaymentForm.payment_mode,
+          partner_id: Number(loanPaymentForm.partner_id),
+          notes: `Principal Repayment${interest > 0 ? ` (+ ₹${interest.toLocaleString("en-IN")} Interest)` : ""}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`,
+          tx_date: paymentDate
+        }]);
+      }
+
+      if (interest > 0) {
+        await db.from("borrower_transactions").insert([{
+          borrower_id: Number(loanPaymentForm.borrower_id),
+          tx_type: "Interest",
+          amount: interest,
+          payment_mode: loanPaymentForm.payment_mode,
+          partner_id: Number(loanPaymentForm.partner_id),
+          notes: `Monthly Interest: ₹${interest.toLocaleString("en-IN")}${principal > 0 ? ` (with ₹${principal.toLocaleString("en-IN")} Principal)` : ""}${loanPaymentForm.notes ? " - " + loanPaymentForm.notes.trim() : ""}`,
+          tx_date: paymentDate
+        }]);
+      }
+
+      // 3. Update lender balance_due (only principal reduces balance_due)
+      if (targetL && principal > 0) {
         const currentBal = Number(targetL.balance_due || targetL.total_borrowed || 0);
         const newBal = Math.max(0, currentBal - principal);
         const newRepaid = Number(targetL.total_repaid || 0) + principal;
@@ -1747,7 +1843,7 @@ Thank you for your business!`;
         tx_date: new Date().toISOString().split("T")[0]
       });
       refreshData();
-      alert(`Loan repayment recorded! Principal: ₹${principal.toLocaleString('en-IN')}, Interest: ₹${interest.toLocaleString('en-IN')}`);
+      alert(`Loan payment recorded successfully!${principal > 0 ? ` Principal: ₹${principal.toLocaleString('en-IN')}` : ""}${interest > 0 ? ` Interest: ₹${interest.toLocaleString('en-IN')} (Recorded under Expenses)` : ""}`);
     } catch (err) {
       alert(err.message);
     }
@@ -2499,7 +2595,7 @@ Thank you for your business!`;
                         setSelectedCust({
                           id: s.id,
                           name: s.name,
-                          mobile: s.mobile,
+                          mobile: formatSupplierMobile(s.mobile),
                           old_due: s.old_due,
                           isSupplier: true
                         });
@@ -2521,10 +2617,10 @@ Thank you for your business!`;
                   </optgroup>
                   <optgroup label="Suppliers / Vendors (సరుకు వ్యాపారులు - Contra Sale)">
                     {suppliers
-                      .filter((s) => dualSuppliers[s.id] || dualSuppliers[s.name])
+                      .filter((s) => dualSuppliers[s.id] || dualSuppliers[s.name] || (s.mobile && s.mobile.includes("#vendor")))
                       .map((s) => (
                         <option key={`sup_${s.id}`} value={`sup_${s.id}`}>
-                          {s.name} ({s.mobile || "No Mobile"}) — {formatCustomerBalance(s.old_due).text}
+                          {s.name} ({formatSupplierMobile(s.mobile) || "No Mobile"}) — {formatCustomerBalance(s.old_due).text}
                         </option>
                       ))}
                   </optgroup>
@@ -4033,7 +4129,7 @@ Thank you for your business!`;
               )}
               {mastersSubTab === "suppliers" && (
                 <button
-                  onClick={() => { setEditingSupplierId(null); setSupplierForm({ name: "", mobile: "", old_due: "" }); setShowSupplierModal(true); }}
+                  onClick={() => { setEditingSupplierId(null); setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false }); setShowSupplierModal(true); }}
                   className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   <Icon name="plus" size={14} /> Add Supplier
@@ -4117,7 +4213,7 @@ Thank you for your business!`;
                       </div>
                       <div>
                         <h4 className="font-black text-sm text-slate-900">{s.name}</h4>
-                        <span className="text-xs text-slate-400 block">{s.mobile || "No Mobile"}</span>
+                        <span className="text-xs text-slate-400 block">{formatSupplierMobile(s.mobile) || "No Mobile"}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -4141,7 +4237,7 @@ Thank you for your business!`;
                         <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 cursor-pointer hover:text-indigo-600">
                           <input
                             type="checkbox"
-                            checked={!!(dualSuppliers[s.id] || dualSuppliers[s.name])}
+                            checked={!!(dualSuppliers[s.id] || dualSuppliers[s.name] || (s.mobile && s.mobile.includes("#vendor")))}
                             onChange={() => toggleSupplierBuyer(s.id)}
                             className="rounded text-indigo-600 cursor-pointer"
                           />
@@ -4299,7 +4395,8 @@ Thank you for your business!`;
                   onClick={() => {
                     setLoanPaymentForm({
                       borrower_id: lenders[0]?.id ? String(lenders[0].id) : "",
-                      amount: "",
+                      principal_amount: "",
+                      interest_amount: "",
                       payment_mode: "Cash",
                       partner_id: upfrontPartnerId || "",
                       notes: "",
@@ -4345,7 +4442,8 @@ Thank you for your business!`;
                         onClick={() => {
                           setLoanPaymentForm({
                             borrower_id: String(l.id),
-                            amount: String(l.balance_due || ""),
+                            principal_amount: "",
+                            interest_amount: "",
                             payment_mode: "Cash",
                             partner_id: upfrontPartnerId || "",
                             notes: `Repayment to ${l.name}`,
@@ -4686,7 +4784,7 @@ Thank you for your business!`;
                           <tr key={s.id} className={isAdv ? "bg-emerald-50/40" : ""}>
                             <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
                             <td className="p-2 border border-slate-200 font-bold">{s.name}</td>
-                            <td className="p-2 border border-slate-200 text-slate-500">{s.mobile || "N/A"}</td>
+                            <td className="p-2 border border-slate-200 text-slate-500">{formatSupplierMobile(s.mobile) || "N/A"}</td>
                             <td className="p-2 border border-slate-200 text-center">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                 isAdv ? "bg-emerald-100 text-emerald-800" : isDue ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
@@ -4700,6 +4798,58 @@ Thank you for your business!`;
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 5: EXPENSES LEDGER (ఖర్చులు - EXPENSES & INTEREST OUTLAYS) */}
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-sm text-slate-900">ఖర్చులు (Expenses & Outlays Ledger)</h3>
+                  <span className="text-xs font-bold text-rose-600">
+                    Total Expenses: {money(businessSummary.totalExpenses)}
+                  </span>
+                </div>
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-100 text-slate-600 font-bold">
+                      <tr>
+                        <th className="p-2 border border-slate-200 text-center">S.No</th>
+                        <th className="p-2 border border-slate-200">Date</th>
+                        <th className="p-2 border border-slate-200">Expense Title / Description</th>
+                        <th className="p-2 border border-slate-200">Category</th>
+                        <th className="p-2 border border-slate-200">Paid By</th>
+                        <th className="p-2 border border-slate-200 text-right">Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expenses.map((e, idx) => {
+                        const partner = partners.find((p) => String(p.id) === String(e.paid_by_id));
+                        return (
+                          <tr key={e.id}>
+                            <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
+                            <td className="p-2 border border-slate-200 text-slate-600">{e.expense_date}</td>
+                            <td className="p-2 border border-slate-200 font-bold text-slate-900">{e.title}</td>
+                            <td className="p-2 border border-slate-200">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                {e.category_name || "General"}
+                              </span>
+                            </td>
+                            <td className="p-2 border border-slate-200 text-slate-600">
+                              {partner?.name || "N/A"} ({e.payment_mode})
+                            </td>
+                            <td className="p-2 border border-slate-200 text-right font-black text-rose-600">
+                              {money(e.amount)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {expenses.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-4 text-center text-slate-400">No expenses recorded yet.</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -4875,6 +5025,19 @@ Thank you for your business!`;
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Payment Date (చెల్లింపు తేదీ)
+                </label>
+                <input
+                  type="date"
+                  required
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold text-slate-800"
+                  value={loanPaymentForm.tx_date}
+                  onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, tx_date: e.target.value })}
+                />
+              </div>
 
               <input
                 type="text"
@@ -5143,7 +5306,7 @@ Thank you for your business!`;
                     type="button"
                     onClick={() => {
                       setEditingSupplierId(null);
-                      setSupplierForm({ name: "", mobile: "", old_due: "" });
+                      setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
                       setShowSupplierModal(true);
                     }}
                     className="text-[11px] font-bold text-indigo-600 hover:underline"
@@ -5440,6 +5603,15 @@ Thank you for your business!`;
                 value={supplierForm.old_due}
                 onChange={(e) => setSupplierForm({ ...supplierForm, old_due: e.target.value })}
               />
+              <label className="flex items-center gap-2 p-2 bg-indigo-50/60 rounded-xl border border-indigo-100 cursor-pointer text-xs font-semibold text-indigo-900">
+                <input
+                  type="checkbox"
+                  checked={!!supplierForm.is_dual}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, is_dual: e.target.checked })}
+                  className="rounded text-indigo-600 cursor-pointer h-4 w-4"
+                />
+                <span>Allow in Sale Invoice (Supplier is also a Customer)</span>
+              </label>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Supplier</button>
