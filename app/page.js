@@ -269,9 +269,10 @@ export default function App() {
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "", confirmPin: "", error: "", success: "" });
 
-  // Lender and Procurement duplicate save prevention
+  // Duplicate save prevention locks
   const [savingLender, setSavingLender] = useState(false);
   const [savingProcure, setSavingProcure] = useState(false);
+  const [savingCollection, setSavingCollection] = useState(false);
 
   // Sorting States
   const [invoiceSort, setInvoiceSort] = useState("date_desc");
@@ -478,49 +479,49 @@ export default function App() {
       const initUpi = Number(partner.opening_upi || 0);
 
       const saleCash = invoices
-        .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "Cash")
+        .filter((i) => String(i.upfront_receiver_id) === String(pid) && (i.upfront_mode || "").toUpperCase() === "CASH")
         .reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
       const saleUpi = invoices
-        .filter((i) => i.upfront_receiver_id == pid && i.upfront_mode === "UPI")
+        .filter((i) => String(i.upfront_receiver_id) === String(pid) && (i.upfront_mode || "").toUpperCase() === "UPI")
         .reduce((s, i) => s + Number(i.upfront_paid || 0), 0);
 
       const colCash = collections
-        .filter((c) => c.receiver_id == pid && c.payment_mode === "Cash")
+        .filter((c) => String(c.receiver_id) === String(pid) && (c.payment_mode || "").toUpperCase() === "CASH")
         .reduce((s, c) => s + Number(c.amount || 0), 0);
       const colUpi = collections
-        .filter((c) => c.receiver_id == pid && c.payment_mode === "UPI")
+        .filter((c) => String(c.receiver_id) === String(pid) && (c.payment_mode || "").toUpperCase() === "UPI")
         .reduce((s, c) => s + Number(c.amount || 0), 0);
 
       const procCash = procurements.reduce((s, p) => {
         let amt = 0;
-        if (p.p1_id == pid && p.p1_mode === "Cash") amt += Number(p.p1_amount || 0);
+        if (String(p.p1_id) === String(pid) && (p.p1_mode || "").toUpperCase() === "CASH") amt += Number(p.p1_amount || 0);
         return s + amt;
       }, 0);
       const procUpi = procurements.reduce((s, p) => {
         let amt = 0;
-        if (p.p1_id == pid && p.p1_mode === "UPI") amt += Number(p.p1_amount || 0);
+        if (String(p.p1_id) === String(pid) && (p.p1_mode || "").toUpperCase() === "UPI") amt += Number(p.p1_amount || 0);
         return s + amt;
       }, 0);
 
       const expCash = expenses
-        .filter((e) => e.paid_by_id == pid && e.payment_mode === "Cash")
+        .filter((e) => String(e.paid_by_id) === String(pid) && (e.payment_mode || "").toUpperCase() === "CASH")
         .reduce((s, e) => s + Number(e.amount || 0), 0);
       const expUpi = expenses
-        .filter((e) => e.paid_by_id == pid && e.payment_mode === "UPI")
+        .filter((e) => String(e.paid_by_id) === String(pid) && (e.payment_mode || "").toUpperCase() === "UPI")
         .reduce((s, e) => s + Number(e.amount || 0), 0);
 
       const loanPaidCash = loanTransactions
-        .filter((tx) => tx.partner_id == pid && tx.tx_type === "Repayment" && tx.payment_mode === "Cash")
+        .filter((tx) => String(tx.partner_id) === String(pid) && (tx.tx_type === "Repayment" || tx.tx_type === "Interest") && (tx.payment_mode || "").toUpperCase() === "CASH")
         .reduce((s, tx) => s + Number(tx.amount || 0), 0);
       const loanPaidUpi = loanTransactions
-        .filter((tx) => tx.partner_id == pid && tx.tx_type === "Repayment" && tx.payment_mode === "UPI")
+        .filter((tx) => String(tx.partner_id) === String(pid) && (tx.tx_type === "Repayment" || tx.tx_type === "Interest") && (tx.payment_mode || "").toUpperCase() === "UPI")
         .reduce((s, tx) => s + Number(tx.amount || 0), 0);
 
       const loanTakenCash = loanTransactions
-        .filter((tx) => tx.partner_id == pid && tx.tx_type === "LoanTaken" && tx.payment_mode === "Cash")
+        .filter((tx) => String(tx.partner_id) === String(pid) && tx.tx_type === "LoanTaken" && (tx.payment_mode || "").toUpperCase() === "CASH")
         .reduce((s, tx) => s + Number(tx.amount || 0), 0);
       const loanTakenUpi = loanTransactions
-        .filter((tx) => tx.partner_id == pid && tx.tx_type === "LoanTaken" && tx.payment_mode === "UPI")
+        .filter((tx) => String(tx.partner_id) === String(pid) && tx.tx_type === "LoanTaken" && (tx.payment_mode || "").toUpperCase() === "UPI")
         .reduce((s, tx) => s + Number(tx.amount || 0), 0);
 
       const netCash = initCash + saleCash + colCash + loanTakenCash - procCash - expCash - loanPaidCash;
@@ -1128,21 +1129,27 @@ Thank you for your business!`;
           const upfrontAmt = Number(targetInv.upfront_paid || 0);
           const newStatus = upfrontAmt >= totalAmt ? "Collected" : upfrontAmt > 0 ? "Partial" : "Due";
 
-          await db.from("invoices").update({
+          const { error: invErr } = await db.from("invoices").update({
             balance_due: newBal,
             status: newStatus
           }).eq("id", targetInv.id);
+          if (invErr) throw invErr;
         }
       }
 
       const cust = customers.find((c) => c.id == col.customer_id);
       if (cust) {
-        await db.from("customers").update({
-          old_due: Number(cust.old_due || 0) + amt
+        const newDue = Number(cust.old_due || 0) + amt;
+        const { error: custErr } = await db.from("customers").update({
+          old_due: newDue
         }).eq("id", cust.id);
+        if (custErr) throw custErr;
+        setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
       }
 
-      await db.from("collections").delete().eq("id", col.id);
+      const { error: delErr } = await db.from("collections").delete().eq("id", col.id);
+      if (delErr) throw delErr;
+      setCollections((prev) => prev.filter((c) => c.id !== col.id));
       alert("Collection deleted! Invoice and customer balance restored.");
       refreshData();
     } catch (err) {
@@ -1154,66 +1161,89 @@ Thank you for your business!`;
     e.preventDefault();
     const amt = Number(collectForm.amount || 0);
     if (amt <= 0) return alert("Enter valid collection amount");
-    if (!collectForm.receiver_id) return alert("Select partner who collected");
+    const receiverId = Number(collectForm.receiver_id || upfrontPartnerId);
+    if (!receiverId) return alert("Select partner who collected");
 
     const datePrefix = new Date().toISOString().split("T")[0].replace(/-/g, "").slice(2);
-    const refNo = collectForm.reference_no.trim() || `REC-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const refNo = collectForm.reference_no?.trim() || `REC-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    const colType = collectForm.invoice_id
+      ? "Invoice Collection"
+      : collectForm.notes?.trim()
+      ? `On Account (${collectForm.notes.trim()})`
+      : "On Account";
+
+    // Strictly match Supabase collections table schema:
+    // ['id', 'created_at', 'customer_id', 'amount', 'payment_mode', 'receiver_id', 'invoice_id', 'collection_type']
     const payload = {
       customer_id: Number(collectForm.customer_id),
       invoice_id: collectForm.invoice_id ? Number(collectForm.invoice_id) : null,
       amount: amt,
       payment_mode: collectForm.payment_mode,
-      receiver_id: Number(collectForm.receiver_id),
-      reference_no: refNo,
-      notes: collectForm.notes.trim()
+      receiver_id: receiverId,
+      collection_type: colType
     };
 
+    setSavingCollection(true);
     try {
       if (editingCollectionId) {
         const oldCol = collections.find((c) => c.id === editingCollectionId);
-        const diff = amt - Number(oldCol.amount || 0);
+        const diff = amt - Number(oldCol?.amount || 0);
 
         if (collectForm.invoice_id) {
           const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
           if (targetInv) {
             const newBal = Math.max(0, Number(targetInv.balance_due || 0) - diff);
-            await db.from("invoices").update({
+            const { error: invErr } = await db.from("invoices").update({
               balance_due: newBal,
               status: newBal <= 0 ? "Collected" : "Partial"
             }).eq("id", targetInv.id);
+            if (invErr) throw invErr;
           }
         }
 
         const cust = customers.find((c) => c.id == collectForm.customer_id);
         if (cust) {
           // Allow customer due to go negative (advance credit)
-          await db.from("customers").update({ old_due: Number(cust.old_due || 0) - diff }).eq("id", cust.id);
+          const newDue = Number(cust.old_due || 0) - diff;
+          const { error: custErr } = await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
+          if (custErr) throw custErr;
+          setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
         }
 
-        await db.from("collections").update(payload).eq("id", editingCollectionId);
+        const { error: colErr } = await db.from("collections").update(payload).eq("id", editingCollectionId);
+        if (colErr) throw colErr;
+        setCollections((prev) => prev.map((c) => c.id === editingCollectionId ? { ...c, ...payload } : c));
         alert("Collection updated successfully!");
       } else {
-        await db.from("collections").insert([payload]);
+        const { data: inserted, error: colErr } = await db.from("collections").insert([payload]).select();
+        if (colErr) throw colErr;
 
         if (collectForm.invoice_id) {
           const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
           if (targetInv) {
             const currentBal = Number(targetInv.balance_due || 0);
             const newBal = Math.max(0, currentBal - amt);
-            await db.from("invoices").update({
+            const { error: invErr } = await db.from("invoices").update({
               balance_due: newBal,
               status: newBal <= 0 ? "Collected" : "Partial"
             }).eq("id", targetInv.id);
+            if (invErr) throw invErr;
           }
         }
 
         const cust = customers.find((c) => c.id == collectForm.customer_id);
         if (cust) {
           // Allow customer due to go negative (advance credit)
-          await db.from("customers").update({ old_due: Number(cust.old_due || 0) - amt }).eq("id", cust.id);
+          const newDue = Number(cust.old_due || 0) - amt;
+          const { error: custErr } = await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
+          if (custErr) throw custErr;
+          setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
         }
 
+        if (inserted && inserted.length > 0) {
+          setCollections((prev) => [inserted[0], ...prev]);
+        }
         alert(`Collection recorded (${refNo})!`);
       }
 
@@ -1222,6 +1252,8 @@ Thank you for your business!`;
       refreshData();
     } catch (err) {
       alert("Error saving collection: " + err.message);
+    } finally {
+      setSavingCollection(false);
     }
   };
 
@@ -3379,8 +3411,8 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-700 font-medium">
                                   {receiver?.name || "-"}
                                 </td>
-                                <td className="p-3 text-slate-400 text-[11px] max-w-xs truncate">
-                                  {c.notes || "-"}
+                                <td className="p-3 text-slate-500 text-[11px] max-w-xs truncate">
+                                  {c.collection_type || c.notes || "-"}
                                 </td>
                                 <td className="p-3 text-center">
                                   <div className="flex items-center justify-center gap-1.5">
@@ -4897,7 +4929,9 @@ Thank you for your business!`;
               >
                 <option value="">-- Choose Customer --</option>
                 {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} (Total Due: {money(c.old_due)})</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({Number(c.old_due || 0) < 0 ? `Advance: ${money(Math.abs(c.old_due))}` : `Total Due: ${money(c.old_due)}`})
+                  </option>
                 ))}
               </select>
 
@@ -4965,7 +4999,15 @@ Thank you for your business!`;
 
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-bold rounded-xl text-xs">Save Receipt</button>
+                <button
+                  type="submit"
+                  disabled={savingCollection}
+                  className={`flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition ${
+                    savingCollection ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {savingCollection ? "Saving..." : "Save Receipt"}
+                </button>
               </div>
             </form>
           </div>
