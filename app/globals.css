@@ -1,3 +1,40 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Comprehensive Dark Mode & Dropdown Select Option Visibility Fix */
+select {
+  color: #0f172a;
+  background-color: #ffffff;
+}
+
+select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+.dark select {
+  color: #f8fafc !important;
+  background-color: #1e293b !important;
+}
+
+.dark select option {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+/* Ensure inputs and textareas have high contrast in dark mode */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.dark textarea {
+  color: #f8fafc;
+}
+
+/* ERP Grid Table Borders */
+.table-grid {
+  border-collapse: collapse;
+}
+
+.table-grid th,
+.table-grid td {
+  border-width: 1px;
+}
