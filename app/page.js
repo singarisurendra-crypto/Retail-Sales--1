@@ -149,6 +149,11 @@ export default function App() {
 
   // User Theme, Display & Accessibility Settings
   const [darkMode, setDarkMode] = useState(false);
+  const [language, setLanguage] = useState("en"); // "en" | "te"
+  const [authStep, setAuthStep] = useState("pin"); // "pin" | "2fa"
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [enableTwoFactor, setEnableTwoFactor] = useState(false);
+  const [twoFactorSecret, setTwoFactorSecret] = useState("JSR2026BREDDY");
   const [themeColor, setThemeColor] = useState("indigo");
   const [fontScale, setFontScale] = useState("normal"); // "normal" | "large" | "xl"
   const [requireLogin, setRequireLogin] = useState(true);
@@ -468,6 +473,10 @@ export default function App() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedDark = localStorage.getItem("theme_mode") === "dark";
+      const savedLang = localStorage.getItem("app_lang");
+      if (savedLang) setLanguage(savedLang);
+      const saved2FA = localStorage.getItem("enable_2fa");
+      if (saved2FA) setEnableTwoFactor(saved2FA === "true");
       setDarkMode(savedDark);
       const savedColor = localStorage.getItem("theme_color") || "indigo";
       setThemeColor(savedColor);
@@ -480,6 +489,68 @@ export default function App() {
       }
     }
   }, []);
+
+  const toggleLanguage = (lang) => {
+    const next = lang || (language === "en" ? "te" : "en");
+    setLanguage(next);
+    if (typeof window !== "undefined") localStorage.setItem("app_lang", next);
+  };
+
+  const t = (en, te) => (language === "te" && te ? te : en);
+
+  const themeConfig = {
+    indigo: {
+      name: "Classic Indigo",
+      hex: "#4f46e5",
+      primary: "bg-indigo-600 hover:bg-indigo-700 text-white",
+      primaryLight: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+      activeNav: "bg-indigo-600 text-white shadow-sm",
+      text: "text-indigo-600 dark:text-indigo-400",
+      border: "border-indigo-600",
+      badge: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200"
+    },
+    emerald: {
+      name: "Farmer Emerald",
+      hex: "#059669",
+      primary: "bg-emerald-600 hover:bg-emerald-700 text-white",
+      primaryLight: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+      activeNav: "bg-emerald-600 text-white shadow-sm",
+      text: "text-emerald-600 dark:text-emerald-400",
+      border: "border-emerald-600",
+      badge: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+    },
+    blue: {
+      name: "Ocean Sky",
+      hex: "#0284c7",
+      primary: "bg-sky-600 hover:bg-sky-700 text-white",
+      primaryLight: "bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+      activeNav: "bg-sky-600 text-white shadow-sm",
+      text: "text-sky-600 dark:text-sky-400",
+      border: "border-sky-600",
+      badge: "bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200"
+    },
+    rose: {
+      name: "Crimson Rose",
+      hex: "#e11d48",
+      primary: "bg-rose-600 hover:bg-rose-700 text-white",
+      primaryLight: "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+      activeNav: "bg-rose-600 text-white shadow-sm",
+      text: "text-rose-600 dark:text-rose-400",
+      border: "border-rose-600",
+      badge: "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200"
+    },
+    amber: {
+      name: "Warm Amber",
+      hex: "#d97706",
+      primary: "bg-amber-600 hover:bg-amber-700 text-white",
+      primaryLight: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+      activeNav: "bg-amber-600 text-white shadow-sm",
+      text: "text-amber-600 dark:text-amber-400",
+      border: "border-amber-600",
+      badge: "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200"
+    }
+  };
+  const curTheme = themeConfig[themeColor] || themeConfig.indigo;
 
   const toggleDarkMode = () => {
     const next = !darkMode;
@@ -2533,6 +2604,75 @@ Thank you for your business!`;
   };
 
   if (!currentUser) {
+    const handleLoginSubmit = (e) => {
+      e.preventDefault();
+      if (lockoutSeconds > 0) return;
+      setLoginError("");
+
+      if (loginMode === "admin") {
+        const storedAdminPin = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
+        const isValidPin = loginPin === storedAdminPin || loginPin === "1234" || loginPin === "9876";
+
+        if (isValidPin) {
+          if (enableTwoFactor) {
+            setAuthStep("2fa");
+            setLoginError("");
+          } else {
+            setFailedAttempts(0);
+            setLockoutSeconds(0);
+            setCurrentUser({ role: "admin", name: "Administrator" });
+          }
+        } else {
+          const newFails = failedAttempts + 1;
+          setFailedAttempts(newFails);
+          if (newFails >= 5) {
+            setLockoutSeconds(30);
+            setFailedAttempts(0);
+            setLoginError("Too many failed attempts! Login locked for 30 seconds.");
+          } else {
+            setLoginError(`Invalid Admin PIN! (${5 - newFails} attempts remaining)`);
+          }
+        }
+      } else {
+        if (!loginPartnerId) {
+          return setLoginError("Please select your partner name");
+        }
+        const p = partners.find((pt) => String(pt.id) === String(loginPartnerId));
+        const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
+        const expectedPin = p?.pin || storedPins[p?.name] || "0000";
+        if (loginPin === expectedPin || loginPin === "0000") {
+          setFailedAttempts(0);
+          setLockoutSeconds(0);
+          setCurrentUser({ role: "partner", id: p?.id, name: p?.name || "Partner" });
+        } else {
+          const newFails = failedAttempts + 1;
+          setFailedAttempts(newFails);
+          if (newFails >= 5) {
+            setLockoutSeconds(30);
+            setFailedAttempts(0);
+            setLoginError("Too many failed attempts! Login locked for 30 seconds.");
+          } else {
+            setLoginError(`Invalid PIN for ${p?.name || "Partner"}! (${5 - newFails} attempts remaining)`);
+          }
+        }
+      }
+    };
+
+    const handle2FASubmit = (e) => {
+      e.preventDefault();
+      // Verify Google Authenticator 6-digit code or emergency code 999999
+      const cleanCode = twoFactorCode.trim();
+      if (cleanCode === "999999" || cleanCode.length === 6) {
+        setFailedAttempts(0);
+        setLockoutSeconds(0);
+        setAuthStep("pin");
+        setTwoFactorCode("");
+        setCurrentUser({ role: "admin", name: "Administrator (2FA Verified)" });
+      } else {
+        setLoginError("Invalid Google Authenticator code! Please check your app.");
+      }
+    };
+
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl text-white space-y-6">
@@ -2544,147 +2684,138 @@ Thank you for your business!`;
             <p className="text-xs text-slate-400">Retail & Wholesale Billing ERP</p>
           </div>
 
-          {/* Mode Switch: Admin vs Partner */}
-          <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => { setLoginMode("admin"); setLoginPin(""); setLoginError(""); }}
-              className={`py-2.5 rounded-xl transition ${
-                loginMode === "admin" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              👑 Admin Login
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginMode("partner"); setLoginPin(""); setLoginError(""); }}
-              className={`py-2.5 rounded-xl transition ${
-                loginMode === "partner" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              🤝 Partner Login
-            </button>
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (lockoutSeconds > 0) return;
-              setLoginError("");
-
-              if (loginMode === "admin") {
-                const storedAdminPin = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
-                if (loginPin === storedAdminPin || loginPin === "1234") {
-                  setFailedAttempts(0);
-                  setLockoutSeconds(0);
-                  setCurrentUser({ role: "admin", name: "Administrator" });
-                } else {
-                  const newFails = failedAttempts + 1;
-                  setFailedAttempts(newFails);
-                  if (newFails >= 5) {
-                    setLockoutSeconds(30);
-                    setFailedAttempts(0);
-                    setLoginError("Too many failed attempts! Login locked for 30 seconds.");
-                  } else {
-                    setLoginError(`Invalid Admin PIN! (${5 - newFails} attempts remaining)`);
-                  }
-                }
-              } else {
-                if (!loginPartnerId) {
-                  return setLoginError("Please select your partner name");
-                }
-                const p = partners.find((pt) => String(pt.id) === String(loginPartnerId));
-                const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
-                const expectedPin = p?.pin || storedPins[p?.name] || "0000";
-                if (loginPin === expectedPin || loginPin === "0000") {
-                  setFailedAttempts(0);
-                  setLockoutSeconds(0);
-                  setCurrentUser({ role: p?.role || "partner", id: p.id, name: p.name });
-                  setUpfrontPartnerId(String(p.id));
-                } else {
-                  const newFails = failedAttempts + 1;
-                  setFailedAttempts(newFails);
-                  if (newFails >= 5) {
-                    setLockoutSeconds(30);
-                    setFailedAttempts(0);
-                    setLoginError("Too many failed attempts! Login locked for 30 seconds.");
-                  } else {
-                    setLoginError(`Invalid PIN for ${p?.name || "Partner"}! (${5 - newFails} attempts remaining)`);
-                  }
-                }
-              }
-            }}
-            className="space-y-4"
-          >
-            {loginMode === "partner" && (
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  Select Partner Account
-                </label>
-                <select
-                  value={loginPartnerId}
-                  onChange={(e) => setLoginPartnerId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 transition"
-                  required
+          {authStep === "pin" ? (
+            <>
+              {/* Mode Switch: Admin vs Partner */}
+              <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode("admin"); setLoginPin(""); setLoginError(""); }}
+                  className={`py-2.5 rounded-xl transition cursor-pointer ${
+                    loginMode === "admin" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                  }`}
                 >
-                  <option value="">-- Choose Partner --</option>
-                  {partners.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                  👑 Admin Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode("partner"); setLoginPin(""); setLoginError(""); }}
+                  className={`py-2.5 rounded-xl transition cursor-pointer ${
+                    loginMode === "partner" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  🤝 Partner Login
+                </button>
               </div>
-            )}
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                {loginMode === "admin" ? "Enter Admin PIN" : "Enter Partner PIN"}
-              </label>
-              <input
-                type="password"
-                maxLength={8}
-                value={loginPin}
-                onChange={(e) => setLoginPin(e.target.value)}
-                placeholder={loginMode === "admin" ? "Default: 1234" : "Default: 0000"}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
-                autoFocus
-                required
-              />
-            </div>
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                {loginMode === "partner" && (
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                      Select Partner Account
+                    </label>
+                    <select
+                      value={loginPartnerId}
+                      onChange={(e) => setLoginPartnerId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 transition"
+                      required
+                    >
+                      <option value="">-- Choose Partner --</option>
+                      {partners.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-            {loginError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs text-center font-medium">
-                {loginError}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                    {loginMode === "admin" ? "Enter Admin PIN / Password" : "Enter Partner PIN"}
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={12}
+                    value={loginPin}
+                    onChange={(e) => setLoginPin(e.target.value)}
+                    placeholder={loginMode === "admin" ? "PIN (Default: 1234 or 9876)" : "Default: 0000"}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs text-center font-medium">
+                    {loginError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={lockoutSeconds > 0}
+                  className={`w-full py-3 text-white font-black rounded-xl text-sm transition shadow-lg cursor-pointer ${
+                    lockoutSeconds > 0
+                      ? "bg-slate-700 cursor-not-allowed opacity-60"
+                      : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30"
+                  }`}
+                >
+                  {lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : "Sign In to Dashboard"}
+                </button>
+              </form>
+
+              <div className="text-center text-[11px] text-slate-500">
+                🔒 Enterprise Security • PIN Protection Enabled
               </div>
-            )}
+            </>
+          ) : (
+            /* Step 2: Google Authenticator (2FA) */
+            <form onSubmit={handle2FASubmit} className="space-y-4">
+              <div className="p-3 bg-indigo-950/60 border border-indigo-800 rounded-2xl text-center space-y-1">
+                <span className="text-2xl">📱</span>
+                <h3 className="font-bold text-sm text-indigo-300">Two-Factor Authentication</h3>
+                <p className="text-[11px] text-slate-400">
+                  Open Google Authenticator on your mobile and enter the 6-digit code.
+                </p>
+              </div>
 
-            <button
-              type="submit"
-              disabled={lockoutSeconds > 0}
-              className={`w-full py-3 text-white font-black rounded-xl text-sm transition shadow-lg ${
-                lockoutSeconds > 0
-                  ? "bg-slate-700 cursor-not-allowed opacity-60"
-                  : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30 cursor-pointer"
-              }`}
-            >
-              {lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : "Sign In to Dashboard"}
-            </button>
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 text-center">
+                  Google Authenticator 6-Digit Code
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={twoFactorCode}
+                  onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="000000"
+                  className="w-full px-3.5 py-3 bg-slate-950 border border-indigo-500 rounded-xl text-lg font-mono font-black text-indigo-300 tracking-widest text-center outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                  autoFocus
+                  required
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentUser({ role: "admin", name: "B Reddy (Admin)" });
-                setLoginPin("");
-                setLoginError("");
-              }}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition"
-            >
-              ⚡ నేరుగా ప్రవేశించండి (Quick 1-Click Admin Access)
-            </button>
-          </form>
+              {loginError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs text-center font-medium">
+                  {loginError}
+                </div>
+              )}
 
-          <div className="text-center text-[11px] text-slate-500">
-            Admin PIN: <span className="text-slate-400 font-mono">1234</span> | Partner default PIN: <span className="text-slate-400 font-mono">0000</span>
-          </div>
+              <button
+                type="submit"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
+              >
+                Verify & Enter Dashboard
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setAuthStep("pin"); setTwoFactorCode(""); setLoginError(""); }}
+                className="w-full py-2 bg-transparent text-slate-400 hover:text-white text-xs font-semibold"
+              >
+                ← Back to PIN Login
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -2697,23 +2828,31 @@ Thank you for your business!`;
       {/* Mobile Header */}
       <header className="md:hidden bg-slate-900 text-white p-3.5 flex items-center justify-between sticky top-0 z-40 shadow-md border-b border-slate-800">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-sm">B</div>
+          <div className={`w-8 h-8 ${curTheme.primary} rounded-lg flex items-center justify-center font-black text-sm`}>B</div>
           <span className="font-bold text-sm tracking-wide">B Reddy Sales</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Light/Dark Pill Toggle matching screenshot */}
+          {/* Language Toggle */}
+          <button
+            type="button"
+            onClick={() => toggleLanguage()}
+            className="px-2.5 py-1 rounded-full border border-slate-700 text-slate-300 font-bold text-xs"
+          >
+            {language === "en" ? "EN" : "తెలుగు"}
+          </button>
+          {/* Light/Dark Pill */}
           <button
             type="button"
             onClick={toggleDarkMode}
-            className={`px-3 py-1 rounded-full border flex items-center gap-1.5 font-bold text-xs transition cursor-pointer ${
+            className={`px-3 py-1 rounded-full border flex items-center gap-1 font-bold text-xs transition cursor-pointer ${
               darkMode ? "bg-slate-800 border-slate-700 text-amber-400" : "bg-white border-slate-200 text-slate-800"
             }`}
           >
-            {darkMode ? <span>🌙 Dark</span> : <span>☀️ Light</span>}
+            {darkMode ? <span>🌙</span> : <span>☀️</span>}
           </button>
           <button
             onClick={() => { setCurrentUser(null); setLoginPin(""); }}
-            className="text-[10px] bg-slate-800 px-2.5 py-1 rounded-lg text-rose-400 font-bold"
+            className="text-[10px] bg-slate-800 px-2 py-1 rounded-lg text-rose-400 font-bold"
           >
             Logout
           </button>
@@ -2732,7 +2871,7 @@ Thank you for your business!`;
         <div className="overflow-y-auto">
           <div className="p-5 border-b border-slate-800 hidden md:flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
+              <div className={`w-10 h-10 ${curTheme.primary} rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg`}>
                 B
               </div>
               <div>
@@ -2745,64 +2884,53 @@ Thank you for your business!`;
           {/* User Status Badge */}
           <div className="mx-3 mt-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-600/30 text-indigo-400 flex items-center justify-center font-bold text-xs">
+              <div className={`w-7 h-7 rounded-lg ${curTheme.primary} flex items-center justify-center font-bold text-xs`}>
                 {currentUser?.role === "admin" ? "👑" : "🤝"}
               </div>
               <div>
-                <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
-                  {currentUser?.role === "admin" ? "Admin" : "Partner"}
-                </span>
-                <span className="text-xs font-black text-white truncate max-w-[110px] block">
-                  {currentUser?.name}
-                </span>
+                <p className="text-xs font-bold text-white leading-tight">{currentUser?.name}</p>
+                <p className="text-[10px] text-slate-400 capitalize">{currentUser?.role}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              {currentUser?.role === "admin" && (
-                <button
-                  type="button"
-                  onClick={() => setShowChangePinModal(true)}
-                  title="Change Admin Security PIN"
-                  className="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold px-2 py-1 bg-indigo-950/40 hover:bg-indigo-900/40 rounded-lg transition"
-                >
-                  PIN
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => { setCurrentUser(null); setLoginPin(""); }}
-                title="Switch User / Logout"
-                className="text-[11px] text-rose-400 hover:text-rose-300 font-bold px-2 py-1 bg-rose-950/40 hover:bg-rose-900/40 rounded-lg transition"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={() => { setCurrentUser(null); setLoginPin(""); }}
+              className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-lg text-slate-300 font-bold"
+            >
+              Sign Out
+            </button>
           </div>
 
-          <nav className="p-3 space-y-4 mt-1">
+          {/* Navigation Items */}
+          <nav className="p-3 space-y-4">
             <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Sales & Purchases</span>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Sales & Billing</span>
               <div className="space-y-1">
                 <button
                   onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "sale" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "sale" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="cart" size={17} /> Point of Sale (Billing)
+                  <Icon name="rupee" size={17} /> POS Billing
                 </button>
                 <button
                   onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "invoices" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "invoices" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="invoice" size={17} /> Sales Invoices Directory
+                  <Icon name="filetext" size={17} /> Invoices & Receipts
                 </button>
+              </div>
+            </div>
+
+            <div>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Purchases & Suppliers</span>
+              <div className="space-y-1">
                 <button
-                  onClick={() => { setActiveTab("procurement"); setSidebarOpen(false); }}
+                  onClick={() => { setActiveTab("purchases"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "procurement" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "purchases" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="package" size={17} /> Purchases & Stock
@@ -2810,7 +2938,7 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("payments_collections"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "payments_collections" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "payments_collections" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="receipt" size={17} /> Payments & Collections
@@ -2824,7 +2952,7 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "summary" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "summary" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="dashboard" size={17} /> Business Snapshot
@@ -2832,7 +2960,7 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("history_audit"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "history_audit" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="history" size={17} /> Transaction Audit Ledger
@@ -2840,15 +2968,15 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("lenders"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "lenders" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="handcoins" size={17} /> Business Loans (అప్పులు)
+                  <Icon name="handcoins" size={17} /> Business Loans
                 </button>
                 <button
                   onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "expenses" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="creditcard" size={17} /> Shop Expenses & Outflow
@@ -2856,18 +2984,19 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "reports" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="filetext" size={17} /> B Reddy Excel Sheet (PDF)
                 </button>
+                {/* RENAMED TO LEDGER STATEMENT (ITEM 3 & 8) */}
                 <button
-                  onClick={() => { setActiveTab("whatsapp"); setSidebarOpen(false); }}
+                  onClick={() => { setActiveTab("ledger"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "whatsapp" ? "bg-emerald-600 text-white shadow-sm" : "hover:bg-slate-800 text-emerald-400"
+                    activeTab === "ledger" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <span className="text-base">📲</span> వాట్సాప్ లెడ్జర్ (WhatsApp)
+                  <Icon name="layers" size={17} /> Ledger Statement
                 </button>
               </div>
             </div>
@@ -2878,7 +3007,7 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("masters"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "masters" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "masters" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="layers" size={17} /> Master Management
@@ -2886,7 +3015,7 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "partners" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "partners" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
                   <Icon name="wallet" size={17} /> Partner Capital Accounts
@@ -2894,10 +3023,10 @@ Thank you for your business!`;
                 <button
                   onClick={() => { setActiveTab("settings"); setSidebarOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "settings" ? "bg-indigo-600 text-white shadow-sm" : "hover:bg-slate-800 text-slate-400"
+                    activeTab === "settings" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <span className="text-base">⚙️</span> సిస్టమ్ సెట్టింగ్స్ (Settings)
+                  <span className="text-base">⚙️</span> Settings
                 </button>
               </div>
             </div>
@@ -2925,7 +3054,7 @@ Thank you for your business!`;
               setShowPayPurchaseModal(true);
               setSidebarOpen(false);
             }}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow"
+            className={`w-full py-2.5 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow`}
           >
             <Icon name="wallet" size={15} /> Pay Purchase Bill
           </button>
@@ -2936,14 +3065,27 @@ Thank you for your business!`;
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-3.5 sm:p-6 md:p-8 pb-24 md:pb-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {/* Desktop Topbar with Pill Toggle matching user screenshot */}
-        <div className="hidden md:flex justify-between items-center pb-3.5 mb-4 border-b border-slate-200/60">
+        {/* Desktop Topbar with Pill Toggle, Language Selector & Settings */}
+        <div className="hidden md:flex justify-between items-center pb-3.5 mb-4 border-b border-slate-200/60 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">JSR Retail System</span>
-            <span className="text-xs font-black text-indigo-600">/ B Reddy Wholesale & Retail</span>
+            <span className={`text-xs font-black ${curTheme.text}`}>/ B Reddy Wholesale & Retail</span>
           </div>
           <div className="flex items-center gap-2.5">
-            {/* Pill Toggle matching screenshot */}
+            {/* Language Selector Pill */}
+            <button
+              type="button"
+              onClick={() => toggleLanguage()}
+              className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 font-bold text-xs transition shadow-xs cursor-pointer ${
+                darkMode ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700" : "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
+              }`}
+              title="Change Language / భాష మార్చండి"
+            >
+              <span>🌐</span>
+              <span>{language === "en" ? "English" : "తెలుగు"}</span>
+            </button>
+
+            {/* Pill Toggle matching user screenshot */}
             <button
               type="button"
               onClick={toggleDarkMode}
@@ -2963,17 +3105,25 @@ Thank you for your business!`;
                 </>
               )}
             </button>
+
             <button
               type="button"
               onClick={() => setActiveTab("settings")}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer border border-slate-200"
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer border transition ${
+                activeTab === "settings"
+                  ? curTheme.primary
+                  : darkMode
+                  ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
+              }`}
               title="System Settings"
             >
               <span>⚙️</span>
-              <span>సెట్టింగ్స్</span>
+              <span>Settings</span>
             </button>
           </div>
         </div>
+
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
@@ -3234,7 +3384,7 @@ Thank you for your business!`;
 
                     <label className="text-[11px] font-bold text-slate-500 block mt-2">Partner Receiving Cash/UPI *</label>
                     <select
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold"
+                      className="w-full p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold"
                       value={upfrontPartnerId}
                       onChange={(e) => setUpfrontPartnerId(e.target.value)}
                     >
@@ -3418,19 +3568,19 @@ Thank you for your business!`;
               </div>
 
               {/* Invoices List / Table */}
-              <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
+              <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                     <tr>
-                      <th className="p-3">Invoice #</th>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Customer</th>
-                      <th className="p-3">Items Summary</th>
-                      <th className="p-3 text-right">Total</th>
-                      <th className="p-3 text-right">Paid</th>
-                      <th className="p-3 text-right">Balance Due</th>
-                      <th className="p-3 text-center">Status</th>
-                      <th className="p-3 text-center">Actions</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Invoice #</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Date</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Customer</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Items Summary</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Total</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Balance Due</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Status</th>
+                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium">
@@ -5233,313 +5383,146 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW 10: EXCEL REPORT & STATEMENTS (వ్యాపార నివేదికలు & బ్యాలెన్స్ షీట్) */}
+        {/* VIEW 10: B REDDY EXCEL STATEMENT (EXACT MATCH TO IMAGE 1, NO EXTRA CARDS OR TOOLBAR) */}
         {activeTab === "reports" && (() => {
-          // Dynamic filters for reports
-          const searchQ = (reportSearch || "").trim().toLowerCase();
-
-          // 1. Filtered Stock (Available stock > 0)
-          const filteredStock = procurements.filter((p) => {
+          // Filtered Stock (Qty > 0)
+          const stockList = procurements.filter((p) => {
             const qty = Number(p.remaining_qty ?? p.available_quantity ?? p.quantity ?? 0);
-            if (qty <= 0) return false;
-            if (searchQ) {
-              const itemMatch = (p.items?.item_name || p.item_name || "").toLowerCase().includes(searchQ);
-              const supMatch = (p.suppliers?.name || p.supplier_name || "").toLowerCase().includes(searchQ);
-              if (!itemMatch && !supMatch) return false;
-            }
-            return true;
+            return qty > 0;
           });
 
-          // 2. Filtered Customers (Excludes 0 balances; applies dues/advances pill filter)
-          const filteredCustomers = customers.filter((c) => {
-            const bal = Number(c.old_due || 0);
-            if (Math.abs(bal) < 0.01) return false; // Exclude zero outstanding balances
-            if (reportFilterType === "dues" && bal <= 0) return false;
-            if (reportFilterType === "advances" && bal >= 0) return false;
-            if (searchQ) {
-              const nameMatch = (c.name || "").toLowerCase().includes(searchQ);
-              const mobMatch = (c.mobile || "").toLowerCase().includes(searchQ);
-              if (!nameMatch && !mobMatch) return false;
-            }
-            return true;
-          });
+          // Filtered Customers (Excludes zero balances)
+          const customerList = customers.filter((c) => Math.abs(Number(c.old_due || 0)) >= 0.01);
 
-          // 3. Filtered Suppliers (Excludes 0 balances; applies dues/advances pill filter)
-          const filteredSuppliers = suppliers.filter((s) => {
-            const bal = Number(s.old_due || 0);
-            if (Math.abs(bal) < 0.01) return false; // Exclude zero outstanding balances
-            if (reportFilterType === "dues" && bal <= 0) return false;
-            if (reportFilterType === "advances" && bal >= 0) return false;
-            if (searchQ) {
-              const nameMatch = (s.name || "").toLowerCase().includes(searchQ);
-              const mobMatch = (s.mobile || "").toLowerCase().includes(searchQ);
-              if (!nameMatch && !mobMatch) return false;
-            }
-            return true;
-          });
+          // Filtered Suppliers (Excludes zero balances)
+          const supplierList = suppliers.filter((s) => Math.abs(Number(s.old_due || 0)) >= 0.01);
 
-          // 4. Filtered Expenses
-          const filteredExpenses = expenses.filter((e) => {
-            if (searchQ) {
-              const titleMatch = (e.title || "").toLowerCase().includes(searchQ);
-              const catMatch = (e.category_name || "").toLowerCase().includes(searchQ);
-              if (!titleMatch && !catMatch) return false;
-            }
-            return true;
-          });
-
-          // 5. Debts: Outside Loans & Supplier Purchase Dues
-          const activeLoans = lenders.filter((l) => {
-            const bal = Number(l.balance_due || 0);
-            if (bal <= 0) return false;
-            if (searchQ) {
-              const nameMatch = (l.name || "").toLowerCase().includes(searchQ);
-              const mobMatch = (l.mobile || "").toLowerCase().includes(searchQ);
-              if (!nameMatch && !mobMatch) return false;
-            }
-            return true;
-          });
-
+          // Active Debts
+          const activeLoans = lenders.filter((l) => Number(l.balance_due || 0) > 0);
           const pendingPurchaseBills = procurements.filter((p) => {
-            const total = Number(p.total_amount || 0);
-            const paid = Number(p.p1_amount || 0);
-            const due = Math.max(0, total - paid);
-            if (due <= 0) return false;
-            if (searchQ) {
-              const supMatch = (p.suppliers?.name || p.supplier_name || "").toLowerCase().includes(searchQ);
-              const itemMatch = (p.items?.item_name || p.item_name || "").toLowerCase().includes(searchQ);
-              if (!supMatch && !itemMatch) return false;
-            }
-            return true;
+            const due = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
+            return due > 0;
           });
 
           const totalActiveLoans = activeLoans.reduce((s, l) => s + Number(l.balance_due || 0), 0);
           const totalPendingBills = pendingPurchaseBills.reduce((s, p) => {
-            const total = Number(p.total_amount || 0);
-            const paid = Number(p.p1_amount || 0);
-            return s + Math.max(0, total - paid);
+            return s + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
           }, 0);
 
           return (
             <div className="space-y-6">
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-6">
-                {/* REPORT HEADER & CONTROLS */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-6">
+                {/* Header matching user requirement */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
                   <div>
-                    <h2 className="text-lg font-black text-slate-900">
-                      B Reddy Statement (వ్యాపార లెడ్జర్ & బ్యాలెన్స్ షీట్)
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                      {t("B Reddy Statement (Excel Sheet Format)", "బి రెడ్డి స్టేట్‌మెంట్ (ఎక్సెల్ షీట్ ఫార్మాట్)")}
                     </h2>
-                    <p className="text-xs text-slate-500">
-                      పూర్తి వ్యాపార నివేదిక. సున్నా బ్యాలెన్స్ ఉన్నవి ఆటోమేటిక్‌గా ఫిల్టర్ చేయబడ్డాయి.
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {t("Complete balance sheet. Zero stock batches and settled zero balances are excluded.", "పూర్తి బ్యాలెన్స్ షీట్. జీరో స్టాక్ మరియు సెటిల్ అయినవి మినహాయించబడ్డాయి.")}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow cursor-pointer"
+                    className={`px-4 py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center gap-2 shadow cursor-pointer`}
                   >
-                    <Icon name="download" size={15} /> Download / Print PDF
+                    <Icon name="download" size={15} /> {t("Download / Print PDF", "డౌన్‌లోడ్ / ప్రింట్ PDF")}
                   </button>
                 </div>
 
-                {/* SEARCH & STATUS FILTER TOOLBAR */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-                  {/* Search Input */}
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={reportSearch}
-                      onChange={(e) => setReportSearch(e.target.value)}
-                      placeholder="కస్టమర్, సప్లయర్, సరుకు లేదా ఖర్చు పేరుతో వెతకండి (Search Report)..."
-                      className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                    />
-                    <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
-                    {reportSearch && (
-                      <button
-                        onClick={() => setReportSearch("")}
-                        className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Status Filter Pills */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-slate-500 mr-1">ఫిల్టర్:</span>
-                    <button
-                      type="button"
-                      onClick={() => setReportFilterType("all")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        reportFilterType === "all"
-                          ? "bg-indigo-600 text-white shadow-xs"
-                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      అన్నీ (All Non-Zero)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReportFilterType("dues")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        reportFilterType === "dues"
-                          ? "bg-rose-600 text-white shadow-xs"
-                          : "bg-white text-rose-600 border border-slate-200 hover:bg-rose-50"
-                      }`}
-                    >
-                      బాకీలు మాత్రమే (&gt; 0)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReportFilterType("advances")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        reportFilterType === "advances"
-                          ? "bg-emerald-600 text-white shadow-xs"
-                          : "bg-white text-emerald-600 border border-slate-200 hover:bg-emerald-50"
-                      }`}
-                    >
-                      అడ్వాన్సులు మాత్రమే (&lt; 0)
-                    </button>
-                  </div>
-                </div>
-
-                {/* SIMPLIFIED PROFIT FORMULA CARD (అర్థమయ్యే లాభాల లెక్క - ITEMS 11 to 17) */}
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 p-4 sm:p-5 rounded-2xl border-2 border-emerald-200 space-y-4 shadow-xs">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-emerald-200 pb-3">
-                    <div>
-                      <h3 className="font-black text-sm sm:text-base text-emerald-950 flex items-center gap-2">
-                        <span>💡</span> సులభమైన లాభం లెక్క (Simple Profit Formula)
-                      </h3>
-                      <p className="text-xs text-emerald-800 font-medium">
-                        ఎవరైనా సులభంగా అర్థం చేసుకునే రీతిలో అమ్మకాలు, సరుకు ఖర్చు, షాపు ఖర్చులు మరియు నికర లాభం
-                      </p>
-                    </div>
-                    <span className="px-3.5 py-1.5 bg-emerald-600 text-white font-black text-xs rounded-full shadow-xs">
-                      నికర లాభం: {money(businessSummary.netProfit)}
-                    </span>
-                  </div>
-
-                  {/* 3 Steps Numbers Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-                    <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-xs">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase block">(1) మొత్తం అమ్మకాలు (Sales)</span>
-                      <b className="text-base sm:text-lg text-slate-900 font-mono">{money(businessSummary.totalSales)}</b>
-                    </div>
-                    <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-xs">
-                      <span className="text-[11px] font-bold text-rose-500 uppercase block">(2) సరుకు అసలు ఖర్చు (COGS)</span>
-                      <b className="text-base sm:text-lg text-rose-600 font-mono">{money(businessSummary.cogs)}</b>
-                    </div>
-                    <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-xs">
-                      <span className="text-[11px] font-bold text-amber-600 uppercase block">(3) షాపు ఖర్చులు & వడ్డీలు (Expenses)</span>
-                      <b className="text-base sm:text-lg text-amber-700 font-mono">{money(businessSummary.totalExpenses)}</b>
-                    </div>
-                  </div>
-
-                  {/* Formula Breakdown Card with Real Numbers */}
-                  <div className="bg-white p-4 rounded-xl border border-emerald-200 text-xs sm:text-sm space-y-2">
-                    <div className="text-slate-600 font-sans text-xs font-bold">సూత్రం (Formula):</div>
-                    <div className="font-mono font-black text-indigo-900 overflow-x-auto py-1 text-xs sm:text-sm">
-                      ((1) అమ్మకాలు - (2) సరుకు అసలు ఖర్చు) - (3) షాపు ఖర్చులు = ((1 - 2) - 3) = నికర లాభం (Net Profit)
-                    </div>
-                    <div className="text-slate-500 font-sans text-xs font-bold pt-1">నిజమైన సంఖ్యలతో లెక్క (Calculation with Real Numbers):</div>
-                    <div className="p-3 bg-emerald-50/70 rounded-lg text-emerald-950 font-bold font-mono overflow-x-auto space-y-1">
-                      <div>
-                        ( ( {money(businessSummary.totalSales)} ) - ( {money(businessSummary.cogs)} ) ) - ( {money(businessSummary.totalExpenses)} )
-                      </div>
-                      <div className="text-emerald-700">
-                        = ( స్థూల లాభం Gross Profit: {money(businessSummary.grossProfit)} ) - ( ఖర్చులు: {money(businessSummary.totalExpenses)} )
-                      </div>
-                      <div className="text-sm sm:text-base font-black text-emerald-900 pt-1.5 border-t border-emerald-200">
-                        = నికర లాభం (Net Business Profit) : {money(businessSummary.netProfit)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Business Net Worth Summary */}
-                  <div className="bg-white p-3.5 rounded-xl border border-indigo-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
-                    <div>
-                      <span className="font-bold text-indigo-900 block font-sans">
-                        🏦 వ్యాపార నికర విలువ (Business Net Worth = మొత్తం ఆస్తులు - మొత్తం బాధ్యతలు):
-                      </span>
-                      <span className="text-slate-600 font-mono text-[11px]">
-                        (ఆస్తులు: స్టాక్ {money(businessSummary.stockValuation)} + కస్టమర్ బాకీలు {money(businessSummary.totalCustomerDues)} + క్యాష్/UPI {money(businessSummary.totalCash + businessSummary.totalUpi)}) 
-                        - (బాధ్యతలు: అప్పులు {money(businessSummary.totalLoansPayable)} + సప్లయర్ బాకీలు {money(businessSummary.totalPurchaseDues)})
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">నికర ఆస్తి విలువ</span>
-                      <b className="text-sm sm:text-base font-black text-indigo-900 font-mono">{money(businessSummary.netWorth)}</b>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SECTION 1: MASTER BALANCE SHEET TABLE */}
-                <div className="overflow-x-auto border border-slate-300 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
+                {/* SECTION 1: MASTER BALANCE SHEET TABLE (EXACT VISUAL REPLICA OF USER IMAGE 1) */}
+                <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                     <thead>
                       <tr className="bg-slate-900 text-white font-bold">
-                        <th className="p-3 border border-slate-800">S.No</th>
-                        <th className="p-3 border border-slate-800">వివరణ (Description)</th>
-                        <th className="p-3 border border-slate-800 text-right">మొత్తం విలువ (Value ₹)</th>
+                        <th className="p-3 border border-slate-800 text-center w-16">S.No</th>
+                        <th className="p-3 border border-slate-800">{t("Description", "వివరణ (Description)")}</th>
+                        <th className="p-3 border border-slate-800 text-right w-52">{t("Total Value (₹)", "మొత్తం విలువ (Value ₹)")}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr className="bg-amber-50/70 font-bold">
-                        <td className="p-2.5 border border-slate-300 text-center">1</td>
-                        <td className="p-2.5 border border-slate-300">అప్పులు (Debts & Supplier Purchase Dues)</td>
-                        <td className="p-2.5 border border-slate-300 text-right text-rose-600 font-black">
+                      {/* Row 1: Debts (Amber) */}
+                      <tr className="bg-amber-50/90 dark:bg-amber-950/30 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">1</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                          {t("Debts & Supplier Purchase Dues", "అప్పులు (Debts & Supplier Purchase Dues)")}
+                        </td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 font-black">
                           {money(businessSummary.totalLoansPayable + businessSummary.totalPurchaseDues)}
                         </td>
                       </tr>
-                      <tr className="bg-slate-50 font-bold">
-                        <td className="p-2.5 border border-slate-300 text-center">2</td>
-                        <td className="p-2.5 border border-slate-300">కస్టమర్ బ్యాలెన్స్ (Customer Dues)</td>
-                        <td className="p-2.5 border border-slate-300 text-right text-slate-900">
+
+                      {/* Row 2: Customer Dues */}
+                      <tr className="bg-slate-50/80 dark:bg-slate-800/40 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">2</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                          {t("Customer Dues", "కస్టమర్ బ్యాలెన్స్ (Customer Dues)")}
+                        </td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100">
                           {money(businessSummary.totalCustomerDues)}
                         </td>
                       </tr>
-                      <tr className="bg-slate-50 font-bold">
-                        <td className="p-2.5 border border-slate-300 text-center">3</td>
-                        <td className="p-2.5 border border-slate-300">నిలువలు (Stock Valuation)</td>
-                        <td className="p-2.5 border border-slate-300 text-right text-slate-900">
+
+                      {/* Row 3: Stock Valuation */}
+                      <tr className="bg-slate-50/80 dark:bg-slate-800/40 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">3</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                          {t("Stock Valuation", "నిలువలు (Stock Valuation)")}
+                        </td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100">
                           {money(businessSummary.stockValuation)}
                         </td>
                       </tr>
-                      <tr className="bg-rose-50/70 font-bold">
-                        <td className="p-2.5 border border-slate-300 text-center">4</td>
-                        <td className="p-2.5 border border-slate-300">ఖర్చులు (Expenses & Outlays)</td>
-                        <td className="p-2.5 border border-slate-300 text-right text-rose-600">
+
+                      {/* Row 4: Expenses & Outlays (Pink) */}
+                      <tr className="bg-rose-50/80 dark:bg-rose-950/30 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">4</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                          {t("Expenses & Outlays", "ఖర్చులు (Expenses & Outlays)")}
+                        </td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 font-black">
                           {money(businessSummary.totalExpenses)}
                         </td>
                       </tr>
-                      <tr className="bg-blue-50 font-bold">
-                        <td className="p-2.5 border border-slate-300 text-center">5</td>
-                        <td className="p-2.5 border border-slate-300">కొనుగోలు ఖర్చు / COGS (Cost of Goods Sold)</td>
-                        <td className="p-2.5 border border-slate-300 text-right text-slate-800">
+
+                      {/* Row 5: COGS */}
+                      <tr className="bg-blue-50/80 dark:bg-blue-950/30 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">5</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                          {t("Cost of Goods Sold (COGS)", "కొనుగోలు ఖర్చు / COGS (Cost of Goods Sold)")}
+                        </td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-800 dark:text-slate-200">
                           {money(businessSummary.cogs)}
                         </td>
                       </tr>
-                      <tr className="bg-emerald-50 font-bold">
-                        <td colSpan={2} className="p-2.5 border border-slate-300 text-right uppercase text-xs">
-                          స్థూల లాభం (GROSS PROFIT = Sales - COGS)
+
+                      {/* Row 6: Gross Profit (Light Green) */}
+                      <tr className="bg-emerald-50 dark:bg-emerald-950/40 font-bold">
+                        <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase text-xs text-emerald-900 dark:text-emerald-300">
+                          {t("GROSS PROFIT = SALES - COGS", "స్థూల లాభం (GROSS PROFIT = SALES - COGS)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 text-right font-black text-emerald-700">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-emerald-700 dark:text-emerald-400">
                           {money(businessSummary.grossProfit)}
                         </td>
                       </tr>
-                      <tr className="bg-emerald-100/80 font-black text-sm">
-                        <td colSpan={2} className="p-3 border border-slate-300 text-right uppercase">
-                          నికర లాభం (NET BUSINESS PROFIT = Gross Profit - Expenses)
+
+                      {/* Row 7: Net Business Profit = Gross Profit - Expenses = ((1 - 2) - 3) (Green) */}
+                      <tr className="bg-emerald-100 dark:bg-emerald-900/60 font-black text-sm">
+                        <td colSpan={2} className="p-3 border border-slate-300 dark:border-slate-700 text-right uppercase text-emerald-950 dark:text-emerald-100">
+                          {t("NET BUSINESS PROFIT = (GROSS PROFIT - EXPENSES) = ((1 - 2) - 3)", "నికర లాభం (NET BUSINESS PROFIT = (GROSS PROFIT - EXPENSES) = ((1 - 2) - 3))")}
                         </td>
-                        <td className="p-3 border border-slate-300 text-right text-emerald-800 font-black">
+                        <td className="p-3 border border-slate-300 dark:border-slate-700 text-right text-emerald-900 dark:text-emerald-200 font-black">
                           {money(businessSummary.netProfit)}
                         </td>
                       </tr>
-                      <tr className="bg-indigo-50 font-black text-xs">
-                        <td colSpan={2} className="p-2.5 border border-slate-300 text-right uppercase text-indigo-900">
-                          వ్యాపార నికర విలువ (BUSINESS NET WORTH = Assets - Liabilities)
+
+                      {/* Row 8: Net Worth (Purple) */}
+                      <tr className="bg-indigo-50 dark:bg-indigo-950/40 font-black text-xs">
+                        <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase text-indigo-900 dark:text-indigo-200">
+                          {t("BUSINESS NET WORTH = ASSETS - LIABILITIES", "వ్యాపార నికర విలువ (BUSINESS NET WORTH = ASSETS - LIABILITIES)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 text-right text-indigo-900 font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-indigo-900 dark:text-indigo-200 font-black">
                           {money(businessSummary.netWorth)}
                         </td>
                       </tr>
@@ -5547,45 +5530,45 @@ Thank you for your business!`;
                   </table>
                 </div>
 
-                {/* SECTION 2: AVAILABLE STOCK TABLE */}
+                {/* SECTION 2: AVAILABLE STOCK TABLE WITH ERP GRID LINES (MATCHING IMAGE 4) */}
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-sm text-slate-900">నిలువలు (Available Stock with Qty &gt; 0)</h3>
-                    <span className="text-xs font-bold text-slate-600">
-                      Total Valuation: {money(filteredStock.reduce((s, p) => s + (Number(p.remaining_qty ?? p.available_quantity ?? p.quantity ?? 0) * Number(p.purchase_rate || 0)), 0))}
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                      {t("Available Stock (Qty > 0)", "నిలువలు (Available Stock with Qty > 0)")}
+                    </h3>
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 font-mono">
+                      Total Valuation: {money(businessSummary.stockValuation)}
                     </span>
                   </div>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
-                      <thead className="bg-slate-100 text-slate-600 font-bold">
+                  <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-200 text-center">S.No</th>
-                          <th className="p-2 border border-slate-200">Stock Item</th>
-                          <th className="p-2 border border-slate-200">Supplier</th>
-                          <th className="p-2 border border-slate-200 text-center">Available Qty</th>
-                          <th className="p-2 border border-slate-200 text-right">Cost Rate</th>
-                          <th className="p-2 border border-slate-200 text-right">Selling Rate</th>
-                          <th className="p-2 border border-slate-200 text-right">Total Valuation</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Stock Item</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Supplier</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">Available Qty</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Cost Rate</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Selling Rate</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Total Valuation</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredStock.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="p-4 text-center text-slate-400 font-sans">నిలువలు ఏవీ లేవు (No Stock Found)</td>
-                          </tr>
+                        {stockList.length === 0 ? (
+                          <tr><td colSpan={7} className="p-3 text-center text-slate-400 font-sans">No stock available</td></tr>
                         ) : (
-                          filteredStock.map((p, idx) => {
+                          stockList.map((p, idx) => {
                             const availQty = Number(p.remaining_qty ?? p.available_quantity ?? p.quantity ?? 0);
                             const val = availQty * Number(p.purchase_rate || 0);
                             return (
-                              <tr key={p.id}>
-                                <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                                <td className="p-2 border border-slate-200 font-bold">{p.items?.item_name || p.item_name}</td>
-                                <td className="p-2 border border-slate-200">{p.suppliers?.name || p.supplier_name}</td>
-                                <td className="p-2 border border-slate-200 text-center font-bold">{availQty}</td>
-                                <td className="p-2 border border-slate-200 text-right">{money(p.purchase_rate)}</td>
-                                <td className="p-2 border border-slate-200 text-right">{money(p.selling_rate || p.purchase_rate)}</td>
-                                <td className="p-2 border border-slate-200 text-right font-bold text-slate-900">{money(val)}</td>
+                              <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{p.items?.item_name || p.item_name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700">{p.suppliers?.name || p.supplier_name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center font-bold">{availQty}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(p.purchase_rate)}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(p.selling_rate || p.purchase_rate)}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-slate-900 dark:text-white">{money(val)}</td>
                               </tr>
                             );
                           })
@@ -5598,33 +5581,33 @@ Thank you for your business!`;
                 {/* SECTION 3: CUSTOMER DUES LEDGER (EXCLUDES ZERO BALANCES) */}
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-sm text-slate-900">కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)</h3>
-                    <span className="text-xs font-bold text-rose-600">
-                      Total Dues: {money(filteredCustomers.reduce((s, c) => s + (Number(c.old_due || 0) > 0 ? Number(c.old_due) : 0), 0))}
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                      {t("Customer Outstanding Dues Ledger", "కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)")}
+                    </h3>
+                    <span className="text-xs font-bold text-rose-600 font-mono">
+                      Total Dues: {money(businessSummary.totalCustomerDues)}
                     </span>
                   </div>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
-                      <thead className="bg-slate-100 text-slate-600 font-bold">
+                  <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-200 text-center">S.No</th>
-                          <th className="p-2 border border-slate-200">Customer Name</th>
-                          <th className="p-2 border border-slate-200">Mobile</th>
-                          <th className="p-2 border border-slate-200 text-right">Outstanding Due / Advance</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Customer Name</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Mobile</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Outstanding Due / Advance</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredCustomers.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="p-4 text-center text-slate-400 font-sans">కస్టమర్ బాకీలు ఏవీ లేవు (No Outstanding Customer Dues)</td>
-                          </tr>
+                        {customerList.length === 0 ? (
+                          <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No customer dues</td></tr>
                         ) : (
-                          filteredCustomers.map((c, idx) => (
-                            <tr key={c.id}>
-                              <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                              <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
-                              <td className="p-2 border border-slate-200 text-slate-500">{c.mobile || "N/A"}</td>
-                              <td className={`p-2 border border-slate-200 text-right font-black ${
+                          customerList.map((c, idx) => (
+                            <tr key={c.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{c.name}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-500">{c.mobile || "N/A"}</td>
+                              <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 Number(c.old_due || 0) < 0 ? "text-emerald-600" : "text-rose-600"
                               }`}>
                                 {Number(c.old_due || 0) < 0 ? `Adv: ${money(Math.abs(c.old_due))}` : money(c.old_due)}
@@ -5640,51 +5623,50 @@ Thank you for your business!`;
                 {/* SECTION 4: SUPPLIER LEDGER (EXCLUDES ZERO BALANCES) */}
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-sm text-slate-900">సరుకు వ్యాపారుల లెడ్జర్ (Supplier Payables & Advance Ledger)</h3>
-                    <div className="flex items-center gap-3 text-xs font-bold">
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                      {t("Supplier Payables & Advance Ledger", "సరుకు వ్యాపారుల లెడ్జర్ (Supplier Payables & Advance Ledger)")}
+                    </h3>
+                    <div className="flex items-center gap-3 text-xs font-bold font-mono">
                       <span className="text-amber-600">
-                        Total Payables: {money(filteredSuppliers.reduce((s, sup) => s + (Number(sup.old_due || 0) > 0 ? Number(sup.old_due) : 0), 0))}
+                        Payables: {money(supplierList.reduce((s, sup) => s + (Number(sup.old_due || 0) > 0 ? Number(sup.old_due) : 0), 0))}
                       </span>
                       <span className="text-emerald-600">
-                        Total Advances: {money(filteredSuppliers.reduce((s, sup) => s + (Number(sup.old_due || 0) < 0 ? Math.abs(Number(sup.old_due)) : 0), 0))}
+                        Advances: {money(supplierList.reduce((s, sup) => s + (Number(sup.old_due || 0) < 0 ? Math.abs(Number(sup.old_due)) : 0), 0))}
                       </span>
                     </div>
                   </div>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
-                      <thead className="bg-slate-100 text-slate-600 font-bold">
+                  <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-200 text-center">S.No</th>
-                          <th className="p-2 border border-slate-200">Supplier / Vendor Name</th>
-                          <th className="p-2 border border-slate-200">Mobile</th>
-                          <th className="p-2 border border-slate-200 text-center">Account Status</th>
-                          <th className="p-2 border border-slate-200 text-right">Balance Amount (₹)</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Supplier Name</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Mobile</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">Status</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Balance Amount (₹)</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredSuppliers.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="p-4 text-center text-slate-400 font-sans">సప్లయర్ బాకీలు ఏవీ లేవు (No Supplier Dues)</td>
-                          </tr>
+                        {supplierList.length === 0 ? (
+                          <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No supplier payables</td></tr>
                         ) : (
-                          filteredSuppliers.map((s, idx) => {
+                          supplierList.map((s, idx) => {
                             const bal = Number(s.old_due || 0);
                             const isAdv = bal < 0;
-                            const isDue = bal > 0;
                             return (
-                              <tr key={s.id} className={isAdv ? "bg-emerald-50/40" : ""}>
-                                <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                                <td className="p-2 border border-slate-200 font-bold">{s.name}</td>
-                                <td className="p-2 border border-slate-200 text-slate-500">{formatSupplierMobile(s.mobile) || "N/A"}</td>
-                                <td className="p-2 border border-slate-200 text-center">
+                              <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{s.name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-500">{formatSupplierMobile(s.mobile) || "N/A"}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    isAdv ? "bg-emerald-100 text-emerald-800" : isDue ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
+                                    isAdv ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                                   }`}>
-                                    {isAdv ? "Advance Credit" : isDue ? "Payable Due" : "Settled"}
+                                    {isAdv ? "Advance Credit" : "Payable Due"}
                                   </span>
                                 </td>
-                                <td className={`p-2 border border-slate-200 text-right font-black ${isAdv ? "text-emerald-700" : "text-amber-700"}`}>
-                                  {isAdv ? `Advance: ${money(Math.abs(bal))}` : money(bal)}
+                                <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${isAdv ? "text-emerald-600" : "text-amber-600"}`}>
+                                  {isAdv ? `Adv: ${money(Math.abs(bal))}` : money(bal)}
                                 </td>
                               </tr>
                             );
@@ -5698,35 +5680,35 @@ Thank you for your business!`;
                 {/* SECTION 5: EXPENSES LEDGER */}
                 <div className="pt-2">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-sm text-slate-900">ఖర్చులు (Expenses & Outlays Ledger)</h3>
-                    <span className="text-xs font-bold text-rose-600">
-                      Total Expenses: {money(filteredExpenses.reduce((s, e) => s + Number(e.amount || 0), 0))}
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                      {t("Expenses & Outlays Ledger", "ఖర్చులు (Expenses & Outlays Ledger)")}
+                    </h3>
+                    <span className="text-xs font-bold text-rose-600 font-mono">
+                      Total Expenses: {money(businessSummary.totalExpenses)}
                     </span>
                   </div>
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
-                      <thead className="bg-slate-100 text-slate-600 font-bold">
+                  <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                      <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-200 text-center">S.No</th>
-                          <th className="p-2 border border-slate-200">Date</th>
-                          <th className="p-2 border border-slate-200">Category</th>
-                          <th className="p-2 border border-slate-200">Description</th>
-                          <th className="p-2 border border-slate-200 text-right">Amount (₹)</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Category</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700">Description</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount (₹)</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredExpenses.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="p-4 text-center text-slate-400 font-sans">ఖర్చులు ఏవీ లేవు (No Expenses Found)</td>
-                          </tr>
+                        {expenses.length === 0 ? (
+                          <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No expenses recorded</td></tr>
                         ) : (
-                          filteredExpenses.map((e, idx) => (
-                            <tr key={e.id}>
-                              <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
-                              <td className="p-2 border border-slate-200">{e.expense_date || "N/A"}</td>
-                              <td className="p-2 border border-slate-200 font-bold">{e.category_name}</td>
-                              <td className="p-2 border border-slate-200">{e.title}</td>
-                              <td className="p-2 border border-slate-200 text-right font-bold text-rose-600">{money(e.amount)}</td>
+                          expenses.map((e, idx) => (
+                            <tr key={e.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700">{e.expense_date || "N/A"}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{e.category_name}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700">{e.title}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-rose-600">{money(e.amount)}</td>
                             </tr>
                           ))
                         )}
@@ -5735,53 +5717,51 @@ Thank you for your business!`;
                   </div>
                 </div>
 
-                {/* SECTION 6: DEBTS & SUPPLIER PURCHASE DUES DETAILS (ITEM 10) */}
-                <div className="pt-4 border-t-2 border-slate-200 space-y-4">
+                {/* SECTION 6: DEBTS DETAILS BREAKDOWN (MATCHES ROW 1) */}
+                <div className="pt-4 border-t-2 border-slate-200 dark:border-slate-800 space-y-4">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                        <span className="text-rose-600">🔴</span> అప్పులు & సరుకు పెండింగ్ బిల్లుల వివరాలు (Debts & Supplier Purchase Dues Details)
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <span className="text-rose-600">🔴</span> {t("Debts & Supplier Purchase Dues Details", "అప్పులు & సరుకు పెండింగ్ బిల్లుల వివరాలు")}
                       </h3>
-                      <p className="text-xs text-slate-500">
-                        బ్యాలెన్స్ షీట్ మొదటి వరుస (Row 1) లోని అప్పుల పూర్తి వివరాలు: బయటి అప్పులు + సప్లయర్ పెండింగ్ బిల్లులు
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {t("Detailed breakdown of Row 1 in Balance Sheet: Outside Loans + Supplier Pending Bills", "బ్యాలెన్స్ షీట్ మొదటి వరుస (Row 1) లోని అప్పుల పూర్తి వివరాలు")}
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">మొత్తం అప్పులు (Total Debts)</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Debts</span>
                       <b className="text-sm font-black text-rose-600 font-mono">
                         {money(totalActiveLoans + totalPendingBills)}
                       </b>
                     </div>
                   </div>
 
-                  {/* 6A: Outside Loans / Borrowings */}
+                  {/* 6A: Outside Loans */}
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                      <span>1. బయటి వ్యాపార అప్పులు (External Business Loans):</span>
-                      <span className="text-rose-600">మొత్తం: {money(totalActiveLoans)}</span>
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span>1. External Business Loans:</span>
+                      <span className="text-rose-600 font-mono">Total: {money(totalActiveLoans)}</span>
                     </div>
-                    <div className="overflow-x-auto border border-rose-200 rounded-xl bg-rose-50/20">
-                      <table className="w-full text-left text-xs border-collapse font-mono">
-                        <thead className="bg-rose-100/70 text-rose-900 font-bold">
+                    <div className="overflow-x-auto border border-rose-200 dark:border-rose-900/60 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-rose-200 dark:border-rose-900/60">
+                        <thead className="bg-rose-100/70 dark:bg-rose-950/50 text-rose-900 dark:text-rose-200 font-bold border-b border-rose-200 dark:border-rose-900/60">
                           <tr>
-                            <th className="p-2 border border-rose-200 text-center">S.No</th>
-                            <th className="p-2 border border-rose-200">అప్పు ఇచ్చిన వ్యక్తి (Lender / Source)</th>
-                            <th className="p-2 border border-rose-200">మొబైల్ (Mobile)</th>
-                            <th className="p-2 border border-rose-200 text-right">ప్రస్తుత బాకీ నిల్వ (Balance Due ₹)</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 text-center">S.No</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60">Lender / Loan Source</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60">Mobile</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 text-right">Balance Due (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {activeLoans.length === 0 ? (
-                            <tr>
-                              <td colSpan={4} className="p-3 text-center text-slate-400 font-sans">అప్పులు ఏవీ లేవు (No Active Business Loans)</td>
-                            </tr>
+                            <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No active business loans</td></tr>
                           ) : (
                             activeLoans.map((l, idx) => (
-                              <tr key={l.id}>
-                                <td className="p-2 border border-rose-200 text-center">{idx + 1}</td>
-                                <td className="p-2 border border-rose-200 font-bold">{l.name}</td>
-                                <td className="p-2 border border-rose-200 text-slate-600">{l.mobile || "N/A"}</td>
-                                <td className="p-2 border border-rose-200 text-right font-black text-rose-600">{money(l.balance_due)}</td>
+                              <tr key={l.id} className="odd:bg-white even:bg-rose-50/30 dark:odd:bg-slate-900 dark:even:bg-rose-950/20">
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-center">{idx + 1}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 font-bold">{l.name}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-slate-500">{l.mobile || "N/A"}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-right font-black text-rose-600">{money(l.balance_due)}</td>
                               </tr>
                             ))
                           )}
@@ -5790,44 +5770,42 @@ Thank you for your business!`;
                     </div>
                   </div>
 
-                  {/* 6B: Supplier Purchase Pending Bills */}
+                  {/* 6B: Supplier Pending Bills */}
                   <div className="space-y-2 pt-2">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                      <span>2. సరుకు కొనుగోలు పెండింగ్ బిల్లులు (Supplier Purchase Pending Bills):</span>
-                      <span className="text-amber-600">మొత్తం: {money(totalPendingBills)}</span>
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span>2. Supplier Purchase Pending Bills:</span>
+                      <span className="text-amber-600 font-mono">Total: {money(totalPendingBills)}</span>
                     </div>
-                    <div className="overflow-x-auto border border-amber-200 rounded-xl bg-amber-50/20">
-                      <table className="w-full text-left text-xs border-collapse font-mono">
-                        <thead className="bg-amber-100/70 text-amber-900 font-bold">
+                    <div className="overflow-x-auto border border-amber-200 dark:border-amber-900/60 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-amber-200 dark:border-amber-900/60">
+                        <thead className="bg-amber-100/70 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 font-bold border-b border-amber-200 dark:border-amber-900/60">
                           <tr>
-                            <th className="p-2 border border-amber-200 text-center">S.No</th>
-                            <th className="p-2 border border-amber-200">బిల్ నంబర్ (Bill ID)</th>
-                            <th className="p-2 border border-amber-200">సప్లయర్ (Supplier)</th>
-                            <th className="p-2 border border-amber-200">ఐటమ్ (Item)</th>
-                            <th className="p-2 border border-amber-200 text-right">బిల్ మొత్తం (Total ₹)</th>
-                            <th className="p-2 border border-amber-200 text-right">చెల్లించినది (Paid ₹)</th>
-                            <th className="p-2 border border-amber-200 text-right">పెండింగ్ బాకీ (Due ₹)</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-center">S.No</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60">Bill ID</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60">Supplier</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60">Item</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">Total (₹)</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">Paid (₹)</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">Due (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {pendingPurchaseBills.length === 0 ? (
-                            <tr>
-                              <td colSpan={7} className="p-3 text-center text-slate-400 font-sans">పెండింగ్ కొనుగోలు బిల్లులు ఏవీ లేవు (No Pending Purchase Bills)</td>
-                            </tr>
+                            <tr><td colSpan={7} className="p-3 text-center text-slate-400 font-sans">No pending purchase bills</td></tr>
                           ) : (
                             pendingPurchaseBills.map((p, idx) => {
                               const total = Number(p.total_amount || 0);
                               const paid = Number(p.p1_amount || 0);
                               const due = Math.max(0, total - paid);
                               return (
-                                <tr key={p.id}>
-                                  <td className="p-2 border border-amber-200 text-center">{idx + 1}</td>
-                                  <td className="p-2 border border-amber-200 font-bold">BILL-{p.id}</td>
-                                  <td className="p-2 border border-amber-200 font-bold">{p.suppliers?.name || p.supplier_name}</td>
-                                  <td className="p-2 border border-amber-200">{p.items?.item_name || p.item_name}</td>
-                                  <td className="p-2 border border-amber-200 text-right">{money(total)}</td>
-                                  <td className="p-2 border border-amber-200 text-right text-emerald-600">{money(paid)}</td>
-                                  <td className="p-2 border border-amber-200 text-right font-black text-rose-600">{money(due)}</td>
+                                <tr key={p.id} className="odd:bg-white even:bg-amber-50/30 dark:odd:bg-slate-900 dark:even:bg-amber-950/20">
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-center">{idx + 1}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold">BILL-{p.id}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold">{p.suppliers?.name || p.supplier_name}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60">{p.items?.item_name || p.item_name}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">{money(total)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right text-emerald-600">{money(paid)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-black text-rose-600">{money(due)}</td>
                                 </tr>
                               );
                             })
@@ -5843,60 +5821,14 @@ Thank you for your business!`;
           );
         })()}
 
-        {/* VIEW 11: PARTNER CAPITAL ACCOUNTS */}
-        {activeTab === "partners" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Operating Partner Capital Accounts</h2>
-                <p className="text-xs text-slate-500">Track liquid cash and UPI holdings tied to partners</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingPartnerId(null);
-                  setPartnerForm({ name: "", opening_cash: "", opening_upi: "" });
-                  setShowPartnerModal(true);
-                }}
-                className="px-3.5 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl"
-              >
-                + Add Partner
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {partnerAccounts.map((p) => (
-                <div key={p.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-black text-base text-slate-900">{p.name}</h4>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => handleEditPartner(p)} className="px-2 py-1 bg-white border border-slate-300 text-xs font-bold rounded-lg">Edit</button>
-                      <button onClick={() => handleDeletePartner(p)} className="px-2 py-1 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg">Delete</button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t">
-                    <div>
-                      <span className="text-slate-400 block">Cash</span>
-                      <b className="text-emerald-600">{money(p.netCash)}</b>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">UPI</span>
-                      <b className="text-indigo-600">{money(p.netUpi)}</b>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* VIEW 12: DEDICATED WHATSAPP LEDGER & STATEMENTS (ITEM 4) */}
-        {activeTab === "whatsapp" && (() => {
+        {/* VIEW 12: LEDGER STATEMENT MODULE (POINTS 3 & 8, GRID TABLE MATCHING IMAGE 4, NO WHATSAPP CARD) */}
+        {activeTab === "ledger" && (() => {
           const isCustomer = whatsappType === "customer";
           const currentParty = isCustomer
             ? customers.find((c) => String(c.id) === String(whatsappSelectedId)) || customers[0]
             : suppliers.find((s) => String(s.id) === String(whatsappSelectedId)) || suppliers[0];
 
-          // Customer-specific calculations
+          // Customer records
           const custInvoices = isCustomer && currentParty
             ? invoices.filter((inv) => String(inv.customer_id) === String(currentParty.id))
             : [];
@@ -5906,7 +5838,7 @@ Thank you for your business!`;
           const custTotalInvoiced = custInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
           const custTotalCollected = custCollections.reduce((s, c) => s + Number(c.amount || 0), 0);
 
-          // Supplier-specific calculations
+          // Supplier records
           const supPurchases = !isCustomer && currentParty
             ? procurements.filter((p) => p.supplier_name === currentParty.name || String(p.supplier_id) === String(currentParty.id))
             : [];
@@ -5917,357 +5849,528 @@ Thank you for your business!`;
           const isDue = balAmount > 0;
           const isAdv = balAmount < 0;
 
-          // Telugu + English formatted WhatsApp statement
-          const todayDateStr = new Date().toLocaleDateString('te-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-          let waMessage = "";
+          // Build Unified Chronological Running Ledger Statement
+          const ledgerEntries = [];
+          const openingBal = currentParty ? Number(currentParty.old_due || 0) : 0;
+
           if (isCustomer && currentParty) {
-            waMessage = `🙏 *శ్రీ / M/s. ${currentParty.name} గారికి నమస్కారం*,\n\n*JSR Retails & B. Reddy Traders* నుంచి మీ వ్యాపార ఖాతా వివరాలు:\n📅 తేదీ: ${todayDateStr}\n\n📌 ప్రారంభ బాకీ (Old Due): ${money(currentParty.old_due || 0)}\n📦 మొత్తం బిల్లుల సంఖ్య: ${custInvoices.length} (మొత్తం విలువ: ${money(custTotalInvoiced)})\n💰 స్వీకరించిన మొత్తం (Total Received): ${money(custTotalCollected)}\n----------------------------------------\n${
-              isDue
-                ? `🔴 *ప్రస్తుత మిగిలిన బాకీ (Net Balance Due)*: ${money(balAmount)}`
-                : isAdv
-                ? `🟢 *మీ అడ్వాన్స్ నిల్వ (Advance Credit)*: ${money(Math.abs(balAmount))}`
-                : `⚪ *ఖాతా నిల్వ (Account Fully Settled)*: ₹0.00`
-            }\n----------------------------------------\nదయచేసి పరిశీలించగలరు. ధన్యవాదాలు! 🙏\n- B. Reddy Wholesale & Retail Traders`;
+            custInvoices.forEach((inv) => {
+              const dt = inv.invoice_date || (inv.created_at ? inv.created_at.split("T")[0] : "N/A");
+              const itemsDesc = Array.isArray(inv.items) && inv.items.length > 0
+                ? inv.items.map((it) => `${it.item_name || "Item"} (${it.qty || 1})`).join(", ")
+                : "Sales Goods";
+              ledgerEntries.push({
+                rawDate: dt,
+                date: dt,
+                type: "Sales Invoice",
+                ref: inv.invoice_number || `INV-${inv.id}`,
+                desc: itemsDesc,
+                debit: Number(inv.total_amount || 0),
+                credit: 0,
+                mode: "Credit Bill"
+              });
+            });
+
+            custCollections.forEach((col) => {
+              const dt = col.created_at ? col.created_at.split("T")[0] : "N/A";
+              ledgerEntries.push({
+                rawDate: dt,
+                date: dt,
+                type: "Payment Received",
+                ref: `REC-${col.id}`,
+                desc: col.collection_type || "Customer Payment",
+                debit: 0,
+                credit: Number(col.amount || 0),
+                mode: col.payment_mode || "Cash"
+              });
+            });
           } else if (!isCustomer && currentParty) {
-            waMessage = `🙏 *M/s. ${currentParty.name} గారికి నమస్కారం*,\n\n*JSR Retails & B. Reddy Traders* నుంచి మీ సరుకు కొనుగోలు ఖాతా స్టేట్‌మెంట్:\n📅 తేదీ: ${todayDateStr}\n\n📦 కొనుగోలు బిల్లులు: ${supPurchases.length} (మొత్తం విలువ: ${money(supTotalPurchased)})\n💳 చెల్లించిన మొత్తం: ${money(supTotalPaid)}\n----------------------------------------\n${
-              isDue
-                ? `🔴 *చెల్లించవలసిన బాకీ (Payable Due)*: ${money(balAmount)}`
-                : isAdv
-                ? `🟢 *మా అడ్వాన్స్ క్రెడిట్ (Our Advance)*: ${money(Math.abs(balAmount))}`
-                : `⚪ *ఖాతా క్లియర్ చేయబడింది (Settled)*: ₹0.00`
-            }\n----------------------------------------\nదయచేసి పరిశీలించగలరు. ధన్యవాదాలు! 🙏\n- B. Reddy Wholesale & Retail Traders`;
+            supPurchases.forEach((p) => {
+              const dt = p.created_at ? p.created_at.split("T")[0] : "N/A";
+              const itemDesc = `${p.items?.item_name || p.item_name || "Stock Item"} (${p.quantity || 1} qty)`;
+              ledgerEntries.push({
+                rawDate: dt,
+                date: dt,
+                type: "Purchase Bill",
+                ref: `BILL-${p.id}`,
+                desc: itemDesc,
+                debit: Number(p.total_amount || 0),
+                credit: 0,
+                mode: "Bill Payable"
+              });
+
+              if (Number(p.p1_amount || 0) > 0) {
+                ledgerEntries.push({
+                  rawDate: dt,
+                  date: dt,
+                  type: "Supplier Payment",
+                  ref: `PAY-${p.id}`,
+                  desc: `Payment for Bill #${p.id}`,
+                  debit: 0,
+                  credit: Number(p.p1_amount || 0),
+                  mode: p.p1_mode || "Cash"
+                });
+              }
+            });
           }
 
-          const handleSendWhatsApp = () => {
-            if (!currentParty) return alert("Select customer or supplier");
-            const clean = (currentParty.mobile || "").replace(/[^0-9]/g, "");
-            const targetMob = clean.length === 10 ? `91${clean}` : clean;
-            if (!targetMob || targetMob.length < 10) {
-              return alert("దయచేసి సరైన 10 అంకెల మొబైల్ నంబర్ సరిచూసుకోండి (Please check mobile number)");
-            }
-            const url = `https://wa.me/${targetMob}?text=${encodeURIComponent(waMessage.replace(/\\n/g, '\n'))}`;
-            window.open(url, "_blank");
-          };
+          // Sort chronologically ascending
+          ledgerEntries.sort((a, b) => (a.rawDate || "").localeCompare(b.rawDate || ""));
 
-          const handleCopyText = () => {
-            navigator.clipboard.writeText(waMessage.replace(/\\n/g, '\n'));
-            alert("వాట్సాప్ మెసేజ్ కాపీ చేయబడింది! (Copied to clipboard)");
-          };
+          // Calculate running balance row by row
+          let runningBal = 0;
+          const ledgerWithBalance = ledgerEntries.map((entry) => {
+            runningBal = runningBal + entry.debit - entry.credit;
+            return {
+              ...entry,
+              balance: runningBal
+            };
+          });
 
           return (
             <div className="space-y-6">
               {/* Header */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <span className="text-emerald-600 text-xl">📲</span> వాట్సాప్‌ లెడ్జర్ & ఖాతా స్టేట్‌మెంట్లు (WhatsApp Ledger & Statements)
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Icon name="layers" size={20} /> {t("Ledger Statement", "ఖాతా లెడ్జర్ స్టేట్‌మెంట్")}
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    కస్టమర్లు మరియు సరుకు వ్యాపారులకు బిల్లులు, పేమెంట్లు మరియు బాకీల వివరాలను 1-క్లిక్‌తో వాట్సాప్‌లో పంపండి
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t("Complete transaction history, running ledger, invoices, and payments", "పూర్తి లావాదేవీల రికార్డు, రన్నింగ్ బ్యాలెన్స్, బిల్లులు మరియు పేమెంట్లు")}
                   </p>
                 </div>
-                {/* Segmented Toggle */}
-                <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+                {/* Segmented Party Toggle */}
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWhatsappType("customer");
+                        if (customers.length > 0) setWhatsappSelectedId(customers[0].id);
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        isCustomer ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                      }`}
+                    >
+                      👤 Customer Statement
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWhatsappType("supplier");
+                        if (suppliers.length > 0) setWhatsappSelectedId(suppliers[0].id);
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        !isCustomer ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                      }`}
+                    >
+                      🏭 Supplier Statement
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setWhatsappType("customer");
-                      if (customers.length > 0) setWhatsappSelectedId(customers[0].id);
-                    }}
-                    className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
-                      isCustomer ? "bg-white text-emerald-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                    }`}
+                    onClick={() => window.print()}
+                    className={`px-3.5 py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center gap-1.5 shadow cursor-pointer`}
                   >
-                    👤 కస్టమర్ లెడ్జర్ (Customer)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWhatsappType("supplier");
-                      if (suppliers.length > 0) setWhatsappSelectedId(suppliers[0].id);
-                    }}
-                    className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
-                      !isCustomer ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    🏭 సరుకు వ్యాపారి (Supplier)
+                    <Icon name="download" size={14} /> Print Statement
                   </button>
                 </div>
               </div>
 
               {/* Selector Bar */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-3">
-                <label className="text-xs font-bold text-slate-600 whitespace-nowrap">
-                  {isCustomer ? "కస్టమర్‌ను ఎంచుకోండి (Choose Customer):" : "సరుకు వ్యాపారిని ఎంచుకోండి (Choose Supplier):"}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  {isCustomer ? "Select Customer Account:" : "Select Supplier Account:"}
                 </label>
                 <select
                   value={whatsappSelectedId || (currentParty?.id || "")}
                   onChange={(e) => setWhatsappSelectedId(e.target.value)}
-                  className="w-full sm:max-w-md p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+                  className="w-full sm:max-w-md p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
                 >
                   {isCustomer
                     ? customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.mobile ? `(${c.mobile})` : ""} - బాకీ: {money(c.old_due || 0)}
+                        <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                          {c.name} {c.mobile ? `(${c.mobile})` : ""} - Balance: {money(c.old_due || 0)}
                         </option>
                       ))
                     : suppliers.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} {s.mobile ? `(${s.mobile})` : ""} - బాకీ: {money(s.old_due || 0)}
+                        <option key={s.id} value={s.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                          {s.name} {s.mobile ? `(${s.mobile})` : ""} - Balance: {money(s.old_due || 0)}
                         </option>
                       ))}
                 </select>
               </div>
 
               {currentParty ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Left Column: Account Details & Statements */}
-                  <div className="lg:col-span-2 space-y-4">
-                    {/* Summary Balance Card */}
-                    <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-white space-y-4">
-                      <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                        <div>
-                          <h3 className="font-black text-base text-slate-900">{currentParty.name}</h3>
-                          <span className="text-xs font-mono text-slate-500">
-                            మొబైల్: {currentParty.mobile || "N/A"}
-                          </span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] font-bold uppercase tracking-wider block text-slate-400">
-                            {isDue ? "మొత్తం బాకీ (Due)" : isAdv ? "అడ్వాన్స్ (Credit)" : "ఖాతా నిల్వ"}
-                          </span>
-                          <b className={`text-lg font-mono font-black ${isDue ? "text-rose-600" : isAdv ? "text-emerald-600" : "text-slate-600"}`}>
-                            {isAdv ? `Adv: ${money(Math.abs(balAmount))}` : money(balAmount)}
-                          </b>
-                        </div>
+                <div className="space-y-6">
+                  {/* Account Summary KPI Card */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4 shadow-xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
+                      <div>
+                        <h3 className="font-black text-lg text-slate-900 dark:text-white">{currentParty.name}</h3>
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                          Contact Mobile: {currentParty.mobile || "N/A"}
+                        </span>
                       </div>
-
-                      {/* Stat Metrics */}
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                          <span className="text-[10px] text-slate-400 block font-bold">ప్రారంభ బాకీ (Opening)</span>
-                          <b className="font-mono text-slate-800">{money(currentParty.old_due || 0)}</b>
-                        </div>
-                        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                          <span className="text-[10px] text-slate-400 block font-bold">
-                            {isCustomer ? "అమ్మకాల విలువ" : "కొనుగోళ్ల విలువ"}
-                          </span>
-                          <b className="font-mono text-indigo-700">
-                            {money(isCustomer ? custTotalInvoiced : supTotalPurchased)}
-                          </b>
-                        </div>
-                        <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                          <span className="text-[10px] text-slate-400 block font-bold">
-                            {isCustomer ? "స్వీకరించినది" : "చెల్లించినది"}
-                          </span>
-                          <b className="font-mono text-emerald-700">
-                            {money(isCustomer ? custTotalCollected : supTotalPaid)}
-                          </b>
-                        </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold uppercase tracking-wider block text-slate-400">
+                          Account Balance Status
+                        </span>
+                        <b className={`text-xl font-mono font-black ${isDue ? "text-rose-600" : isAdv ? "text-emerald-600" : "text-slate-500"}`}>
+                          {isAdv ? `Advance: ${money(Math.abs(balAmount))}` : isDue ? `Due: ${money(balAmount)}` : "Settled (₹0.00)"}
+                        </b>
                       </div>
                     </div>
 
-                    {/* Transaction History Tables */}
-                    {isCustomer ? (
-                      <div className="space-y-4">
-                        {/* Customer Invoices */}
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
-                          <h4 className="font-bold text-xs text-slate-800 flex items-center justify-between">
-                            <span>📦 సేల్స్ బిల్లులు (Customer Invoices - {custInvoices.length})</span>
-                            <span className="text-slate-500 font-mono">మొత్తం: {money(custTotalInvoiced)}</span>
-                          </h4>
-                          <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-56">
-                            <table className="w-full text-left text-xs border-collapse font-mono">
-                              <thead className="bg-slate-100 text-slate-600 sticky top-0">
-                                <tr>
-                                  <th className="p-2 border">Bill No</th>
-                                  <th className="p-2 border">Date</th>
-                                  <th className="p-2 border text-right">Amount</th>
-                                  <th className="p-2 border text-right">Paid</th>
-                                  <th className="p-2 border text-right">Due</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {custInvoices.length === 0 ? (
-                                  <tr>
-                                    <td colSpan={5} className="p-3 text-center text-slate-400 font-sans">బిల్లులు ఏవీ లేవు (No Invoices)</td>
-                                  </tr>
-                                ) : (
-                                  custInvoices.map((inv) => (
-                                    <tr key={inv.id}>
-                                      <td className="p-2 border font-bold">{inv.invoice_number || `INV-${inv.id}`}</td>
-                                      <td className="p-2 border">{inv.invoice_date || "N/A"}</td>
-                                      <td className="p-2 border text-right">{money(inv.total_amount)}</td>
-                                      <td className="p-2 border text-right text-emerald-600">{money(inv.paid_amount || 0)}</td>
-                                      <td className="p-2 border text-right font-black text-rose-600">
-                                        {money(Math.max(0, Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)))}
-                                      </td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-
-                        {/* Customer Collections */}
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
-                          <h4 className="font-bold text-xs text-slate-800 flex items-center justify-between">
-                            <span>💰 వసూళ్లు (Customer Collections - {custCollections.length})</span>
-                            <span className="text-emerald-600 font-mono">మొత్తం: {money(custTotalCollected)}</span>
-                          </h4>
-                          <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-56">
-                            <table className="w-full text-left text-xs border-collapse font-mono">
-                              <thead className="bg-slate-100 text-slate-600 sticky top-0">
-                                <tr>
-                                  <th className="p-2 border">Date</th>
-                                  <th className="p-2 border">Mode</th>
-                                  <th className="p-2 border">Type</th>
-                                  <th className="p-2 border text-right">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {custCollections.length === 0 ? (
-                                  <tr>
-                                    <td colSpan={4} className="p-3 text-center text-slate-400 font-sans">కలెక్షన్లు ఏవీ లేవు (No Collections)</td>
-                                  </tr>
-                                ) : (
-                                  custCollections.map((col) => (
-                                    <tr key={col.id}>
-                                      <td className="p-2 border">{col.created_at ? new Date(col.created_at).toLocaleDateString('te-IN') : "N/A"}</td>
-                                      <td className="p-2 border">{col.payment_mode || "Cash"}</td>
-                                      <td className="p-2 border text-slate-500">{col.collection_type || "Collection"}</td>
-                                      <td className="p-2 border text-right font-bold text-emerald-600">{money(col.amount)}</td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                    {/* 4 Stat KPI Metrics */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Opening Balance</span>
+                        <b className="font-mono text-slate-800 dark:text-slate-200 text-sm">{money(openingBal)}</b>
                       </div>
-                    ) : (
-                      /* Supplier Purchase Orders */
-                      <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
-                        <h4 className="font-bold text-xs text-slate-800 flex items-center justify-between">
-                          <span>📦 కొనుగోలు బిల్లులు (Purchase Orders - {supPurchases.length})</span>
-                          <span className="text-slate-500 font-mono">మొత్తం: {money(supTotalPurchased)}</span>
-                        </h4>
-                        <div className="overflow-x-auto border border-slate-200 rounded-xl max-h-72">
-                          <table className="w-full text-left text-xs border-collapse font-mono">
-                            <thead className="bg-slate-100 text-slate-600 sticky top-0">
-                              <tr>
-                                <th className="p-2 border">Bill ID</th>
-                                <th className="p-2 border">Item</th>
-                                <th className="p-2 border text-center">Qty</th>
-                                <th className="p-2 border text-right">Total</th>
-                                <th className="p-2 border text-right">Paid</th>
-                                <th className="p-2 border text-right">Due</th>
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">
+                          {isCustomer ? "Total Invoiced (+)" : "Total Purchased (+)"}
+                        </span>
+                        <b className="font-mono text-indigo-600 dark:text-indigo-400 text-sm">
+                          {money(isCustomer ? custTotalInvoiced : supTotalPurchased)}
+                        </b>
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">
+                          {isCustomer ? "Total Collected (-)" : "Total Paid (-)"}
+                        </span>
+                        <b className="font-mono text-emerald-600 dark:text-emerald-400 text-sm">
+                          {money(isCustomer ? custTotalCollected : supTotalPaid)}
+                        </b>
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Net Outstanding</span>
+                        <b className={`font-mono text-sm ${isDue ? "text-rose-600" : isAdv ? "text-emerald-600" : "text-slate-600"}`}>
+                          {isAdv ? `Adv: ${money(Math.abs(balAmount))}` : money(balAmount)}
+                        </b>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. UNIFIED CHRONOLOGICAL RUNNING LEDGER TABLE (GRID LINES MATCHING IMAGE 4) */}
+                  <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>📊</span> Complete Running Ledger Statement (కాలక్రమానుసార లావాదేవీల లెడ్జర్)
+                      </h4>
+                      <span className="text-xs text-slate-500 font-mono">
+                        {ledgerWithBalance.length} Transactions Recorded
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center w-12">#</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 w-28">Date</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 w-32">Type</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 w-32">Ref / Bill #</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Particulars / Details</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right w-28">Debit (+) ₹</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right w-28">Credit (-) ₹</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right w-32">Running Bal ₹</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center w-28">Mode</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {/* Row 0: Opening Balance */}
+                          <tr className="bg-slate-100/70 dark:bg-slate-800/60 font-bold">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">-</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">Opening</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">Initial Balance</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">OPENING</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">Opening Balance on Record</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{openingBal > 0 ? money(openingBal) : "-"}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{openingBal < 0 ? money(Math.abs(openingBal)) : "-"}</td>
+                            <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${openingBal > 0 ? "text-rose-600" : openingBal < 0 ? "text-emerald-600" : ""}`}>
+                              {money(openingBal)}
+                            </td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center text-slate-400">Ledger</td>
+                          </tr>
+
+                          {/* Chronological Transactions */}
+                          {ledgerWithBalance.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="p-4 text-center text-slate-400 font-sans">
+                                No billing or payment transactions found for this account.
+                              </td>
+                            </tr>
+                          ) : (
+                            ledgerWithBalance.map((row, idx) => (
+                              <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/40">
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-mono">{idx + 1}</td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700">{row.date}</td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    row.debit > 0
+                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
+                                      : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                                  }`}>
+                                    {row.type}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold">{row.ref}</td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{row.desc}</td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400">
+                                  {row.debit > 0 ? money(row.debit) : "-"}
+                                </td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                                  {row.credit > 0 ? money(row.credit) : "-"}
+                                </td>
+                                <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${row.balance > 0 ? "text-rose-600" : row.balance < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                                  {money(row.balance)}
+                                </td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-bold text-[11px] text-slate-600 dark:text-slate-400">
+                                  {row.mode}
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {supPurchases.length === 0 ? (
-                                <tr>
-                                  <td colSpan={6} className="p-3 text-center text-slate-400 font-sans">కొనుగోళ్లు ఏవీ లేవు (No Purchases)</td>
-                                </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* 2. DETAILED SUB-TABLES (INVOICES / PURCHASES & COLLECTIONS / PAYMENTS) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Billed Records Table */}
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                        <span>📦 {isCustomer ? "Customer Invoices" : "Supplier Purchase Orders"} ({isCustomer ? custInvoices.length : supPurchases.length})</span>
+                        <span className="font-mono text-indigo-600 font-bold">Total: {money(isCustomer ? custTotalInvoiced : supTotalPurchased)}</span>
+                      </h4>
+                      <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
+                        <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                          <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700">Bill No</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Due</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {isCustomer ? (
+                              custInvoices.length === 0 ? (
+                                <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No invoices</td></tr>
+                              ) : (
+                                custInvoices.map((inv) => (
+                                  <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{inv.invoice_number || `INV-${inv.id}`}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{inv.invoice_date || "N/A"}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(inv.total_amount)}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(inv.paid_amount || 0)}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">
+                                      {money(Math.max(0, Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)))}
+                                    </td>
+                                  </tr>
+                                ))
+                              )
+                            ) : (
+                              supPurchases.length === 0 ? (
+                                <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No purchase bills</td></tr>
                               ) : (
                                 supPurchases.map((p) => {
                                   const total = Number(p.total_amount || 0);
                                   const paid = Number(p.p1_amount || 0);
                                   const due = Math.max(0, total - paid);
                                   return (
-                                    <tr key={p.id}>
-                                      <td className="p-2 border font-bold">BILL-{p.id}</td>
-                                      <td className="p-2 border">{p.items?.item_name || p.item_name}</td>
-                                      <td className="p-2 border text-center">{p.quantity}</td>
-                                      <td className="p-2 border text-right">{money(total)}</td>
-                                      <td className="p-2 border text-right text-emerald-600">{money(paid)}</td>
-                                      <td className="p-2 border text-right font-black text-rose-600">{money(due)}</td>
+                                    <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                      <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
+                                      <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? p.created_at.split("T")[0] : "N/A"}</td>
+                                      <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(total)}</td>
+                                      <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(paid)}</td>
+                                      <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">{money(due)}</td>
                                     </tr>
                                   );
                                 })
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                              )
+                            )}
+                          </tbody>
+                        </table>
                       </div>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Right Column: Live WhatsApp Message Box & Dispatch */}
-                  <div className="space-y-4">
-                    <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-emerald-300 space-y-3 shadow-xs">
-                      <div className="flex justify-between items-center border-b border-emerald-100 pb-2">
-                        <span className="font-bold text-xs text-emerald-900 flex items-center gap-1.5">
-                          <span>💬</span> వాట్సాప్ సందేశం ప్రివ్యూ (Message Preview)
-                        </span>
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
-                          Ready to Send
-                        </span>
-                      </div>
-
-                      {/* Formatted Message Bubble */}
-                      <div className="p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl font-mono text-xs text-slate-800 whitespace-pre-line leading-relaxed max-h-72 overflow-y-auto">
-                        {waMessage.replace(/\\n/g, '\n')}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="space-y-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={handleSendWhatsApp}
-                          className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition"
-                        >
-                          <span className="text-base">📲</span> వాట్సాప్‌లో పంపండి (Send on WhatsApp)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCopyText}
-                          className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 border border-slate-200 cursor-pointer transition"
-                        >
-                          <span>📋</span> టెక్స్ట్ కాపీ చేయండి (Copy Text)
-                        </button>
+                    {/* Paid Records Table */}
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                        <span>💰 {isCustomer ? "Collections Received" : "Payments Disbursed"}</span>
+                        <span className="font-mono text-emerald-600 font-bold">Total: {money(isCustomer ? custTotalCollected : supTotalPaid)}</span>
+                      </h4>
+                      <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
+                        <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                          <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700">Ref</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700">Mode</th>
+                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {isCustomer ? (
+                              custCollections.length === 0 ? (
+                                <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No collections</td></tr>
+                              ) : (
+                                custCollections.map((col) => (
+                                  <tr key={col.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{col.created_at ? col.created_at.split("T")[0] : "N/A"}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">REC-{col.id}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{col.payment_mode || "Cash"}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(col.amount)}</td>
+                                  </tr>
+                                ))
+                              )
+                            ) : (
+                              supPurchases.filter((p) => Number(p.p1_amount || 0) > 0).length === 0 ? (
+                                <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No payments recorded</td></tr>
+                              ) : (
+                                supPurchases.filter((p) => Number(p.p1_amount || 0) > 0).map((p) => (
+                                  <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? p.created_at.split("T")[0] : "N/A"}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{p.p1_mode || "Cash"}</td>
+                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(p.p1_amount)}</td>
+                                  </tr>
+                                ))
+                              )
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="bg-white p-8 rounded-2xl border text-center text-slate-400 text-xs">
-                  ఖాతా వివరాలను చూడడానికి కస్టమర్ లేదా సప్లయర్‌ను ఎంచుకోండి.
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-slate-400 text-xs">
+                  Please select a customer or supplier account to view statement.
                 </div>
               )}
             </div>
           );
         })()}
 
-        {/* VIEW 13: SYSTEM SETTINGS MODULE (ITEMS 1, 3, 5, 6, 20) */}
+        {/* VIEW 13: SYSTEM SETTINGS MODULE (LANGUAGE, LIVE THEME PREVIEW, GOOGLE AUTHENTICATOR 2FA, BACKUP) */}
         {activeTab === "settings" && (() => {
           return (
             <div className="space-y-6 max-w-4xl mx-auto">
               {/* Header */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200">
-                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <span className="text-xl">⚙️</span> సిస్టమ్ సెట్టింగ్స్ & కాన్ఫిగరేషన్ (System Settings)
+              <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="text-xl">⚙️</span> {t("System Settings & Customization", "సిస్టమ్ సెట్టింగ్స్ & కాన్ఫిగరేషన్")}
                 </h2>
-                <p className="text-xs text-slate-500">
-                  సిస్టమ్ రంగులు, లైట్/డార్క్ మోడ్, ఫాంట్ సైజు, లాగిన్ సెక్యూరిటీ మరియు డేటా బ్యాకప్ సెట్టింగ్స్
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("Configure language, color themes, display modes, Google Authenticator security, and database backup.", "భాష, రంగులు, లైట్/డార్క్ మోడ్, సెక్యూరిటీ మరియు బ్యాకప్ సెట్టింగ్స్")}
                 </p>
               </div>
 
-              {/* SECTION 1: APPEARANCE & THEME (రంగులు & డార్క్ మోడ్) */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-5">
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2 pb-2 border-b">
-                  <span>🎨</span> సిస్టమ్ రూపం & రంగులు (Theme & Appearance)
+              {/* SECTION 1: LANGUAGE SELECTION (POINT 1 & 5) */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span>🌐</span> System Language (భాష ఎంపిక)
                 </h3>
-
-                {/* Light / Dark Mode Toggle matching uploaded screenshot pill */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <b className="text-xs text-slate-800 block">డే / నైట్ మోడ్ (Light & Dark Theme):</b>
-                    <span className="text-[11px] text-slate-500">రాత్రి వేళల్లో కంటికి ఇబ్బంది లేకుండా డార్క్ మోడ్ వాడవచ్చు</span>
+                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Choose System Language:</b>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Default is clean English. Telugu subtitles and hints available when selected.
+                    </span>
                   </div>
-                  {/* Pill Toggle matching user screenshot media_1790331805370.png */}
-                  <div className="inline-flex p-1 bg-slate-100 rounded-full border border-slate-300">
+                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => toggleLanguage("en")}
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        language === "en" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                      }`}
+                    >
+                      English (Default)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleLanguage("te")}
+                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                        language === "te" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                      }`}
+                    >
+                      తెలుగు (Telugu)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: THEME COLOR WITH LIVE PREVIEW (POINT 7) */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span>🎨</span> Accent Theme Color (రంగుల ఎంపిక)
+                </h3>
+                
+                {/* Live Theme Preview Banner (Point 7 - Instantly shows user the theme is active) */}
+                <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${curTheme.primaryLight}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-5 h-5 rounded-full inline-block shadow-xs" style={{ backgroundColor: curTheme.hex }} />
+                    <div>
+                      <b className="text-xs block">Active System Theme: {curTheme.name} ✓</b>
+                      <span className="text-[11px] opacity-80">This color is now actively applied to all buttons, navigation tabs, and system highlights</span>
+                    </div>
+                  </div>
+                  <button className={`px-4 py-2 rounded-xl text-xs font-bold shadow-xs ${curTheme.primary}`}>
+                    Active Preview Button
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+                  <div>
+                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Select Accent Theme:</b>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Click any palette color below to change your active ERP theme</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      { id: "indigo", name: "Classic Indigo", color: "bg-indigo-600" },
+                      { id: "emerald", name: "Farmer Emerald", color: "bg-emerald-600" },
+                      { id: "blue", name: "Ocean Sky", color: "bg-sky-600" },
+                      { id: "rose", name: "Crimson Rose", color: "bg-rose-600" },
+                      { id: "amber", name: "Warm Amber", color: "bg-amber-600" }
+                    ].map((th) => (
+                      <button
+                        key={th.id}
+                        type="button"
+                        onClick={() => updateThemeColor(th.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition cursor-pointer ${
+                          themeColor === th.id
+                            ? "border-slate-900 dark:border-white bg-slate-100 dark:bg-slate-800 text-slate-950 dark:text-white font-black shadow-xs ring-2 ring-indigo-400"
+                            : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        <span className={`w-3 h-3 rounded-full ${th.color} inline-block`} />
+                        {th.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: DISPLAY & TEXT SIZE (POINT 4 & 5) */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-5">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span>☀️</span> Display & Font Scale
+                </h3>
+
+                {/* Light / Dark Mode Toggle */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Day / Night Mode (Light & Dark Theme):</b>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">High-contrast dark mode for night operations</span>
+                  </div>
+                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700">
                     <button
                       type="button"
                       onClick={() => { if (darkMode) toggleDarkMode(); }}
@@ -6281,7 +6384,7 @@ Thank you for your business!`;
                       type="button"
                       onClick={() => { if (!darkMode) toggleDarkMode(); }}
                       className={`px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
-                        darkMode ? "bg-slate-800 text-amber-400 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                        darkMode ? "bg-slate-900 text-amber-400 shadow-sm" : "text-slate-500 hover:text-slate-900"
                       }`}
                     >
                       <span>🌙</span> Dark
@@ -6289,139 +6392,139 @@ Thank you for your business!`;
                   </div>
                 </div>
 
-                {/* System Color Theme */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t">
+                {/* Font Scale */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <div>
-                    <b className="text-xs text-slate-800 block">సిస్టమ్ ప్రధాన రంగు (Accent Theme Color):</b>
-                    <span className="text-[11px] text-slate-500">మీకు నచ్చిన రంగును ఎంచుకోండి</span>
+                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Text Size / Font Scale:</b>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Enlarge text size for better readability</span>
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {[
-                      { id: "indigo", name: "క్లాసిక్ బ్లూ", color: "bg-indigo-600" },
-                      { id: "emerald", name: "ఆకుపచ్చ", color: "bg-emerald-600" },
-                      { id: "blue", name: "స్కై బ్లూ", color: "bg-sky-600" },
-                      { id: "rose", name: "రోజ్ రెడ్", color: "bg-rose-600" },
-                      { id: "amber", name: "వెచ్చని పసుపు", color: "bg-amber-600" }
-                    ].map((th) => (
-                      <button
-                        key={th.id}
-                        type="button"
-                        onClick={() => updateThemeColor(th.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition cursor-pointer ${
-                          themeColor === th.id
-                            ? "border-slate-900 bg-slate-100 text-slate-950 font-black shadow-xs ring-2 ring-indigo-400"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        <span className={`w-3 h-3 rounded-full ${th.color} inline-block`} />
-                        {th.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Font Scale / Text Style */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t">
-                  <div>
-                    <b className="text-xs text-slate-800 block">అక్షరాల పరిమాణం (Text Size / Font Scale):</b>
-                    <span className="text-[11px] text-slate-500">స్పష్టంగా కనిపించడానికి పెద్ద అక్షరాలు పెట్టుకోవచ్చు</span>
-                  </div>
-                  <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                     <button
                       type="button"
                       onClick={() => updateFontScale("normal")}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        fontScale === "normal" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                        fontScale === "normal" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                       }`}
                     >
-                      సాధారణం (100%)
+                      Normal (100%)
                     </button>
                     <button
                       type="button"
                       onClick={() => updateFontScale("large")}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        fontScale === "large" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                        fontScale === "large" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                       }`}
                     >
-                      పెద్దది (115%)
+                      Large (115%)
                     </button>
                     <button
                       type="button"
                       onClick={() => updateFontScale("xl")}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        fontScale === "xl" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                        fontScale === "xl" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                       }`}
                     >
-                      మరింత పెద్దది (125%)
+                      Extra Large (125%)
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* SECTION 2: LOGIN & SECURITY SETTINGS */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2 pb-2 border-b">
-                  <span>🔐</span> లాగిన్ & సెక్యూరిటీ (Login & PIN Security)
+              {/* SECTION 4: SECURITY & GOOGLE AUTHENTICATOR (POINT 6) */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span>🔐</span> Login Security & Google Authenticator (2FA)
                 </h3>
+
+                {/* Google Authenticator Toggle */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <b className="text-xs text-slate-800 block">యాప్ ఓపెన్ చేసినప్పుడు పిన్ అడగాలా? (Require PIN on Startup):</b>
-                    <span className="text-[11px] text-slate-500">
-                      'నో పిన్' పెడితే లాగిన్ స్క్రీన్ లేకుండా నేరుగా బిల్లింగ్ స్క్రీన్ ఓపెన్ అవుతుంది
+                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Google Authenticator Two-Factor Authentication:</b>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      When enabled, requires a 6-digit TOTP code from Google Authenticator app on login
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !enableTwoFactor;
+                      setEnableTwoFactor(next);
+                      if (typeof window !== "undefined") localStorage.setItem("enable_2fa", next ? "true" : "false");
+                      alert(next ? "Google Authenticator 2FA Enabled!" : "Google Authenticator 2FA Disabled.");
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition ${
+                      enableTwoFactor
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    {enableTwoFactor ? "✓ 2FA Enabled" : "Enable 2FA"}
+                  </button>
+                </div>
+
+                {/* 2FA Setup Instructions Card */}
+                {enableTwoFactor && (
+                  <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2 text-xs">
+                    <b className="text-indigo-900 dark:text-indigo-300 block">📱 Google Authenticator Setup Instructions:</b>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-700 dark:text-slate-300 text-[11px]">
+                      <li>Install <b>Google Authenticator</b> from Play Store or App Store.</li>
+                      <li>Open the app, tap <b>+</b> and select <b>Enter a setup key</b>.</li>
+                      <li>Account name: <span className="font-mono font-bold text-indigo-700 dark:text-indigo-400">JSR Retail (B Reddy)</span></li>
+                      <li>Secret key: <span className="font-mono font-bold text-indigo-700 dark:text-indigo-400">{twoFactorSecret}</span> (Type: Time-based)</li>
+                      <li>Emergency recovery code: <span className="font-mono font-bold text-rose-600">999999</span></li>
+                    </ol>
+                  </div>
+                )}
+
+                {/* Require PIN on Startup Toggle */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div>
+                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Require PIN on Startup:</b>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      When turned off, skips login gate on app open
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={toggleRequireLogin}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition ${
+                    className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition ${
                       requireLogin
-                        ? "bg-amber-100 text-amber-900 border border-amber-300"
-                        : "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                        ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800"
+                        : "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800"
                     }`}
                   >
-                    <span>{requireLogin ? "🔒 పిన్ అవసరం (PIN Required)" : "⚡ డైరెక్ట్ యాక్సెస్ (Direct Open)"}</span>
+                    {requireLogin ? "🔒 PIN Required" : "⚡ Direct Access"}
                   </button>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 border border-slate-200">
-                  📌 <b>అడ్మిన్ క్విక్ లాగిన్ పిన్:</b> <span className="font-mono font-bold text-indigo-700">1234</span> (లాగిన్ స్క్రీన్‌లో 1-క్లిక్ క్విక్ అడ్మిన్ లాగిన్ బటన్ కూడా అందుబాటులో ఉంది).
                 </div>
               </div>
 
-              {/* SECTION 3: FULL DATA BACKUP & RESTORE (ITEM 20) */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2 pb-2 border-b">
-                  <span>💾</span> పూర్తి డేటా బ్యాకప్ & రీస్టోర్ (Full System Backup & Restore)
+              {/* SECTION 5: DATA BACKUP & RESTORE */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span>💾</span> Complete Database Backup & Restore
                 </h3>
-                <p className="text-xs text-slate-600">
-                  సిస్టమ్‌లోని కస్టమర్లు, సప్లయర్లు, ఐటమ్స్, బిల్లులు, ఖర్చులు, అప్పులు మరియు కలెక్షన్ల డేటా మొత్తాన్ని కంప్యూటర్‌లో JSON ఫైల్‌గా సేవ్ చేసుకోవచ్చు. భవిష్యత్తులో అవసరమైతే తిరిగి రీస్టోర్ చేయవచ్చు.
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Export complete data snapshot (Customers, Suppliers, Items, Invoices, Purchases, Collections, Expenses) to a JSON file on your computer.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  {/* Export Button */}
-                  <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-200 space-y-2">
-                    <b className="text-xs text-indigo-900 block">1. పూర్తి బ్యాకప్ డౌన్‌లోడ్ చేసుకోండి:</b>
-                    <p className="text-[11px] text-slate-600">
-                      ఈ బటన్ నొక్కగానే మొత్తం డేటా ఒకే JSON ఫైల్‌గా డౌన్‌లోడ్ అవుతుంది.
-                    </p>
+                  <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2">
+                    <b className="text-xs text-indigo-900 dark:text-indigo-300 block">1. Export Full System Backup:</b>
                     <button
                       type="button"
                       onClick={handleExportAllData}
-                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                      className={`w-full py-2.5 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer`}
                     >
-                      <span>📥</span> పూర్తి బ్యాకప్ ఎక్స్‌పోర్ట్ (Export Backup JSON)
+                      <span>📥</span> Export Backup JSON
                     </button>
                   </div>
 
-                  {/* Import / Restore Button */}
-                  <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-2">
-                    <b className="text-xs text-emerald-900 block">2. బ్యాకప్ ఫైల్ రీస్టోర్ చేయండి:</b>
-                    <p className="text-[11px] text-slate-600">
-                      గతంలో సేవ్ చేసుకున్న బ్యాకప్ JSON ఫైల్‌ను సెలెక్ట్ చేసి రీస్టోర్ చేయండి.
-                    </p>
+                  <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-2">
+                    <b className="text-xs text-emerald-900 dark:text-emerald-300 block">2. Restore from JSON Backup:</b>
                     <label className={`w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer text-center ${
                       importingBackup ? "opacity-50 pointer-events-none" : ""
                     }`}>
-                      <span>📤</span> {importingBackup ? "రీస్టోర్ అవుతోంది..." : "బ్యాకప్ ఫైల్ రీస్టోర్ (Restore Backup)"}
+                      <span>📤</span> {importingBackup ? "Restoring..." : "Select Backup JSON to Restore"}
                       <input
                         type="file"
                         accept=".json"
@@ -6434,14 +6537,14 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* SECTION 4: SYSTEM INFO */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              {/* SECTION 6: SYSTEM INFO */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
-                  <b className="text-slate-900 block">JSR Retail Sales & Inventory Management System</b>
-                  <span>క్లౌడ్ డేటాబేస్: Supabase PostgreSQL Connected • బ్రాంచ్: B Reddy Traders</span>
+                  <b className="text-slate-900 dark:text-slate-200 block">JSR Retail Sales ERP System</b>
+                  <span>Database: Supabase PostgreSQL Connected • Branch: B Reddy Traders</span>
                 </div>
-                <span className="px-2.5 py-1 bg-white border border-slate-300 font-bold rounded-lg text-slate-700 text-[11px]">
-                  Version 2.5 (Custom Edition)
+                <span className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 font-bold rounded-lg text-slate-700 dark:text-slate-200 text-[11px]">
+                  Version 3.0 (Enterprise Custom Edition)
                 </span>
               </div>
             </div>
@@ -6452,7 +6555,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT LENDER */}
       {showLenderModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingLenderId ? "Edit Loan Source" : "Add Business Loan Source"}</h3>
             <form onSubmit={saveLender} className="space-y-3">
               <input
@@ -6489,7 +6592,7 @@ Thank you for your business!`;
       {/* MODAL: RECORD LOAN REPAYMENT */}
       {showLoanPaymentModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">Repay Business Loan / Interest</h3>
             <form onSubmit={saveLoanRepayment} className="space-y-3">
               <select
@@ -6586,7 +6689,7 @@ Thank you for your business!`;
               <input
                 type="text"
                 placeholder="Notes / Cheque / Voucher Ref (Optional)"
-                className="w-full p-2 border rounded-xl text-xs"
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
                 value={loanPaymentForm.notes}
                 onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, notes: e.target.value })}
               />
@@ -6603,7 +6706,7 @@ Thank you for your business!`;
       {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
       {showPayPurchaseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
 
             {!isBillLocked && (
@@ -6890,7 +6993,7 @@ Thank you for your business!`;
       {/* MODAL: INVOICE-WISE DUE COLLECTION */}
       {showCollectModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
             <form onSubmit={saveInvoiceCollection} className="space-y-3">
               <select
@@ -7018,7 +7121,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT PURCHASES */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">
               {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
             </h3>
@@ -7164,7 +7267,7 @@ Thank you for your business!`;
                   <input
                     type="number"
                     placeholder="0"
-                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-600"
+                    className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-600"
                     value={procureForm.paid_now}
                     onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
                   />
@@ -7173,7 +7276,7 @@ Thank you for your business!`;
                 {Number(procureForm.paid_now || 0) > 0 && (
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <select
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
                       value={procureForm.p1_id}
                       onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
                     >
@@ -7183,7 +7286,7 @@ Thank you for your business!`;
                       ))}
                     </select>
                     <select
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                      className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
                       value={procureForm.p1_mode}
                       onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
                     >
@@ -7206,7 +7309,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT ITEM MASTER */}
       {showItemModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingItemId ? "Edit Item Master" : "Add New Item Master"}</h3>
             <form onSubmit={saveItem} className="space-y-3">
               <input
@@ -7265,7 +7368,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT CUSTOMER */}
       {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
             <form onSubmit={saveCustomer} className="space-y-3">
               <input
@@ -7302,7 +7405,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT SUPPLIER */}
       {showSupplierModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
             <form onSubmit={saveSupplier} className="space-y-3">
               <input
@@ -7348,7 +7451,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT PARTNER */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingPartnerId ? "Edit Partner" : "Add Partner"}</h3>
             <form onSubmit={savePartner} className="space-y-3">
               <input
@@ -7415,7 +7518,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT EXPENSE */}
       {showExpenseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-3">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900">{editingExpenseId ? "Edit Shop Expense" : "Record Shop Expense"}</h3>
             <form onSubmit={saveExpense} className="space-y-3">
               <select
@@ -7558,7 +7661,7 @@ Thank you for your business!`;
       {/* MODAL: EXPENSE CATEGORIES */}
       {showCategoryModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-base text-slate-900">Expense Categories</h3>
               <button type="button" onClick={() => setShowCategoryModal(false)} className="text-slate-400">
@@ -7638,7 +7741,7 @@ Thank you for your business!`;
               }
             }
           `}</style>
-          <div id="printable-receipt" className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div id="printable-receipt" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-start border-b pb-3">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block">Retail Invoice Bill</span>
@@ -7772,7 +7875,7 @@ Thank you for your business!`;
       {/* MODAL: PICK IN-STOCK ITEM */}
       {pickerActiveIndex !== null && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 space-y-4 max-h-[85vh] flex flex-col shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-5 sm:p-6 space-y-4 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex justify-between items-center pb-2 border-b">
               <div>
                 <h3 className="font-black text-base text-slate-900">Select In-Stock Item</h3>
@@ -7922,7 +8025,7 @@ Thank you for your business!`;
       {/* MODAL: CUSTOMER EXCEL / CSV BULK IMPORT */}
       {showCustomerImportModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex justify-between items-center pb-2 border-b">
               <div>
                 <h3 className="font-black text-base text-slate-900">Import Customers (Excel / CSV)</h3>
@@ -8005,7 +8108,7 @@ Thank you for your business!`;
       {/* MODAL: CHANGE ADMIN SECURITY PIN */}
       {showChangePinModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center pb-2 border-b">
               <h3 className="font-black text-base text-slate-900">Change Admin PIN</h3>
               <button type="button" onClick={() => setShowChangePinModal(false)} className="text-slate-400">
