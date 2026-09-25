@@ -258,7 +258,8 @@ export default function App() {
     payment_mode: "Cash",
     paid_by_id: "",
     expense_date: new Date().toISOString().split("T")[0],
-    notes: ""
+    notes: "",
+    borrower_id: ""
   });
   const [newCatName, setNewCatName] = useState("");
 
@@ -1427,26 +1428,78 @@ Thank you for your business!`;
         const { data: inserted, error: colErr } = await db.from("collections").insert([payload]).select();
         if (colErr) throw colErr;
 
+        const cust = customers.find((c) => c.id == collectForm.customer_id);
+        const newDue = cust ? Number(cust.old_due || 0) - amt : 0;
+
+        // Scenario 1: Multi-Invoice Waterfall Collection
         if (collectForm.invoice_id) {
           const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
           if (targetInv) {
             const currentBal = Number(targetInv.balance_due || 0);
-            const newBal = Math.max(0, currentBal - amt);
-            const { error: invErr } = await db.from("invoices").update({
+            const alloc = Math.min(currentBal, amt);
+            const targetNewBal = Math.max(0, currentBal - alloc);
+            await db.from("invoices").update({
+              balance_due: targetNewBal,
+              status: targetNewBal <= 0 ? "Collected" : "Partial"
+            }).eq("id", targetInv.id);
+
+            let rem = amt - alloc;
+            // If payment exceeds target invoice, cascade remaining payment across customer's other pending invoices (FIFO)
+            if (rem > 0) {
+              const otherInvoices = invoices
+                .filter((i) => i.customer_id == collectForm.customer_id && i.id != targetInv.id && Number(i.balance_due || 0) > 0)
+                .sort((a, b) => new Date(a.created_at || a.invoice_date) - new Date(b.created_at || b.invoice_date));
+
+              for (const oInv of otherInvoices) {
+                if (rem <= 0) break;
+                const oDue = Number(oInv.balance_due || 0);
+                const oAlloc = Math.min(oDue, rem);
+                const oNewBal = oDue - oAlloc;
+                await db.from("invoices").update({
+                  balance_due: oNewBal,
+                  status: oNewBal <= 0 ? "Collected" : "Partial"
+                }).eq("id", oInv.id);
+                rem -= oAlloc;
+              }
+            }
+          }
+        } else {
+          // No specific invoice selected: Settle all pending invoices for this customer FIFO
+          let rem = amt;
+          const pendingInvoices = invoices
+            .filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0)
+            .sort((a, b) => new Date(a.created_at || a.invoice_date) - new Date(b.created_at || b.invoice_date));
+
+          for (const inv of pendingInvoices) {
+            if (rem <= 0) break;
+            const due = Number(inv.balance_due || 0);
+            const alloc = Math.min(due, rem);
+            const newBal = due - alloc;
+            await db.from("invoices").update({
               balance_due: newBal,
               status: newBal <= 0 ? "Collected" : "Partial"
-            }).eq("id", targetInv.id);
-            if (invErr) throw invErr;
+            }).eq("id", inv.id);
+            rem -= alloc;
           }
         }
 
-        const cust = customers.find((c) => c.id == collectForm.customer_id);
+        // Customer old_due update:
         if (cust) {
-          // Allow customer due to go negative (advance credit)
-          const newDue = Number(cust.old_due || 0) - amt;
           const { error: custErr } = await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
           if (custErr) throw custErr;
           setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
+
+          // Consistency safeguard:
+          // If customer has 0 due or advance, ensure any remaining customer invoices are marked Collected.
+          // If customer has due > 0, cap any invoice due so it never exceeds total customer due.
+          if (newDue <= 0) {
+            await db.from("invoices").update({ balance_due: 0, status: "Collected" }).eq("customer_id", cust.id).gt("balance_due", 0);
+          } else {
+            const customerInvoices = invoices.filter((i) => i.customer_id == cust.id && Number(i.balance_due || 0) > newDue);
+            for (const cInv of customerInvoices) {
+              await db.from("invoices").update({ balance_due: newDue, status: "Partial" }).eq("id", cInv.id);
+            }
+          }
         }
 
         if (inserted && inserted.length > 0) {
@@ -2102,6 +2155,7 @@ Thank you for your business!`;
   // EXPENSE HANDLERS
   const handleEditExpense = (e) => {
     setEditingExpenseId(e.id);
+    const matchedLender = lenders.find((l) => (e.title || "").toLowerCase().includes(l.name.toLowerCase()));
     setExpenseForm({
       title: e.title || "",
       category_id: e.category_id ? String(e.category_id) : "",
@@ -2109,7 +2163,8 @@ Thank you for your business!`;
       payment_mode: e.payment_mode || "Cash",
       paid_by_id: e.paid_by_id ? String(e.paid_by_id) : upfrontPartnerId,
       expense_date: e.expense_date || new Date().toISOString().split("T")[0],
-      notes: e.notes || ""
+      notes: e.notes || "",
+      borrower_id: matchedLender ? String(matchedLender.id) : ""
     });
     setShowExpenseModal(true);
   };
@@ -2117,6 +2172,19 @@ Thank you for your business!`;
   const handleDeleteExpense = async (e) => {
     if (!confirm(`Delete expense "${e.title}" of ₹${e.amount}?`)) return;
     try {
+      const isLoanInterest = (e.category_name || "").toLowerCase() === "loan interest" || (e.title || "").toLowerCase().includes("loan interest");
+      if (isLoanInterest) {
+        // Find matching transaction in borrower_transactions to keep both tables in sync
+        const match = loanTransactions.find((t) =>
+          t.tx_type === "Interest" &&
+          Number(t.amount) === Number(e.amount) &&
+          t.partner_id == e.paid_by_id
+        );
+        if (match) {
+          await db.from("borrower_transactions").delete().eq("id", match.id);
+        }
+      }
+
       const { error } = await db.from("expenses").delete().eq("id", e.id);
       if (error) throw error;
       alert("Expense deleted!");
@@ -2150,6 +2218,8 @@ Thank you for your business!`;
     };
 
     try {
+      const isLoanInterest = (cat?.name || "").toLowerCase() === "loan interest" || String(expenseForm.category_id) === "12";
+
       if (editingExpenseId) {
         const { error } = await db.from("expenses").update(payload).eq("id", editingExpenseId);
         if (error) throw error;
@@ -2157,6 +2227,36 @@ Thank you for your business!`;
       } else {
         const { error } = await db.from("expenses").insert([payload]);
         if (error) throw error;
+
+        // Scenario 2: Bi-Directional Loan Interest Integration
+        // If recorded from Shop Expenses with category Loan Interest, also insert into borrower_transactions!
+        if (isLoanInterest) {
+          let bId = expenseForm.borrower_id;
+          if (!bId) {
+            const matchedLender = lenders.find((l) =>
+              expenseForm.title.toLowerCase().includes(l.name.toLowerCase()) ||
+              l.name.toLowerCase().includes(expenseForm.title.toLowerCase())
+            );
+            if (matchedLender) bId = String(matchedLender.id);
+          }
+
+          if (bId) {
+            const targetL = lenders.find((l) => String(l.id) === String(bId));
+            const lenderName = targetL ? targetL.name : "Lender";
+            await db.from("borrower_transactions").insert([{
+              borrower_id: Number(bId),
+              tx_type: "Interest",
+              amount: amt,
+              payment_mode: expenseForm.payment_mode || "Cash",
+              partner_id: Number(expenseForm.paid_by_id),
+              notes: expenseForm.notes
+                ? `Monthly Interest via Shop Expenses (${expenseForm.title}) - ${expenseForm.notes.trim()}`
+                : `Monthly Interest via Shop Expenses (${expenseForm.title})`,
+              tx_date: payload.expense_date
+            }]);
+          }
+        }
+
         alert("Expense recorded!");
       }
       setShowExpenseModal(false);
@@ -2168,7 +2268,8 @@ Thank you for your business!`;
         payment_mode: "Cash",
         paid_by_id: upfrontPartnerId || "",
         expense_date: new Date().toISOString().split("T")[0],
-        notes: ""
+        notes: "",
+        borrower_id: ""
       });
       refreshData();
     } catch (err) {
@@ -5576,12 +5677,12 @@ Thank you for your business!`;
                 value={collectForm.customer_id}
                 onChange={(e) => {
                   const custId = e.target.value;
-                  const firstInv = invoices.find((i) => i.customer_id == custId && Number(i.balance_due || 0) > 0);
+                  const cust = customers.find((c) => String(c.id) === String(custId));
                   setCollectForm({
                     ...collectForm,
                     customer_id: custId,
-                    invoice_id: firstInv ? String(firstInv.id) : "",
-                    amount: firstInv ? String(firstInv.balance_due) : ""
+                    invoice_id: "",
+                    amount: cust && Number(cust.old_due || 0) > 0 ? String(cust.old_due) : ""
                   });
                 }}
               >
@@ -5596,27 +5697,45 @@ Thank you for your business!`;
               </select>
 
               {collectForm.customer_id && (
-                <select
-                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                  value={collectForm.invoice_id}
-                  onChange={(e) => {
-                    const inv = invoices.find((i) => i.id == e.target.value);
-                    setCollectForm({
-                      ...collectForm,
-                      invoice_id: e.target.value,
-                      amount: inv ? String(inv.balance_due) : collectForm.amount
-                    });
-                  }}
-                >
-                  <option value="">-- Select Specific Invoice (Optional) --</option>
-                  {invoices
-                    .filter((i) => i.customer_id == collectForm.customer_id && (editingCollectionId || Number(i.balance_due || 0) > 0))
-                    .map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.invoice_number || `INV-${i.id}`} — Due: {money(i.balance_due)}
-                      </option>
-                    ))}
-                </select>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Select Invoice (Optional — FIFO Waterfall by default)
+                  </label>
+                  <select
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                    value={collectForm.invoice_id}
+                    onChange={(e) => {
+                      const invId = e.target.value;
+                      const inv = invoices.find((i) => String(i.id) === String(invId));
+                      const cust = customers.find((c) => String(c.id) === String(collectForm.customer_id));
+                      const custDue = Math.max(0, Number(cust?.old_due || 0));
+                      const effectiveDue = inv ? Math.min(Number(inv.balance_due || 0), custDue) : custDue;
+                      setCollectForm({
+                        ...collectForm,
+                        invoice_id: invId,
+                        amount: effectiveDue > 0 ? String(effectiveDue) : collectForm.amount
+                      });
+                    }}
+                  >
+                    <option value="">-- Settle All Invoices (FIFO Waterfall) / General Due --</option>
+                    {(() => {
+                      const cust = customers.find((c) => String(c.id) === String(collectForm.customer_id));
+                      const custDue = Math.max(0, Number(cust?.old_due || 0));
+                      return invoices
+                        .filter((i) => String(i.customer_id) === String(collectForm.customer_id))
+                        .map((i) => {
+                          const effectiveDue = Math.min(Number(i.balance_due || 0), custDue);
+                          return { ...i, effectiveDue };
+                        })
+                        .filter((i) => editingCollectionId || i.effectiveDue > 0)
+                        .map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.invoice_number || `INV-${i.id}`} — Due: {money(i.effectiveDue)} (Bill Total: {money(i.total_amount)})
+                          </option>
+                        ));
+                    })()}
+                  </select>
+                </div>
               )}
 
               <input
@@ -6081,13 +6200,60 @@ Thank you for your business!`;
                 required
                 className="w-full p-2.5 border rounded-xl text-xs font-semibold"
                 value={expenseForm.category_id}
-                onChange={(e) => setExpenseForm({ ...expenseForm, category_id: e.target.value })}
+                onChange={(e) => {
+                  const catId = e.target.value;
+                  const cat = expenseCategories.find((c) => String(c.id) === String(catId));
+                  const isLoanInterest = (cat?.name || "").toLowerCase() === "loan interest" || String(catId) === "12";
+                  const defaultLender = isLoanInterest && lenders.length > 0 ? lenders[0] : null;
+                  setExpenseForm({
+                    ...expenseForm,
+                    category_id: catId,
+                    borrower_id: defaultLender ? String(defaultLender.id) : expenseForm.borrower_id,
+                    title: isLoanInterest && defaultLender ? `Loan Interest - ${defaultLender.name}` : expenseForm.title
+                  });
+                }}
               >
                 <option value="">-- Choose Category --</option>
                 {expenseCategories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+
+              {/* Scenario 2: When Category is Loan Interest, render Lender Selector */}
+              {(() => {
+                const cat = expenseCategories.find((c) => String(c.id) === String(expenseForm.category_id));
+                const isLoanInterest = (cat?.name || "").toLowerCase() === "loan interest" || String(expenseForm.category_id) === "12";
+                if (!isLoanInterest) return null;
+                return (
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Select Lender / Loan (రుణ దాత / లోన్ ఎంపిక)
+                    </label>
+                    <select
+                      required
+                      className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-purple-50/50 border-purple-200 text-purple-900"
+                      value={expenseForm.borrower_id || ""}
+                      onChange={(e) => {
+                        const bid = e.target.value;
+                        const l = lenders.find((len) => String(len.id) === bid);
+                        setExpenseForm({
+                          ...expenseForm,
+                          borrower_id: bid,
+                          title: l ? `Loan Interest - ${l.name}` : expenseForm.title
+                        });
+                      }}
+                    >
+                      <option value="">-- Choose Lender --</option>
+                      {lenders.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name} — Principal Due: {money(l.balance_due || l.principal_amount)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
+
               <input
                 type="text"
                 required
