@@ -6462,17 +6462,72 @@ Thank you for your business!`;
                   </button>
                 </div>
 
-                {/* 2FA Setup Instructions Card */}
+                {/* 2FA Setup Instructions Card with QR Code and 1-Click Mobile Actions */}
                 {enableTwoFactor && (
-                  <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2 text-xs">
-                    <b className="text-indigo-900 dark:text-indigo-300 block">📱 Google Authenticator Setup Instructions:</b>
-                    <ol className="list-decimal list-inside space-y-1 text-slate-700 dark:text-slate-300 text-[11px]">
-                      <li>Install <b>Google Authenticator</b> from Play Store or App Store.</li>
-                      <li>Open the app, tap <b>+</b> and select <b>Enter a setup key</b>.</li>
-                      <li>Account name: <span className="font-mono font-bold text-indigo-700 dark:text-indigo-400">JSR Retail (B Reddy)</span></li>
-                      <li>Secret key: <span className="font-mono font-bold text-indigo-700 dark:text-indigo-400">{twoFactorSecret}</span> (Type: Time-based)</li>
-                      <li>Emergency recovery code: <span className="font-mono font-bold text-rose-600">999999</span></li>
-                    </ol>
+                  <div className="p-5 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-emerald-950/30 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 space-y-4 text-xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-indigo-200 dark:border-indigo-800">
+                      <div>
+                        <b className="text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                          <span>📱</span> Google Authenticator Mobile Setup
+                        </b>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Scan the QR code below with Google Authenticator or tap 'Copy Key'
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold rounded-full">
+                        2FA Active
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row items-center gap-5">
+                      {/* Live Scannable QR Code */}
+                      <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-1.5 shrink-0">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=otpauth%3A%2F%2Ftotp%2FJSR%2520Retail%2520(B%2520Reddy)%3Fsecret%3D${twoFactorSecret}%26issuer%3DJSR%2520Retail`}
+                          alt="Google Authenticator QR Code"
+                          className="w-36 h-36 rounded-lg"
+                        />
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                          Scan with App
+                        </span>
+                      </div>
+
+                      {/* Mobile Instructions & Action Buttons */}
+                      <div className="space-y-3 flex-1 w-full">
+                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Your Setup Key (కీ)</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono font-black text-sm text-indigo-600 dark:text-indigo-400 tracking-wider">
+                              {twoFactorSecret}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(twoFactorSecret);
+                                alert("Setup Key copied to clipboard! Open Google Authenticator > Tap '+' > Enter a setup key > Paste.");
+                              }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-xs"
+                            >
+                              <span>📋</span> Copy Key
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] space-y-1 text-slate-700 dark:text-slate-300">
+                          <div><b>Account Name:</b> <span className="font-mono text-indigo-600 dark:text-indigo-400">JSR Retail (B Reddy)</span></div>
+                          <div><b>Type of Key:</b> <span className="font-mono">Time-based (సమయ ఆధారితం)</span></div>
+                          <div><b>Emergency Master Code:</b> <span className="font-mono text-rose-600 font-bold">999999</span></div>
+                        </div>
+
+                        {/* Direct Mobile Launch Button */}
+                        <a
+                          href={`otpauth://totp/JSR%20Retail%20(B%20Reddy)?secret=${twoFactorSecret}&issuer=JSR%20Retail`}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition text-center"
+                        >
+                          <span>⚡</span> Open Directly in Authenticator App
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 )}
 
