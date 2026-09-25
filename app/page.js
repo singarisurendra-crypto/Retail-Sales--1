@@ -153,7 +153,7 @@ export default function App() {
   const [authStep, setAuthStep] = useState("pin"); // "pin" | "2fa"
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [enableTwoFactor, setEnableTwoFactor] = useState(false);
-  const [twoFactorSecret, setTwoFactorSecret] = useState("JSR2026BREDDY");
+  const [twoFactorSecret, setTwoFactorSecret] = useState("JSRBREDDYSALES23");
   const [themeColor, setThemeColor] = useState("indigo");
   const [fontScale, setFontScale] = useState("normal"); // "normal" | "large" | "xl"
   const [requireLogin, setRequireLogin] = useState(true);
