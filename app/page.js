@@ -1431,56 +1431,23 @@ Thank you for your business!`;
         const cust = customers.find((c) => c.id == collectForm.customer_id);
         const newDue = cust ? Number(cust.old_due || 0) - amt : 0;
 
-        // Scenario 1: Multi-Invoice Waterfall Collection
-        if (collectForm.invoice_id) {
-          const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
-          if (targetInv) {
-            const currentBal = Number(targetInv.balance_due || 0);
-            const alloc = Math.min(currentBal, amt);
-            const targetNewBal = Math.max(0, currentBal - alloc);
-            await db.from("invoices").update({
-              balance_due: targetNewBal,
-              status: targetNewBal <= 0 ? "Collected" : "Partial"
-            }).eq("id", targetInv.id);
+        // Scenario 1: Strict FIFO Waterfall Customer Collection
+        // In retail accounting, customer payments ALWAYS close oldest pending bills first!
+        let rem = amt;
+        const pendingInvoices = invoices
+          .filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0)
+          .sort((a, b) => new Date(a.created_at || a.invoice_date) - new Date(b.created_at || b.invoice_date));
 
-            let rem = amt - alloc;
-            // If payment exceeds target invoice, cascade remaining payment across customer's other pending invoices (FIFO)
-            if (rem > 0) {
-              const otherInvoices = invoices
-                .filter((i) => i.customer_id == collectForm.customer_id && i.id != targetInv.id && Number(i.balance_due || 0) > 0)
-                .sort((a, b) => new Date(a.created_at || a.invoice_date) - new Date(b.created_at || b.invoice_date));
-
-              for (const oInv of otherInvoices) {
-                if (rem <= 0) break;
-                const oDue = Number(oInv.balance_due || 0);
-                const oAlloc = Math.min(oDue, rem);
-                const oNewBal = oDue - oAlloc;
-                await db.from("invoices").update({
-                  balance_due: oNewBal,
-                  status: oNewBal <= 0 ? "Collected" : "Partial"
-                }).eq("id", oInv.id);
-                rem -= oAlloc;
-              }
-            }
-          }
-        } else {
-          // No specific invoice selected: Settle all pending invoices for this customer FIFO
-          let rem = amt;
-          const pendingInvoices = invoices
-            .filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0)
-            .sort((a, b) => new Date(a.created_at || a.invoice_date) - new Date(b.created_at || b.invoice_date));
-
-          for (const inv of pendingInvoices) {
-            if (rem <= 0) break;
-            const due = Number(inv.balance_due || 0);
-            const alloc = Math.min(due, rem);
-            const newBal = due - alloc;
-            await db.from("invoices").update({
-              balance_due: newBal,
-              status: newBal <= 0 ? "Collected" : "Partial"
-            }).eq("id", inv.id);
-            rem -= alloc;
-          }
+        for (const inv of pendingInvoices) {
+          if (rem <= 0) break;
+          const due = Number(inv.balance_due || 0);
+          const alloc = Math.min(due, rem);
+          const newBal = due - alloc;
+          await db.from("invoices").update({
+            balance_due: newBal,
+            status: newBal <= 0 ? "Collected" : "Partial"
+          }).eq("id", inv.id);
+          rem -= alloc;
         }
 
         // Customer old_due update:
@@ -1555,7 +1522,8 @@ Thank you for your business!`;
     e.preventDefault();
     const amt = Number(payPurchaseForm.amount || 0);
     if (amt <= 0) return alert("Enter valid payment amount");
-    if (!payPurchaseForm.purchase_id) return alert("Select purchase bill");
+    if (paySupplierMode === "single" && !payPurchaseForm.purchase_id) return alert("Select purchase bill");
+    if (paySupplierMode === "multi" && !multiSupplierId) return alert("Select a supplier to settle bills for");
 
     const isAdvanceAdjusted = payPurchaseForm.payment_mode === "Advance Adjusted";
     if (!isAdvanceAdjusted && !payPurchaseForm.partner_id) {
@@ -4581,8 +4549,22 @@ Thank you for your business!`;
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Due Balance</span>
-                        <span className="font-black text-rose-600 text-sm">{money(c.old_due)}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          {Number(c.old_due || 0) < 0 ? "Advance Balance" : Number(c.old_due || 0) === 0 ? "Account Status" : "Due Balance"}
+                        </span>
+                        <span className={`font-black text-sm ${
+                          Number(c.old_due || 0) < 0
+                            ? "text-emerald-600"
+                            : Number(c.old_due || 0) === 0
+                            ? "text-slate-500"
+                            : "text-rose-600"
+                        }`}>
+                          {Number(c.old_due || 0) < 0
+                            ? `Advance: ${money(Math.abs(c.old_due))}`
+                            : Number(c.old_due || 0) === 0
+                            ? "Settled (₹0.00)"
+                            : money(c.old_due)}
+                        </span>
                       </div>
                       <div className="flex gap-1.5">
                         <button onClick={() => handleEditCustomer(c)} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
@@ -5180,7 +5162,11 @@ Thank you for your business!`;
                           <td className="p-2 border border-slate-200 text-center">{idx + 1}</td>
                           <td className="p-2 border border-slate-200 font-bold">{c.name}</td>
                           <td className="p-2 border border-slate-200 text-slate-500">{c.mobile || "N/A"}</td>
-                          <td className="p-2 border border-slate-200 text-right font-black text-rose-600">{money(c.old_due)}</td>
+                          <td className={`p-2 border border-slate-200 text-right font-black ${
+                            Number(c.old_due || 0) < 0 ? "text-emerald-600" : Number(c.old_due || 0) === 0 ? "text-slate-400" : "text-rose-600"
+                          }`}>
+                            {Number(c.old_due || 0) < 0 ? `Adv: ${money(Math.abs(c.old_due))}` : Number(c.old_due || 0) === 0 ? "₹0.00" : money(c.old_due)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -5503,14 +5489,22 @@ Thank you for your business!`;
               <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
                 <button
                   type="button"
-                  onClick={() => setPaySupplierMode("single")}
+                  onClick={() => {
+                    setPaySupplierMode("single");
+                    setMultiSupplierId("");
+                    setPayPurchaseForm((prev) => ({ ...prev, purchase_id: "", amount: "" }));
+                  }}
                   className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "single" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
                 >
                   Pay Single Bill
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPaySupplierMode("multi")}
+                  onClick={() => {
+                    setPaySupplierMode("multi");
+                    setPayPurchaseForm((prev) => ({ ...prev, purchase_id: "", amount: "" }));
+                    setMultiSupplierId("");
+                  }}
                   className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "multi" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
                 >
                   Pay Supplier (Multiple Bills)
@@ -5546,7 +5540,7 @@ Thank you for your business!`;
                     const due = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
                     return (
                       <option key={p.id} value={p.id}>
-                        {p.item_name} ({p.supplier_name}) — Due: {money(due)} (Total: {money(p.total_amount)})
+                        {p.supplier_name} — Due: {money(due)} (PUR-{p.id})
                       </option>
                     );
                   })}
@@ -5614,7 +5608,8 @@ Thank you for your business!`;
                 </button>
               </div>
 
-              {payPurchaseForm.purchase_id && (() => {
+              {/* DETAILS CARD: SINGLE BILL MODE */}
+              {paySupplierMode === "single" && payPurchaseForm.purchase_id && (() => {
                 const target = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
                 if (!target) return null;
                 const tot = Number(target.total_amount || 0);
@@ -5660,6 +5655,92 @@ Thank you for your business!`;
                         </div>
                       );
                     })()}
+                  </div>
+                );
+              })()}
+
+              {/* DETAILS CARD: MULTIPLE BILLS (FIFO) MODE */}
+              {paySupplierMode === "multi" && multiSupplierId && (() => {
+                const targetSup = suppliers.find((s) => String(s.id) === String(multiSupplierId) || s.name === multiSupplierId);
+                if (!targetSup) return null;
+
+                const pendingBills = procurements
+                  .filter((p) => p.supplier_name === targetSup.name && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0)
+                  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+                const totalPendingDue = pendingBills.reduce(
+                  (sum, b) => sum + Math.max(0, Number(b.total_amount || 0) - Number(b.p1_amount || 0)),
+                  0
+                );
+
+                const currentPayAmt = Number(payPurchaseForm.amount || 0);
+                const advCredit = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
+
+                return (
+                  <div className="p-3.5 bg-purple-50/70 border-2 border-purple-200 rounded-xl space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-purple-900 uppercase text-[11px] tracking-wider flex items-center gap-1.5">
+                        📋 Pending Bills for {targetSup.name}
+                      </span>
+                      <span className="font-bold text-[10px] bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
+                        FIFO Waterfall
+                      </span>
+                    </div>
+
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                      {pendingBills.map((b) => {
+                        const tot = Number(b.total_amount || 0);
+                        const paid = Number(b.p1_amount || 0);
+                        const due = Math.max(0, tot - paid);
+                        return (
+                          <div key={b.id} className="p-2 bg-white rounded-lg border border-purple-100 flex justify-between items-center">
+                            <div>
+                              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px]">PUR-{b.id}</span>
+                                <span>{b.item_name}</span>
+                                <span className="text-slate-400 font-normal">({b.procured_qty} qty)</span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 block mt-0.5">
+                                Total: {money(tot)} | Paid: {money(paid)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Due</span>
+                              <span className="font-black text-rose-600 text-xs">{money(due)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {pendingBills.length === 0 && (
+                        <p className="text-slate-500 italic text-center py-2">No pending bills with due balance found for this supplier.</p>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-purple-200 flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-700">Total Outstanding Payable:</span>
+                      <span className="font-black text-rose-600 text-xs">{money(totalPendingDue)}</span>
+                    </div>
+
+                    {/* Settle from Supplier Advance Credit */}
+                    {advCredit > 0 && (
+                      <div className="pt-1.5 border-t border-purple-200 flex justify-between items-center">
+                        <span className="text-[10px] text-emerald-700 font-bold">Advance Credit: {money(advCredit)}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const useAmt = Math.min(advCredit, totalPendingDue);
+                            setPayPurchaseForm((prev) => ({
+                              ...prev,
+                              amount: String(useAmt),
+                              payment_mode: "Advance Adjusted"
+                            }));
+                          }}
+                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shadow-xs"
+                        >
+                          ⚡ Settle via Advance
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
