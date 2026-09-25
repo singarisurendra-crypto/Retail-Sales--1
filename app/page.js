@@ -2155,7 +2155,18 @@ Thank you for your business!`;
   // EXPENSE HANDLERS
   const handleEditExpense = (e) => {
     setEditingExpenseId(e.id);
-    const matchedLender = lenders.find((l) => (e.title || "").toLowerCase().includes(l.name.toLowerCase()));
+    const stopWords = new Set(["to", "for", "the", "loan", "interest", "a", "an", "of", "in", "by", "pmt", "payment"]);
+    const titleWords = (e.title || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !stopWords.has(w));
+    const matchedLender = lenders.find((l) => {
+      const lName = l.name.toLowerCase();
+      if (titleWords.some((w) => lName.includes(w))) return true;
+      if ((e.title || "").toLowerCase().includes(lName) || lName.includes((e.title || "").toLowerCase())) return true;
+      return false;
+    });
     setExpenseForm({
       title: e.title || "",
       category_id: e.category_id ? String(e.category_id) : "",
@@ -2233,10 +2244,18 @@ Thank you for your business!`;
         if (isLoanInterest) {
           let bId = expenseForm.borrower_id;
           if (!bId) {
-            const matchedLender = lenders.find((l) =>
-              expenseForm.title.toLowerCase().includes(l.name.toLowerCase()) ||
-              l.name.toLowerCase().includes(expenseForm.title.toLowerCase())
-            );
+            const stopWords = new Set(["to", "for", "the", "loan", "interest", "a", "an", "of", "in", "by", "pmt", "payment"]);
+            const titleWords = (expenseForm.title || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9\s]/g, " ")
+              .split(/\s+/)
+              .filter((w) => w.length > 2 && !stopWords.has(w));
+            const matchedLender = lenders.find((l) => {
+              const lName = l.name.toLowerCase();
+              if (titleWords.some((w) => lName.includes(w))) return true;
+              if (expenseForm.title.toLowerCase().includes(lName) || lName.includes(expenseForm.title.toLowerCase())) return true;
+              return false;
+            });
             if (matchedLender) bId = String(matchedLender.id);
           }
 
@@ -4926,7 +4945,8 @@ Thank you for your business!`;
                       payment_mode: "Cash",
                       paid_by_id: upfrontPartnerId || "",
                       expense_date: new Date().toISOString().split("T")[0],
-                      notes: ""
+                      notes: "",
+                      borrower_id: ""
                     });
                     setShowExpenseModal(true);
                   }}
@@ -6204,13 +6224,12 @@ Thank you for your business!`;
                   const catId = e.target.value;
                   const cat = expenseCategories.find((c) => String(c.id) === String(catId));
                   const isLoanInterest = (cat?.name || "").toLowerCase() === "loan interest" || String(catId) === "12";
-                  const defaultLender = isLoanInterest && lenders.length > 0 ? lenders[0] : null;
-                  setExpenseForm({
-                    ...expenseForm,
+                  setExpenseForm((prev) => ({
+                    ...prev,
                     category_id: catId,
-                    borrower_id: defaultLender ? String(defaultLender.id) : expenseForm.borrower_id,
-                    title: isLoanInterest && defaultLender ? `Loan Interest - ${defaultLender.name}` : expenseForm.title
-                  });
+                    borrower_id: isLoanInterest ? prev.borrower_id : "",
+                    title: isLoanInterest && !prev.title ? "Loan Interest" : prev.title
+                  }));
                 }}
               >
                 <option value="">-- Choose Category --</option>
@@ -6219,37 +6238,45 @@ Thank you for your business!`;
                 ))}
               </select>
 
-              {/* Scenario 2: When Category is Loan Interest, render Lender Selector */}
+              {/* Scenario 2: When Category is Loan Interest, render prominent styled Lender Selector Card */}
               {(() => {
                 const cat = expenseCategories.find((c) => String(c.id) === String(expenseForm.category_id));
                 const isLoanInterest = (cat?.name || "").toLowerCase() === "loan interest" || String(expenseForm.category_id) === "12";
                 if (!isLoanInterest) return null;
                 return (
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                      Select Lender / Loan (రుణ దాత / లోన్ ఎంపిక)
-                    </label>
+                  <div className="bg-purple-50 p-3.5 rounded-xl border-2 border-purple-300 space-y-2 shadow-xs">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-black text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+                        🏦 Select Loan / Lender Account (రుణం ఎంపిక) <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                        Required for Loan History
+                      </span>
+                    </div>
                     <select
                       required
-                      className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-purple-50/50 border-purple-200 text-purple-900"
+                      className="w-full p-2.5 bg-white border border-purple-300 rounded-xl text-xs font-bold text-purple-950 focus:ring-2 focus:ring-purple-500 outline-none shadow-xs cursor-pointer"
                       value={expenseForm.borrower_id || ""}
                       onChange={(e) => {
                         const bid = e.target.value;
-                        const l = lenders.find((len) => String(len.id) === bid);
-                        setExpenseForm({
-                          ...expenseForm,
+                        const l = lenders.find((len) => String(len.id) === String(bid));
+                        setExpenseForm((prev) => ({
+                          ...prev,
                           borrower_id: bid,
-                          title: l ? `Loan Interest - ${l.name}` : expenseForm.title
-                        });
+                          title: l ? `Loan Interest - ${l.name}` : prev.title
+                        }));
                       }}
                     >
-                      <option value="">-- Choose Lender --</option>
+                      <option value="">-- Choose Loan / Lender (e.g. Gold Loan, Rama Krishna...) --</option>
                       {lenders.map((l) => (
                         <option key={l.id} value={l.id}>
-                          {l.name} — Principal Due: {money(l.balance_due || l.principal_amount)}
+                          {l.name} — Outstanding Principal: {money(l.balance_due || l.principal_amount)}
                         </option>
                       ))}
                     </select>
+                    <p className="text-[10px] text-purple-700 font-medium">
+                      💡 Selecting a loan automatically records this interest payment directly in that loan's history ledger.
+                    </p>
                   </div>
                 );
               })()}
