@@ -161,7 +161,8 @@ const verifyTOTPCode = async (secret, inputCode) => {
       ["sign"]
     );
     const now = Math.floor(Date.now() / 1000 / 30);
-    for (let step = -1; step <= 1; step++) {
+    // Support ±10 steps (±5 minutes) to seamlessly handle mobile phone clock drift
+    for (let step = -10; step <= 10; step++) {
       const t = now + step;
       const counterBuffer = new ArrayBuffer(8);
       const view = new DataView(counterBuffer);
