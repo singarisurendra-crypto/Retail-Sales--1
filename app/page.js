@@ -498,6 +498,10 @@ export default function App() {
   const [upfrontPartnerId, setUpfrontPartnerId] = useState("");
   const [savingSale, setSavingSale] = useState(false);
 
+  const currentEditingInvoice = useMemo(() => {
+    return editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
+  }, [editingInvoiceId, invoices]);
+
   useEffect(() => {
     refreshData();
   }, []);
@@ -3425,20 +3429,40 @@ Thank you for your business!`;
         {activeTab === "sale" && (
           <div className="max-w-5xl mx-auto space-y-5">
             <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-black text-lg text-slate-900 leading-tight">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-black text-lg text-slate-900 dark:text-slate-100 leading-tight">
                       {editingInvoiceId ? "Edit Sales Invoice" : "Create Sales Invoice"}
                     </h2>
                     {editingInvoiceId && (
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold text-[10px] rounded-full uppercase">
-                        Editing Mode
-                      </span>
+                      <>
+                        <span className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-mono font-black text-xs rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5 shadow-2xs">
+                          <span>📄</span>
+                          {currentEditingInvoice?.invoice_number || `INV-${editingInvoiceId}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const invNo = currentEditingInvoice?.invoice_number || `INV-${editingInvoiceId}`;
+                            navigator.clipboard.writeText(invNo);
+                            alert(`Invoice number copied: ${invNo}`);
+                          }}
+                          title="Copy Invoice Number"
+                          className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[11px] font-bold cursor-pointer transition"
+                        >
+                          📋
+                        </button>
+                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] rounded-full uppercase border border-amber-300 dark:border-amber-700">
+                          Editing Mode
+                        </span>
+                      </>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400">
-                    {editingInvoiceId ? "Adjust items and rates, then re-save" : "Bills go to customer credit by default"}
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {editingInvoiceId && currentEditingInvoice
+                      ? `Invoice #${currentEditingInvoice.invoice_number || currentEditingInvoice.id} • Customer: ${currentEditingInvoice.customer_name || selectedCust?.name || "Customer"} • Adjust items and rates, then re-save`
+                      : "Bills go to customer credit by default"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -3452,7 +3476,7 @@ Thank you for your business!`;
                         setUpfrontAmount("");
                         setActiveTab("invoices");
                       }}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1 transition"
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
                     >
                       ← Cancel Edit & Back
                     </button>
@@ -3655,21 +3679,41 @@ Thank you for your business!`;
                   const invAlloc = invoiceAllocationsMap.get(String(editingInvoiceId));
                   const invCols = invAlloc ? invAlloc.allocatedCollections : [];
                   const totalCols = invAlloc ? invAlloc.totalCollections : 0;
-                  const oldInv = invoices.find((i) => i.id === editingInvoiceId);
+                  const oldInv = currentEditingInvoice || invoices.find((i) => i.id === editingInvoiceId);
                   const oldUpfront = Number(oldInv?.upfront_paid || 0);
                   const totalPaidSoFar = oldUpfront + totalCols;
                   const balanceDueNow = Math.max(0, cartTotal - totalPaidSoFar);
 
+                  // Combine upfront payment with subsequent collections so all payments are visible
+                  const allInvoicePayments = [
+                    ...(oldUpfront > 0
+                      ? [
+                          {
+                            id: `upfront_${oldInv?.id}`,
+                            date: oldInv?.invoice_date || (oldInv?.created_at ? oldInv.created_at.slice(0, 10) : "-"),
+                            ref: oldInv?.invoice_number || `INV-${oldInv?.id}`,
+                            partner_name:
+                              partners.find((p) => String(p.id) === String(oldInv?.upfront_receiver_id))?.name ||
+                              "Store / Admin",
+                            payment_mode: oldInv?.upfront_mode || "Cash",
+                            amount: oldUpfront,
+                            isUpfront: true
+                          }
+                        ]
+                      : []),
+                    ...invCols
+                  ];
+
                   return (
                     <div className="space-y-3">
-                      {/* Collections Received ERP Grid Table (Point 5 & 6) */}
+                      {/* Collections Received ERP Grid Table */}
                       <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                         <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
                           <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                             <span>💰</span> Collections Received Total:
                           </span>
                           <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
-                            {money(totalCols)}
+                            {money(totalPaidSoFar)}
                           </span>
                         </div>
 
@@ -3685,24 +3729,37 @@ Thank you for your business!`;
                               </tr>
                             </thead>
                             <tbody>
-                              {invCols.length === 0 ? (
+                              {allInvoicePayments.length === 0 ? (
                                 <tr>
                                   <td colSpan={5} className="p-3 text-center text-slate-400 font-sans text-xs">
                                     No customer collections recorded yet for this invoice.
                                   </td>
                                 </tr>
                               ) : (
-                                invCols.map((c, cIdx) => {
+                                allInvoicePayments.map((c, cIdx) => {
                                   const dt = c.date || (c.created_at ? c.created_at.slice(0, 10) : "-");
-                                  const pName = c.partner_name || partners.find((p) => p.id == c.partner_id || p.id == c.collected_by)?.name || "N/A";
+                                  const pName =
+                                    c.partner_name ||
+                                    partners.find((p) => String(p.id) === String(c.partner_id || c.collected_by))?.name ||
+                                    "N/A";
                                   return (
                                     <tr key={c.id || cIdx} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{dt}</td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
                                         {c.ref || c.reference_no || `REC-${c.id}`}
+                                        {c.isUpfront && (
+                                          <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-sans font-bold">
+                                            Bill Upfront
+                                          </span>
+                                        )}
                                         {c.isFIFO && (
                                           <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-sans">
                                             FIFO
+                                          </span>
+                                        )}
+                                        {c.isDirect && !c.isUpfront && (
+                                          <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 font-sans">
+                                            Direct
                                           </span>
                                         )}
                                       </td>
@@ -3722,7 +3779,7 @@ Thank you for your business!`;
                         {/* Balance summary card */}
                         <div className="p-2.5 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs flex justify-between items-center">
                           <span className="font-bold text-slate-700 dark:text-slate-300">Remaining Balance Due:</span>
-                          <span className={`font-mono font-black text-sm ${balanceDueNow > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                          <span className={`font-mono font-black text-sm ${balanceDueNow > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                             {balanceDueNow > 0 ? money(balanceDueNow) : "Fully Settled (₹0.00)"}
                           </span>
                         </div>
