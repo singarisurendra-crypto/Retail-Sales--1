@@ -536,6 +536,13 @@ export default function App() {
     }
   }, []);
 
+  // Sync Dark Mode class with HTML document root for Tailwind class-based dark styling
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", !!darkMode);
+    }
+  }, [darkMode]);
+
   const toggleLanguage = (lang) => {
     const next = lang || (language === "en" ? "te" : "en");
     setLanguage(next);
@@ -603,6 +610,9 @@ export default function App() {
     setDarkMode(next);
     if (typeof window !== "undefined") {
       localStorage.setItem("theme_mode", next ? "dark" : "light");
+    }
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", next);
     }
   };
 
@@ -2869,7 +2879,7 @@ Thank you for your business!`;
 
   return (
     <div className={`min-h-screen flex flex-col md:flex-row font-sans antialiased transition-colors duration-200 ${
-      darkMode ? "bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-800"
+      darkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-800"
     } ${fontScale === "large" ? "text-base" : fontScale === "xl" ? "text-lg" : "text-sm"}`}>
       {/* Mobile Header */}
       <header className="md:hidden bg-slate-900 text-white p-3.5 flex items-center justify-between sticky top-0 z-40 shadow-md border-b border-slate-800">
@@ -4577,27 +4587,10 @@ Thank you for your business!`;
                   </div>
                 </div>
 
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                    <h3 className="font-black text-sm text-slate-900">Loan Repayment Ledger ({loanTransactions.length})</h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoanPaymentForm({
-                          borrower_id: lenders[0]?.id ? String(lenders[0].id) : "",
-                          principal_amount: "",
-                          interest_amount: "",
-                          payment_mode: "Cash",
-                          partner_id: upfrontPartnerId || "",
-                          notes: "",
-                          tx_date: new Date().toISOString().split("T")[0]
-                        });
-                        setShowLoanPaymentModal(true);
-                      }}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs"
-                    >
-                      <Icon name="rupee" size={13} /> + Record Repayment
-                    </button>
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">Loan Repayment Ledger ({loanTransactions.length})</h3>
+                    <span className="text-xs text-slate-500 font-medium">Repayment & interest history</span>
                   </div>
 
                   {(() => {
@@ -5578,63 +5571,63 @@ Thank you for your business!`;
                     </thead>
                     <tbody>
                       {/* Row 1: Debts (Amber) */}
-                      <tr className="bg-amber-50/90 dark:bg-amber-950/30 font-bold">
+                      <tr className="bg-amber-50/90 dark:bg-amber-950/40 font-bold text-slate-900 dark:text-amber-200">
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">1</td>
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                           {t("Debts & Supplier Purchase Dues", "అప్పులు (Debts & Supplier Purchase Dues)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 dark:text-rose-400 font-black">
                           {money(businessSummary.totalLoansPayable + businessSummary.totalPurchaseDues)}
                         </td>
                       </tr>
 
                       {/* Row 2: Customer Dues */}
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/40 font-bold">
+                      <tr className="bg-slate-50/80 dark:bg-slate-800/60 font-bold text-slate-900 dark:text-slate-100">
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">2</td>
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                           {t("Customer Dues", "కస్టమర్ బ్యాలెన్స్ (Customer Dues)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100 font-bold">
                           {money(businessSummary.totalCustomerDues)}
                         </td>
                       </tr>
 
                       {/* Row 3: Stock Valuation */}
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/40 font-bold">
+                      <tr className="bg-slate-50/80 dark:bg-slate-800/60 font-bold text-slate-900 dark:text-slate-100">
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">3</td>
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                           {t("Stock Valuation", "నిలువలు (Stock Valuation)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100 font-bold">
                           {money(businessSummary.stockValuation)}
                         </td>
                       </tr>
 
                       {/* Row 4: Expenses & Outlays (Pink) */}
-                      <tr className="bg-rose-50/80 dark:bg-rose-950/30 font-bold">
+                      <tr className="bg-rose-50/80 dark:bg-rose-950/40 font-bold text-slate-900 dark:text-rose-200">
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">4</td>
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                           {t("Expenses & Outlays", "ఖర్చులు (Expenses & Outlays)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 dark:text-rose-400 font-black">
                           {money(businessSummary.totalExpenses)}
                         </td>
                       </tr>
 
                       {/* Row 5: COGS */}
-                      <tr className="bg-blue-50/80 dark:bg-blue-950/30 font-bold">
+                      <tr className="bg-blue-50/80 dark:bg-blue-950/40 font-bold text-slate-900 dark:text-blue-200">
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">5</td>
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                           {t("Cost of Goods Sold (COGS)", "కొనుగోలు ఖర్చు / COGS (Cost of Goods Sold)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-800 dark:text-slate-200">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-blue-300 font-bold">
                           {money(businessSummary.cogs)}
                         </td>
                       </tr>
 
                       {/* Row 6: Gross Profit (Light Green) */}
-                      <tr className="bg-emerald-50 dark:bg-emerald-950/40 font-bold">
-                        <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase text-xs text-emerald-900 dark:text-emerald-300">
+                      <tr className="bg-emerald-50 dark:bg-emerald-950/50 font-bold text-emerald-950 dark:text-emerald-300">
+                        <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase text-xs">
                           {t("GROSS PROFIT = SALES - COGS", "స్థూల లాభం (GROSS PROFIT = SALES - COGS)")}
                         </td>
                         <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-emerald-700 dark:text-emerald-400">
@@ -5643,21 +5636,21 @@ Thank you for your business!`;
                       </tr>
 
                       {/* Row 7: Net Business Profit = Gross Profit - Expenses = ((1 - 2) - 3) (Green) */}
-                      <tr className="bg-emerald-100 dark:bg-emerald-900/60 font-black text-sm">
-                        <td colSpan={2} className="p-3 border border-slate-300 dark:border-slate-700 text-right uppercase text-emerald-950 dark:text-emerald-100">
+                      <tr className="bg-emerald-100 dark:bg-emerald-900/60 font-black text-sm text-emerald-950 dark:text-emerald-100">
+                        <td colSpan={2} className="p-3 border border-slate-300 dark:border-slate-700 text-right uppercase">
                           {t("NET BUSINESS PROFIT = (GROSS PROFIT - EXPENSES) = ((1 - 2) - 3)", "నికర లాభం (NET BUSINESS PROFIT = (GROSS PROFIT - EXPENSES) = ((1 - 2) - 3))")}
                         </td>
-                        <td className="p-3 border border-slate-300 dark:border-slate-700 text-right text-emerald-900 dark:text-emerald-200 font-black">
+                        <td className="p-3 border border-slate-300 dark:border-slate-700 text-right text-emerald-950 dark:text-emerald-200 font-black">
                           {money(businessSummary.netProfit)}
                         </td>
                       </tr>
 
                       {/* Row 8: Net Worth (Purple) */}
-                      <tr className="bg-indigo-50 dark:bg-indigo-950/40 font-black text-xs">
-                        <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase text-indigo-900 dark:text-indigo-200">
+                      <tr className="bg-indigo-50 dark:bg-indigo-950/50 font-black text-xs text-indigo-950 dark:text-indigo-200">
+                        <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase">
                           {t("BUSINESS NET WORTH = ASSETS - LIABILITIES", "వ్యాపార నికర విలువ (BUSINESS NET WORTH = ASSETS - LIABILITIES)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-indigo-900 dark:text-indigo-200 font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black">
                           {money(businessSummary.netWorth)}
                         </td>
                       </tr>
@@ -5696,10 +5689,10 @@ Thank you for your business!`;
                             const availQty = Number(p.remaining_qty ?? p.available_quantity ?? p.quantity ?? 0);
                             const val = availQty * Number(p.purchase_rate || 0);
                             return (
-                              <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                              <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{p.items?.item_name || p.item_name}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700">{p.suppliers?.name || p.supplier_name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{p.suppliers?.name || p.supplier_name}</td>
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 text-center font-bold">{availQty}</td>
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(p.purchase_rate)}</td>
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(p.selling_rate || p.purchase_rate)}</td>
@@ -5719,7 +5712,7 @@ Thank you for your business!`;
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                       {t("Customer Outstanding Dues Ledger", "కస్టమర్ బ్యాలెన్స్ (Customer Dues Ledger)")}
                     </h3>
-                    <span className="text-xs font-bold text-rose-600 font-mono">
+                    <span className="text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">
                       Total Dues: {money(businessSummary.totalCustomerDues)}
                     </span>
                   </div>
@@ -5738,12 +5731,12 @@ Thank you for your business!`;
                           <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No customer dues</td></tr>
                         ) : (
                           customerList.map((c, idx) => (
-                            <tr key={c.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                            <tr key={c.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
                               <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
                               <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{c.name}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-500">{c.mobile || "N/A"}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">{c.mobile || "N/A"}</td>
                               <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${
-                                Number(c.old_due || 0) < 0 ? "text-emerald-600" : "text-rose-600"
+                                Number(c.old_due || 0) < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                               }`}>
                                 {Number(c.old_due || 0) < 0 ? `Adv: ${money(Math.abs(c.old_due))}` : money(c.old_due)}
                               </td>
@@ -5789,18 +5782,18 @@ Thank you for your business!`;
                             const bal = Number(s.old_due || 0);
                             const isAdv = bal < 0;
                             return (
-                              <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                              <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{s.name}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-500">{formatSupplierMobile(s.mobile) || "N/A"}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">{formatSupplierMobile(s.mobile) || "N/A"}</td>
                                 <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    isAdv ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                                    isAdv ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300"
                                   }`}>
                                     {isAdv ? "Advance Credit" : "Payable Due"}
                                   </span>
                                 </td>
-                                <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${isAdv ? "text-emerald-600" : "text-amber-600"}`}>
+                                <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${isAdv ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
                                   {isAdv ? `Adv: ${money(Math.abs(bal))}` : money(bal)}
                                 </td>
                               </tr>
@@ -5818,7 +5811,7 @@ Thank you for your business!`;
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                       {t("Expenses & Outlays Ledger", "ఖర్చులు (Expenses & Outlays Ledger)")}
                     </h3>
-                    <span className="text-xs font-bold text-rose-600 font-mono">
+                    <span className="text-xs font-bold text-rose-600 dark:text-rose-400 font-mono">
                       Total Expenses: {money(businessSummary.totalExpenses)}
                     </span>
                   </div>
@@ -5838,12 +5831,12 @@ Thank you for your business!`;
                           <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No expenses recorded</td></tr>
                         ) : (
                           expenses.map((e, idx) => (
-                            <tr key={e.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                            <tr key={e.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
                               <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700">{e.expense_date || "N/A"}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{e.category_name}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700">{e.title}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-rose-600">{money(e.amount)}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">{e.expense_date || "N/A"}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">{e.category_name}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{e.title}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-rose-600 dark:text-rose-400">{money(e.amount)}</td>
                             </tr>
                           ))
                         )}
@@ -5892,11 +5885,11 @@ Thank you for your business!`;
                             <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No active business loans</td></tr>
                           ) : (
                             activeLoans.map((l, idx) => (
-                              <tr key={l.id} className="odd:bg-white even:bg-rose-50/30 dark:odd:bg-slate-900 dark:even:bg-rose-950/20">
+                              <tr key={l.id} className="odd:bg-white even:bg-rose-50/30 dark:odd:bg-slate-900 dark:even:bg-rose-950/20 text-slate-900 dark:text-slate-100">
                                 <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-center">{idx + 1}</td>
                                 <td className="p-2 border border-rose-200 dark:border-rose-900/60 font-bold">{l.name}</td>
-                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-slate-500">{l.mobile || "N/A"}</td>
-                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-right font-black text-rose-600">{money(l.balance_due)}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-slate-600 dark:text-slate-400">{l.mobile || "N/A"}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-right font-black text-rose-600 dark:text-rose-400">{money(l.balance_due)}</td>
                               </tr>
                             ))
                           )}
@@ -5909,7 +5902,7 @@ Thank you for your business!`;
                   <div className="space-y-2 pt-2">
                     <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
                       <span>2. Supplier Purchase Pending Bills:</span>
-                      <span className="text-amber-600 font-mono">Total: {money(totalPendingBills)}</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-mono">Total: {money(totalPendingBills)}</span>
                     </div>
                     <div className="overflow-x-auto border border-amber-200 dark:border-amber-900/60 rounded-xl">
                       <table className="w-full text-left text-xs border-collapse font-mono border border-amber-200 dark:border-amber-900/60">
@@ -5933,14 +5926,14 @@ Thank you for your business!`;
                               const paid = Number(p.p1_amount || 0);
                               const due = Math.max(0, total - paid);
                               return (
-                                <tr key={p.id} className="odd:bg-white even:bg-amber-50/30 dark:odd:bg-slate-900 dark:even:bg-amber-950/20">
+                                <tr key={p.id} className="odd:bg-white even:bg-amber-50/30 dark:odd:bg-slate-900 dark:even:bg-amber-950/20 text-slate-900 dark:text-slate-100">
                                   <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-center">{idx + 1}</td>
                                   <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold">BILL-{p.id}</td>
                                   <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold">{p.suppliers?.name || p.supplier_name}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60">{p.items?.item_name || p.item_name}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">{money(total)}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right text-emerald-600">{money(paid)}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-black text-rose-600">{money(due)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-slate-700 dark:text-slate-300">{p.items?.item_name || p.item_name}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-mono">{money(total)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right text-emerald-600 dark:text-emerald-400 font-mono">{money(paid)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-black text-rose-600 dark:text-rose-400 font-mono">{money(due)}</td>
                                 </tr>
                               );
                             })
