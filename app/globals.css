@@ -38,3 +38,13 @@ select option {
 .table-grid td {
   border-width: 1px;
 }
+
+/* Dark mode table readability safeguards */
+.dark table {
+  color: #f1f5f9;
+}
+.dark th,
+.dark td {
+  border-color: #334155;
+}
+
