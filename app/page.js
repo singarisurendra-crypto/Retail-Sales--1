@@ -321,6 +321,52 @@ export default function App() {
   const [paymentsSort, setPaymentsSort] = useState("date_desc");
   const [masterSort, setMasterSort] = useState("name_asc");
 
+  // Pagination States (ERP Numeric Grid Style matching Image 1)
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [procurePage, setProcurePage] = useState(1);
+  const [collectPage, setCollectPage] = useState(1);
+  const [supplierPayPage, setSupplierPayPage] = useState(1);
+  const [loanPayPage, setLoanPayPage] = useState(1);
+  const [partnerPage, setPartnerPage] = useState(1);
+  const [ledgerCustPage, setLedgerCustPage] = useState(1);
+  const [ledgerSupPage, setLedgerSupPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+  const [expensePage, setExpensePage] = useState(1);
+
+  // ERP Numeric Pagination Box matching user's Image 1
+  const renderPagination = (currentPage, totalItems, pageSize, onPageChange) => {
+    const totalPages = Math.ceil(totalItems / pageSize);
+    if (totalPages <= 1) return null;
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
+    return (
+      <div className="flex justify-center items-center py-2.5">
+        <div className="inline-flex items-stretch border border-sky-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 shadow-2xs divide-x divide-sky-200 dark:divide-slate-600 overflow-hidden text-xs">
+          {pages.map((p) => {
+            const isActive = p === currentPage;
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPageChange(p)}
+                className={`min-w-7.5 px-2.5 py-1 text-center font-bold transition cursor-pointer ${
+                  isActive
+                    ? "bg-sky-50 dark:bg-slate-700 text-slate-800 dark:text-white"
+                    : "text-sky-600 dark:text-sky-400 hover:bg-sky-50/70 dark:hover:bg-slate-700 underline"
+                }`}
+              >
+                {p}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+
   // Dual Suppliers (Suppliers who are also Customers eligible for sales billing)
   const [dualSuppliers, setDualSuppliers] = useState(() => {
     if (typeof window !== "undefined") {
@@ -3214,14 +3260,14 @@ Thank you for your business!`;
                   }}
                 >
                   <option value="">-- Choose Customer or Supplier --</option>
-                  <optgroup label="Customers (ఖాతాదారులు)">
+                  <optgroup label="Customers">
                     {customers.map((c) => (
                       <option key={`cust_${c.id}`} value={`cust_${c.id}`}>
                         {c.name}
                       </option>
                     ))}
                   </optgroup>
-                  <optgroup label="Suppliers / Vendors (సరుకు వ్యాపారులు - Contra Sale)">
+                  <optgroup label="Suppliers / Vendors (Contra Sale)">
                     {suppliers
                       .filter((s) => dualSuppliers[s.id] || dualSuppliers[s.name] || (s.mobile && s.mobile.includes("#vendor")))
                       .map((s) => (
@@ -3399,7 +3445,7 @@ Thank you for your business!`;
               {selectedCust?.isSupplier ? (
                 <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs flex justify-between items-center text-indigo-950 font-bold">
                   <div>
-                    <span className="block">Supplier Contra Offset (ఖాతా జమ):</span>
+                    <span className="block">Supplier Contra Offset:</span>
                     <span className="text-[10px] text-indigo-700 font-semibold">
                       Deducted from {selectedCust.name} payable balance
                     </span>
@@ -3533,12 +3579,12 @@ Thank you for your business!`;
                     onChange={(e) => setInvoiceCustomerFilter(e.target.value)}
                   >
                     <option value="all">👥 All Accounts</option>
-                    <optgroup label="Customers (ఖాతాదారులు)">
+                    <optgroup label="Customers">
                       {customers.map((c) => (
                         <option key={c.id} value={`cust_${c.id}`}>{c.name}</option>
                       ))}
                     </optgroup>
-                    <optgroup label="Suppliers (సరుకు వ్యాపారులు)">
+                    <optgroup label="Suppliers">
                       {suppliers.map((s) => (
                         <option key={s.id} value={`sup_${s.id}`}>{s.name}</option>
                       ))}
@@ -3718,11 +3764,11 @@ Thank you for your business!`;
         )}
 
         {/* VIEW: PURCHASES & STOCK */}
-        {activeTab === "procurement" && (
+        {(activeTab === "purchases" || activeTab === "procurement") && (
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Purchases & Stock (కొనుగోళ్లు & స్టాక్)</h2>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Purchases & Stock Inventory</h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage vendor procurements, batch inventory, and supplier dues</p>
               </div>
               <button
@@ -3855,31 +3901,38 @@ Thank you for your business!`;
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
-                    <tr>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Item Name</th>
-                      <th className="p-3">Supplier</th>
-                      <th className="p-3 text-center">Stock (Left / Total)</th>
-                      <th className="p-3 text-right">Cost Rate</th>
-                      <th className="p-3 text-right">Selling Rate</th>
-                      <th className="p-3 text-right">Total Bill</th>
-                      <th className="p-3 text-right">Paid</th>
-                      <th className="p-3 text-right">Due</th>
-                      <th className="p-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {filteredProcurements.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="p-8 text-center text-slate-400">
-                          No purchases or stock records found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredProcurements.map((p) => {
+              {(() => {
+                const totalProcPages = Math.max(1, Math.ceil(filteredProcurements.length / 10));
+                const safeProcPage = Math.min(procurePage, totalProcPages);
+                const pagedProcurements = filteredProcurements.slice((safeProcPage - 1) * 10, safeProcPage * 10);
+                return (
+                  <div className="space-y-2">
+                    {renderPagination(safeProcPage, filteredProcurements.length, 10, setProcurePage)}
+                    <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Item Name</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Supplier</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Stock (Left / Total)</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Cost Rate</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Selling Rate</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total Bill</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Paid</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Due</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                          {pagedProcurements.length === 0 ? (
+                            <tr>
+                              <td colSpan={10} className="p-8 text-center text-slate-400">
+                                No purchases or stock records found.
+                              </td>
+                            </tr>
+                          ) : (
+                            pagedProcurements.map((p) => {
                         const total = Number(p.total_amount || 0);
                         const paid = Number(p.p1_amount || 0);
                         const due = Math.max(0, total - paid);
@@ -3967,6 +4020,10 @@ Thank you for your business!`;
                   </tbody>
                 </table>
               </div>
+              {renderPagination(safeProcPage, filteredProcurements.length, 10, setProcurePage)}
+            </div>
+          );
+        })()}
             </div>
           </div>
         )}
@@ -3976,12 +4033,13 @@ Thank you for your business!`;
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Payments & Collections (చెల్లింపులు & వసూళ్లు)</h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage customer due collections and supplier purchase payments</p>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Payments & Collections</h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage customer due collections, supplier purchase payments, and loan repayments</p>
               </div>
               <div className="flex items-center gap-2">
-                {paymentsSubTab === "collections" ? (
+                {paymentsSubTab === "collections" && (
                   <button
+                    type="button"
                     onClick={() => {
                       setEditingCollectionId(null);
                       setCollectForm({
@@ -3995,14 +4053,18 @@ Thank you for your business!`;
                       });
                       setShowCollectModal(true);
                     }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                   >
                     <Icon name="handcoins" size={15} /> Collect Customer Due
                   </button>
-                ) : (
+                )}
+                {paymentsSubTab === "supplier_payments" && (
                   <button
+                    type="button"
                     onClick={() => {
                       setEditingPaymentId(null);
+                      setIsBillLocked(false);
+                      setPaySupplierMode("single");
                       setPayPurchaseForm({
                         purchase_id: "",
                         amount: "",
@@ -4013,9 +4075,29 @@ Thank you for your business!`;
                       });
                       setShowPayPurchaseModal(true);
                     }}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                   >
                     <Icon name="wallet" size={15} /> Pay Supplier Bill
+                  </button>
+                )}
+                {paymentsSubTab === "loan_repayments" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoanPaymentForm({
+                        borrower_id: lenders[0]?.id ? String(lenders[0].id) : "",
+                        principal_amount: "",
+                        interest_amount: "",
+                        payment_mode: "Cash",
+                        partner_id: upfrontPartnerId || "",
+                        notes: "",
+                        tx_date: new Date().toISOString().split("T")[0]
+                      });
+                      setShowLoanPaymentModal(true);
+                    }}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  >
+                    <Icon name="rupee" size={15} /> Record Loan Payment
                   </button>
                 )}
               </div>
@@ -4141,30 +4223,37 @@ Thank you for your business!`;
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
-                        <tr>
-                          <th className="p-3">Receipt #</th>
-                          <th className="p-3">Date</th>
-                          <th className="p-3">Customer</th>
-                          <th className="p-3">Invoice Ref</th>
-                          <th className="p-3 text-right">Amount</th>
-                          <th className="p-3 text-center">Mode</th>
-                          <th className="p-3">Receiver Partner</th>
-                          <th className="p-3">Notes</th>
-                          <th className="p-3 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium">
-                        {filteredCollections.length === 0 ? (
-                          <tr>
-                            <td colSpan={9} className="p-8 text-center text-slate-400">
-                              No customer collections recorded yet.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredCollections.map((c) => {
+                  {(() => {
+                    const totalColPages = Math.max(1, Math.ceil(filteredCollections.length / 10));
+                    const safeColPage = Math.min(collectPage, totalColPages);
+                    const pagedCollections = filteredCollections.slice((safeColPage - 1) * 10, safeColPage * 10);
+                    return (
+                      <div className="space-y-2">
+                        {renderPagination(safeColPage, filteredCollections.length, 10, setCollectPage)}
+                        <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                          <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Receipt #</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Customer</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Invoice Ref</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Amount</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Mode</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Receiver Partner</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Notes</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                              {pagedCollections.length === 0 ? (
+                                <tr>
+                                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                                    No customer collections recorded yet.
+                                  </td>
+                                </tr>
+                              ) : (
+                                pagedCollections.map((c) => {
                             const cust = customers.find((cu) => cu.id === c.customer_id);
                             const receiver = partners.find((p) => p.id === c.receiver_id);
                             const inv = invoices.find((i) => i.id === c.invoice_id);
@@ -4266,6 +4355,10 @@ Thank you for your business!`;
                       </tbody>
                     </table>
                   </div>
+                  {renderPagination(safeColPage, filteredCollections.length, 10, setCollectPage)}
+                </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -4350,30 +4443,37 @@ Thank you for your business!`;
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
-                        <tr>
-                          <th className="p-3">Date</th>
-                          <th className="p-3">Supplier Name</th>
-                          <th className="p-3">Item Procured</th>
-                          <th className="p-3 text-right">Total Bill</th>
-                          <th className="p-3 text-right">Amount Paid</th>
-                          <th className="p-3 text-right">Remaining Due</th>
-                          <th className="p-3 text-center">Payment Mode</th>
-                          <th className="p-3">Funding Partner</th>
-                          <th className="p-3 text-center">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium">
-                        {filteredSupplierPayments.length === 0 ? (
-                          <tr>
-                            <td colSpan={9} className="p-8 text-center text-slate-400">
-                              No supplier payments recorded.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredSupplierPayments.map((p) => {
+                  {(() => {
+                    const totalSupPages = Math.max(1, Math.ceil(filteredSupplierPayments.length / 10));
+                    const safeSupPage = Math.min(supplierPayPage, totalSupPages);
+                    const pagedSupplierPayments = filteredSupplierPayments.slice((safeSupPage - 1) * 10, safeSupPage * 10);
+                    return (
+                      <div className="space-y-2">
+                        {renderPagination(safeSupPage, filteredSupplierPayments.length, 10, setSupplierPayPage)}
+                        <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                          <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Supplier Name</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Item Procured</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total Bill</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Amount Paid</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Remaining Due</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Payment Mode</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Funding Partner</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                              {pagedSupplierPayments.length === 0 ? (
+                                <tr>
+                                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                                    No supplier payments recorded.
+                                  </td>
+                                </tr>
+                              ) : (
+                                pagedSupplierPayments.map((p) => {
                             const partner = partners.find((pa) => pa.id === p.p1_id);
                             const total = Number(p.total_amount || 0);
                             const paid = Number(p.p1_amount || 0);
@@ -4442,6 +4542,10 @@ Thank you for your business!`;
                       </tbody>
                     </table>
                   </div>
+                  {renderPagination(safeSupPage, filteredSupplierPayments.length, 10, setSupplierPayPage)}
+                </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -4496,20 +4600,34 @@ Thank you for your business!`;
                     </button>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-100 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
-                        <tr>
-                          <th className="p-3">Date</th>
-                          <th className="p-3">Lender / Source</th>
-                          <th className="p-3 text-center">Type</th>
-                          <th className="p-3">Partner & Mode</th>
-                          <th className="p-3 text-right">Amount (₹)</th>
-                          <th className="p-3">Notes / Ref</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium">
-                        {loanTransactions.map((tx) => {
+                  {(() => {
+                    const totalLoanPages = Math.max(1, Math.ceil(loanTransactions.length / 10));
+                    const safeLoanPage = Math.min(loanPayPage, totalLoanPages);
+                    const pagedLoanTx = loanTransactions.slice((safeLoanPage - 1) * 10, safeLoanPage * 10);
+                    return (
+                      <div className="space-y-2">
+                        {renderPagination(safeLoanPage, loanTransactions.length, 10, setLoanPayPage)}
+                        <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                          <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Lender / Source</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Type</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Partner & Mode</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Amount (₹)</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Notes / Ref</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                              {pagedLoanTx.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                                    No loan repayments recorded yet.
+                                  </td>
+                                </tr>
+                              ) : (
+                                pagedLoanTx.map((tx) => {
                           const targetL = lenders.find((l) => l.id == tx.borrower_id);
                           const targetP = partners.find((p) => p.id == tx.partner_id);
                           const isPrincipal = tx.tx_type === "Repayment";
@@ -4535,17 +4653,15 @@ Thank you for your business!`;
                               </td>
                             </tr>
                           );
-                        })}
-                        {loanTransactions.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="p-8 text-center text-slate-400">
-                              No loan repayments recorded yet.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                        })
+                      )}
+                    </tbody>
+                      </table>
+                    </div>
+                    {renderPagination(safeLoanPage, loanTransactions.length, 10, setLoanPayPage)}
                   </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -4604,7 +4720,7 @@ Thank you for your business!`;
 
               <div className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-600/20 relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 block">Net Profit (నికర లాభం)</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 block">Net Business Profit</span>
                   <span className="text-[10px] bg-emerald-700/80 px-2 py-0.5 rounded-md font-semibold text-emerald-100">
                     Gross: {money(businessSummary.grossProfit)}
                   </span>
@@ -4705,29 +4821,43 @@ Thank you for your business!`;
                 />
               </div>
 
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b">
-                    <tr>
-                      <th className="p-3">Doc #</th>
-                      <th className="p-3">Type</th>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Party</th>
-                      <th className="p-3 text-right">Total (₹)</th>
-                      <th className="p-3 text-right">Paid (₹)</th>
-                      <th className="p-3 text-right">Balance Due</th>
-                      <th className="p-3 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {combinedAuditTransactions.map((tx) => (
+              {(() => {
+                const totalAuditPages = Math.max(1, Math.ceil(combinedAuditTransactions.length / 15));
+                const safeAuditPage = Math.min(auditPage, totalAuditPages);
+                const pagedAuditTx = combinedAuditTransactions.slice((safeAuditPage - 1) * 15, safeAuditPage * 15);
+                return (
+                  <div className="space-y-2">
+                    {renderPagination(safeAuditPage, combinedAuditTransactions.length, 15, setAuditPage)}
+                    <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Doc #</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Type</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Party</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total (₹)</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Paid (₹)</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Balance Due</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                          {pagedAuditTx.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="p-8 text-center text-slate-400">
+                                No transactions found.
+                              </td>
+                            </tr>
+                          ) : (
+                            pagedAuditTx.map((tx) => (
                       <tr
                         key={`${tx.txType}-${tx.id}`}
                         onClick={() => setSelectedAuditTx(tx)}
-                        className="hover:bg-indigo-50/50 cursor-pointer transition"
+                        className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 cursor-pointer transition"
                       >
-                        <td className="p-3 font-mono font-bold text-indigo-600">{tx.docNumber}</td>
-                        <td className="p-3">
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-mono font-bold text-indigo-600">{tx.docNumber}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             tx.txType === "sale" ? "bg-indigo-100 text-indigo-800"
                             : tx.txType === "purchase" ? "bg-emerald-100 text-emerald-800"
@@ -4744,12 +4874,12 @@ Thank you for your business!`;
                               : "Expense"}
                           </span>
                         </td>
-                        <td className="p-3 text-slate-500">{tx.date}</td>
-                        <td className="p-3 font-bold text-slate-900">{tx.partyName}</td>
-                        <td className="p-3 text-right font-bold">{money(tx.totalAmount)}</td>
-                        <td className="p-3 text-right text-emerald-600">{money(tx.paidAmount)}</td>
-                        <td className="p-3 text-right text-rose-600 font-bold">{money(tx.balanceDue)}</td>
-                        <td className="p-3 text-center">
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-slate-500">{tx.date}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-bold text-slate-900">{tx.partyName}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold">{money(tx.totalAmount)}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-emerald-600">{money(tx.paidAmount)}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-rose-600 font-bold">{money(tx.balanceDue)}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             tx.status === "Collected" || tx.status === "Paid"
                               ? "bg-emerald-100 text-emerald-800"
@@ -4759,10 +4889,15 @@ Thank you for your business!`;
                           </span>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
+                    ))
+                  )}
+                </tbody>
                 </table>
               </div>
+              {renderPagination(safeAuditPage, combinedAuditTransactions.length, 15, setAuditPage)}
+            </div>
+          );
+        })()}
             </div>
           </div>
         )}
@@ -6057,26 +6192,26 @@ Thank you for your business!`;
                   <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
                     <div className="flex justify-between items-center">
                       <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>📊</span> Complete Running Ledger Statement (కాలక్రమానుసార లావాదేవీల లెడ్జర్)
+                        <span>📊</span> Complete Running Ledger Statement
                       </h4>
                       <span className="text-xs text-slate-500 font-mono">
                         {ledgerWithBalance.length} Transactions Recorded
                       </span>
                     </div>
 
-                    <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
-                        <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
+                    <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center w-12">#</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 w-28">Date</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 w-32">Type</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 w-32">Ref / Bill #</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Particulars / Details</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right w-28">Debit (+) ₹</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right w-28">Credit (-) ₹</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right w-32">Running Bal ₹</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center w-28">Mode</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">#</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">Date</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Type</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Ref / Bill #</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700">Particulars / Details</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Debit (+) ₹</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Credit (-) ₹</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Running Bal ₹</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Mode</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -6254,6 +6389,217 @@ Thank you for your business!`;
                   Please select a customer or supplier account to view statement.
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* VIEW 11: PARTNER CAPITAL ACCOUNTS */}
+        {activeTab === "partners" && (() => {
+          const totalNetCapital = partnerAccounts.reduce((s, p) => s + (p.netCash || 0) + (p.netUpi || 0), 0);
+          const totalNetCash = partnerAccounts.reduce((s, p) => s + (p.netCash || 0), 0);
+          const totalNetUpi = partnerAccounts.reduce((s, p) => s + (p.netUpi || 0), 0);
+          const safePartnerPage = Math.min(partnerPage, Math.max(1, Math.ceil(partnerAccounts.length / 10)));
+          const pagedPartners = partnerAccounts.slice((safePartnerPage - 1) * 10, safePartnerPage * 10);
+
+          return (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <span className="text-indigo-600">🤝</span> Partner Capital Accounts
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                    Track liquid physical cash, UPI holdings, and capital investments tied to active partners
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPartnerId(null);
+                    setPartnerForm({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner" });
+                    setShowPartnerModal(true);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                >
+                  <Icon name="plus" size={15} /> Add Partner Account
+                </button>
+              </div>
+
+              {/* Metric Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Partner Capital</span>
+                  <b className="text-xl font-black text-indigo-600 mt-1 block">
+                    {money(totalNetCapital)}
+                  </b>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Combined physical cash & UPI</span>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Physical Cash in Hand</span>
+                  <b className="text-xl font-black text-emerald-600 mt-1 block">
+                    {money(totalNetCash)}
+                  </b>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Liquid drawer / shop cash</span>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI / Bank in Hand</span>
+                  <b className="text-xl font-black text-sky-600 mt-1 block">
+                    {money(totalNetUpi)}
+                  </b>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Liquid digital / QR balances</span>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Active Partners</span>
+                  <b className="text-xl font-black text-slate-800 mt-1 block">
+                    {partnerAccounts.length}
+                  </b>
+                  <span className="text-[11px] text-slate-400 mt-0.5 block">Operating capital accounts</span>
+                </div>
+              </div>
+
+              {/* Individual Partner Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {partnerAccounts.map((p) => {
+                  const netTotal = (p.netCash || 0) + (p.netUpi || 0);
+                  return (
+                    <div key={p.id} className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                          <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
+                            {p.role || "Partner"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleEditPartner(p)}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePartner(p)}
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                            title="Delete Partner"
+                          >
+                            <Icon name="trash" size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                        <div className="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
+                          <span className="text-slate-500 font-bold block text-[10px] uppercase">Cash in Hand</span>
+                          <b className="text-sm font-black text-emerald-700 block mt-0.5">{money(p.netCash || 0)}</b>
+                          <span className="text-[10px] text-slate-400 mt-0.5 block">Opening: {money(p.initCash || 0)}</span>
+                        </div>
+                        <div className="bg-sky-50/60 p-2.5 rounded-xl border border-sky-100">
+                          <span className="text-slate-500 font-bold block text-[10px] uppercase">UPI in Hand</span>
+                          <b className="text-sm font-black text-sky-700 block mt-0.5">{money(p.netUpi || 0)}</b>
+                          <span className="text-[10px] text-slate-400 mt-0.5 block">Opening: {money(p.initUpi || 0)}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
+                        <span>Total Net Balance:</span>
+                        <span className={`text-sm font-black ${netTotal >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
+                          {money(netTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Partner Capital ERP Grid Table */}
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <h3 className="font-black text-sm text-slate-900">Partner Capital Liquidity Breakdown</h3>
+                  <span className="text-xs text-slate-500 font-medium">{partnerAccounts.length} partner accounts</span>
+                </div>
+
+                {renderPagination(safePartnerPage, partnerAccounts.length, 10, setPartnerPage)}
+
+                <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                  <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                    <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                      <tr>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Partner Name</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Role</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Opening Cash</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Opening UPI</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Cash in Hand</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">UPI in Hand</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total Net Capital</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                      {pagedPartners.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-slate-400">
+                            No partner accounts found. Click "Add Partner Account" to create one.
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedPartners.map((p) => {
+                          const netTotal = (p.netCash || 0) + (p.netUpi || 0);
+                          return (
+                            <tr key={p.id} className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-bold text-slate-900">
+                                {p.name}
+                              </td>
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center">
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                                  {p.role || "Partner"}
+                                </span>
+                              </td>
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-slate-600">
+                                {money(p.initCash || 0)}
+                              </td>
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-slate-600">
+                                {money(p.initUpi || 0)}
+                              </td>
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold text-emerald-600">
+                                {money(p.netCash || 0)}
+                              </td>
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold text-sky-600">
+                                {money(p.netUpi || 0)}
+                              </td>
+                              <td className={`p-2.5 border border-sky-100 dark:border-slate-800 text-right font-black ${netTotal >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
+                                {money(netTotal)}
+                              </td>
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditPartner(p)}
+                                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePartner(p)}
+                                    className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                    title="Delete Partner"
+                                  >
+                                    <Icon name="trash" size={13} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {renderPagination(safePartnerPage, partnerAccounts.length, 10, setPartnerPage)}
+              </div>
             </div>
           );
         })()}
@@ -7635,7 +7981,7 @@ Thank you for your business!`;
                       ))}
                     </select>
                     <p className="text-[10px] text-purple-700 font-medium">
-                      💡 Selecting a loan automatically records this interest payment directly in that loan's history ledger.
+                      💡 Selecting a loan automatically records this interest payment directly in that loan&apos;s history ledger.
                     </p>
                   </div>
                 );
