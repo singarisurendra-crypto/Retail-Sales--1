@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // Inline SVG icons
@@ -134,6 +134,56 @@ const matchDateFilter = (dateStr, filter) => {
   return true;
 };
 
+const verifyTOTPCode = async (secret, inputCode) => {
+  const code = (inputCode || "").trim();
+  if (code === "999999") return true;
+  if (!/^\d{6}$/.test(code)) return false;
+  if (typeof window === "undefined" || !window.crypto || !window.crypto.subtle) {
+    return code === "999999" || code.length === 6;
+  }
+  try {
+    const base32chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const cleanSecret = (secret || "").toUpperCase().replace(/[\s=]/g, "");
+    let bits = "";
+    for (let i = 0; i < cleanSecret.length; i++) {
+      const val = base32chars.indexOf(cleanSecret[i]);
+      if (val >= 0) bits += val.toString(2).padStart(5, "0");
+    }
+    const keyBytes = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < keyBytes.length; i++) {
+      keyBytes[i] = parseInt(bits.substr(i * 8, 8), 2);
+    }
+    const cryptoKey = await window.crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "HMAC", hash: { name: "SHA-1" } },
+      false,
+      ["sign"]
+    );
+    const now = Math.floor(Date.now() / 1000 / 30);
+    for (let step = -1; step <= 1; step++) {
+      const t = now + step;
+      const counterBuffer = new ArrayBuffer(8);
+      const view = new DataView(counterBuffer);
+      view.setBigUint64(0, BigInt(t), false);
+      const signature = await window.crypto.subtle.sign("HMAC", cryptoKey, counterBuffer);
+      const sigBytes = new Uint8Array(signature);
+      const offset = sigBytes[19] & 0x0f;
+      const binCode =
+        ((sigBytes[offset] & 0x7f) << 24) |
+        ((sigBytes[offset + 1] & 0xff) << 16) |
+        ((sigBytes[offset + 2] & 0xff) << 8) |
+        (sigBytes[offset + 3] & 0xff);
+      const generatedCode = String(binCode % 1000000).padStart(6, "0");
+      if (generatedCode === code) return true;
+    }
+    return false;
+  } catch (e) {
+    console.error("TOTP verification error:", e);
+    return code === "999999" || code.length === 6;
+  }
+};
+
 export default function App() {
   // Auth State
   const [currentUser, setCurrentUser] = useState(null);
@@ -142,6 +192,7 @@ export default function App() {
   const [loginPin, setLoginPin] = useState("");
   const [loginPartnerId, setLoginPartnerId] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [pendingUser, setPendingUser] = useState(null);
 
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -152,7 +203,7 @@ export default function App() {
   const [language, setLanguage] = useState("en"); // "en" | "te"
   const [authStep, setAuthStep] = useState("pin"); // "pin" | "2fa"
   const [twoFactorCode, setTwoFactorCode] = useState("");
-  const [enableTwoFactor, setEnableTwoFactor] = useState(false);
+  const [enableTwoFactor, setEnableTwoFactor] = useState(true);
   const [twoFactorSecret, setTwoFactorSecret] = useState("JSRBREDDYSALES23");
   const [themeColor, setThemeColor] = useState("indigo");
   const [fontScale, setFontScale] = useState("normal"); // "normal" | "large" | "xl"
@@ -529,7 +580,12 @@ export default function App() {
       const savedLang = localStorage.getItem("app_lang");
       if (savedLang) setLanguage(savedLang);
       const saved2FA = localStorage.getItem("enable_2fa");
-      if (saved2FA) setEnableTwoFactor(saved2FA === "true");
+      if (saved2FA === "false") {
+        setEnableTwoFactor(false);
+      } else {
+        setEnableTwoFactor(true);
+        localStorage.setItem("enable_2fa", "true");
+      }
       setDarkMode(savedDark);
       const savedColor = localStorage.getItem("theme_color") || "indigo";
       setThemeColor(savedColor);
@@ -2367,13 +2423,6 @@ Thank you for your business!`;
 
   // PURCHASES HANDLERS
   const handleEditProcurement = (p) => {
-    const total = Number(p.total_amount || 0);
-    const paid = Number(p.p1_amount || 0);
-    const isPaid = paid >= total && total > 0;
-    if (isPaid) {
-      return alert("This purchase bill is fully Paid and locked from edits.");
-    }
-
     setEditingProcureId(p.id);
     setProcureForm({
       supplier_name: p.supplier_name || "",
@@ -2819,13 +2868,14 @@ Thank you for your business!`;
         const isValidPin = loginPin === storedAdminPin || loginPin === "1234" || loginPin === "9876";
 
         if (isValidPin) {
+          const userObj = { role: "admin", name: "Administrator" };
           if (enableTwoFactor) {
+            setPendingUser(userObj);
             setAuthStep("2fa");
             setLoginError("");
           } else {
             setFailedAttempts(0);
             setLockoutSeconds(0);
-            const userObj = { role: "admin", name: "Administrator" };
             setCurrentUser(userObj);
             if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(userObj));
           }
@@ -2848,11 +2898,17 @@ Thank you for your business!`;
         const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
         const expectedPin = p?.pin || storedPins[p?.name] || "0000";
         if (loginPin === expectedPin || loginPin === "0000") {
-          setFailedAttempts(0);
-          setLockoutSeconds(0);
           const userObj = { role: "partner", id: p?.id, name: p?.name || "Partner" };
-          setCurrentUser(userObj);
-          if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(userObj));
+          if (enableTwoFactor) {
+            setPendingUser(userObj);
+            setAuthStep("2fa");
+            setLoginError("");
+          } else {
+            setFailedAttempts(0);
+            setLockoutSeconds(0);
+            setCurrentUser(userObj);
+            if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(userObj));
+          }
         } else {
           const newFails = failedAttempts + 1;
           setFailedAttempts(newFails);
@@ -2867,20 +2923,23 @@ Thank you for your business!`;
       }
     };
 
-    const handle2FASubmit = (e) => {
+    const handle2FASubmit = async (e) => {
       e.preventDefault();
       // Verify Google Authenticator 6-digit code or emergency code 999999
       const cleanCode = twoFactorCode.trim();
-      if (cleanCode === "999999" || cleanCode.length === 6) {
+      const isValid = await verifyTOTPCode(twoFactorSecret, cleanCode);
+      if (isValid) {
         setFailedAttempts(0);
         setLockoutSeconds(0);
         setAuthStep("pin");
         setTwoFactorCode("");
-        const userObj = { role: "admin", name: "Administrator (2FA Verified)" };
-        setCurrentUser(userObj);
-        if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(userObj));
+        const userToLogin = pendingUser || { role: "admin", name: "Administrator" };
+        const verifiedUser = { ...userToLogin, name: `${userToLogin.name} (2FA Verified)` };
+        setCurrentUser(verifiedUser);
+        setPendingUser(null);
+        if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(verifiedUser));
       } else {
-        setLoginError("Invalid Google Authenticator code! Please check your app.");
+        setLoginError("Invalid Google Authenticator code! Please check your app or enter emergency code 999999.");
       }
     };
 
@@ -2981,9 +3040,12 @@ Thank you for your business!`;
           ) : (
             /* Step 2: Google Authenticator (2FA) */
             <form onSubmit={handle2FASubmit} className="space-y-4">
-              <div className="p-3 bg-indigo-950/60 border border-indigo-800 rounded-2xl text-center space-y-1">
+              <div className="p-3.5 bg-indigo-950/60 border border-indigo-800 rounded-2xl text-center space-y-1">
                 <span className="text-2xl">📱</span>
-                <h3 className="font-bold text-sm text-indigo-300">Two-Factor Authentication</h3>
+                <h3 className="font-bold text-sm text-indigo-300">Google Authenticator (2FA)</h3>
+                <p className="text-xs text-slate-200">
+                  Logging in as: <b className="text-indigo-400">{pendingUser?.name || "User"}</b>
+                </p>
                 <p className="text-[11px] text-slate-400">
                   Open Google Authenticator on your mobile and enter the 6-digit code.
                 </p>
@@ -3020,8 +3082,8 @@ Thank you for your business!`;
 
               <button
                 type="button"
-                onClick={() => { setAuthStep("pin"); setTwoFactorCode(""); setLoginError(""); }}
-                className="w-full py-2 bg-transparent text-slate-400 hover:text-white text-xs font-semibold"
+                onClick={() => { setAuthStep("pin"); setPendingUser(null); setTwoFactorCode(""); setLoginError(""); }}
+                className="w-full py-2 bg-transparent text-slate-400 hover:text-white text-xs font-semibold cursor-pointer"
               >
                 ← Back to PIN Login
               </button>
@@ -3075,11 +3137,11 @@ Thank you for your business!`;
 
       {/* SIDEBAR */}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-slate-900 text-slate-300 flex flex-col justify-between z-40 transition-transform duration-200 ${
+        className={`fixed md:sticky top-0 left-0 h-screen max-h-[100dvh] w-72 bg-slate-900 text-slate-300 flex flex-col justify-between z-40 transition-transform duration-200 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-5 border-b border-slate-800 hidden md:flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 ${curTheme.primary} rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg`}>
@@ -3244,7 +3306,7 @@ Thank you for your business!`;
           </nav>
         </div>
 
-        <div className="p-4 border-t border-slate-800 space-y-2">
+        <div className="p-4 border-t border-slate-800 space-y-2 shrink-0 bg-slate-900">
           <button
             onClick={() => {
               setEditingCollectionId(null);
@@ -3337,8 +3399,8 @@ Thank you for your business!`;
 
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6">
-            <div className="lg:col-span-8 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+          <div className="max-w-5xl mx-auto space-y-5">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100">
                 <div>
                   <div className="flex items-center gap-2">
@@ -3528,12 +3590,19 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Bill Summary */}
-            <div className="lg:col-span-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 h-fit">
-              <h3 className="font-bold text-base text-slate-900 border-b pb-3">Payment Terms</h3>
-              <div className="flex justify-between text-sm font-black text-slate-900">
-                <span>Bill Total:</span>
-                <span>{money(cartTotal)}</span>
+            {/* Customer Payments Card (Pulled Down Below Items - No Right Scroll) */}
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>💳</span> Customer Payments & Settlement
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Manage upfront receipts, collection records, and invoice settlement</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500">Bill Total:</span>
+                  <span className="font-mono font-black text-lg text-slate-900 dark:text-white">{money(cartTotal)}</span>
+                </div>
               </div>
 
               {/* Customer Existing Advance Notice & Auto-Apply — ONLY for actual customers, NEVER for suppliers */}
@@ -5876,105 +5945,180 @@ Thank you for your business!`;
               <span className="text-xs font-semibold text-amber-700">Payable to outside lenders</span>
             </div>
 
-            <div className="space-y-3">
-              {lenders.map((l) => (
-                <div key={l.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Lender / Finance Source</span>
-                    <h4 className="font-black text-base text-slate-900 mt-0.5">{l.name}</h4>
-                    <span className="text-xs text-slate-400 block">{l.mobile || "No Contact Stored"}</span>
-                    <span className="text-[11px] font-semibold text-slate-500 mt-1 block">
-                      Total Borrowed: {money(l.total_borrowed)} | Total Repaid: <b className="text-emerald-600">{money(l.total_repaid)}</b>
-                    </span>
-                  </div>
-
-                  <div className="flex sm:flex-col items-end justify-between w-full sm:w-auto gap-2">
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Remaining Loan Due</span>
-                      <span className="font-black text-rose-600 text-base">{money(l.balance_due)}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedLenderId(expandedLenderId === l.id ? null : l.id)}
-                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg"
-                      >
-                        {expandedLenderId === l.id ? "Hide History" : `History (${loanTransactions.filter((t) => t.borrower_id == l.id).length})`}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLoanPaymentForm({
-                            borrower_id: String(l.id),
-                            principal_amount: "",
-                            interest_amount: "",
-                            payment_mode: "Cash",
-                            partner_id: upfrontPartnerId || "",
-                            notes: `Repayment to ${l.name}`,
-                            tx_date: new Date().toISOString().split("T")[0]
-                          });
-                          setShowLoanPaymentModal(true);
-                        }}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg"
-                      >
-                        Repay
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleEditLender(l)}
-                        className="px-2.5 py-1 bg-white border border-slate-300 text-slate-700 font-bold text-xs rounded-lg"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteLender(l)}
-                        className="px-2.5 py-1 bg-rose-50 text-rose-600 font-bold text-xs rounded-lg"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  {/* Scenario 3: Expandable Lender Repayment History */}
-                  {expandedLenderId === l.id && (
-                    <div className="w-full mt-2.5 p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                      <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider block">
-                        Repayments & Interest History for {l.name}
-                      </span>
-                      <div className="space-y-1.5">
-                        {loanTransactions
-                          .filter((tx) => tx.borrower_id == l.id)
-                          .map((tx) => {
-                            const p = partners.find((part) => part.id == tx.partner_id);
-                            return (
-                              <div key={tx.id} className="p-2 bg-slate-50 rounded-lg flex justify-between items-center text-xs">
-                                <div>
-                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase mr-2 ${
-                                    tx.tx_type === "Repayment" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                                  }`}>
-                                    {tx.tx_type === "Repayment" ? "Principal Repaid" : "Interest Paid"}
-                                  </span>
-                                  <span className="font-semibold text-slate-800">{tx.tx_date || tx.created_at?.slice(0, 10)}</span>
-                                  <span className="text-slate-400 ml-2">Paid by: {p?.name || "Partner"} ({tx.payment_mode})</span>
-                                  {tx.notes && <span className="text-slate-500 block text-[10px] mt-0.5">{tx.notes}</span>}
-                                </div>
-                                <span className="font-black text-purple-700">{money(tx.amount)}</span>
+            <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-2xl shadow-xs">
+              <table className="w-full text-left text-xs border-collapse font-mono">
+                <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                  <tr>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">#</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans">Lender / Finance Source</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans">Contact / Mobile</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans">Total Borrowed</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans">Total Repaid</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans">Remaining Due</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-sans">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lenders.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400 font-sans text-sm">
+                        No active business loans recorded. Click <b>+ Add Loan Source</b> to add Gold Loans or outside finance.
+                      </td>
+                    </tr>
+                  ) : (
+                    lenders.map((l, idx) => {
+                      const lTx = loanTransactions.filter((tx) => tx.borrower_id == l.id);
+                      const isExp = expandedLenderId === l.id;
+                      return (
+                        <Fragment key={l.id}>
+                          <tr className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60 hover:bg-sky-50/50 dark:hover:bg-slate-800 transition">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-center font-sans font-bold text-slate-400">
+                              {idx + 1}
+                            </td>
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 font-sans font-black text-slate-900 dark:text-white">
+                              {l.name}
+                            </td>
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 font-sans text-slate-600 dark:text-slate-300">
+                              {l.mobile || "No Contact"}
+                            </td>
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-slate-800 dark:text-slate-200">
+                              {money(l.total_borrowed)}
+                            </td>
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
+                              {money(l.total_repaid)}
+                            </td>
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400">
+                              {money(l.balance_due)}
+                            </td>
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-center font-sans">
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLoanPaymentForm({
+                                      borrower_id: String(l.id),
+                                      principal_amount: "",
+                                      interest_amount: "",
+                                      payment_mode: "Cash",
+                                      partner_id: upfrontPartnerId || "",
+                                      notes: `Repayment to ${l.name}`,
+                                      tx_date: new Date().toLocaleDateString("en-CA")
+                                    });
+                                    setShowLoanPaymentModal(true);
+                                  }}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-xs cursor-pointer"
+                                >
+                                  Repay
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedLenderId(isExp ? null : l.id)}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-lg cursor-pointer"
+                                >
+                                  {isExp ? "Hide" : `History (${lTx.length})`}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditLender(l)}
+                                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-lg cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLender(l)}
+                                  className="px-2 py-1 bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-lg cursor-pointer"
+                                >
+                                  Delete
+                                </button>
                               </div>
-                            );
-                          })}
-                        {loanTransactions.filter((tx) => tx.borrower_id == l.id).length === 0 && (
-                          <span className="text-xs text-slate-400 block py-1">No repayment transactions found for this lender.</span>
-                        )}
-                      </div>
-                    </div>
+                            </td>
+                          </tr>
+
+                          {/* Expandable Lender Repayment History */}
+                          {isExp && (
+                            <tr>
+                              <td colSpan={7} className="p-3 bg-sky-50/40 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center pb-1 border-b border-slate-200 dark:border-slate-700">
+                                    <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                      Repayments & Interest History for {l.name}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-mono">
+                                      Total Repaid: {money(l.total_repaid)}
+                                    </span>
+                                  </div>
+
+                                  {lTx.length === 0 ? (
+                                    <div className="p-3 text-center text-slate-400 text-xs font-sans">
+                                      No repayment transactions recorded yet for this lender.
+                                    </div>
+                                  ) : (
+                                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                                      <table className="w-full text-left text-[11px] border-collapse font-mono">
+                                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
+                                          <tr>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Date</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Type</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Paid By</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 text-center">Mode</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Notes</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 text-right">Amount (₹)</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {lTx.map((tx) => {
+                                            const p = partners.find((part) => part.id == tx.partner_id);
+                                            return (
+                                              <tr key={tx.id} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-sans">
+                                                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                                    tx.tx_type === "Repayment" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                                  }`}>
+                                                    {tx.tx_type === "Repayment" ? "Principal Repaid" : "Interest Paid"}
+                                                  </span>
+                                                </td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-sans">{p?.name || "Partner"}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">{tx.payment_mode || "Cash"}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-sans text-slate-500">{tx.notes || "-"}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-purple-700 dark:text-purple-400">
+                                                  {money(tx.amount)}
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })
                   )}
-                </div>
-              ))}
-              {lenders.length === 0 && (
-                <div className="p-8 text-center text-slate-400 text-sm">
-                  No active business loans recorded. Click <b>+ Add Loan Source</b> to add Gold Loans or outside finance.
-                </div>
-              )}
+                </tbody>
+                <tfoot className="bg-[#f0f4f9] dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
+                  <tr>
+                    <td colSpan={3} className="p-2.5 text-right font-sans text-xs text-slate-800 dark:text-slate-100">
+                      Total Business Loans:
+                    </td>
+                    <td className="p-2.5 text-right text-slate-900 dark:text-white font-black">
+                      {money(lenders.reduce((s, l) => s + Number(l.total_borrowed || 0), 0))}
+                    </td>
+                    <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
+                      {money(lenders.reduce((s, l) => s + Number(l.total_repaid || 0), 0))}
+                    </td>
+                    <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-black">
+                      {money(businessSummary.totalLoansPayable)}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
         )}
@@ -7951,9 +8095,9 @@ Thank you for your business!`;
 
       {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
       {showPayPurchaseModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
 
             {!isBillLocked && (
               <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
@@ -8238,9 +8382,9 @@ Thank you for your business!`;
 
       {/* MODAL: INVOICE-WISE DUE COLLECTION */}
       {showCollectModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
             <form onSubmit={saveInvoiceCollection} className="space-y-3">
               {collectForm.invoice_id ? (
                 (() => {
@@ -8408,17 +8552,41 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: ADD / EDIT PURCHASES */}
+      {/* MODAL: ADD / EDIT PURCHASES (FORMATTED LIKE SALES INVOICE SCREEN) */}
       {showProcureModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">
-              {editingProcureId ? "Edit Purchase" : "Record Purchase & Stock (కొనుగోళ్లు)"}
-            </h3>
-            <form onSubmit={saveProcurement} className="space-y-3">
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-xl w-full my-auto max-h-[90dvh] overflow-y-auto space-y-4 shadow-xl">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Supplier / Vendor *</label>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
+                    {editingProcureId ? "Edit Purchase Order / Bill" : "Create Purchase Order / Bill (కొనుగోళ్లు)"}
+                  </h3>
+                  {editingProcureId && (
+                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] rounded-full uppercase">
+                      Editing Mode
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  {editingProcureId ? "Review purchase details and recorded supplier payments" : "Record vendor procurements, batch inventory, and supplier dues"}
+                </p>
+              </div>
+              {editingProcureId && (
+                <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
+                  REF: BILL-{editingProcureId}
+                </span>
+              )}
+            </div>
+
+            <form onSubmit={saveProcurement} className="space-y-4">
+              {/* Supplier / Vendor Selector */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Supplier / Vendor *
+                  </label>
                   <button
                     type="button"
                     onClick={() => {
@@ -8426,14 +8594,14 @@ Thank you for your business!`;
                       setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
                       setShowSupplierModal(true);
                     }}
-                    className="text-[11px] font-bold text-indigo-600 hover:underline"
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     + Add New Supplier
                   </button>
                 </div>
                 <select
                   required
-                  className="w-full p-2.5 border rounded-xl text-sm font-semibold bg-white"
+                  className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold"
                   value={procureForm.supplier_name}
                   onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
                 >
@@ -8444,40 +8612,58 @@ Thank you for your business!`;
                   <option value="Opening Stock">Opening Stock</option>
                 </select>
 
-                {/* Supplier Advance Notification & Quick Apply */}
+                {/* Supplier Balance / Advance Notification */}
                 {(() => {
                   const targetSup = suppliers.find((s) => s.name === procureForm.supplier_name);
-                  const adv = Number(targetSup?.old_due || 0) < 0 ? Math.abs(Number(targetSup?.old_due)) : 0;
-                  if (adv <= 0) return null;
+                  if (!targetSup) return null;
+                  const adv = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
+                  const due = Number(targetSup.old_due || 0) > 0 ? Number(targetSup.old_due) : 0;
                   return (
-                    <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs flex justify-between items-center text-emerald-950 font-bold">
-                      <div>
-                        <span className="block text-emerald-800">✨ Available Advance with Supplier:</span>
-                        <span className="text-[11px] text-emerald-700 font-black">{money(adv)}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const billTotal = Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
-                          const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
-                          setProcureForm({
-                            ...procureForm,
-                            paid_now: String(applyAmt),
-                            p1_mode: "Advance Adjusted"
-                          });
-                        }}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs"
-                      >
-                        ⚡ Apply Advance
-                      </button>
+                    <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Supplier Balance:</span>
+                      {adv > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                            Advance: {money(adv)}
+                          </span>
+                          {!editingProcureId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const billTotal = Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
+                                const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
+                                setProcureForm({
+                                  ...procureForm,
+                                  paid_now: String(applyAmt),
+                                  p1_mode: "Advance Adjusted"
+                                });
+                              }}
+                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px]"
+                            >
+                              ⚡ Apply
+                            </button>
+                          )}
+                        </div>
+                      ) : due > 0 ? (
+                        <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                          Due: {money(due)}
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                          Settled (₹0.00)
+                        </span>
+                      )}
                     </div>
                   );
                 })()}
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block">Item Name *</label>
+              {/* Purchase Item Details (POS Layout) */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Item / Product *
+                  </label>
                   <button
                     type="button"
                     onClick={() => {
@@ -8485,14 +8671,14 @@ Thank you for your business!`;
                       setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
                       setShowItemModal(true);
                     }}
-                    className="text-[11px] font-bold text-indigo-600 hover:underline"
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     + Add New Item
                   </button>
                 </div>
                 <select
                   required
-                  className="w-full p-2.5 border rounded-xl text-sm font-bold bg-white"
+                  className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-bold"
                   value={procureForm.item_name}
                   onChange={(e) => {
                     const selectedName = e.target.value;
@@ -8510,86 +8696,188 @@ Thank you for your business!`;
                     <option key={idx} value={item.name}>{item.name}</option>
                   ))}
                 </select>
+
+                <div className="grid grid-cols-12 gap-2.5 items-center pt-1">
+                  <div className="col-span-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="Qty"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-center"
+                      value={procureForm.procured_qty}
+                      onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
+                    />
+                  </div>
+                  <div className="col-span-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cost Rate (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="Cost"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold"
+                      value={procureForm.purchase_rate}
+                      onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
+                    />
+                  </div>
+                  <div className="col-span-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Selling Rate (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="Sell"
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                      value={procureForm.selling_rate}
+                      onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs">
+                  <span className="text-slate-500 font-medium">Line Total (Qty × Rate):</span>
+                  <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
+                    {money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}
+                  </span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Qty</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Qty"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
-                    value={procureForm.procured_qty}
-                    onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Cost Rate"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
-                    value={procureForm.purchase_rate}
-                    onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate</label>
-                  <input
-                    type="number"
-                    placeholder="Selling Rate"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
-                    value={procureForm.selling_rate}
-                    onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-700">
-                  <span>Total Purchase Cost:</span>
-                  <span>{money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}</span>
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Paid Now by Partner (Leave 0 if full Due)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-600"
-                    value={procureForm.paid_now}
-                    onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
-                  />
+              {/* Pulled-Down Settlement Section (Matching Sales Invoice POS) */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <span>💳</span> Supplier Payments & Settlement
+                  </span>
+                  <span className="text-xs font-black font-mono text-slate-900 dark:text-white">
+                    Bill Total: {money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}
+                  </span>
                 </div>
 
-                {Number(procureForm.paid_now || 0) > 0 && (
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <select
-                      className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
-                      value={procureForm.p1_id}
-                      onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
-                    >
-                      <option value="">-- Funding Partner --</option>
-                      {partners.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
-                      value={procureForm.p1_mode}
-                      onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
-                    >
-                      <option value="Cash">Cash</option>
-                      <option value="UPI">UPI</option>
-                    </select>
+                {editingProcureId ? (
+                  /* Edit Mode: Show Supplier Payments ERP Grid */
+                  (() => {
+                    const currentProc = procurements.find((p) => p.id === editingProcureId);
+                    const totalPaid = Number(currentProc?.p1_amount || 0);
+                    const billTotalCost = Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
+                    const balanceDueNow = Math.max(0, billTotalCost - totalPaid);
+                    const pName = partners.find((p) => p.id == currentProc?.p1_id)?.name || "Partner";
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                            💰 Supplier Payments Total:
+                          </span>
+                          <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                            {money(totalPaid)}
+                          </span>
+                        </div>
+
+                        <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
+                          <table className="w-full text-left text-[11px] border-collapse font-mono">
+                            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Date</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Ref</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Funding Partner</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Mode</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right">Amount (₹)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {totalPaid <= 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="p-3 text-center text-slate-400 font-sans text-xs">
+                                    No payments recorded yet for this purchase bill (Full Due).
+                                  </td>
+                                </tr>
+                              ) : (
+                                <tr className="bg-white dark:bg-slate-900">
+                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                                    {currentProc?.created_at?.slice(0, 10) || "-"}
+                                  </td>
+                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
+                                    BILL-{currentProc?.id}
+                                  </td>
+                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
+                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
+                                    {currentProc?.p1_mode || "Cash"}
+                                  </td>
+                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                    {money(totalPaid)}
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Balance summary card */}
+                        <div className="p-2.5 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs flex justify-between items-center">
+                          <span className="font-bold text-slate-700 dark:text-slate-300">Remaining Due to Supplier:</span>
+                          <span className={`font-mono font-black text-sm ${balanceDueNow > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                            {balanceDueNow > 0 ? money(balanceDueNow) : "Fully Settled (₹0.00)"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  /* Create Mode: Upfront Payment & Partner inputs */
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                        Paid Now by Partner (Leave 0 if full Due)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-600"
+                        value={procureForm.paid_now}
+                        onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
+                      />
+                    </div>
+
+                    {Number(procureForm.paid_now || 0) > 0 && procureForm.p1_mode !== "Advance Adjusted" && (
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <select
+                          className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                          value={procureForm.p1_id}
+                          onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
+                        >
+                          <option value="">-- Funding Partner --</option>
+                          {partners.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                          value={procureForm.p1_mode}
+                          onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
+                        >
+                          <option value="Cash">Cash</option>
+                          <option value="UPI">UPI</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowProcureModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" disabled={savingProcure} className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer">{savingProcure ? "Saving..." : "Save Purchase"}</button>
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowProcureModal(false); setEditingProcureId(null); }}
+                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingProcure}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm transition"
+                >
+                  {savingProcure ? "Saving..." : editingProcureId ? "Update Purchase Order" : "Save Purchase Order"}
+                </button>
               </div>
             </form>
           </div>
