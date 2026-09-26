@@ -26,7 +26,44 @@ select option {
 /* Ensure inputs and textareas have high contrast in dark mode */
 .dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .dark textarea {
-  color: #f8fafc;
+  color: #f8fafc !important;
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+/* Global Dark Mode High Contrast Safeguards */
+.dark .bg-white {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700 {
+  color: #f8fafc !important;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-slate-300 {
+  border-color: #334155 !important;
 }
 
 /* ERP Grid Table Borders */
@@ -43,8 +80,46 @@ select option {
 .dark table {
   color: #f1f5f9;
 }
-.dark th,
+.dark th {
+  color: #f8fafc !important;
+}
 .dark td {
-  border-color: #334155;
+  color: #e2e8f0;
+  border-color: #334155 !important;
 }
 
+/* ================= PRINT STYLES ================= */
+@media print {
+  @page {
+    size: auto;
+    margin: 8mm;
+  }
+
+  /* Hide app navigation and interactive controls by default */
+  header,
+  aside,
+  nav,
+  button,
+  .no-print,
+  input,
+  select {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+  }
+
+  /* When an invoice modal is open and user prints */
+  body.printing-invoice #main-app-container {
+    display: none !important;
+  }
+
+  /* Remove backgrounds/shadows for crisp ink-saving prints */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}
