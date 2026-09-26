@@ -1069,13 +1069,126 @@ export default function App() {
     return combined;
   }, [invoices, procurements, collections, loanTransactions, expenses, lenders, partners, auditFilterType, auditSearchQuery]);
 
+  // Comprehensive Dual-Layer FIFO Allocation Engine
+  // Determines exact collections, upfront paid, total paid, and balance due for every invoice
+  const invoiceAllocationsMap = useMemo(() => {
+    const map = new Map();
+    const invoicesByCustomer = {};
+    invoices.forEach((inv) => {
+      const cId = inv.customer_id ? String(inv.customer_id) : `contra_${inv.customer_name}`;
+      if (!invoicesByCustomer[cId]) invoicesByCustomer[cId] = [];
+      invoicesByCustomer[cId].push(inv);
+    });
+
+    const collectionsByCustomer = {};
+    collections.forEach((col) => {
+      const cId = String(col.customer_id);
+      if (!collectionsByCustomer[cId]) collectionsByCustomer[cId] = [];
+      collectionsByCustomer[cId].push(col);
+    });
+
+    Object.keys(invoicesByCustomer).forEach((cId) => {
+      const custInvs = [...invoicesByCustomer[cId]].sort(
+        (a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || a.id - b.id
+      );
+      const custCols = collectionsByCustomer[cId]
+        ? [...collectionsByCustomer[cId]].sort(
+            (a, b) => new Date(a.created_at) - new Date(b.created_at) || a.id - b.id
+          )
+        : [];
+
+      const tracker = custInvs.map((inv) => ({
+        invoice: inv,
+        upfrontPaid: Number(inv.upfront_paid || 0),
+        billTotal: Number(inv.total_amount || 0),
+        allocatedCollections: [],
+        totalCollections: 0
+      }));
+
+      const unallocatedOnAccountCols = [];
+      custCols.forEach((col) => {
+        const colAmt = Number(col.amount || 0);
+        if (colAmt <= 0) return;
+
+        const pName = col.partner_name || partners.find((p) => String(p.id) === String(col.receiver_id || col.partner_id || col.collected_by))?.name || "N/A";
+        const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "-";
+        const ref = col.reference_no || `REC-${col.id}`;
+        const mode = col.payment_mode || col.mode || "Cash";
+
+        if (col.invoice_id) {
+          const target = tracker.find((t) => String(t.invoice.id) === String(col.invoice_id));
+          if (target) {
+            target.allocatedCollections.push({
+              id: col.id,
+              date: dt,
+              ref: ref,
+              partner_name: pName,
+              payment_mode: mode,
+              amount: colAmt,
+              isDirect: true
+            });
+            target.totalCollections += colAmt;
+            return;
+          }
+        }
+        unallocatedOnAccountCols.push({
+          ...col,
+          partner_name: pName,
+          date: dt,
+          ref: ref,
+          payment_mode: mode,
+          remainingAmt: colAmt
+        });
+      });
+
+      unallocatedOnAccountCols.forEach((col) => {
+        let colRem = col.remainingAmt;
+        for (const t of tracker) {
+          if (colRem <= 0) break;
+          const currentBalDue = Math.max(0, t.billTotal - (t.upfrontPaid + t.totalCollections));
+          if (currentBalDue <= 0) continue;
+
+          const alloc = Math.min(colRem, currentBalDue);
+          t.allocatedCollections.push({
+            id: col.id,
+            date: col.date,
+            ref: col.ref,
+            partner_name: col.partner_name,
+            payment_mode: col.payment_mode,
+            amount: alloc,
+            isFIFO: true
+          });
+          t.totalCollections += alloc;
+          colRem -= alloc;
+        }
+      });
+
+      tracker.forEach((t) => {
+        const totalPaid = t.upfrontPaid + t.totalCollections;
+        const balanceDue = Math.max(0, t.billTotal - totalPaid);
+        const status = balanceDue <= 0 ? "Collected" : totalPaid > 0 ? "Partial" : "Due";
+
+        map.set(String(t.invoice.id), {
+          invoiceId: t.invoice.id,
+          upfrontPaid: t.upfrontPaid,
+          totalCollections: t.totalCollections,
+          totalPaid: totalPaid,
+          balanceDue: balanceDue,
+          status: status,
+          allocatedCollections: t.allocatedCollections
+        });
+      });
+    });
+
+    return map;
+  }, [invoices, collections, partners]);
+
   const filteredInvoices = useMemo(() => {
     let list = invoices;
     if (invoiceStatusFilter !== "all") {
       list = list.filter((i) => {
-        const bal = Number(i.balance_due || 0);
-        const up = Number(i.upfront_paid || 0);
-        const s = i.status || (bal <= 0 ? "Collected" : up > 0 ? "Partial" : "Due");
+        const alloc = invoiceAllocationsMap.get(String(i.id));
+        const s = alloc ? alloc.status : (Number(i.balance_due || 0) <= 0 ? "Collected" : Number(i.upfront_paid || 0) > 0 ? "Partial" : "Due");
         return s.toLowerCase() === invoiceStatusFilter.toLowerCase();
       });
     }
@@ -1111,10 +1224,14 @@ export default function App() {
     } else if (invoiceSort === "amount_desc") {
       sorted.sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0));
     } else if (invoiceSort === "due_desc") {
-      sorted.sort((a, b) => Number(b.balance_due || 0) - Number(a.balance_due || 0));
+      sorted.sort((a, b) => {
+        const aDue = invoiceAllocationsMap.get(String(a.id))?.balanceDue ?? Number(a.balance_due || 0);
+        const bDue = invoiceAllocationsMap.get(String(b.id))?.balanceDue ?? Number(b.balance_due || 0);
+        return bDue - aDue;
+      });
     }
     return sorted;
-  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSort]);
+  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSort, invoiceAllocationsMap]);
 
   const filteredProcurements = useMemo(() => {
     let list = procurements;
@@ -1306,12 +1423,11 @@ export default function App() {
       const billBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - upfrontPaidNum);
       const excessAdvance = isSupplierSale ? 0 : Math.max(0, upfrontPaidNum - cartTotal);
 
-      // In edit mode: preserve existing upfront payment and account for all collections already received
+      // In edit mode: preserve existing upfront payment and account for all collections already received (direct + FIFO allocated)
       const oldInv = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
       const existingUpfront = oldInv ? Number(oldInv.upfront_paid || 0) : 0;
-      const existingCollections = editingInvoiceId
-        ? collections.filter((c) => c.invoice_id == editingInvoiceId).reduce((s, c) => s + Number(c.amount || 0), 0)
-        : 0;
+      const invAlloc = editingInvoiceId ? invoiceAllocationsMap.get(String(editingInvoiceId)) : null;
+      const existingCollections = invAlloc ? invAlloc.totalCollections : 0;
       const totalPaidSoFar = existingUpfront + existingCollections;
       const editBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - totalPaidSoFar);
       const editStatus = isSupplierSale || editBalanceDue <= 0 ? "Collected" : totalPaidSoFar > 0 ? "Partial" : "Due";
@@ -1657,23 +1773,34 @@ Thank you for your business!`;
         const cust = customers.find((c) => c.id == collectForm.customer_id);
         const newDue = cust ? Number(cust.old_due || 0) - amt : 0;
 
-        // Scenario 1: Strict FIFO Waterfall Customer Collection
-        // In retail accounting, customer payments ALWAYS close oldest pending bills first!
-        let rem = amt;
-        const pendingInvoices = invoices
-          .filter((i) => i.customer_id == collectForm.customer_id && Number(i.balance_due || 0) > 0)
-          .sort((a, b) => new Date(a.created_at || a.invoice_date) - new Date(b.created_at || b.invoice_date));
+        if (collectForm.invoice_id) {
+          const targetInv = invoices.find((i) => String(i.id) === String(collectForm.invoice_id));
+          if (targetInv) {
+            const currentBal = Number(targetInv.balance_due || 0);
+            const newBal = Math.max(0, currentBal - amt);
+            await db.from("invoices").update({
+              balance_due: newBal,
+              status: newBal <= 0 ? "Collected" : "Partial"
+            }).eq("id", targetInv.id);
+          }
+        } else {
+          // Scenario 1: Strict FIFO Waterfall Customer Collection (Oldest bills settled first)
+          let rem = amt;
+          const pendingInvoices = invoices
+            .filter((i) => String(i.customer_id) === String(collectForm.customer_id) && Number(i.balance_due || 0) > 0)
+            .sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || a.id - b.id);
 
-        for (const inv of pendingInvoices) {
-          if (rem <= 0) break;
-          const due = Number(inv.balance_due || 0);
-          const alloc = Math.min(due, rem);
-          const newBal = due - alloc;
-          await db.from("invoices").update({
-            balance_due: newBal,
-            status: newBal <= 0 ? "Collected" : "Partial"
-          }).eq("id", inv.id);
-          rem -= alloc;
+          for (const inv of pendingInvoices) {
+            if (rem <= 0) break;
+            const due = Number(inv.balance_due || 0);
+            const alloc = Math.min(due, rem);
+            const newBal = due - alloc;
+            await db.from("invoices").update({
+              balance_due: newBal,
+              status: newBal <= 0 ? "Collected" : "Partial"
+            }).eq("id", inv.id);
+            rem -= alloc;
+          }
         }
 
         // Customer old_due update:
@@ -1684,14 +1811,8 @@ Thank you for your business!`;
 
           // Consistency safeguard:
           // If customer has 0 due or advance, ensure any remaining customer invoices are marked Collected.
-          // If customer has due > 0, cap any invoice due so it never exceeds total customer due.
           if (newDue <= 0) {
             await db.from("invoices").update({ balance_due: 0, status: "Collected" }).eq("customer_id", cust.id).gt("balance_due", 0);
-          } else {
-            const customerInvoices = invoices.filter((i) => i.customer_id == cust.id && Number(i.balance_due || 0) > newDue);
-            for (const cInv of customerInvoices) {
-              await db.from("invoices").update({ balance_due: newDue, status: "Partial" }).eq("id", cInv.id);
-            }
           }
         }
 
@@ -3438,8 +3559,9 @@ Thank you for your business!`;
 
               {editingInvoiceId ? (
                 (() => {
-                  const invCols = collections.filter((c) => c.invoice_id == editingInvoiceId);
-                  const totalCols = invCols.reduce((s, c) => s + Number(c.amount || 0), 0);
+                  const invAlloc = invoiceAllocationsMap.get(String(editingInvoiceId));
+                  const invCols = invAlloc ? invAlloc.allocatedCollections : [];
+                  const totalCols = invAlloc ? invAlloc.totalCollections : 0;
                   const oldInv = invoices.find((i) => i.id === editingInvoiceId);
                   const oldUpfront = Number(oldInv?.upfront_paid || 0);
                   const totalPaidSoFar = oldUpfront + totalCols;
@@ -3477,13 +3599,20 @@ Thank you for your business!`;
                                   </td>
                                 </tr>
                               ) : (
-                                invCols.map((c) => {
-                                  const dt = c.created_at ? c.created_at.slice(0, 10) : "-";
+                                invCols.map((c, cIdx) => {
+                                  const dt = c.date || (c.created_at ? c.created_at.slice(0, 10) : "-");
                                   const pName = c.partner_name || partners.find((p) => p.id == c.partner_id || p.id == c.collected_by)?.name || "N/A";
                                   return (
-                                    <tr key={c.id} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
+                                    <tr key={c.id || cIdx} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{dt}</td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">{c.reference_no || `REC-${c.id}`}</td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
+                                        {c.ref || c.reference_no || `REC-${c.id}`}
+                                        {c.isFIFO && (
+                                          <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-sans">
+                                            FIFO
+                                          </span>
+                                        )}
+                                      </td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">{c.payment_mode || c.mode || "Cash"}</td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
@@ -3748,152 +3877,169 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Invoices List / Table */}
-              <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
-                    <tr>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Invoice #</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Date</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Customer</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700">Items Summary</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Total</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Balance Due</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Status</th>
-                      <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {filteredInvoices.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="p-8 text-center text-slate-400">
-                          No invoices found matching your criteria.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredInvoices.map((inv) => {
-                        const isPaid = Number(inv.balance_due || 0) <= 0;
-                        const isPartial = !isPaid && Number(inv.upfront_paid || 0) > 0;
-                        const statusLabel = isPaid ? "Collected" : isPartial ? "Partial" : "Due";
-                        const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
-                        const firstItemName = Array.isArray(inv.items) && inv.items[0]?.item_name;
+              {/* Invoices List / Table with Pagination & ERP Grid Borders */}
+              {(() => {
+                const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / 10));
+                const safeInvoicePage = Math.min(invoicePage, totalInvoicePages);
+                const pagedInvoices = filteredInvoices.slice((safeInvoicePage - 1) * 10, safeInvoicePage * 10);
 
-                        return (
-                          <tr key={inv.id} className="hover:bg-slate-50 transition">
-                            <td className="p-3">
-                              <button
-                                type="button"
-                                onClick={() => handleEditInvoice(inv)}
-                                className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
-                                title="Click invoice ID to edit bill in POS"
-                              >
-                                <Icon name="edit" size={13} />
-                                {inv.invoice_number || `INV-${inv.id}`}
-                              </button>
-                            </td>
-                            <td className="p-3 text-slate-500 whitespace-nowrap">
-                              {inv.invoice_date || inv.created_at?.slice(0, 10)}
-                            </td>
-                            <td className="p-3 font-bold text-slate-900">
-                              <div>
-                                <span>{inv.customer_name}</span>
-                                {!inv.customer_id && (
-                                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                                    Supplier Contra
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3 text-slate-500 text-[11px]">
-                              {itemCount > 0 ? (
-                                <span>
-                                  {firstItemName}
-                                  {itemCount > 1 && <span className="text-slate-400"> +{itemCount - 1} more</span>}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">Standard Bill</span>
-                              )}
-                            </td>
-                            <td className="p-3 text-right font-black text-slate-900">
-                              {money(inv.total_amount)}
-                            </td>
-                            <td className="p-3 text-right text-emerald-600 font-bold">
-                              {money(inv.upfront_paid)}
-                            </td>
-                            <td className="p-3 text-right font-black text-rose-600">
-                              {money(inv.balance_due)}
-                            </td>
-                            <td className="p-3 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                isPaid
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : isPartial
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-rose-100 text-rose-800"
-                              }`}>
-                                {statusLabel}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  type="button"
-                                  title="View / Print Invoice"
-                                  onClick={() => setSelectedViewInvoice(inv)}
-                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
-                                >
-                                  <Icon name="receipt" size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  title="Share to WhatsApp"
-                                  onClick={() => handleShareWhatsApp(inv)}
-                                  className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition"
-                                >
-                                  <Icon name="share" size={14} />
-                                </button>
-                                {!isPaid && (
-                                  <button
-                                    type="button"
-                                    title="Collect Payment"
-                                    onClick={() => {
-                                      setEditingCollectionId(null);
-                                      setCollectForm({
-                                        customer_id: String(inv.customer_id),
-                                        invoice_id: String(inv.id),
-                                        amount: String(inv.balance_due),
-                                        payment_mode: "Cash",
-                                        receiver_id: upfrontPartnerId || "",
-                                        reference_no: "",
-                                        notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
-                                      });
-                                      setShowCollectModal(true);
-                                    }}
-                                    className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition"
-                                  >
-                                    <Icon name="handcoins" size={14} />
-                                  </button>
-                                )}
-                                {!isPaid && (
-                                  <button
-                                    type="button"
-                                    title="Delete Invoice"
-                                    onClick={() => handleDeleteInvoice(inv)}
-                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                                  >
-                                    <Icon name="trash" size={14} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                return (
+                  <div className="space-y-3">
+                    {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
+
+                    <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-300 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Invoice #</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Date</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Customer</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Items Summary</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Total</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Balance Due</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Status</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Actions</th>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {pagedInvoices.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="p-8 text-center text-slate-400">
+                                No invoices found matching your criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            pagedInvoices.map((inv) => {
+                              const invAlloc = invoiceAllocationsMap.get(String(inv.id));
+                              const paidAmount = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
+                              const dueAmount = invAlloc ? invAlloc.balanceDue : Number(inv.balance_due || 0);
+                              const isPaid = dueAmount <= 0;
+                              const isPartial = !isPaid && paidAmount > 0;
+                              const statusLabel = isPaid ? "Collected" : isPartial ? "Partial" : "Due";
+                              const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
+                              const firstItemName = Array.isArray(inv.items) && inv.items[0]?.item_name;
+
+                              return (
+                                <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditInvoice(inv)}
+                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                                      title="Click invoice ID to edit bill in POS"
+                                    >
+                                      <Icon name="edit" size={13} />
+                                      {inv.invoice_number || `INV-${inv.id}`}
+                                    </button>
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 whitespace-nowrap">
+                                    {inv.invoice_date || inv.created_at?.slice(0, 10)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">
+                                    <div>
+                                      <span>{inv.customer_name}</span>
+                                      {!inv.customer_id && (
+                                        <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                          Supplier Contra
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 text-[11px]">
+                                    {itemCount > 0 ? (
+                                      <span>
+                                        {firstItemName}
+                                        {itemCount > 1 && <span className="text-slate-400"> +{itemCount - 1} more</span>}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">Standard Bill</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-slate-100">
+                                    {money(inv.total_amount)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold">
+                                    {money(paidAmount)}
+                                  </td>
+                                  <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmount > 0 ? "text-rose-600" : "text-slate-400"}`}>
+                                    {money(dueAmount)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                      isPaid
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : isPartial
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-rose-100 text-rose-800"
+                                    }`}>
+                                      {statusLabel}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        title="View / Print Invoice"
+                                        onClick={() => setSelectedViewInvoice(inv)}
+                                        className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                                      >
+                                        <Icon name="receipt" size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Share to WhatsApp"
+                                        onClick={() => handleShareWhatsApp(inv)}
+                                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer"
+                                      >
+                                        <Icon name="share" size={14} />
+                                      </button>
+                                      {!isPaid && (
+                                        <button
+                                          type="button"
+                                          title="Collect Payment"
+                                          onClick={() => {
+                                            setEditingCollectionId(null);
+                                            setCollectForm({
+                                              customer_id: String(inv.customer_id),
+                                              invoice_id: String(inv.id),
+                                              amount: String(dueAmount),
+                                              payment_mode: "Cash",
+                                              receiver_id: upfrontPartnerId || "",
+                                              reference_no: "",
+                                              notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
+                                            });
+                                            setShowCollectModal(true);
+                                          }}
+                                          className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
+                                        >
+                                          <Icon name="handcoins" size={14} />
+                                        </button>
+                                      )}
+                                      {!isPaid && (
+                                        <button
+                                          type="button"
+                                          title="Delete Invoice"
+                                          onClick={() => handleDeleteInvoice(inv)}
+                                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition cursor-pointer"
+                                        >
+                                          <Icon name="trash" size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -6448,9 +6594,27 @@ Thank you for your business!`;
           const custInvoices = isCustomer && currentParty
             ? invoices.filter((inv) => String(inv.customer_id) === String(currentParty.id))
             : [];
-          const custCollections = isCustomer && currentParty
+          const rawCustCollections = isCustomer && currentParty
             ? collections.filter((col) => String(col.customer_id) === String(currentParty.id))
             : [];
+          // Include upfront payments received from this customer
+          const custUpfronts = isCustomer && currentParty
+            ? custInvoices
+                .filter((inv) => Number(inv.upfront_paid || 0) > 0)
+                .map((inv) => ({
+                  id: `upfront_${inv.id}`,
+                  isUpfront: true,
+                  customer_id: inv.customer_id,
+                  created_at: inv.invoice_date || inv.created_at,
+                  reference_no: `UPFRONT-${inv.invoice_number || inv.id}`,
+                  collection_type: `Bill Upfront (${inv.invoice_number || `INV-${inv.id}`})`,
+                  amount: Number(inv.upfront_paid || 0),
+                  payment_mode: inv.upfront_mode || "Cash",
+                  receiver_id: inv.upfront_receiver_id
+                }))
+            : [];
+          const custCollections = [...rawCustCollections, ...custUpfronts];
+
           const custTotalInvoiced = custInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
           const custTotalCollected = custCollections.reduce((s, c) => s + Number(c.amount || 0), 0);
 
@@ -6462,19 +6626,23 @@ Thank you for your business!`;
           const supTotalPaid = supPurchases.reduce((s, p) => s + Number(p.p1_amount || 0), 0);
 
           // Dynamic Balance calculation (Point 12: fixes Badvel Nagaraju and dynamic party dues)
-          const openingBal = currentParty ? Number(currentParty.old_due || 0) : 0;
           const balAmount = isCustomer
             ? Number(currentParty?.old_due || 0)
-            : (openingBal + supTotalPurchased - supTotalPaid);
+            : (Number(currentParty?.old_due || 0) + supTotalPurchased - supTotalPaid);
           const isDue = balAmount > 0;
           const isAdv = balAmount < 0;
+
+          // Initial Opening Balance before any transactions
+          const initialOpeningBal = isCustomer
+            ? (balAmount - custTotalInvoiced + custTotalCollected)
+            : Number(currentParty?.old_due || 0);
 
           // Build Unified Chronological Running Ledger Statement
           const ledgerEntries = [];
 
           if (isCustomer && currentParty) {
             custInvoices.forEach((inv) => {
-              const dt = inv.invoice_date || (inv.created_at ? inv.created_at.split("T")[0] : "N/A");
+              const dt = inv.invoice_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-CA") : "N/A");
               const itemsDesc = Array.isArray(inv.items) && inv.items.length > 0
                 ? inv.items.map((it) => `${it.item_name || "Item"} (${it.qty || 1})`).join(", ")
                 : "Sales Goods";
@@ -6491,12 +6659,12 @@ Thank you for your business!`;
             });
 
             custCollections.forEach((col) => {
-              const dt = col.created_at ? col.created_at.split("T")[0] : "N/A";
+              const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A";
               ledgerEntries.push({
                 rawDate: dt,
                 date: dt,
                 type: "Payment Received",
-                ref: `REC-${col.id}`,
+                ref: col.reference_no || `REC-${col.id}`,
                 desc: col.collection_type || "Customer Payment",
                 debit: 0,
                 credit: Number(col.amount || 0),
@@ -6505,7 +6673,7 @@ Thank you for your business!`;
             });
           } else if (!isCustomer && currentParty) {
             supPurchases.forEach((p) => {
-              const dt = p.created_at ? p.created_at.split("T")[0] : "N/A";
+              const dt = p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A";
               const itemDesc = `${p.items?.item_name || p.item_name || "Stock Item"} (${p.quantity || 1} qty)`;
               ledgerEntries.push({
                 rawDate: dt,
@@ -6536,32 +6704,42 @@ Thank you for your business!`;
           // Sort chronologically ascending
           ledgerEntries.sort((a, b) => (a.rawDate || "").localeCompare(b.rawDate || ""));
 
-          // Calculate running balance starting from opening balance
-          let runningBal = openingBal;
-          const ledgerWithBalance = ledgerEntries.map((entry) => {
-            runningBal = runningBal + entry.debit - entry.credit;
-            return {
-              ...entry,
-              balance: runningBal
-            };
-          });
+          // Local time date calculations for robust filtering
+          const localToday = new Date().toLocaleDateString("en-CA");
+          const now = new Date();
+          const curMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          const d30Str = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toLocaleDateString("en-CA");
+
+          let filterStartDate = null;
+          let filterEndDate = null;
+
+          if (ledgerDateFilter === "today") {
+            filterStartDate = localToday;
+            filterEndDate = localToday;
+          } else if (ledgerDateFilter === "this_month") {
+            filterStartDate = `${curMonthStr}-01`;
+            filterEndDate = null;
+          } else if (ledgerDateFilter === "last_30_days") {
+            filterStartDate = d30Str;
+            filterEndDate = null;
+          } else if (ledgerDateFilter === "custom") {
+            filterStartDate = ledgerStartDate || null;
+            filterEndDate = ledgerEndDate || null;
+          }
+
+          // Period Opening Balance: Cumulative net balance of all transactions strictly before filterStartDate
+          let periodOpeningBal = initialOpeningBal;
+          if (filterStartDate) {
+            const priorEntries = ledgerEntries.filter((e) => e.rawDate && e.rawDate < filterStartDate);
+            const priorDebits = priorEntries.reduce((s, e) => s + e.debit, 0);
+            const priorCredits = priorEntries.reduce((s, e) => s + e.credit, 0);
+            periodOpeningBal = initialOpeningBal + priorDebits - priorCredits;
+          }
 
           // Dynamic Filters application (Point 9)
-          const filteredLedgerEntries = ledgerWithBalance.filter((entry) => {
-            if (ledgerDateFilter === "today") {
-              const today = new Date().toISOString().split("T")[0];
-              if (entry.rawDate !== today) return false;
-            } else if (ledgerDateFilter === "this_month") {
-              const now = new Date();
-              const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-              if (!entry.rawDate.startsWith(curMonth)) return false;
-            } else if (ledgerDateFilter === "last_30_days") {
-              const d30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-              if (entry.rawDate < d30) return false;
-            } else if (ledgerDateFilter === "custom") {
-              if (ledgerStartDate && entry.rawDate < ledgerStartDate) return false;
-              if (ledgerEndDate && entry.rawDate > ledgerEndDate) return false;
-            }
+          const filteredLedgerEntries = ledgerEntries.filter((entry) => {
+            if (filterStartDate && entry.rawDate < filterStartDate) return false;
+            if (filterEndDate && entry.rawDate > filterEndDate) return false;
 
             if (ledgerTypeFilter === "debit" && entry.debit <= 0) return false;
             if (ledgerTypeFilter === "credit" && entry.credit <= 0) return false;
@@ -6576,6 +6754,16 @@ Thank you for your business!`;
               if (!match) return false;
             }
             return true;
+          });
+
+          // Compute continuous running balance for display
+          let runningBalTracker = periodOpeningBal;
+          const displayLedgerRows = filteredLedgerEntries.map((entry) => {
+            runningBalTracker = runningBalTracker + entry.debit - entry.credit;
+            return {
+              ...entry,
+              balance: runningBalTracker
+            };
           });
 
           return (
@@ -6683,7 +6871,7 @@ Thank you for your business!`;
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
                       <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">Opening Balance</span>
-                        <b className="font-mono text-slate-800 dark:text-slate-200 text-sm">{money(openingBal)}</b>
+                        <b className="font-mono text-slate-800 dark:text-slate-200 text-sm">{money(initialOpeningBal)}</b>
                       </div>
                       <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">
@@ -6717,7 +6905,7 @@ Thank you for your business!`;
                         <span>📊</span> Complete Running Ledger Statement
                       </h4>
                       <span className="text-xs text-slate-500 font-mono no-print">
-                        {filteredLedgerEntries.length} of {ledgerWithBalance.length} Transactions Recorded
+                        {displayLedgerRows.length} of {ledgerEntries.length} Transactions Recorded
                       </span>
                     </div>
 
@@ -6792,27 +6980,27 @@ Thank you for your business!`;
                           {/* Row 0: Opening Balance */}
                           <tr className="bg-slate-100/70 dark:bg-slate-800/60 font-bold">
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">-</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">Opening</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">Initial Balance</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? `Prior to ${filterStartDate}` : "Opening"}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? "Brought Forward" : "Initial Balance"}</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700">OPENING</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">Opening Balance on Record</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{openingBal > 0 ? money(openingBal) : "-"}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{openingBal < 0 ? money(Math.abs(openingBal)) : "-"}</td>
-                            <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${openingBal > 0 ? "text-rose-600" : openingBal < 0 ? "text-emerald-600" : ""}`}>
-                              {money(openingBal)}
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? "Net cumulative balance prior to period" : "Opening Balance on Record"}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{periodOpeningBal > 0 ? money(periodOpeningBal) : "-"}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{periodOpeningBal < 0 ? money(Math.abs(periodOpeningBal)) : "-"}</td>
+                            <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${periodOpeningBal > 0 ? "text-rose-600" : periodOpeningBal < 0 ? "text-emerald-600" : ""}`}>
+                              {money(periodOpeningBal)}
                             </td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center text-slate-400">Ledger</td>
                           </tr>
 
                           {/* Chronological Transactions */}
-                          {filteredLedgerEntries.length === 0 ? (
+                          {displayLedgerRows.length === 0 ? (
                             <tr>
                               <td colSpan={9} className="p-4 text-center text-slate-400 font-sans">
                                 No billing or payment transactions match the current filter selection.
                               </td>
                             </tr>
                           ) : (
-                            filteredLedgerEntries.map((row, idx) => (
+                            displayLedgerRows.map((row, idx) => (
                               <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/40">
                                 <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-mono">{idx + 1}</td>
                                 <td className="p-2.5 border border-slate-300 dark:border-slate-700">{row.date}</td>
@@ -6843,20 +7031,20 @@ Thank you for your business!`;
                             ))
                           )}
                         </tbody>
-                        {filteredLedgerEntries.length > 0 && (
+                        {displayLedgerRows.length > 0 && (
                           <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                             <tr>
                               <td colSpan={5} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                                Filtered Total ({filteredLedgerEntries.length} items):
+                                Filtered Total ({displayLedgerRows.length} items):
                               </td>
                               <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400">
-                                {money(filteredLedgerEntries.reduce((s, r) => s + r.debit, 0))}
+                                {money(displayLedgerRows.reduce((s, r) => s + r.debit, 0))}
                               </td>
                               <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                                {money(filteredLedgerEntries.reduce((s, r) => s + r.credit, 0))}
+                                {money(displayLedgerRows.reduce((s, r) => s + r.credit, 0))}
                               </td>
-                              <td className={`p-2.5 text-right font-black ${balAmount > 0 ? "text-rose-600" : balAmount < 0 ? "text-emerald-600" : ""}`}>
-                                {money(balAmount)}
+                              <td className={`p-2.5 text-right font-black ${runningBalTracker > 0 ? "text-rose-600" : runningBalTracker < 0 ? "text-emerald-600" : ""}`}>
+                                {money(runningBalTracker)}
                               </td>
                               <td className="p-2.5"></td>
                             </tr>
@@ -6867,115 +7055,179 @@ Thank you for your business!`;
                   </div>
 
                   {/* 2. DETAILED SUB-TABLES (INVOICES / PURCHASES & COLLECTIONS / PAYMENTS) */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Billed Records Table */}
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
-                        <span>📦 {isCustomer ? "Customer Invoices" : "Supplier Purchase Orders"} ({isCustomer ? custInvoices.length : supPurchases.length})</span>
-                        <span className="font-mono text-indigo-600 font-bold">Total: {money(isCustomer ? custTotalInvoiced : supTotalPurchased)}</span>
-                      </h4>
-                      <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
-                        <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
-                          <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
-                            <tr>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700">Bill No</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Due</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {isCustomer ? (
-                              custInvoices.length === 0 ? (
-                                <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No invoices</td></tr>
-                              ) : (
-                                custInvoices.map((inv) => (
-                                  <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{inv.invoice_number || `INV-${inv.id}`}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{inv.invoice_date || "N/A"}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(inv.total_amount)}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(inv.paid_amount || 0)}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">
-                                      {money(Math.max(0, Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)))}
-                                    </td>
-                                  </tr>
-                                ))
-                              )
-                            ) : (
-                              supPurchases.length === 0 ? (
-                                <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No purchase bills</td></tr>
-                              ) : (
-                                supPurchases.map((p) => {
-                                  const total = Number(p.total_amount || 0);
-                                  const paid = Number(p.p1_amount || 0);
-                                  const due = Math.max(0, total - paid);
-                                  return (
-                                    <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                      <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
-                                      <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? p.created_at.split("T")[0] : "N/A"}</td>
-                                      <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(total)}</td>
-                                      <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(paid)}</td>
-                                      <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">{money(due)}</td>
-                                    </tr>
-                                  );
-                                })
-                              )
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                  {(() => {
+                    // Synchronize sub-tables with the active filter parameters
+                    const displayInvoiced = isCustomer
+                      ? custInvoices.filter((inv) => {
+                          const dt = inv.invoice_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-CA") : "");
+                          if (filterStartDate && dt < filterStartDate) return false;
+                          if (filterEndDate && dt > filterEndDate) return false;
+                          if (ledgerSearchQuery.trim()) {
+                            const q = ledgerSearchQuery.toLowerCase();
+                            if (!(inv.invoice_number || `INV-${inv.id}`).toLowerCase().includes(q)) return false;
+                          }
+                          return true;
+                        })
+                      : supPurchases.filter((p) => {
+                          const dt = p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "";
+                          if (filterStartDate && dt < filterStartDate) return false;
+                          if (filterEndDate && dt > filterEndDate) return false;
+                          if (ledgerSearchQuery.trim()) {
+                            const q = ledgerSearchQuery.toLowerCase();
+                            if (!(`BILL-${p.id}`).toLowerCase().includes(q)) return false;
+                          }
+                          return true;
+                        });
 
-                    {/* Paid Records Table */}
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-                      <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
-                        <span>💰 {isCustomer ? "Collections Received" : "Payments Disbursed"}</span>
-                        <span className="font-mono text-emerald-600 font-bold">Total: {money(isCustomer ? custTotalCollected : supTotalPaid)}</span>
-                      </h4>
-                      <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
-                        <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
-                          <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
-                            <tr>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700">Ref</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700">Mode</th>
-                              <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount (₹)</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {isCustomer ? (
-                              custCollections.length === 0 ? (
-                                <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No collections</td></tr>
-                              ) : (
-                                custCollections.map((col) => (
-                                  <tr key={col.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{col.created_at ? col.created_at.split("T")[0] : "N/A"}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">REC-{col.id}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{col.payment_mode || "Cash"}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(col.amount)}</td>
-                                  </tr>
-                                ))
-                              )
-                            ) : (
-                              supPurchases.filter((p) => Number(p.p1_amount || 0) > 0).length === 0 ? (
-                                <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No payments recorded</td></tr>
-                              ) : (
-                                supPurchases.filter((p) => Number(p.p1_amount || 0) > 0).map((p) => (
-                                  <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? p.created_at.split("T")[0] : "N/A"}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700">{p.p1_mode || "Cash"}</td>
-                                    <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(p.p1_amount)}</td>
-                                  </tr>
-                                ))
-                              )
-                            )}
-                          </tbody>
-                        </table>
+                    const displayCollected = isCustomer
+                      ? custCollections.filter((col) => {
+                          const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "";
+                          if (filterStartDate && dt < filterStartDate) return false;
+                          if (filterEndDate && dt > filterEndDate) return false;
+                          if (ledgerSearchQuery.trim()) {
+                            const q = ledgerSearchQuery.toLowerCase();
+                            const match = (col.reference_no || `REC-${col.id}`).toLowerCase().includes(q) || (col.collection_type || "").toLowerCase().includes(q);
+                            if (!match) return false;
+                          }
+                          return true;
+                        })
+                      : supPurchases.filter((p) => {
+                          if (Number(p.p1_amount || 0) <= 0) return false;
+                          const dt = p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "";
+                          if (filterStartDate && dt < filterStartDate) return false;
+                          if (filterEndDate && dt > filterEndDate) return false;
+                          return true;
+                        });
+
+                    const totalDisplayInvoiced = displayInvoiced.reduce((s, x) => s + Number(x.total_amount || 0), 0);
+                    const totalDisplayCollected = isCustomer
+                      ? displayCollected.reduce((s, x) => s + Number(x.amount || 0), 0)
+                      : displayCollected.reduce((s, x) => s + Number(x.p1_amount || 0), 0);
+
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Billed Records Table */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                          <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                            <span>📦 {isCustomer ? "Customer Invoices" : "Supplier Purchase Orders"} ({displayInvoiced.length})</span>
+                            <span className="font-mono text-indigo-600 font-bold">Total: {money(totalDisplayInvoiced)}</span>
+                          </h4>
+                          <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
+                            <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
+                                <tr>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Bill No</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Due</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {isCustomer ? (
+                                  displayInvoiced.length === 0 ? (
+                                    <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No invoices in filtered period</td></tr>
+                                  ) : (
+                                    displayInvoiced.map((inv) => {
+                                      const invAlloc = invoiceAllocationsMap.get(String(inv.id));
+                                      const paidAmt = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
+                                      const dueAmt = invAlloc ? invAlloc.balanceDue : Math.max(0, Number(inv.total_amount || 0) - paidAmt);
+                                      return (
+                                        <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{inv.invoice_number || `INV-${inv.id}`}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{inv.invoice_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-CA") : "N/A")}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(inv.total_amount)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold">{money(paidAmt)}</td>
+                                          <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmt > 0 ? "text-rose-600" : "text-slate-400"}`}>
+                                            {money(dueAmt)}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })
+                                  )
+                                ) : (
+                                  displayInvoiced.length === 0 ? (
+                                    <tr><td colSpan={5} className="p-3 text-center text-slate-400 font-sans">No purchase bills in filtered period</td></tr>
+                                  ) : (
+                                    displayInvoiced.map((p) => {
+                                      const total = Number(p.total_amount || 0);
+                                      const paid = Number(p.p1_amount || 0);
+                                      const due = Math.max(0, total - paid);
+                                      return (
+                                        <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A"}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(total)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(paid)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">{money(due)}</td>
+                                        </tr>
+                                      );
+                                    })
+                                  )
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Paid Records Table */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                          <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+                            <span>💰 {isCustomer ? "Collections Received" : "Payments Disbursed"} ({displayCollected.length})</span>
+                            <span className="font-mono text-emerald-600 font-bold">Total: {money(totalDisplayCollected)}</span>
+                          </h4>
+                          <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
+                            <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                              <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
+                                <tr>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Ref</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Mode</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount (₹)</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {isCustomer ? (
+                                  displayCollected.length === 0 ? (
+                                    <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No collections in filtered period</td></tr>
+                                  ) : (
+                                    displayCollected.map((col) => (
+                                      <tr key={col.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A"}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">
+                                          {col.reference_no || `REC-${col.id}`}
+                                          {col.isUpfront && (
+                                            <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-sans">
+                                              Upfront
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{col.payment_mode || "Cash"}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(col.amount)}</td>
+                                      </tr>
+                                    ))
+                                  )
+                                ) : (
+                                  displayCollected.length === 0 ? (
+                                    <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No payments recorded in filtered period</td></tr>
+                                  ) : (
+                                    displayCollected.map((p) => (
+                                      <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A"}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{p.p1_mode || "Cash"}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(p.p1_amount)}</td>
+                                      </tr>
+                                    ))
+                                  )
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-slate-400 text-xs">
@@ -7994,7 +8246,9 @@ Thank you for your business!`;
                 (() => {
                   const targetInv = invoices.find((i) => String(i.id) === String(collectForm.invoice_id));
                   const targetCust = customers.find((c) => String(c.id) === String(collectForm.customer_id)) || { name: targetInv?.customer_name };
-                  const paidAmt = targetInv ? Math.max(0, Number(targetInv.total_amount || 0) - Number(targetInv.balance_due || 0)) : 0;
+                  const targetAlloc = targetInv ? invoiceAllocationsMap.get(String(targetInv.id)) : null;
+                  const paidAmt = targetAlloc ? targetAlloc.totalPaid : (targetInv ? Math.max(0, Number(targetInv.total_amount || 0) - Number(targetInv.balance_due || 0)) : 0);
+                  const dueAmt = targetAlloc ? targetAlloc.balanceDue : Number(targetInv?.balance_due || 0);
                   return (
                     <div className="p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
                       <div className="flex justify-between items-center">
@@ -8020,7 +8274,7 @@ Thank you for your business!`;
                         </div>
                         <div>
                           <span className="text-slate-500 block text-[10px] uppercase font-bold">Balance Due</span>
-                          <span className="font-black text-rose-600 dark:text-rose-400">{money(targetInv?.balance_due || 0)}</span>
+                          <span className="font-black text-rose-600 dark:text-rose-400">{money(dueAmt)}</span>
                         </div>
                       </div>
                     </div>
@@ -8066,28 +8320,30 @@ Thank you for your business!`;
                           const inv = invoices.find((i) => String(i.id) === String(invId));
                           const cust = customers.find((c) => String(c.id) === String(collectForm.customer_id));
                           const custDue = Math.max(0, Number(cust?.old_due || 0));
-                          const effectiveDue = inv ? Math.min(Number(inv.balance_due || 0), custDue) : custDue;
+                          const alloc = inv ? invoiceAllocationsMap.get(String(inv.id)) : null;
+                          const targetDue = inv
+                            ? (alloc ? alloc.balanceDue : Math.max(0, Number(inv.balance_due || 0)))
+                            : custDue;
                           setCollectForm({
                             ...collectForm,
                             invoice_id: invId,
-                            amount: effectiveDue > 0 ? String(effectiveDue) : collectForm.amount
+                            amount: targetDue > 0 ? String(targetDue) : collectForm.amount
                           });
                         }}
                       >
                         <option value="">-- Settle All Invoices (FIFO Waterfall) / General Due --</option>
                         {(() => {
-                          const cust = customers.find((c) => String(c.id) === String(collectForm.customer_id));
-                          const custDue = Math.max(0, Number(cust?.old_due || 0));
-                          return invoices
-                            .filter((i) => String(i.customer_id) === String(collectForm.customer_id))
+                          const custInvs = invoices.filter((i) => String(i.customer_id) === String(collectForm.customer_id));
+                          return custInvs
                             .map((i) => {
-                              const effectiveDue = Math.min(Number(i.balance_due || 0), custDue);
-                              return { ...i, effectiveDue };
+                              const alloc = invoiceAllocationsMap.get(String(i.id));
+                              const individualDue = alloc ? alloc.balanceDue : Math.max(0, Number(i.balance_due || 0));
+                              return { ...i, individualDue };
                             })
-                            .filter((i) => editingCollectionId || i.effectiveDue > 0)
+                            .filter((i) => editingCollectionId || i.individualDue > 0)
                             .map((i) => (
                               <option key={i.id} value={i.id}>
-                                {i.invoice_number || `INV-${i.id}`} — Due: {money(i.effectiveDue)} (Bill Total: {money(i.total_amount)})
+                                {i.invoice_number || `INV-${i.id}`} — Due: {money(i.individualDue)} (Bill Total: {money(i.total_amount)})
                               </option>
                             ));
                         })()}
