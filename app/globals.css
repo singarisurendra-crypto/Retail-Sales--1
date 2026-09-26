@@ -66,26 +66,37 @@ select option {
   border-color: #334155 !important;
 }
 
-/* ERP Grid Table Borders */
+/* Universal ERP Grid Table Borders */
+table {
+  border-collapse: collapse !important;
+}
+
+table th,
+table td {
+  border: 1px solid #cbd5e1 !important; /* slate-300 in light mode */
+}
+
 .table-grid {
-  border-collapse: collapse;
+  border-collapse: collapse !important;
 }
 
 .table-grid th,
 .table-grid td {
-  border-width: 1px;
+  border: 1px solid #cbd5e1 !important;
 }
 
-/* Dark mode table readability safeguards */
+/* Dark mode table readability & grid safeguards */
 .dark table {
   color: #f1f5f9;
 }
 .dark th {
   color: #f8fafc !important;
+  background-color: #1e293b !important;
+  border-color: #334155 !important; /* slate-700 in dark mode */
 }
 .dark td {
   color: #e2e8f0;
-  border-color: #334155 !important;
+  border-color: #334155 !important; /* slate-700 in dark mode */
 }
 
 /* ================= PRINT STYLES ================= */
