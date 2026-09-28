@@ -572,6 +572,48 @@ export default function App() {
     return editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
   }, [editingInvoiceId, invoices]);
 
+  const toISODate = (dStr) => {
+    if (!dStr) return "";
+    if (typeof dStr === "string" && /^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+      return dStr.slice(0, 10);
+    }
+    try {
+      const d = new Date(dStr);
+      if (isNaN(d.getTime())) return "";
+      return d.toISOString().slice(0, 10);
+    } catch {
+      return "";
+    }
+  };
+
+  const resetPOSBillingState = () => {
+    setEditingInvoiceId(null);
+    setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
+    setSelectedCust(null);
+    setUpfrontAmount("");
+    setUpfrontMode("Cash");
+    setUpfrontPartnerId(partners[0]?.id ? String(partners[0].id) : "");
+    setSaleDate(toISODate(new Date()) || new Date().toISOString().split("T")[0]);
+  };
+
+  const navigateTab = (targetTab) => {
+    // If leaving POS Billing, reset POS billing state completely so it never lingers dirty or in edit mode
+    if (activeTab === "sale" && targetTab !== "sale") {
+      resetPOSBillingState();
+    }
+    // If entering POS Billing cleanly (via tab navigation), reset POS billing state unless explicitly editing
+    if (targetTab === "sale" && !editingInvoiceId) {
+      resetPOSBillingState();
+    }
+    // If leaving Purchases, reset any purchase edit state and close modal
+    if ((activeTab === "purchases" || activeTab === "procurement") && targetTab !== "purchases" && targetTab !== "procurement") {
+      setEditingProcureId(null);
+      setShowProcureModal(false);
+    }
+    setActiveTab(targetTab);
+    setSidebarOpen(false);
+  };
+
   useEffect(() => {
     refreshData();
   }, []);
@@ -1468,9 +1510,12 @@ export default function App() {
       custInvs.sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || Number(a.id || 0) - Number(b.id || 0));
 
       const colPool = (unassignedColsByCust[custId] || []).map((c) => ({ ...c, remainingAmt: c.amount }));
+      const cust = customers.find((c) => String(c.id) === String(custId));
+      const hasPrepaidCredit = cust && Number(cust.old_due || 0) < 0;
 
       custInvs.forEach((inv) => {
         const invId = String(inv.id);
+        const invDate = toISODate(inv.invoice_date || inv.created_at);
         const directCols = directCollectionsByInv[invId] || [];
         const directColsTotal = directCols.reduce((s, c) => s + c.amount, 0);
         const upfrontPaid = Number(inv.upfront_paid || 0);
@@ -1485,6 +1530,13 @@ export default function App() {
         if (balanceDue > 0 && colPool.length > 0) {
           for (const c of colPool) {
             if (balanceDue <= 0) break;
+            const colDate = toISODate(c.created_at || c.date);
+            // If the customer has an outstanding debt (old_due >= 0), an on-account collection
+            // received on colDate can only settle bills existing on or before colDate (invDate <= colDate).
+            // It cannot settle future bills created after the collection was already received.
+            if (!hasPrepaidCredit && invDate && colDate && invDate > colDate) {
+              continue;
+            }
             if (c.remainingAmt > 0) {
               const allocAmt = Math.min(balanceDue, c.remainingAmt);
               allocatedCols.push({
@@ -1494,7 +1546,8 @@ export default function App() {
                 partner_name: c.partner_name,
                 payment_mode: c.payment_mode,
                 amount: allocAmt,
-                isDirect: false
+                isDirect: false,
+                isFIFO: true
               });
               c.remainingAmt -= allocAmt;
               totalPaid += allocAmt;
@@ -1551,7 +1604,7 @@ export default function App() {
     }
 
     return map;
-  }, [invoices, collections, partners]);
+  }, [invoices, collections, partners, customers]);
 
   const filteredInvoices = useMemo(() => {
     let list = invoices;
@@ -1962,7 +2015,7 @@ export default function App() {
         ? (upfrontAmount !== "" ? upfrontPaidNum : existingUpfront)
         : upfrontPaidNum;
       const effectiveMode = editingInvoiceId
-        ? (upfrontAmount !== "" ? upfrontMode : (oldInv?.upfront_mode || "None"))
+        ? (upfrontAmount !== "" ? (upfrontPaidNum > 0 ? upfrontMode : "None") : (oldInv?.upfront_mode || "None"))
         : (upfrontPaidNum > 0 ? upfrontMode : "None");
       const effectiveReceiver = editingInvoiceId
         ? (effectiveMode === "Advance Adjusted" ? null : (upfrontPartnerId ? Number(upfrontPartnerId) : (oldInv?.upfront_receiver_id || null)))
@@ -1985,14 +2038,14 @@ export default function App() {
         total_amount: cartTotal,
         upfront_paid: editingInvoiceId ? effectiveUpfront : upfrontPaidNum,
         balance_due: editingInvoiceId ? editBalanceDue : billBalanceDue,
-        upfront_mode: editingInvoiceId ? effectiveMode : (upfrontPaidNum > 0 ? upfrontMode : "None"),
+        upfront_mode: effectiveMode,
         upfront_receiver_id: effectiveReceiver,
         status: editingInvoiceId ? editStatus : status,
         payment_mode: editingInvoiceId
           ? (effectiveMode === "Advance Adjusted" ? "Advance Adjusted" : editStatus === "Collected" ? (oldInv?.payment_mode || "Collected") : "Partial")
           : isSupplierSale
           ? (upfrontPaidNum >= cartTotal ? upfrontMode : upfrontPaidNum > 0 ? `${upfrontMode} + Contra` : "Contra Offset")
-          : (upfrontMode === "Advance Adjusted" ? "Advance Adjusted" : upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"),
+          : (upfrontPaidNum === 0 ? "Due" : upfrontMode === "Advance Adjusted" ? "Advance Adjusted" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"),
         items: cart.map((c) => ({
           procure_id: c.procure_id,
           item_name: c.item_name,
@@ -2078,10 +2131,7 @@ export default function App() {
         details: `${editingInvoiceId ? "Updated" : "Created"} invoice for ${selectedCust?.name || "Customer"}. Items: ${cart.length}, Total: ${money(cartTotal)}, Paid: ${money(editingInvoiceId ? effectiveUpfront : upfrontPaidNum)}, Due: ${money(editingInvoiceId ? editBalanceDue : billBalanceDue)}`
       });
 
-      setEditingInvoiceId(null);
-      setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
-      setSelectedCust(null);
-      setUpfrontAmount("");
+      resetPOSBillingState();
 
       // Immediately navigate to Invoices tab with reset filters so created invoice is right on top
       setActiveTab("invoices");
@@ -4156,7 +4206,7 @@ Thank you for your business!`;
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Sales & Billing", "అమ్మకాలు & బిల్లింగ్")}</span>
               <div className="space-y-1">
                 <button
-                  onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("sale")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "sale" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4164,7 +4214,7 @@ Thank you for your business!`;
                   <Icon name="rupee" size={17} /> {t("POS Billing", "పీఓఎస్ బిల్లింగ్")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("invoices")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "invoices" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4178,7 +4228,7 @@ Thank you for your business!`;
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Purchases & Suppliers", "కొనుగోళ్లు & సరఫరాదారులు")}</span>
               <div className="space-y-1">
                 <button
-                  onClick={() => { setActiveTab("purchases"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("purchases")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "purchases" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4186,7 +4236,7 @@ Thank you for your business!`;
                   <Icon name="package" size={17} /> {t("Purchases & Stock", "కొనుగోళ్లు & స్టాక్")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("payments_collections"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("payments_collections")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "payments_collections" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4200,7 +4250,7 @@ Thank you for your business!`;
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Financials & Accounts", "ఆర్థిక లావాదేవీలు & ఖాతాలు")}</span>
               <div className="space-y-1">
                 <button
-                  onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("summary")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "summary" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4208,7 +4258,7 @@ Thank you for your business!`;
                   <Icon name="dashboard" size={17} /> {t("Business Snapshot", "వ్యాపార సమాచారం")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("history_audit"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("history_audit")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4216,7 +4266,7 @@ Thank you for your business!`;
                   <Icon name="history" size={17} /> {t("Transaction Audit Ledger", "లావాదేవీల ఆడిట్ లెడ్జర్")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("lenders"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("lenders")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4224,7 +4274,7 @@ Thank you for your business!`;
                   <Icon name="handcoins" size={17} /> {t("Business Loans", "వ్యాపార రుణాలు")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("expenses")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4232,7 +4282,7 @@ Thank you for your business!`;
                   <Icon name="creditcard" size={17} /> {t("Shop Expenses & Outflow", "షాపు ఖర్చులు")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("reports")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4241,7 +4291,7 @@ Thank you for your business!`;
                 </button>
                 {/* RENAMED TO LEDGER STATEMENT (ITEM 3 & 8) */}
                 <button
-                  onClick={() => { setActiveTab("ledger"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("ledger")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "ledger" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4255,7 +4305,7 @@ Thank you for your business!`;
               <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Administration", "నిర్వహణ")}</span>
               <div className="space-y-1">
                 <button
-                  onClick={() => { setActiveTab("masters"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("masters")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "masters" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4263,7 +4313,7 @@ Thank you for your business!`;
                   <Icon name="layers" size={17} /> {t("Master Management", "మాస్టర్ డేటా నిర్వహణ")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("partners")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "partners" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4271,7 +4321,7 @@ Thank you for your business!`;
                   <Icon name="wallet" size={17} /> {t("Partner Capital Accounts", "భాగస్వాముల మూలధన ఖాతాలు")}
                 </button>
                 <button
-                  onClick={() => { setActiveTab("settings"); setSidebarOpen(false); }}
+                  onClick={() => navigateTab("settings")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "settings" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
@@ -4431,19 +4481,30 @@ Thank you for your business!`;
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {editingInvoiceId && (
+                  {editingInvoiceId ? (
                     <button
                       type="button"
                       onClick={() => {
-                        setEditingInvoiceId(null);
-                        setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
-                        setSelectedCust(null);
-                        setUpfrontAmount("");
+                        resetPOSBillingState();
                         setActiveTab("invoices");
                       }}
                       className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
                     >
                       ← Cancel Edit & Back
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (cart.some((c) => c.item_name || Number(c.rate) > 0) || selectedCust) {
+                          if (!confirm("Clear this bill form and reset all inputs?")) return;
+                        }
+                        resetPOSBillingState();
+                      }}
+                      className="px-3 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer border border-slate-200 dark:border-slate-700"
+                      title="Clear bill form and start fresh"
+                    >
+                      ✕ Clear Bill
                     </button>
                   )}
                   <input
@@ -4476,6 +4537,8 @@ Thank you for your business!`;
                   value={selectedCust ? `${selectedCust.isSupplier ? "sup_" : "cust_"}${selectedCust.id}` : ""}
                   onChange={(e) => {
                     const val = e.target.value;
+                    setUpfrontAmount("");
+                    setUpfrontMode("Cash");
                     if (!val) {
                       setSelectedCust(null);
                       return;
@@ -4630,8 +4693,12 @@ Thank you for your business!`;
                     onClick={() => {
                       const avail = Math.abs(Number(selectedCust.old_due));
                       const toApply = Math.min(avail, cartTotal);
-                      setUpfrontAmount(String(toApply));
-                      setUpfrontMode("Advance Adjusted");
+                      if (toApply > 0) {
+                        setUpfrontAmount(String(toApply));
+                        setUpfrontMode("Advance Adjusted");
+                      } else {
+                        alert("Please add items to the bill before applying advance.");
+                      }
                     }}
                     className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition"
                   >
@@ -4771,7 +4838,7 @@ Thank you for your business!`;
                 })()
               ) : (
                 /* Create Mode */
-                upfrontMode === "Advance Adjusted" ? (
+                upfrontMode === "Advance Adjusted" && selectedCust && !selectedCust.isSupplier && Number(selectedCust.old_due || 0) < 0 && upfrontPaidNum > 0 ? (
                   <div className="p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
@@ -4899,12 +4966,9 @@ Thank you for your business!`;
                   <button
                     type="button"
                     onClick={() => {
-                      setEditingInvoiceId(null);
-                      setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
-                      setSelectedCust(null);
-                      setUpfrontAmount("");
+                      resetPOSBillingState();
                     }}
-                    className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider"
+                    className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider cursor-pointer"
                   >
                     Cancel Edit
                   </button>
@@ -4930,10 +4994,7 @@ Thank you for your business!`;
               </div>
               <button
                 onClick={() => {
-                  setEditingInvoiceId(null);
-                  setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
-                  setSelectedCust(null);
-                  setUpfrontAmount("");
+                  resetPOSBillingState();
                   setActiveTab("sale");
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
@@ -12006,7 +12067,7 @@ Thank you for your business!`;
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 px-2 py-1.5 flex justify-around items-center text-slate-400 no-print">
         <button
           type="button"
-          onClick={() => setActiveTab("sale")}
+          onClick={() => navigateTab("sale")}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
             activeTab === "sale" ? "text-indigo-400 font-bold" : "hover:text-white"
           }`}
@@ -12017,7 +12078,7 @@ Thank you for your business!`;
 
         <button
           type="button"
-          onClick={() => setActiveTab("invoices")}
+          onClick={() => navigateTab("invoices")}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
             activeTab === "invoices" ? "text-indigo-400 font-bold" : "hover:text-white"
           }`}
@@ -12028,7 +12089,7 @@ Thank you for your business!`;
 
         <button
           type="button"
-          onClick={() => setActiveTab("procurement")}
+          onClick={() => navigateTab("procurement")}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
             activeTab === "procurement" ? "text-indigo-400 font-bold" : "hover:text-white"
           }`}
@@ -12039,7 +12100,7 @@ Thank you for your business!`;
 
         <button
           type="button"
-          onClick={() => setActiveTab("payments_collections")}
+          onClick={() => navigateTab("payments_collections")}
           className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
             activeTab === "payments_collections" ? "text-indigo-400 font-bold" : "hover:text-white"
           }`}
