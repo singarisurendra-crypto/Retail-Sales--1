@@ -526,6 +526,48 @@ export default function App() {
   const [upfrontPartnerId, setUpfrontPartnerId] = useState("");
   const [savingSale, setSavingSale] = useState(false);
 
+  // Enhancement: Multi-line purchase order tracking, Expenses expand/collapse & System Audit Trail
+  const [expandedExpenseId, setExpandedExpenseId] = useState(null);
+  const [editingOrderRef, setEditingOrderRef] = useState(null);
+
+  const [auditTrailLogs, setAuditTrailLogs] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("jsr_audit_trail_logs");
+        if (stored) return JSON.parse(stored);
+      } catch (e) {}
+    }
+    return [
+      {
+        id: "AUD-INIT-01",
+        timestamp: new Date().toISOString(),
+        docRef: "SYS-INIT",
+        docType: "System Baseline",
+        action: "Initial Setup",
+        operator: "Administrator (B Reddy)",
+        details: "Audit trail engine initialized and tracking all transaction mutations across modules."
+      }
+    ];
+  });
+
+  const logAuditEvent = (event) => {
+    const newLog = {
+      id: `AUD-${Date.now().toString().slice(-6)}`,
+      timestamp: new Date().toISOString(),
+      operator: activeStaff?.name || user?.name || "Administrator (B Reddy)",
+      ...event
+    };
+    setAuditTrailLogs((prev) => {
+      const next = [newLog, ...prev].slice(0, 250);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("jsr_audit_trail_logs", JSON.stringify(next));
+        } catch (e) {}
+      }
+      return next;
+    });
+  };
+
   const currentEditingInvoice = useMemo(() => {
     return editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
   }, [editingInvoiceId, invoices]);
@@ -671,6 +713,113 @@ export default function App() {
   };
 
   const t = (en, te) => (language === "te" && te ? te : en);
+
+  const formatCreated = (isoStr) => {
+    if (!isoStr) return "-";
+    try {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return String(isoStr).slice(0, 16).replace("T", " ");
+      const datePart = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const timePart = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+      return `${datePart} ${timePart}`;
+    } catch {
+      return String(isoStr).slice(0, 16).replace("T", " ");
+    }
+  };
+
+  const renderAuditTrailGrid = (filterType = null) => {
+    const logs = filterType
+      ? auditTrailLogs.filter((l) => {
+          if (filterType === "invoices") return l.docType === "Sales Invoice";
+          if (filterType === "purchases") return l.docType === "Procurement";
+          if (filterType === "collections") return l.docType === "Customer Collection";
+          if (filterType === "payments_collections") return l.docType === "Customer Collection" || l.docType === "Supplier Payment";
+          return true;
+        })
+      : auditTrailLogs;
+
+    return (
+      <div className="mt-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-lg">
+              <Icon name="history" size={16} />
+            </span>
+            <div>
+              <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                {t("System Audit Trail & Modification Ledger", "సిస్టమ్ ఆడిట్ ట్రయల్ & మార్పుల లెడ్జర్")}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                {t("Live record of all creations, edits, modifications, and deletions with operator timestamps", "సృష్టించబడిన, సవరించబడిన మరియు తొలగించబడిన అన్ని లావాదేవీల ప్రత్యక్ష రికార్డు")}
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-[10px] font-bold">
+            {logs.length} {t("Events Logged", "ఈవెంట్‌లు నమోదయ్యాయి")}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
+          <table className="w-full text-left text-xs border-collapse font-mono">
+            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+              <tr>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Timestamp", "తేదీ & సమయం")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Document Ref", "పత్రం సంఖ్య")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Type", "రకం")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">{t("Action", "చర్య")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Operator / Partner", "ఆపరేటర్ / భాగస్వామి")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700">{t("Change Details", "మార్పుల వివరాలు")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+              {logs.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-4 text-center text-slate-400 font-sans text-xs">
+                    {t("No modifications or audit events recorded for this category yet.", "ఈ కేటగిరీకి సంబంధించి ఎలాంటి ఆడిట్ రికార్డులు లేవు.")}
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => {
+                  const isCreated = log.action === "Created";
+                  const isModified = log.action === "Modified";
+                  const isDeleted = log.action === "Deleted";
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-500 whitespace-nowrap text-[11px]">
+                        {formatCreated(log.timestamp)}
+                      </td>
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                        {log.docRef}
+                      </td>
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                        {log.docType}
+                      </td>
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          isCreated ? "bg-emerald-100 text-emerald-800"
+                          : isModified ? "bg-amber-100 text-amber-800"
+                          : isDeleted ? "bg-rose-100 text-rose-800"
+                          : "bg-slate-100 text-slate-800"
+                        }`}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap text-[11px]">
+                        {log.operator}
+                      </td>
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-sans">
+                        {log.details}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const themeConfig = {
     indigo: {
@@ -1173,65 +1322,151 @@ export default function App() {
     return combined;
   }, [invoices, procurements, collections, loanTransactions, expenses, lenders, partners, auditFilterType, auditSearchQuery]);
 
-  // Comprehensive Direct Invoice Allocation Engine
-  // Accurately maps direct collections and upfront payments to each invoice
+  // Comprehensive Direct & FIFO Waterfall Invoice Allocation Engine
+  // Accurately maps direct collections, upfront payments, and on-account collections to each invoice
   const invoiceAllocationsMap = useMemo(() => {
     const map = new Map();
 
-    // Group direct collections by invoice_id
+    // 1. Separate direct collections (with invoice_id) and on-account collections (by customer)
     const directCollectionsByInv = {};
+    const unassignedColsByCust = {};
+
     collections.forEach((col) => {
-      if (!col.invoice_id) return;
-      const invId = String(col.invoice_id);
-      if (!directCollectionsByInv[invId]) directCollectionsByInv[invId] = [];
       const pName = col.partner_name || partners.find((p) => String(p.id) === String(col.receiver_id || col.partner_id || col.collected_by))?.name || "N/A";
       const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "-";
       const ref = col.reference_no || `REC-${col.id}`;
       const mode = col.payment_mode || col.mode || "Cash";
-      directCollectionsByInv[invId].push({
-        id: col.id,
-        date: dt,
-        ref: ref,
-        partner_name: pName,
-        payment_mode: mode,
-        amount: Number(col.amount || 0),
-        isDirect: true
-      });
-    });
+      const colAmt = Number(col.amount || 0);
 
-    invoices.forEach((inv) => {
-      const invId = String(inv.id);
-      const directCols = directCollectionsByInv[invId] || [];
-      const directColsTotal = directCols.reduce((s, c) => s + c.amount, 0);
-      const upfrontPaid = Number(inv.upfront_paid || 0);
-      const billTotal = Number(inv.total_amount || 0);
-
-      // Total paid is upfront payment plus direct collections recorded for this bill
-      let totalPaid = upfrontPaid + directColsTotal;
-      let balanceDue = Math.max(0, billTotal - totalPaid);
-
-      // Preserve status if invoice was marked Collected or Contra in DB (e.g. balance_due === 0)
-      if (inv.balance_due !== undefined && Number(inv.balance_due) <= 0 && billTotal > 0 && totalPaid === 0) {
-        totalPaid = billTotal;
-        balanceDue = 0;
-      } else if (inv.balance_due !== undefined && directCols.length === 0 && upfrontPaid === 0) {
-        // Fallback to database stored balance_due if no collections or upfront
-        balanceDue = Number(inv.balance_due);
-        totalPaid = Math.max(0, billTotal - balanceDue);
+      if (col.invoice_id) {
+        const invId = String(col.invoice_id);
+        if (!directCollectionsByInv[invId]) directCollectionsByInv[invId] = [];
+        directCollectionsByInv[invId].push({
+          id: col.id,
+          date: dt,
+          ref: ref,
+          partner_name: pName,
+          payment_mode: mode,
+          amount: colAmt,
+          isDirect: true
+        });
+      } else if (col.customer_id) {
+        const custId = String(col.customer_id);
+        if (!unassignedColsByCust[custId]) unassignedColsByCust[custId] = [];
+        unassignedColsByCust[custId].push({
+          id: col.id,
+          date: dt,
+          ref: ref,
+          partner_name: pName,
+          payment_mode: mode,
+          amount: colAmt,
+          created_at: col.created_at,
+          isDirect: false
+        });
       }
+    });
 
-      const status = balanceDue <= 0 ? "Collected" : totalPaid > 0 ? "Partial" : "Due";
+    // Sort customer on-account collections chronologically (FIFO order)
+    Object.values(unassignedColsByCust).forEach((cList) => {
+      cList.sort((a, b) => new Date(a.created_at || a.date) - new Date(b.created_at || b.date) || Number(a.id || 0) - Number(b.id || 0));
+    });
 
-      map.set(invId, {
-        invoiceId: inv.id,
-        upfrontPaid: upfrontPaid,
-        totalCollections: directColsTotal,
-        totalPaid: totalPaid,
-        balanceDue: balanceDue,
-        status: status,
-        allocatedCollections: directCols
+    // Group invoices by customer
+    const invsByCust = {};
+    invoices.forEach((inv) => {
+      const custId = String(inv.customer_id || "unassigned");
+      if (!invsByCust[custId]) invsByCust[custId] = [];
+      invsByCust[custId].push(inv);
+    });
+
+    // Process invoices per customer with chronological FIFO waterfall for on-account collections
+    Object.keys(invsByCust).forEach((custId) => {
+      const custInvs = invsByCust[custId];
+      // Sort invoices chronologically (FIFO: oldest unpaid invoices settled first)
+      custInvs.sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || Number(a.id || 0) - Number(b.id || 0));
+
+      const colPool = (unassignedColsByCust[custId] || []).map((c) => ({ ...c, remainingAmt: c.amount }));
+
+      custInvs.forEach((inv) => {
+        const invId = String(inv.id);
+        const directCols = directCollectionsByInv[invId] || [];
+        const directColsTotal = directCols.reduce((s, c) => s + c.amount, 0);
+        const upfrontPaid = Number(inv.upfront_paid || 0);
+        const billTotal = Number(inv.total_amount || 0);
+
+        let totalPaid = upfrontPaid + directColsTotal;
+        let balanceDue = Math.max(0, billTotal - totalPaid);
+
+        const allocatedCols = [...directCols];
+
+        // Apply FIFO allocation from customer on-account collection pool
+        if (balanceDue > 0 && colPool.length > 0) {
+          for (const c of colPool) {
+            if (balanceDue <= 0) break;
+            if (c.remainingAmt > 0) {
+              const allocAmt = Math.min(balanceDue, c.remainingAmt);
+              allocatedCols.push({
+                id: c.id,
+                date: c.date,
+                ref: c.ref,
+                partner_name: c.partner_name,
+                payment_mode: c.payment_mode,
+                amount: allocAmt,
+                isDirect: false
+              });
+              c.remainingAmt -= allocAmt;
+              totalPaid += allocAmt;
+              balanceDue = Math.max(0, balanceDue - allocAmt);
+            }
+          }
+        }
+
+        // Preserve status if invoice was marked Collected or Contra in DB (e.g. balance_due === 0)
+        if (inv.balance_due !== undefined && Number(inv.balance_due) <= 0 && billTotal > 0 && totalPaid === 0) {
+          totalPaid = billTotal;
+          balanceDue = 0;
+        } else if (inv.balance_due !== undefined && allocatedCols.length === 0 && upfrontPaid === 0) {
+          balanceDue = Number(inv.balance_due);
+          totalPaid = Math.max(0, billTotal - balanceDue);
+        }
+
+        const status = balanceDue <= 0 ? "Collected" : totalPaid > 0 ? "Partial" : "Due";
+
+        map.set(invId, {
+          invoiceId: inv.id,
+          upfrontPaid: upfrontPaid,
+          totalCollections: totalPaid - upfrontPaid,
+          totalPaid: totalPaid,
+          balanceDue: balanceDue,
+          status: status,
+          allocatedCollections: allocatedCols
+        });
       });
     });
+
+    // Also process any invoices without a customer_id
+    if (!invsByCust["unassigned"]) {
+      invoices.forEach((inv) => {
+        const invId = String(inv.id);
+        if (!map.has(invId)) {
+          const directCols = directCollectionsByInv[invId] || [];
+          const directColsTotal = directCols.reduce((s, c) => s + c.amount, 0);
+          const upfrontPaid = Number(inv.upfront_paid || 0);
+          const billTotal = Number(inv.total_amount || 0);
+          const totalPaid = upfrontPaid + directColsTotal;
+          const balanceDue = Math.max(0, billTotal - totalPaid);
+          map.set(invId, {
+            invoiceId: inv.id,
+            upfrontPaid: upfrontPaid,
+            totalCollections: directColsTotal,
+            totalPaid: totalPaid,
+            balanceDue: balanceDue,
+            status: balanceDue <= 0 ? "Collected" : totalPaid > 0 ? "Partial" : "Due",
+            allocatedCollections: directCols
+          });
+        }
+      });
+    }
 
     return map;
   }, [invoices, collections, partners]);
@@ -1271,9 +1506,9 @@ export default function App() {
 
     const sorted = [...list];
     if (invoiceSort === "date_desc") {
-      sorted.sort((a, b) => new Date(b.invoice_date || b.created_at) - new Date(a.invoice_date || a.created_at));
+      sorted.sort((a, b) => new Date(b.invoice_date || b.created_at) - new Date(a.invoice_date || a.created_at) || (Number(b.id || 0) - Number(a.id || 0)));
     } else if (invoiceSort === "date_asc") {
-      sorted.sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at));
+      sorted.sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || (Number(a.id || 0) - Number(b.id || 0)));
     } else if (invoiceSort === "amount_desc") {
       sorted.sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0));
     } else if (invoiceSort === "due_desc") {
@@ -1403,7 +1638,7 @@ export default function App() {
   }, [allCollectionsList, customers, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery, paymentsSort]);
 
   const filteredSupplierPayments = useMemo(() => {
-    // Only include procurements where an actual payment disbursement was made (p1_amount > 0)
+    // Include all procurements where an actual payment disbursement was made (p1_amount > 0)
     let list = procurements.filter((p) => Number(p.p1_amount || 0) > 0);
     if (paymentsPartnerFilter !== "all") {
       list = list.filter((p) => String(p.p1_id) === String(paymentsPartnerFilter));
@@ -1412,7 +1647,7 @@ export default function App() {
       list = list.filter((p) => p.p1_mode === paymentsModeFilter);
     }
     if (paymentsDateFilter !== "all") {
-      list = list.filter((p) => matchDateFilter(p.created_at, paymentsDateFilter));
+      list = list.filter((p) => matchDateFilter(p.purchase_date || p.created_at, paymentsDateFilter));
     }
     if (paymentsSearchQuery.trim()) {
       const q = paymentsSearchQuery.toLowerCase();
@@ -1424,7 +1659,8 @@ export default function App() {
         (p.bill_no && p.bill_no.toLowerCase().includes(q))
       );
     }
-    return list;
+    // Sort newest disbursements first
+    return [...list].sort((a, b) => new Date(b.purchase_date || b.created_at) - new Date(a.purchase_date || a.created_at) || Number(b.id || 0) - Number(a.id || 0));
   }, [procurements, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery]);
 
   // Numbering Sequence Generator (Point 3)
@@ -1752,10 +1988,27 @@ export default function App() {
         await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
       }
 
+      // Log Audit Event
+      logAuditEvent({
+        docRef: editingInvoiceId ? (currentEditingInvoice?.invoice_number || `INV-${editingInvoiceId}`) : generatedInvoiceNumber,
+        docType: "Sales Invoice",
+        action: editingInvoiceId ? "Modified" : "Created",
+        details: `${editingInvoiceId ? "Updated" : "Created"} invoice for ${selectedCust?.name || "Customer"}. Items: ${cart.length}, Total: ${money(cartTotal)}, Paid: ${money(editingInvoiceId ? effectiveUpfront : upfrontPaidNum)}, Due: ${money(editingInvoiceId ? editBalanceDue : billBalanceDue)}`
+      });
+
       setEditingInvoiceId(null);
       setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
       setSelectedCust(null);
       setUpfrontAmount("");
+
+      // Immediately navigate to Invoices tab with reset filters so created invoice is right on top
+      setActiveTab("invoices");
+      setInvoicePage(1);
+      setInvoiceStatusFilter("all");
+      setInvoiceCustomerFilter("all");
+      setInvoiceDateFilter("all");
+      setInvoiceSearchQuery("");
+
       refreshData();
     } catch (err) {
       alert("Error saving invoice: " + err.message);
@@ -1780,6 +2033,12 @@ export default function App() {
     if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? Stock will be restored to inventory.`)) return;
 
     try {
+      logAuditEvent({
+        docRef: inv.invoice_number || `INV-${inv.id}`,
+        docType: "Sales Invoice",
+        action: "Deleted",
+        details: `Deleted invoice for ${inv.customer_name}. Total: ${money(inv.total_amount)}`
+      });
       if (Array.isArray(inv.items)) {
         for (const item of inv.items) {
           const batch = procurements.find((p) => p.id == item.procure_id);
@@ -2006,6 +2265,12 @@ Thank you for your business!`;
         const { error: colErr } = await db.from("collections").update(payload).eq("id", editingCollectionId);
         if (colErr) throw colErr;
         setCollections((prev) => prev.map((c) => c.id === editingCollectionId ? { ...c, ...payload } : c));
+        logAuditEvent({
+          docRef: colForm.reference_no || `REC-${editingCollectionId}`,
+          docType: "Customer Collection",
+          action: "Modified",
+          details: `Updated collection receipt of ${money(amt)} via ${colForm.payment_mode}`
+        });
         alert("Collection updated successfully!");
       } else {
         const { data: inserted, error: colErr } = await db.from("collections").insert([payload]).select();
@@ -2060,6 +2325,12 @@ Thank you for your business!`;
         if (inserted && inserted.length > 0) {
           setCollections((prev) => [inserted[0], ...prev]);
         }
+        logAuditEvent({
+          docRef: refNo,
+          docType: "Customer Collection",
+          action: "Created",
+          details: `Recorded collection receipt ${refNo} of ${money(amt)} via ${collectForm.payment_mode}`
+        });
         alert(`Collection recorded (${refNo})!`);
       }
 
@@ -2147,13 +2418,36 @@ Thank you for your business!`;
           rem -= alloc;
         }
 
-        // If payment exceeded all pending bills, credit excess as Advance to supplier
+        // If payment exceeded all pending bills (or supplier had 0 due like Dornala Subbarao),
+        // credit excess as Advance to supplier AND create a visible procurement disbursement record
         if (rem > 0) {
           const updatedDue = Number(targetSup.old_due || 0) - rem;
           await db.from("suppliers").update({ old_due: updatedDue }).eq("id", targetSup.id);
+
+          await db.from("procurements").insert([{
+            purchase_date: new Date().toISOString().split("T")[0],
+            supplier_name: targetSup.name,
+            item_name: "Supplier Disbursement / Advance Settlement",
+            procured_qty: 1,
+            remaining_qty: 0,
+            purchase_rate: rem,
+            selling_rate: rem,
+            total_amount: rem,
+            p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
+            p1_amount: rem,
+            p1_mode: payPurchaseForm.payment_mode,
+            receiver_2_mode: `PAY-${Date.now().toString().slice(-4)}`
+          }]);
         }
 
-        alert(`Supplier payment of ${money(amt)} distributed across bills successfully!`);
+        logAuditEvent({
+          docRef: `PAY-SUP-${targetSup.id}`,
+          docType: "Supplier Payment",
+          action: "Created",
+          details: `Disbursed ${money(amt)} to supplier ${targetSup.name} via ${payPurchaseForm.payment_mode}`
+        });
+
+        alert(`Supplier payment of ${money(amt)} recorded and allocated successfully!`);
       } else {
         const targetP = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
         if (!targetP) return alert("Purchase not found");
@@ -2181,8 +2475,30 @@ Thank you for your business!`;
           if (sup) {
             const updatedDue = Number(sup.old_due || 0) - excessAdv;
             await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+
+            await db.from("procurements").insert([{
+              purchase_date: new Date().toISOString().split("T")[0],
+              supplier_name: targetP.supplier_name,
+              item_name: "Supplier Disbursement / Excess Advance",
+              procured_qty: 1,
+              remaining_qty: 0,
+              purchase_rate: excessAdv,
+              selling_rate: excessAdv,
+              total_amount: excessAdv,
+              p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
+              p1_amount: excessAdv,
+              p1_mode: payPurchaseForm.payment_mode,
+              receiver_2_mode: `PAY-${Date.now().toString().slice(-4)}`
+            }]);
           }
         }
+
+        logAuditEvent({
+          docRef: targetP.receiver_2_mode || `PUR-${targetP.id}`,
+          docType: "Supplier Payment",
+          action: "Created",
+          details: `Recorded purchase bill payment of ${money(amt)} for ${targetP.supplier_name} (${targetP.item_name})`
+        });
 
         alert(`Purchase payment recorded!`);
       }
@@ -2688,27 +3004,46 @@ Thank you for your business!`;
   const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
     const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : new Date().toISOString().split("T")[0]);
-    const pCost = p.purchase_rate ? String(p.purchase_rate) : "";
-    const pSell = p.selling_rate ? String(p.selling_rate) : "";
-    const pQty = p.procured_qty ? String(p.procured_qty) : "1";
+    const dtStr = pDate.replace(/-/g, "").slice(2);
+    const defaultOrderRef = dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`;
+    const orderRef = p.receiver_2_mode || defaultOrderRef;
+    setEditingOrderRef(orderRef);
+
+    // Find ALL lines belonging to this purchase order
+    const siblingRows = procurements.filter(
+      (x) => (p.receiver_2_mode && x.receiver_2_mode === p.receiver_2_mode) || x.id === p.id
+    );
+
+    const loadedLines = siblingRows.map((row) => ({
+      procure_id: row.id,
+      item_name: row.item_name || "",
+      procured_qty: String(row.procured_qty || "1"),
+      purchase_rate: String(row.purchase_rate || ""),
+      selling_rate: String(row.selling_rate || ""),
+      total: Number(row.total_amount || 0)
+    }));
+
+    const totalPaidOnOrder = siblingRows.reduce((sum, r) => sum + Number(r.p1_amount || 0), 0);
+
     setProcureForm({
       supplier_name: p.supplier_name || "",
       purchase_date: pDate,
-      items: [
+      items: loadedLines.length > 0 ? loadedLines : [
         {
+          procure_id: p.id,
           item_name: p.item_name || "",
-          procured_qty: pQty,
-          purchase_rate: pCost,
-          selling_rate: pSell,
+          procured_qty: String(p.procured_qty || "1"),
+          purchase_rate: String(p.purchase_rate || ""),
+          selling_rate: String(p.selling_rate || ""),
           total: Number(p.total_amount || 0)
         }
       ],
       item_name: p.item_name || "",
-      procured_qty: pQty,
-      purchase_rate: pCost,
-      selling_rate: pSell,
+      procured_qty: String(p.procured_qty || "1"),
+      purchase_rate: String(p.purchase_rate || ""),
+      selling_rate: String(p.selling_rate || ""),
       is_opening: p.supplier_name === "Opening Stock",
-      paid_now: p.p1_amount ? String(p.p1_amount) : "0",
+      paid_now: String(totalPaidOnOrder),
       p1_id: p.p1_id ? String(p.p1_id) : (partners[0]?.id ? String(partners[0].id) : ""),
       p1_mode: p.p1_mode || "Cash"
     });
@@ -2721,6 +3056,12 @@ Thank you for your business!`;
     }
     if (!confirm(`Delete purchase "${p.item_name}" from ${p.supplier_name}?`)) return;
     try {
+      logAuditEvent({
+        docRef: p.receiver_2_mode || `PUR-${p.id}`,
+        docType: "Purchase Order",
+        action: "Deleted",
+        details: `Deleted purchase batch for ${p.supplier_name} (${p.item_name})`
+      });
       const { error } = await db.from("procurements").delete().eq("id", p.id);
       if (error) throw error;
       alert("Purchase deleted!");
@@ -2770,72 +3111,90 @@ Thank you for your business!`;
 
     setSavingProcure(true);
     try {
+      const poDate = procureForm.purchase_date || new Date().toISOString().split("T")[0];
+      const dtStr = poDate.replace(/-/g, "").slice(2);
+      const targetOrderNumber = editingProcureId
+        ? (editingOrderRef || `PUR-${dtStr}-${String(editingProcureId).padStart(4, "0")}`)
+        : generateNextSeqNumber("purchase_order", poDate);
+
+      let remainingPaid = paidNowNum;
+
       if (editingProcureId) {
-        // Edit Mode: update the existing procurement record
-        const firstLine = validLines[0];
-        const qty = Number(firstLine.procured_qty || 0);
-        const purchaseRate = Number(firstLine.purchase_rate || 0);
-        const sellingRate = Number(firstLine.selling_rate || purchaseRate);
-        const total = qty * purchaseRate;
+        // Multi-line edit integrity: Update existing rows and insert added lines without overwriting
+        for (let i = 0; i < validLines.length; i++) {
+          const line = validLines[i];
+          const qty = Number(line.procured_qty || 0);
+          const purchaseRate = Number(line.purchase_rate || 0);
+          const sellingRate = Number(line.selling_rate || purchaseRate);
+          const lineTotal = qty * purchaseRate;
 
-        // Maintain remaining_qty integrity if some items have already been sold
-        const oldProc = procurements.find((p) => p.id === editingProcureId);
-        const soldQty = oldProc ? Math.max(0, Number(oldProc.procured_qty || 0) - Number(oldProc.remaining_qty || 0)) : 0;
-        const newRemaining = Math.max(0, qty - soldQty);
+          let linePaid = 0;
+          if (remainingPaid > 0) {
+            linePaid = Math.min(lineTotal, remainingPaid);
+            remainingPaid -= linePaid;
+          }
 
-        const payload = {
-          supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
-          item_name: firstLine.item_name.trim(),
-          purchase_date: procureForm.purchase_date || oldProc?.purchase_date || new Date().toISOString().split("T")[0],
-          procured_qty: qty,
-          remaining_qty: newRemaining,
-          purchase_rate: purchaseRate,
-          selling_rate: sellingRate,
-          total_amount: total,
-          p1_id: paidNowNum > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : (oldProc?.p1_id || null),
-          p1_amount: Math.min(total, paidNowNum),
-          p1_mode: procureForm.p1_mode
-        };
+          if (line.procure_id) {
+            // Update existing line
+            const oldProc = procurements.find((p) => p.id === line.procure_id);
+            const soldQty = oldProc ? Math.max(0, Number(oldProc.procured_qty || 0) - Number(oldProc.remaining_qty || 0)) : 0;
+            const newRemaining = Math.max(0, qty - soldQty);
 
-        const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
-        if (error) throw error;
-
-        // If extra lines were added during edit, insert them as new batches
-        if (validLines.length > 1) {
-          const extraLines = validLines.slice(1);
-          const extraPayloads = extraLines.map((line) => {
-            const lQty = Number(line.procured_qty || 0);
-            const lRate = Number(line.purchase_rate || 0);
-            const lSell = Number(line.selling_rate || lRate);
-            return {
-              purchase_date: procureForm.purchase_date || new Date().toISOString().split("T")[0],
+            const payload = {
               supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
               item_name: line.item_name.trim(),
-              procured_qty: lQty,
-              remaining_qty: lQty,
-              purchase_rate: lRate,
-              selling_rate: lSell,
-              total_amount: lQty * lRate,
-              p1_id: null,
-              p1_amount: 0,
-              p1_mode: "Cash"
+              purchase_date: poDate,
+              procured_qty: qty,
+              remaining_qty: newRemaining,
+              purchase_rate: purchaseRate,
+              selling_rate: sellingRate,
+              total_amount: lineTotal,
+              p1_id: linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : (oldProc?.p1_id || null),
+              p1_amount: linePaid,
+              p1_mode: procureForm.p1_mode,
+              receiver_2_mode: targetOrderNumber
             };
-          });
-          const { error: insErr } = await db.from("procurements").insert(extraPayloads);
-          if (insErr) throw insErr;
+
+            const { error: updErr } = await db.from("procurements").update(payload).eq("id", line.procure_id);
+            if (updErr) throw updErr;
+          } else {
+            // Newly added line in edit mode: insert as new row linked to same order number
+            const insPayload = {
+              purchase_date: poDate,
+              supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+              item_name: line.item_name.trim(),
+              procured_qty: qty,
+              remaining_qty: qty,
+              purchase_rate: purchaseRate,
+              selling_rate: sellingRate,
+              total_amount: lineTotal,
+              p1_id: linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : null,
+              p1_amount: linePaid,
+              p1_mode: procureForm.p1_mode,
+              receiver_2_mode: targetOrderNumber
+            };
+
+            const { error: insErr } = await db.from("procurements").insert([insPayload]);
+            if (insErr) throw insErr;
+          }
         }
 
-        alert("Purchase order updated successfully!");
+        logAuditEvent({
+          docRef: targetOrderNumber,
+          docType: "Purchase Order",
+          action: "Modified",
+          details: `Updated purchase order ${targetOrderNumber} for ${procureForm.supplier_name}. Lines: ${validLines.length}, Total: ${money(grandTotal)}, Paid: ${money(paidNowNum)}`
+        });
+
+        alert("Purchase order updated successfully with all lines preserved!");
       } else {
-        // Create Mode: insert all lines into procurements
-        let remainingPaid = paidNowNum;
+        // Create Mode: insert all lines into procurements with shared order number
         const payloads = validLines.map((line) => {
           const qty = Number(line.procured_qty || 0);
           const purchaseRate = Number(line.purchase_rate || 0);
           const sellingRate = Number(line.selling_rate || purchaseRate);
           const lineTotal = qty * purchaseRate;
 
-          // Distribute paidNow across lines
           let linePaid = 0;
           if (remainingPaid > 0) {
             linePaid = Math.min(lineTotal, remainingPaid);
@@ -2843,7 +3202,7 @@ Thank you for your business!`;
           }
 
           return {
-            purchase_date: procureForm.purchase_date || new Date().toISOString().split("T")[0],
+            purchase_date: poDate,
             supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
             item_name: line.item_name.trim(),
             procured_qty: qty,
@@ -2853,12 +3212,20 @@ Thank you for your business!`;
             total_amount: lineTotal,
             p1_id: linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : null,
             p1_amount: linePaid,
-            p1_mode: procureForm.p1_mode
+            p1_mode: procureForm.p1_mode,
+            receiver_2_mode: targetOrderNumber
           };
         });
 
         const { error } = await db.from("procurements").insert(payloads);
         if (error) throw error;
+
+        logAuditEvent({
+          docRef: targetOrderNumber,
+          docType: "Purchase Order",
+          action: "Created",
+          details: `Created purchase order ${targetOrderNumber} for ${procureForm.supplier_name}. Lines: ${validLines.length}, Total: ${money(grandTotal)}, Paid: ${money(paidNowNum)}`
+        });
 
         // If paid via Advance Adjusted, reduce the supplier's negative advance balance (increases toward 0)
         if (isAdvanceAdjusted && !procureForm.is_opening) {
@@ -2932,6 +3299,12 @@ Thank you for your business!`;
         }
       }
 
+      logAuditEvent({
+        docRef: e.expense_no || `EXP-${e.id}`,
+        docType: "Shop Expense",
+        action: "Deleted",
+        details: `Deleted expense "${e.title}" of ${money(e.amount)}`
+      });
       const { error } = await db.from("expenses").delete().eq("id", e.id);
       if (error) throw error;
       alert("Expense deleted!");
@@ -2970,10 +3343,22 @@ Thank you for your business!`;
       if (editingExpenseId) {
         const { error } = await db.from("expenses").update(payload).eq("id", editingExpenseId);
         if (error) throw error;
+        logAuditEvent({
+          docRef: `EXP-${editingExpenseId}`,
+          docType: "Shop Expense",
+          action: "Modified",
+          details: `Updated expense "${expenseForm.title}" of ${money(amt)}`
+        });
         alert("Expense updated!");
       } else {
         const { error } = await db.from("expenses").insert([payload]);
         if (error) throw error;
+        logAuditEvent({
+          docRef: `EXP-${Date.now().toString().slice(-4)}`,
+          docType: "Shop Expense",
+          action: "Created",
+          details: `Recorded expense "${expenseForm.title}" of ${money(amt)}`
+        });
 
         // Scenario 2: Bi-Directional Loan Interest Integration
         // If recorded from Shop Expenses with category Loan Interest, also insert into borrower_transactions!
@@ -3685,7 +4070,7 @@ Thank you for your business!`;
           {/* Navigation Items */}
           <nav className="p-3 space-y-4">
             <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Sales & Billing</span>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Sales & Billing", "అమ్మకాలు & బిల్లింగ్")}</span>
               <div className="space-y-1">
                 <button
                   onClick={() => { setActiveTab("sale"); setSidebarOpen(false); }}
@@ -3693,7 +4078,7 @@ Thank you for your business!`;
                     activeTab === "sale" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="rupee" size={17} /> POS Billing
+                  <Icon name="rupee" size={17} /> {t("POS Billing", "పీఓఎస్ బిల్లింగ్")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("invoices"); setSidebarOpen(false); }}
@@ -3701,13 +4086,13 @@ Thank you for your business!`;
                     activeTab === "invoices" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="filetext" size={17} /> Invoices & Receipts
+                  <Icon name="filetext" size={17} /> {t("Invoices & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}
                 </button>
               </div>
             </div>
 
             <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Purchases & Suppliers</span>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Purchases & Suppliers", "కొనుగోళ్లు & సరఫరాదారులు")}</span>
               <div className="space-y-1">
                 <button
                   onClick={() => { setActiveTab("purchases"); setSidebarOpen(false); }}
@@ -3715,7 +4100,7 @@ Thank you for your business!`;
                     activeTab === "purchases" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="package" size={17} /> Purchases & Stock
+                  <Icon name="package" size={17} /> {t("Purchases & Stock", "కొనుగోళ్లు & స్టాక్")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("payments_collections"); setSidebarOpen(false); }}
@@ -3723,13 +4108,13 @@ Thank you for your business!`;
                     activeTab === "payments_collections" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="receipt" size={17} /> Payments & Collections
+                  <Icon name="receipt" size={17} /> {t("Payments & Collections", "చెల్లింపులు & వసూళ్లు")}
                 </button>
               </div>
             </div>
 
             <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Financials & Accounts</span>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Financials & Accounts", "ఆర్థిక లావాదేవీలు & ఖాతాలు")}</span>
               <div className="space-y-1">
                 <button
                   onClick={() => { setActiveTab("summary"); setSidebarOpen(false); }}
@@ -3737,7 +4122,7 @@ Thank you for your business!`;
                     activeTab === "summary" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="dashboard" size={17} /> Business Snapshot
+                  <Icon name="dashboard" size={17} /> {t("Business Snapshot", "వ్యాపార సమాచారం")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("history_audit"); setSidebarOpen(false); }}
@@ -3745,7 +4130,7 @@ Thank you for your business!`;
                     activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="history" size={17} /> Transaction Audit Ledger
+                  <Icon name="history" size={17} /> {t("Transaction Audit Ledger", "లావాదేవీల ఆడిట్ లెడ్జర్")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("lenders"); setSidebarOpen(false); }}
@@ -3753,7 +4138,7 @@ Thank you for your business!`;
                     activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="handcoins" size={17} /> Business Loans
+                  <Icon name="handcoins" size={17} /> {t("Business Loans", "వ్యాపార రుణాలు")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("expenses"); setSidebarOpen(false); }}
@@ -3761,7 +4146,7 @@ Thank you for your business!`;
                     activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="creditcard" size={17} /> Shop Expenses & Outflow
+                  <Icon name="creditcard" size={17} /> {t("Shop Expenses & Outflow", "షాపు ఖర్చులు")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("reports"); setSidebarOpen(false); }}
@@ -3769,7 +4154,7 @@ Thank you for your business!`;
                     activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="filetext" size={17} /> B Reddy Excel Sheet (PDF)
+                  <Icon name="filetext" size={17} /> {t("B Reddy Excel Sheet (PDF)", "బి రెడ్డి ఎక్సెల్ షీట్ (PDF)")}
                 </button>
                 {/* RENAMED TO LEDGER STATEMENT (ITEM 3 & 8) */}
                 <button
@@ -3778,13 +4163,13 @@ Thank you for your business!`;
                     activeTab === "ledger" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="layers" size={17} /> Ledger Statement
+                  <Icon name="layers" size={17} /> {t("Ledger Statement", "ఖాతా వివరాల నివేదిక")}
                 </button>
               </div>
             </div>
 
             <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Administration</span>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Administration", "నిర్వహణ")}</span>
               <div className="space-y-1">
                 <button
                   onClick={() => { setActiveTab("masters"); setSidebarOpen(false); }}
@@ -3792,7 +4177,7 @@ Thank you for your business!`;
                     activeTab === "masters" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="layers" size={17} /> Master Management
+                  <Icon name="layers" size={17} /> {t("Master Management", "మాస్టర్ డేటా నిర్వహణ")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("partners"); setSidebarOpen(false); }}
@@ -3800,7 +4185,7 @@ Thank you for your business!`;
                     activeTab === "partners" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="wallet" size={17} /> Partner Capital Accounts
+                  <Icon name="wallet" size={17} /> {t("Partner Capital Accounts", "భాగస్వాముల మూలధన ఖాతాలు")}
                 </button>
                 <button
                   onClick={() => { setActiveTab("settings"); setSidebarOpen(false); }}
@@ -3808,7 +4193,7 @@ Thank you for your business!`;
                     activeTab === "settings" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <span className="text-base">⚙️</span> Settings
+                  <span className="text-base">⚙️</span> {t("Settings", "సెట్టింగులు")}
                 </button>
               </div>
             </div>
@@ -3825,7 +4210,7 @@ Thank you for your business!`;
             }}
             className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow"
           >
-            <Icon name="rupee" size={15} /> Collect Customer Due
+            <Icon name="rupee" size={15} /> {t("Collect Customer Due", "కస్టమర్ బకాయి వసూలు")}
           </button>
           <button
             onClick={() => {
@@ -3838,7 +4223,7 @@ Thank you for your business!`;
             }}
             className={`w-full py-2.5 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow`}
           >
-            <Icon name="wallet" size={15} /> Pay Purchase Bill
+            <Icon name="wallet" size={15} /> {t("Pay Purchase Bill", "సరుకు కొనుగోలు బిల్లు చెల్లించండి")}
           </button>
         </div>
       </aside>
@@ -4592,21 +4977,22 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-300 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Invoice #</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Date</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Customer</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">Items Summary</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Total</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">Balance Due</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Status</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">Actions</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Invoice #", "ఇన్‌వాయిస్ #")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Date", "తేదీ")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Customer", "కస్టమర్")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Items Summary", "వస్తువుల వివరాలు")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Total", "మొత్తం")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Paid", "చెల్లించినది")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Balance Due", "బకాయి")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{t("Status", "స్థితి")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
                           {pagedInvoices.length === 0 ? (
                             <tr>
-                              <td colSpan={9} className="p-8 text-center text-slate-400">
+                              <td colSpan={11} className="p-8 text-center text-slate-400">
                                 No invoices found matching your criteria.
                               </td>
                             </tr>
@@ -4636,6 +5022,10 @@ Thank you for your business!`;
                                   </td>
                                   <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                                     {inv.invoice_date || inv.created_at?.slice(0, 10)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap text-[11px] text-slate-500">
+                                    <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(inv.created_at)}</div>
+                                    <div className="text-[10px] text-slate-400">By: {inv.created_by || "Admin (B Reddy)"}</div>
                                   </td>
                                   <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">
                                     <div>
@@ -4742,6 +5132,7 @@ Thank you for your business!`;
                 );
               })()}
             </div>
+            {renderAuditTrailGrid("invoices")}
           </div>
         )}
 
@@ -4898,23 +5289,24 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Purchase #</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Item Name</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Supplier</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Stock (Left / Total)</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Cost Rate</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Selling Rate</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total Bill</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Paid</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Due</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Purchase #", "కొనుగోలు #")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Item Name", "వస్తువు పేరు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Supplier", "సరఫరాదారు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Stock (Left / Total)", "స్టాక్ (మిగిలినది / మొత్తం)")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Cost Rate", "కొనుగోలు ధర")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Selling Rate", "అమ్మకపు ధర")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid", "చెల్లించినది")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Due", "బకాయి")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                           {pagedProcurements.length === 0 ? (
                             <tr>
-                              <td colSpan={11} className="p-8 text-center text-slate-400">
+                              <td colSpan={12} className="p-8 text-center text-slate-400">
                                 No purchases or stock records found.
                               </td>
                             </tr>
@@ -4928,7 +5320,7 @@ Thank you for your business!`;
                         const sellRate = Number(p.selling_rate || costRate);
                         const margin = costRate > 0 ? Math.round(((sellRate - costRate) / costRate) * 100) : 0;
                         const dtStr = (p.purchase_date || p.created_at || "").slice(2, 10).replace(/-/g, "");
-                        const purchaseNum = dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`;
+                        const purchaseNum = p.receiver_2_mode || (dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`);
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50 transition">
@@ -4944,7 +5336,11 @@ Thank you for your business!`;
                               </button>
                             </td>
                             <td className="p-3 text-slate-500 whitespace-nowrap">
-                              {p.created_at?.slice(0, 10)}
+                              {p.purchase_date || p.created_at?.slice(0, 10)}
+                            </td>
+                            <td className="p-3 whitespace-nowrap text-[11px] text-slate-500">
+                              <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(p.created_at)}</div>
+                              <div className="text-[10px] text-slate-400">By: {p.created_by || "Admin (B Reddy)"}</div>
                             </td>
                             <td className="p-3 font-bold text-slate-900">
                               <div>{p.item_name}</div>
@@ -5017,6 +5413,7 @@ Thank you for your business!`;
           );
         })()}
             </div>
+            {renderAuditTrailGrid("purchases")}
           </div>
         )}
 
@@ -5226,15 +5623,16 @@ Thank you for your business!`;
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Receipt #</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Customer</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Invoice Ref</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Amount</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Mode</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Receiver Partner</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Notes</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receipt #", "రసీదు #")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Customer", "కస్టమర్")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Invoice Ref", "ఇన్‌వాయిస్ రెఫరెన్స్")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Amount", "మొత్తం")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Mode", "చెల్లింపు పద్ధతి")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Notes", "గమనికలు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -5264,7 +5662,11 @@ Thank you for your business!`;
                                   </button>
                                 </td>
                                 <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                  {c.created_at?.slice(0, 10)}
+                                  {c.collection_date || c.created_at?.slice(0, 10)}
+                                </td>
+                                <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                                  <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(c.created_at)}</div>
+                                  <div className="text-[10px] text-slate-400">By: {receiver?.name || "Admin (B Reddy)"}</div>
                                 </td>
                                 <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {cust?.name || c.customer_name || "Customer"}
@@ -5284,7 +5686,7 @@ Thank you for your business!`;
                                               className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
                                               title="View / Print Invoice"
                                             >
-                                              {invItem.invoice_number}
+                                              {invItem.invoice_number} {invItem.amount ? `(${money(invItem.amount)})` : ""}
                                             </button>
                                             {idx < adjustedInvs.length - 1 && <span className="text-slate-400 mr-1">,</span>}
                                           </span>
@@ -5309,7 +5711,7 @@ Thank you for your business!`;
                                           className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
                                           title="View / Print Invoice"
                                         >
-                                          {adjustedInvs[0].invoice_number}
+                                          {adjustedInvs[0].invoice_number} {adjustedInvs[0].amount ? `(${money(adjustedInvs[0].amount)})` : ""}
                                         </button>
                                         <span className="text-slate-400">,</span>
                                         <button
@@ -5332,7 +5734,7 @@ Thank you for your business!`;
                                       className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
                                       title="View / Print Invoice Receipt"
                                     >
-                                      {adjustedInvs[0].invoice_number}
+                                      {adjustedInvs[0].invoice_number} {adjustedInvs[0].amount ? `(${money(adjustedInvs[0].amount)})` : ""}
                                     </button>
                                   ) : c.invoice_id ? (
                                     <button
@@ -5520,16 +5922,17 @@ Thank you for your business!`;
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Payment ID / Ref</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Supplier Name</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Item Procured</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total Bill</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Amount Paid</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Remaining Due</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Payment Mode</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Funding Partner</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Payment ID / Ref", "చెల్లింపు ID / రెఫరెన్స్")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Supplier Name", "సరఫరాదారు పేరు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Item Procured", "కొనుగోలు చేసిన వస్తువు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Amount Paid", "చెల్లించిన మొత్తం")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Remaining Due", "మిగిలిన బకాయి")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Payment Mode", "చెల్లింపు పద్ధతి")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Funding Partner", "చెల్లించిన భాగస్వామి")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -5559,7 +5962,11 @@ Thank you for your business!`;
                                   </button>
                                 </td>
                                 <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                  {p.created_at?.slice(0, 10)}
+                                  {p.purchase_date || p.created_at?.slice(0, 10)}
+                                </td>
+                                <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                                  <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(p.created_at)}</div>
+                                  <div className="text-[10px] text-slate-400">By: {partner?.name || "Admin (B Reddy)"}</div>
                                 </td>
                                 <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {p.supplier_name}
@@ -5736,6 +6143,7 @@ Thank you for your business!`;
                 </div>
               </div>
             )}
+            {renderAuditTrailGrid("payments_collections")}
           </div>
         )}
 
@@ -5893,7 +6301,7 @@ Thank you for your business!`;
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                           {partnerAccounts.length === 0 ? (
                             <tr>
-                              <td colSpan={9} className="p-8 text-center text-slate-400 font-sans">
+                              <td colSpan={10} className="p-8 text-center text-slate-400 font-sans">
                                 No partner accounts configured.
                               </td>
                             </tr>
@@ -6155,14 +6563,14 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Doc #</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Type</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Party</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total (₹)</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Paid (₹)</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Balance Due</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Status</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Doc #", "పత్రం సంఖ్య")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Type", "రకం")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Party", "వ్యక్తి / సంస్థ")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total (₹)", "మొత్తం (₹)")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid (₹)", "చెల్లించినది (₹)")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Balance Due", "బకాయి")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Status", "స్థితి")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -6222,6 +6630,7 @@ Thank you for your business!`;
           );
         })()}
             </div>
+            {renderAuditTrailGrid()}
           </div>
         )}
 
@@ -7221,14 +7630,14 @@ Thank you for your business!`;
               <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                 <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                   <tr>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">Expense ID</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">Date</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">Category</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700">Title / Description</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44">Paid By (Partner & Mode)</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Amount (₹)</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">{t("S.No", "క్ర.సం.")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">{t("Expense ID", "ఖర్చు ID")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">{t("Date", "తేదీ")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">{t("Category", "వర్గం")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700">{t("Title / Description", "శీర్షిక / వివరణ")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44">{t("Paid By (Partner & Mode)", "చెల్లించిన భాగస్వామి & విధానం")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">{t("Amount (₹)", "మొత్తం (₹)")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">{t("Actions", "చర్యలు")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -7255,8 +7664,48 @@ Thank you for your business!`;
                             {e.category_name}
                           </td>
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-sans">
-                            <span className="font-bold text-slate-900 dark:text-white block">{e.title}</span>
-                            {e.notes && <span className="text-[11px] text-slate-400 block">{e.notes}</span>}
+                            {(() => {
+                              const fullDesc = `${e.title || ""}${e.notes ? " — " + e.notes : ""}`;
+                              const isLong = fullDesc.length > 25 || Boolean(e.notes);
+                              const isExpanded = expandedExpenseId === e.id;
+
+                              if (!isLong) {
+                                return <span className="font-bold text-slate-900 dark:text-white">{e.title}</span>;
+                              }
+
+                              if (isExpanded) {
+                                return (
+                                  <div className="space-y-1">
+                                    <span className="font-bold text-slate-900 dark:text-white block">{e.title}</span>
+                                    {e.notes && <span className="text-[11px] text-slate-400 block whitespace-pre-wrap">{e.notes}</span>}
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedExpenseId(null)}
+                                      className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition cursor-pointer"
+                                      title="Collapse description"
+                                    >
+                                      &lt;&lt;
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900 dark:text-white truncate max-w-[180px]">
+                                    {e.title}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedExpenseId(e.id)}
+                                    className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded transition cursor-pointer"
+                                    title="Expand full title and notes"
+                                  >
+                                    &gt;&gt;
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                             <span className="font-bold text-slate-800 dark:text-slate-200 block">{partner?.name || "N/A"}</span>
@@ -9640,6 +10089,29 @@ Thank you for your business!`;
                       ))}
                   </select>
 
+                  {/* Reference Invoices Preview for Collection */}
+                  {editingCollectionId && (() => {
+                    const currentCol = collections.find((c) => String(c.id) === String(editingCollectionId));
+                    const adjusted = currentCol ? getAdjustedInvoicesForCollection(currentCol) : [];
+                    if (adjusted.length === 0) return null;
+                    return (
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-2">
+                        <div className="flex justify-between items-center text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                          <span>Reference Invoices Settled ({adjusted.length}):</span>
+                          <span className="font-mono">{money(adjusted.reduce((s, x) => s + Number(x.amount || 0), 0))}</span>
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {adjusted.map((inv) => (
+                            <div key={inv.id} className="flex justify-between items-center text-xs font-mono bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-900">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400">{inv.invoice_number}</span>
+                              <span className="font-black text-emerald-600 dark:text-emerald-400">{money(inv.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {collectForm.customer_id && (
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -11446,7 +11918,7 @@ Thank you for your business!`;
           }`}
         >
           <Icon name="cart" size={20} />
-          <span className="text-[10px]">Billing</span>
+          <span className="text-[10px]">{t("Billing", "బిల్లింగ్")}</span>
         </button>
 
         <button
@@ -11457,7 +11929,7 @@ Thank you for your business!`;
           }`}
         >
           <Icon name="receipt" size={20} />
-          <span className="text-[10px]">Invoices</span>
+          <span className="text-[10px]">{t("Invoices", "ఇన్‌వాయిస్‌లు")}</span>
         </button>
 
         <button
@@ -11468,7 +11940,7 @@ Thank you for your business!`;
           }`}
         >
           <Icon name="package" size={20} />
-          <span className="text-[10px]">Stock</span>
+          <span className="text-[10px]">{t("Stock", "స్టాక్")}</span>
         </button>
 
         <button
@@ -11479,7 +11951,7 @@ Thank you for your business!`;
           }`}
         >
           <Icon name="handcoins" size={20} />
-          <span className="text-[10px]">Payments</span>
+          <span className="text-[10px]">{t("Payments", "చెల్లింపులు")}</span>
         </button>
 
         <button
@@ -11490,7 +11962,7 @@ Thank you for your business!`;
           }`}
         >
           <Icon name="menu" size={20} />
-          <span className="text-[10px]">More</span>
+          <span className="text-[10px]">{t("More", "మరిన్ని")}</span>
         </button>
       </nav>
     </div>
