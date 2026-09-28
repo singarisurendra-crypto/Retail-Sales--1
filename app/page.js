@@ -1349,8 +1349,8 @@ export default function App() {
         originalId: i.id,
         source: "invoice",
         reference_no: i.invoice_number || `INV-${i.id}`,
-        collection_type: "Bill Upfront",
-        notes: `Upfront on ${i.invoice_number || `INV-${i.id}`}`,
+        collection_type: i.upfront_mode === "Advance Adjusted" ? "Adjusted Advance" : "Bill Upfront",
+        notes: i.upfront_mode === "Advance Adjusted" ? `Adjusted from Advance on ${i.invoice_number || `INV-${i.id}`}` : `Upfront on ${i.invoice_number || `INV-${i.id}`}`,
         created_at: i.invoice_date || i.created_at,
         customer_id: i.customer_id,
         customer_name: i.customer_name,
@@ -1622,7 +1622,8 @@ export default function App() {
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
       return alert("Select items with valid quantities");
     }
-    if (upfrontPaidNum > 0 && !upfrontPartnerId) {
+    const isAdvanceAdjusted = upfrontMode === "Advance Adjusted";
+    if (upfrontPaidNum > 0 && !isAdvanceAdjusted && !upfrontPartnerId) {
       return alert("Select which partner received the upfront payment");
     }
 
@@ -1636,12 +1637,22 @@ export default function App() {
       const billBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - upfrontPaidNum);
       const excessAdvance = isSupplierSale ? 0 : Math.max(0, upfrontPaidNum - cartTotal);
 
-      // In edit mode: preserve existing upfront payment and account for all collections already received (direct + FIFO allocated)
+      // In edit mode: preserve existing upfront payment unless updated, and account for all collections already received (direct + FIFO allocated)
       const oldInv = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
       const existingUpfront = oldInv ? Number(oldInv.upfront_paid || 0) : 0;
+      const effectiveUpfront = editingInvoiceId
+        ? (upfrontAmount !== "" ? upfrontPaidNum : existingUpfront)
+        : upfrontPaidNum;
+      const effectiveMode = editingInvoiceId
+        ? (upfrontAmount !== "" ? upfrontMode : (oldInv?.upfront_mode || "None"))
+        : (upfrontPaidNum > 0 ? upfrontMode : "None");
+      const effectiveReceiver = editingInvoiceId
+        ? (effectiveMode === "Advance Adjusted" ? null : (upfrontPartnerId ? Number(upfrontPartnerId) : (oldInv?.upfront_receiver_id || null)))
+        : (isAdvanceAdjusted ? null : (upfrontPaidNum > 0 ? Number(upfrontPartnerId) : null));
+
       const invAlloc = editingInvoiceId ? invoiceAllocationsMap.get(String(editingInvoiceId)) : null;
       const existingCollections = invAlloc ? invAlloc.totalCollections : 0;
-      const totalPaidSoFar = existingUpfront + existingCollections;
+      const totalPaidSoFar = effectiveUpfront + existingCollections;
       const editBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - totalPaidSoFar);
       const editStatus = isSupplierSale || editBalanceDue <= 0 ? "Collected" : totalPaidSoFar > 0 ? "Partial" : "Due";
 
@@ -1654,16 +1665,16 @@ export default function App() {
         customer_name: selectedCust.name,
         invoice_date: saleDate,
         total_amount: cartTotal,
-        upfront_paid: editingInvoiceId ? existingUpfront : upfrontPaidNum,
+        upfront_paid: editingInvoiceId ? effectiveUpfront : upfrontPaidNum,
         balance_due: editingInvoiceId ? editBalanceDue : billBalanceDue,
-        upfront_mode: editingInvoiceId ? (oldInv?.upfront_mode || "None") : (upfrontPaidNum > 0 ? upfrontMode : "None"),
-        upfront_receiver_id: editingInvoiceId ? (oldInv?.upfront_receiver_id || null) : (upfrontPaidNum > 0 ? Number(upfrontPartnerId) : null),
+        upfront_mode: editingInvoiceId ? effectiveMode : (upfrontPaidNum > 0 ? upfrontMode : "None"),
+        upfront_receiver_id: effectiveReceiver,
         status: editingInvoiceId ? editStatus : status,
         payment_mode: editingInvoiceId
-          ? (editStatus === "Collected" ? (oldInv?.payment_mode || "Collected") : "Partial")
+          ? (effectiveMode === "Advance Adjusted" ? "Advance Adjusted" : editStatus === "Collected" ? (oldInv?.payment_mode || "Collected") : "Partial")
           : isSupplierSale
           ? (upfrontPaidNum >= cartTotal ? upfrontMode : upfrontPaidNum > 0 ? `${upfrontMode} + Contra` : "Contra Offset")
-          : (upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"),
+          : (upfrontMode === "Advance Adjusted" ? "Advance Adjusted" : upfrontPaidNum === 0 ? "Due" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"),
         items: cart.map((c) => ({
           procure_id: c.procure_id,
           item_name: c.item_name,
@@ -1683,8 +1694,9 @@ export default function App() {
               await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
             }
           }
-          // Reverse previous invoice's net effect
-          const prevNet = Number(oldInv.total_amount || 0) - Number(oldInv.upfront_paid || 0);
+          // Reverse previous invoice's net effect on customer due:
+          // Goods bought add to customer's due; fresh cash upfront reduces what was added. Advance adjustment was credit-based, so full total was added.
+          const prevNet = Number(oldInv.total_amount || 0) - (oldInv.upfront_mode === "Advance Adjusted" ? 0 : Number(oldInv.upfront_paid || 0));
           if (selectedCust.isSupplier) {
             const currentSup = suppliers.find((s) => s.id === selectedCust.id);
             const restoredDue = Number(currentSup?.old_due || 0) + prevNet;
@@ -1713,7 +1725,7 @@ export default function App() {
           if (typeof window !== "undefined") localStorage.setItem("app_numbering_config", JSON.stringify(next));
           return next;
         });
-        alert(`Invoice created! Status: ${status}${selectedCust.isSupplier ? ` (Contra offset against ${selectedCust.name} Supplier Account)` : excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
+        alert(`Invoice created! Status: ${status}${selectedCust.isSupplier ? ` (Contra offset against ${selectedCust.name} Supplier Account)` : isAdvanceAdjusted ? ` (Advance Adjusted: ₹${effectiveUpfront.toLocaleString('en-IN')})` : excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
       }
 
       // Decrement inventory
@@ -1725,9 +1737,10 @@ export default function App() {
         }
       }
 
-      // Update customer balance or supplier balance (contra account): netDueChange = cartTotal - effectiveUpfront
-      const effectiveUpfront = editingInvoiceId ? existingUpfront : upfrontPaidNum;
-      const netDueChange = cartTotal - effectiveUpfront;
+      // Update customer balance or supplier balance (contra account):
+      // Cash upfront reduces the addition to due. Advance adjustment consumes customer credit (so full cartTotal is added to old_due).
+      const newCashUpfront = effectiveMode === "Advance Adjusted" ? 0 : effectiveUpfront;
+      const netDueChange = cartTotal - newCashUpfront;
       if (selectedCust.isSupplier) {
         // Selling to supplier reduces what we owe the supplier!
         const currentSup = suppliers.find((s) => s.id === selectedCust.id);
@@ -4139,10 +4152,10 @@ Thank you for your business!`;
 
               {/* Customer Existing Advance Notice & Auto-Apply — ONLY for actual customers, NEVER for suppliers */}
               {selectedCust && !selectedCust.isSupplier && Number(selectedCust.old_due || 0) < 0 && (
-                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-emerald-800">Available Advance Credit:</span>
-                    <span className="font-black text-emerald-700">{money(Math.abs(Number(selectedCust.old_due)))}</span>
+                    <span className="font-bold text-emerald-800 dark:text-emerald-300">Available Advance Credit:</span>
+                    <span className="font-black text-emerald-700 dark:text-emerald-400">{money(Math.abs(Number(selectedCust.old_due)))}</span>
                   </div>
                   <button
                     type="button"
@@ -4150,10 +4163,11 @@ Thank you for your business!`;
                       const avail = Math.abs(Number(selectedCust.old_due));
                       const toApply = Math.min(avail, cartTotal);
                       setUpfrontAmount(String(toApply));
+                      setUpfrontMode("Advance Adjusted");
                     }}
-                    className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs"
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition"
                   >
-                    Apply Advance to Bill ({money(Math.min(Math.abs(Number(selectedCust.old_due)), cartTotal))})
+                    <span>⚡</span> Apply Advance to Bill ({money(Math.min(Math.abs(Number(selectedCust.old_due)), cartTotal))})
                   </button>
                 </div>
               )}
@@ -4165,22 +4179,26 @@ Thank you for your business!`;
                   const totalCols = invAlloc ? invAlloc.totalCollections : 0;
                   const oldInv = currentEditingInvoice || invoices.find((i) => i.id === editingInvoiceId);
                   const oldUpfront = Number(oldInv?.upfront_paid || 0);
-                  const totalPaidSoFar = oldUpfront + totalCols;
+                  const effectiveUpfront = upfrontAmount !== "" ? Number(upfrontAmount) : oldUpfront;
+                  const effectiveMode = upfrontAmount !== "" ? upfrontMode : (oldInv?.upfront_mode || "Cash");
+                  const effectiveReceiver = oldInv?.upfront_receiver_id;
+                  const totalPaidSoFar = effectiveUpfront + totalCols;
                   const balanceDueNow = Math.max(0, cartTotal - totalPaidSoFar);
 
                   // Combine upfront payment with subsequent collections so all payments are visible
                   const allInvoicePayments = [
-                    ...(oldUpfront > 0
+                    ...(effectiveUpfront > 0
                       ? [
                           {
                             id: `upfront_${oldInv?.id}`,
                             date: oldInv?.invoice_date || (oldInv?.created_at ? oldInv.created_at.slice(0, 10) : "-"),
                             ref: oldInv?.invoice_number || `INV-${oldInv?.id}`,
                             partner_name:
-                              partners.find((p) => String(p.id) === String(oldInv?.upfront_receiver_id))?.name ||
-                              "Store / Admin",
-                            payment_mode: oldInv?.upfront_mode || "Cash",
-                            amount: oldUpfront,
+                              effectiveMode === "Advance Adjusted"
+                                ? "Customer Advance Credit"
+                                : (partners.find((p) => String(p.id) === String(effectiveReceiver))?.name || "Store / Admin"),
+                            payment_mode: effectiveMode,
+                            amount: effectiveUpfront,
                             isUpfront: true
                           }
                         ]
@@ -4222,20 +4240,26 @@ Thank you for your business!`;
                               ) : (
                                 allInvoicePayments.map((c, cIdx) => {
                                   const dt = c.date || (c.created_at ? c.created_at.slice(0, 10) : "-");
+                                  const isAdvance = c.payment_mode === "Advance Adjusted";
                                   const pName =
                                     c.partner_name ||
-                                    partners.find((p) => String(p.id) === String(c.partner_id || c.collected_by))?.name ||
-                                    "N/A";
+                                    (isAdvance
+                                      ? "Customer Advance Credit"
+                                      : (partners.find((p) => String(p.id) === String(c.partner_id || c.collected_by))?.name || "N/A"));
                                   return (
                                     <tr key={c.id || cIdx} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{dt}</td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
                                         {c.ref || c.reference_no || `REC-${c.id}`}
-                                        {c.isUpfront && (
+                                        {isAdvance ? (
+                                          <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-sans font-bold">
+                                            Adjusted Advance
+                                          </span>
+                                        ) : c.isUpfront ? (
                                           <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-sans font-bold">
                                             Bill Upfront
                                           </span>
-                                        )}
+                                        ) : null}
                                         {c.isFIFO && (
                                           <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 font-sans">
                                             FIFO
@@ -4248,7 +4272,13 @@ Thank you for your business!`;
                                         )}
                                       </td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">{c.payment_mode || c.mode || "Cash"}</td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                          isAdvance ? "bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 font-black" : ""
+                                        }`}>
+                                          {c.payment_mode || c.mode || "Cash"}
+                                        </span>
+                                      </td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
                                         {money(c.amount)}
                                       </td>
@@ -4272,55 +4302,82 @@ Thank you for your business!`;
                   );
                 })()
               ) : (
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                  <label className="text-xs font-bold uppercase text-slate-700 block">Upfront Payment</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">₹</span>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-black text-emerald-600 outline-none"
-                      value={upfrontAmount}
-                      onChange={(e) => setUpfrontAmount(e.target.value)}
-                    />
-                  </div>
-
-                  {upfrontPaidNum > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-slate-200">
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setUpfrontMode("Cash")}
-                          className={`py-2 rounded-xl text-xs font-bold border ${
-                            upfrontMode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white"
-                          }`}
-                        >
-                          💵 Cash
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setUpfrontMode("UPI")}
-                          className={`py-2 rounded-xl text-xs font-bold border ${
-                            upfrontMode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white"
-                          }`}
-                        >
-                          📱 UPI
-                        </button>
-                      </div>
-
-                      <label className="text-[11px] font-bold text-slate-500 block mt-2">Partner Receiving Cash/UPI *</label>
-                      <select
-                        className="w-full p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold"
-                        value={upfrontPartnerId}
-                        onChange={(e) => setUpfrontPartnerId(e.target.value)}
-                      >
-                        {partners.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
+                /* Create Mode */
+                upfrontMode === "Advance Adjusted" ? (
+                  <div className="p-3.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                        <span>⚡</span> Advance Adjustment Applied:
+                      </span>
+                      <span className="font-black font-mono text-purple-700 dark:text-purple-300 text-sm">
+                        {money(upfrontPaidNum)}
+                      </span>
                     </div>
-                  )}
-                </div>
+                    <p className="text-[11px] text-purple-700 dark:text-purple-300 leading-tight">
+                      This bill will be settled directly against {selectedCust?.name}&apos;s available advance credit. No cash or UPI is required.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUpfrontAmount("");
+                        setUpfrontMode("Cash");
+                      }}
+                      className="text-[10px] text-purple-600 dark:text-purple-400 font-bold hover:underline cursor-pointer"
+                    >
+                      ✕ Remove Advance Adjustment (Pay with fresh Cash/UPI instead)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                    <label className="text-xs font-bold uppercase text-slate-700 block">Upfront Payment</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-black text-emerald-600 outline-none"
+                        value={upfrontAmount}
+                        onChange={(e) => setUpfrontAmount(e.target.value)}
+                      />
+                    </div>
+
+                    {upfrontPaidNum > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-slate-200">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setUpfrontMode("Cash")}
+                            className={`py-2 rounded-xl text-xs font-bold border ${
+                              upfrontMode === "Cash" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white"
+                            }`}
+                          >
+                            💵 Cash
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setUpfrontMode("UPI")}
+                            className={`py-2 rounded-xl text-xs font-bold border ${
+                              upfrontMode === "UPI" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white"
+                            }`}
+                          >
+                            📱 UPI
+                          </button>
+                        </div>
+
+                        <label className="text-[11px] font-bold text-slate-500 block mt-2">Partner Receiving Cash/UPI *</label>
+                        <select
+                          className="w-full p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold"
+                          value={upfrontPartnerId}
+                          onChange={(e) => setUpfrontPartnerId(e.target.value)}
+                        >
+                          {partners.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )
               )}
 
               {!editingInvoiceId && (
@@ -4333,6 +4390,16 @@ Thank you for your business!`;
                       </span>
                     </div>
                     <span className="text-sm text-indigo-800 font-black">{money(cartTotal - upfrontPaidNum)}</span>
+                  </div>
+                ) : upfrontMode === "Advance Adjusted" ? (
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-xs flex justify-between items-center font-bold text-purple-950 dark:text-purple-200">
+                    <div>
+                      <span className="block">Advance Offset:</span>
+                      <span className="text-[10px] text-purple-700 dark:text-purple-300 font-semibold">
+                        Deducted from customer advance balance
+                      </span>
+                    </div>
+                    <span className="text-sm font-black text-purple-700 dark:text-purple-300">{money(upfrontPaidNum)}</span>
                   </div>
                 ) : upfrontPaidNum > cartTotal ? (
                   <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs flex justify-between items-center text-emerald-900 font-bold">
@@ -5734,48 +5801,300 @@ Thank you for your business!`;
               </div>
             </div>
 
-            {/* Operating Partner Liquidity */}
-            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-3 border-b border-slate-100">
-                <div>
-                  <h3 className="font-black text-base text-slate-900">Partner Cash / UPI In-Hand</h3>
-                  <p className="text-xs text-slate-400">Actual physical cash and UPI holdings tied strictly to active partners</p>
-                </div>
-                <div className="flex items-center gap-3 bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200">
-                  <span className="text-xs font-bold text-slate-500">Total Liquid Funds:</span>
-                  <span className="font-black text-sm text-slate-900">{money(businessSummary.totalCash + businessSummary.totalUpi)}</span>
-                </div>
-              </div>
+            {/* Operating Partner Liquidity & Treasury Grid */}
+            {(() => {
+              const totalLiquid = (businessSummary.totalCash || 0) + (businessSummary.totalUpi || 0);
+              const cashPct = totalLiquid > 0 ? Math.max(0, Math.min(100, ((businessSummary.totalCash / totalLiquid) * 100))).toFixed(1) : "0.0";
+              const upiPct = totalLiquid > 0 ? Math.max(0, Math.min(100, ((businessSummary.totalUpi / totalLiquid) * 100))).toFixed(1) : "0.0";
+              const totInitCash = partnerAccounts.reduce((s, p) => s + Number(p.initCash || 0), 0);
+              const totInitUpi = partnerAccounts.reduce((s, p) => s + Number(p.initUpi || 0), 0);
+              const solvencyRatio = businessSummary.totalLiabilities > 0 ? (businessSummary.totalAssets / businessSummary.totalLiabilities).toFixed(2) : "∞";
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {partnerAccounts.map((p) => (
-                  <div key={p.id} className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-3">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center">
-                          {p.name.charAt(0)}
+              return (
+                <div className="space-y-6">
+                  {/* Treasury Telemetry Card */}
+                  <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                          <Icon name="wallet" size={20} />
                         </div>
-                        <h4 className="font-black text-base text-slate-900">{p.name}</h4>
+                        <div>
+                          <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white">Operating Partner Liquidity & Treasury Grid</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Real-time audit of physical cash, digital UPI balances, and partner capital allocations</p>
+                        </div>
                       </div>
-                      <span className="px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 font-black text-xs rounded-xl">
-                        Total: {money(p.totalBalance)}
-                      </span>
+
+                      {/* Summary Badges Pill */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          <span className="font-bold">Cash:</span>
+                          <span className="font-black">{money(businessSummary.totalCash)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                          <span className="font-bold">UPI:</span>
+                          <span className="font-black">{money(businessSummary.totalUpi)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs">
+                          <span className="font-bold">Total Liquid:</span>
+                          <span className="font-black">{money(totalLiquid)}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 text-xs pt-1">
-                      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                        <span className="text-slate-400 text-[11px] font-bold block">💵 Physical Cash</span>
-                        <p className="font-black text-base text-emerald-600 mt-1">{money(p.netCash)}</p>
+                    {/* Visual Telemetry Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                        <span className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+                          💵 Physical Cash Share: {cashPct}% ({money(businessSummary.totalCash)})
+                        </span>
+                        <span className="flex items-center gap-1 font-bold text-indigo-700 dark:text-indigo-400">
+                          📱 UPI / Digital Bank Share: {upiPct}% ({money(businessSummary.totalUpi)})
+                        </span>
                       </div>
-                      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                        <span className="text-slate-400 text-[11px] font-bold block">📱 UPI / Bank</span>
-                        <p className="font-black text-base text-indigo-600 mt-1">{money(p.netUpi)}</p>
+                      <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                        <div
+                          style={{ width: `${cashPct}%` }}
+                          className="bg-emerald-500 h-full transition-all duration-500"
+                          title={`Cash: ${cashPct}%`}
+                        />
+                        <div
+                          style={{ width: `${upiPct}%` }}
+                          className="bg-indigo-500 h-full transition-all duration-500"
+                          title={`UPI: ${upiPct}%`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* High Precision Technical Grid Table */}
+                    <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700 shadow-xs">
+                      <table className="w-full border-collapse font-mono text-xs">
+                        <thead>
+                          <tr className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold uppercase text-[11px] tracking-wider text-left">
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-12">#</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Partner / Stakeholder</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right">Opening Cash</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right">Opening UPI</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300">
+                              Cash In-Hand
+                            </th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-indigo-50/60 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-300">
+                              UPI In-Hand
+                            </th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-slate-100/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black">
+                              Total Balance
+                            </th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-32">Share %</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-28">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
+                          {partnerAccounts.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="p-8 text-center text-slate-400 font-sans">
+                                No partner accounts configured.
+                              </td>
+                            </tr>
+                          ) : (
+                            partnerAccounts.map((p) => {
+                              const pShare = totalLiquid > 0 ? Math.max(0, Math.min(100, ((p.totalBalance / totalLiquid) * 100))).toFixed(1) : "0.0";
+                              const isPositive = p.totalBalance > 0;
+                              const isZero = p.totalBalance === 0;
+
+                              return (
+                                <tr key={p.id} className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center text-slate-400 font-mono text-[11px]">
+                                    PTR-{String(p.id).padStart(2, "0")}
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                                        {p.name.charAt(0)}
+                                      </div>
+                                      <div>
+                                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm font-sans">{p.name}</div>
+                                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                          {p.role || "Operating Partner"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400">
+                                    {money(p.initCash || 0)}
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400">
+                                    {money(p.initUpi || 0)}
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
+                                    {money(p.netCash || 0)}
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/10">
+                                    {money(p.netUpi || 0)}
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-slate-900 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-800/30 text-sm">
+                                    {money(p.totalBalance)}
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <div className="w-12 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                          style={{ width: `${Math.min(100, Math.max(0, Number(pShare)))}%` }}
+                                          className="bg-indigo-600 h-full rounded-full"
+                                        />
+                                      </div>
+                                      <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300 w-9 text-right">{pShare}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center">
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                        isPositive
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                                          : isZero
+                                          ? "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                                          : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
+                                      }`}
+                                    >
+                                      <span className={`w-1.5 h-1.5 rounded-full ${isPositive ? "bg-emerald-500" : isZero ? "bg-slate-400" : "bg-rose-500"}`}></span>
+                                      {isPositive ? "Liquid" : isZero ? "Balanced" : "Deficit"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-[#d5e7f7] dark:bg-slate-800/90 font-bold text-slate-900 dark:text-white border-t-2 border-sky-300 dark:border-slate-600">
+                            <td colSpan={2} className="p-3 border border-sky-200 dark:border-slate-700 text-right uppercase tracking-wider text-[11px] font-black">
+                              Consolidated Partner Liquidity
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300">
+                              {money(totInitCash)}
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300">
+                              {money(totInitUpi)}
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-emerald-700 dark:text-emerald-300 font-black bg-emerald-100/50 dark:bg-emerald-950/30">
+                              {money(businessSummary.totalCash)}
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-indigo-700 dark:text-indigo-300 font-black bg-indigo-100/50 dark:bg-indigo-950/30">
+                              {money(businessSummary.totalUpi)}
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-900 dark:text-white font-black text-sm bg-sky-200/50 dark:bg-slate-700/50">
+                              {money(totalLiquid)}
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-center font-black">
+                              100.0%
+                            </td>
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-center">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-bold">
+                                ✓ Verified
+                              </span>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Enterprise Solvency & Asset Allocation Matrix */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Current Assets */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800/40 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between pb-2.5 border-b border-emerald-100 dark:border-emerald-950">
+                        <span className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                          Current Assets (ఆస్తులు & నగదు)
+                        </span>
+                        <span className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md">
+                          Assets
+                        </span>
+                      </div>
+                      <div className="space-y-2 text-xs font-mono">
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Liquid Cash & UPI:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(totalLiquid)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Inventory Stock Valuation:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.stockValuation)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Customer Market Dues:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.totalCustomerDues)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-baseline font-bold text-sm text-emerald-700 dark:text-emerald-400">
+                          <span>Total Business Assets:</span>
+                          <span className="font-black text-base">{money(businessSummary.totalAssets)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Current Liabilities */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-rose-200 dark:border-rose-800/40 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between pb-2.5 border-b border-rose-100 dark:border-rose-950">
+                        <span className="text-xs font-black uppercase tracking-wider text-rose-700 dark:text-rose-400">
+                          Obligations & Debts (అప్పులు)
+                        </span>
+                        <span className="text-[10px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 px-2 py-0.5 rounded-md">
+                          Liabilities
+                        </span>
+                      </div>
+                      <div className="space-y-2 text-xs font-mono">
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Supplier Payables:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.totalPurchaseDues)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>External Borrowings / Loans:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.totalLoansPayable)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Shop Operating Expenses:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.totalExpenses)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-baseline font-bold text-sm text-rose-700 dark:text-rose-400">
+                          <span>Total Obligations:</span>
+                          <span className="font-black text-base">{money(businessSummary.totalLiabilities)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Capital Solvency & Net Worth */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-indigo-200 dark:border-indigo-800/40 shadow-xs space-y-3">
+                      <div className="flex items-center justify-between pb-2.5 border-b border-indigo-100 dark:border-indigo-950">
+                        <span className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                          Net Equity & Solvency (నికర విలువ)
+                        </span>
+                        <span className="text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 px-2 py-0.5 rounded-md">
+                          Solvency
+                        </span>
+                      </div>
+                      <div className="space-y-2 text-xs font-mono">
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Solvency Coverage:</span>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400">{solvencyRatio}x Coverage</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>Gross Margin:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.grossProfit)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                          <span>COGS (Goods Sold Cost):</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">{money(businessSummary.cogs)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-baseline font-bold text-sm text-indigo-700 dark:text-indigo-400">
+                          <span>Business Net Worth:</span>
+                          <span className="font-black text-base text-indigo-600 dark:text-indigo-400">{money(businessSummary.netWorth)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
