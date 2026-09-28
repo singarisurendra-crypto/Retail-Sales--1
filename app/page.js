@@ -554,7 +554,7 @@ export default function App() {
     const newLog = {
       id: `AUD-${Date.now().toString().slice(-6)}`,
       timestamp: new Date().toISOString(),
-      operator: activeStaff?.name || user?.name || "Administrator (B Reddy)",
+      operator: (typeof currentUser !== "undefined" && currentUser?.name) || "Administrator (B Reddy)",
       ...event
     };
     setAuditTrailLogs((prev) => {
@@ -725,6 +725,88 @@ export default function App() {
     } catch {
       return String(isoStr).slice(0, 16).replace("T", " ");
     }
+  };
+
+  const renderTransactionAuditTrailGrid = (docRef, docType, entity) => {
+    const cleanRef = docRef || (entity ? (entity.invoice_number || entity.receiver_2_mode || `DOC-${entity.id}`) : "");
+    const relevantLogs = auditTrailLogs.filter(
+      (l) => l.docRef === cleanRef || (cleanRef && l.docRef && l.docRef.includes(cleanRef))
+    );
+
+    const logsToShow = [...relevantLogs];
+    const hasCreated = logsToShow.some((l) => l.action === "Created" || l.action === "Initial Setup");
+    if (!hasCreated && entity) {
+      logsToShow.push({
+        id: `BASE-${cleanRef}`,
+        timestamp: entity.created_at || entity.purchase_date || entity.invoice_date || new Date().toISOString(),
+        action: "Created",
+        operator: entity.created_by || "Administrator (B Reddy)",
+        details: `${docType} recorded in system for ${entity.customer_name || entity.supplier_name || "Account"}. Total: ${money(entity.total_amount || entity.total || 0)}`
+      });
+    }
+
+    logsToShow.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    return (
+      <div className="mt-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-4 space-y-2.5">
+        <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="p-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-md">
+              <Icon name="history" size={14} />
+            </span>
+            <span className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider">
+              {t("Document Audit Trail & Revision History", "లావాదేవీ ఆడిట్ ట్రయల్ & సవరణల రికార్డు")} ({cleanRef})
+            </span>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+            {logsToShow.length} {t("Revisions", "సవరణలు")}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-lg">
+          <table className="w-full text-left text-xs border-collapse font-mono">
+            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+              <tr>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Timestamp", "తేదీ & సమయం")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">{t("Action", "చర్య")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Operator / Partner", "ఆపరేటర్ / భాగస్వామి")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700">{t("Change Details", "మార్పుల వివరాలు")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
+              {logsToShow.map((log) => {
+                const isCreated = log.action === "Created" || log.action === "Initial Setup";
+                const isModified = log.action === "Modified" || log.action === "Rate Changed" || log.action === "Line Added";
+                const isDeleted = log.action === "Deleted";
+                return (
+                  <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                    <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-500 whitespace-nowrap text-[11px]">
+                      {formatCreated(log.timestamp)}
+                    </td>
+                    <td className="p-2 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                        isCreated ? "bg-emerald-100 text-emerald-800"
+                        : isModified ? "bg-amber-100 text-amber-800"
+                        : isDeleted ? "bg-rose-100 text-rose-800"
+                        : "bg-slate-100 text-slate-800"
+                      }`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap text-[11px]">
+                      {log.operator}
+                    </td>
+                    <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-sans">
+                      {log.details}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   const renderAuditTrailGrid = (filterType = null) => {
@@ -3006,13 +3088,14 @@ Thank you for your business!`;
     const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : new Date().toISOString().split("T")[0]);
     const dtStr = pDate.replace(/-/g, "").slice(2);
     const defaultOrderRef = dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`;
-    const orderRef = p.receiver_2_mode || defaultOrderRef;
+    const isPoRef = typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-");
+    const orderRef = isPoRef ? p.receiver_2_mode : defaultOrderRef;
     setEditingOrderRef(orderRef);
 
-    // Find ALL lines belonging to this purchase order
-    const siblingRows = procurements.filter(
-      (x) => (p.receiver_2_mode && x.receiver_2_mode === p.receiver_2_mode) || x.id === p.id
-    );
+    // Only match siblings if this is a genuine multi-line order reference starting with PUR-
+    const siblingRows = isPoRef
+      ? procurements.filter((x) => x.receiver_2_mode === p.receiver_2_mode)
+      : [p];
 
     const loadedLines = siblingRows.map((row) => ({
       procure_id: row.id,
@@ -4812,18 +4895,26 @@ Thank you for your business!`;
               </button>
 
               {editingInvoiceId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingInvoiceId(null);
-                    setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
-                    setSelectedCust(null);
-                    setUpfrontAmount("");
-                  }}
-                  className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider"
-                >
-                  Cancel Edit
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingInvoiceId(null);
+                      setCart([{ procure_id: "", item_name: "", supplier_name: "", purchase_rate: 0, rate: "", qty: "1", total: 0, max_qty: 0 }]);
+                      setSelectedCust(null);
+                      setUpfrontAmount("");
+                    }}
+                    className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider"
+                  >
+                    Cancel Edit
+                  </button>
+
+                  {renderTransactionAuditTrailGrid(
+                    currentEditingInvoice?.invoice_number || `INV-${currentEditingInvoice?.id}`,
+                    "Sales Invoice",
+                    currentEditingInvoice
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -5132,7 +5223,6 @@ Thank you for your business!`;
                 );
               })()}
             </div>
-            {renderAuditTrailGrid("invoices")}
           </div>
         )}
 
@@ -5320,7 +5410,8 @@ Thank you for your business!`;
                         const sellRate = Number(p.selling_rate || costRate);
                         const margin = costRate > 0 ? Math.round(((sellRate - costRate) / costRate) * 100) : 0;
                         const dtStr = (p.purchase_date || p.created_at || "").slice(2, 10).replace(/-/g, "");
-                        const purchaseNum = p.receiver_2_mode || (dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`);
+                        const isPoRef = typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-");
+                        const purchaseNum = isPoRef ? p.receiver_2_mode : (dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`);
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50 transition">
@@ -5413,7 +5504,6 @@ Thank you for your business!`;
           );
         })()}
             </div>
-            {renderAuditTrailGrid("purchases")}
           </div>
         )}
 
@@ -6143,7 +6233,6 @@ Thank you for your business!`;
                 </div>
               </div>
             )}
-            {renderAuditTrailGrid("payments_collections")}
           </div>
         )}
 
@@ -6630,7 +6719,6 @@ Thank you for your business!`;
           );
         })()}
             </div>
-            {renderAuditTrailGrid()}
           </div>
         )}
 
@@ -10595,6 +10683,12 @@ Thank you for your business!`;
                   </div>
                 )}
               </div>
+
+              {editingProcureId && renderTransactionAuditTrailGrid(
+                editingOrderRef || `PUR-${editingProcureId}`,
+                "Purchase Order",
+                procurements.find((p) => p.id === editingProcureId)
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-2 pt-1">
