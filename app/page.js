@@ -349,6 +349,10 @@ export default function App() {
   const [editingProcureId, setEditingProcureId] = useState(null);
   const [procureForm, setProcureForm] = useState({
     supplier_name: "",
+    purchase_date: new Date().toISOString().split("T")[0],
+    items: [
+      { item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }
+    ],
     item_name: "",
     procured_qty: "",
     purchase_rate: "",
@@ -2601,15 +2605,95 @@ Thank you for your business!`;
     }
   };
 
-  // PURCHASES HANDLERS
+  // PURCHASES HANDLERS (Multi-line Support)
+  const handleAddProcureLine = () => {
+    setProcureForm((prev) => ({
+      ...prev,
+      items: [
+        ...(prev.items || []),
+        { item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }
+      ]
+    }));
+  };
+
+  const handleRemoveProcureLine = (index) => {
+    setProcureForm((prev) => {
+      const curItems = prev.items || [];
+      if (curItems.length <= 1) return prev;
+      return {
+        ...prev,
+        items: curItems.filter((_, idx) => idx !== index)
+      };
+    });
+  };
+
+  const handleUpdateProcureLine = (index, field, value) => {
+    setProcureForm((prev) => {
+      const curItems = [...(prev.items || [])];
+      if (!curItems[index]) return prev;
+      const line = { ...curItems[index] };
+
+      if (field === "item_name") {
+        line.item_name = value;
+        const matchedItem = uniqueItemSuggestions.find((i) => i.name === value);
+        if (matchedItem) {
+          if (matchedItem.purchase_rate) line.purchase_rate = String(matchedItem.purchase_rate);
+          if (matchedItem.selling_rate) line.selling_rate = String(matchedItem.selling_rate);
+        }
+      } else if (field === "procured_qty") {
+        line.procured_qty = value;
+      } else if (field === "purchase_rate") {
+        line.purchase_rate = value;
+      } else if (field === "selling_rate") {
+        line.selling_rate = value;
+      }
+
+      const q = Number(line.procured_qty || 0);
+      const r = Number(line.purchase_rate || 0);
+      line.total = q * r;
+
+      curItems[index] = line;
+      return {
+        ...prev,
+        items: curItems
+      };
+    });
+  };
+
+  const procureGrandTotal = useMemo(() => {
+    const list = procureForm.items || [];
+    if (list.length === 0) {
+      return Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
+    }
+    return list.reduce((sum, line) => {
+      const q = Number(line.procured_qty || 0);
+      const r = Number(line.purchase_rate || 0);
+      return sum + q * r;
+    }, 0);
+  }, [procureForm.items, procureForm.procured_qty, procureForm.purchase_rate]);
+
   const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
+    const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : new Date().toISOString().split("T")[0]);
+    const pCost = p.purchase_rate ? String(p.purchase_rate) : "";
+    const pSell = p.selling_rate ? String(p.selling_rate) : "";
+    const pQty = p.procured_qty ? String(p.procured_qty) : "1";
     setProcureForm({
       supplier_name: p.supplier_name || "",
+      purchase_date: pDate,
+      items: [
+        {
+          item_name: p.item_name || "",
+          procured_qty: pQty,
+          purchase_rate: pCost,
+          selling_rate: pSell,
+          total: Number(p.total_amount || 0)
+        }
+      ],
       item_name: p.item_name || "",
-      procured_qty: p.procured_qty || "",
-      purchase_rate: p.purchase_rate || "",
-      selling_rate: p.selling_rate || "",
+      procured_qty: pQty,
+      purchase_rate: pCost,
+      selling_rate: pSell,
       is_opening: p.supplier_name === "Opening Stock",
       paid_now: p.p1_amount ? String(p.p1_amount) : "0",
       p1_id: p.p1_id ? String(p.p1_id) : (partners[0]?.id ? String(partners[0].id) : ""),
@@ -2636,13 +2720,23 @@ Thank you for your business!`;
   const saveProcurement = async (e) => {
     e.preventDefault();
     if (savingProcure) return;
-    if (!procureForm.supplier_name) return alert("Select or add a Supplier");
-    if (!procureForm.item_name) return alert("Select or add an Item");
+    if (!procureForm.supplier_name?.trim()) return alert("Select or add a Supplier");
 
-    const qty = Number(procureForm.procured_qty || 0);
-    const purchaseRate = Number(procureForm.purchase_rate || 0);
-    const sellingRate = Number(procureForm.selling_rate || purchaseRate);
-    const total = qty * purchaseRate;
+    // Gather valid item lines
+    const rawLines = procureForm.items && procureForm.items.length > 0
+      ? procureForm.items
+      : [{
+          item_name: procureForm.item_name,
+          procured_qty: procureForm.procured_qty,
+          purchase_rate: procureForm.purchase_rate,
+          selling_rate: procureForm.selling_rate
+        }];
+
+    const validLines = rawLines.filter((l) => l.item_name?.trim() && Number(l.procured_qty || 0) > 0);
+    if (validLines.length === 0) {
+      return alert("Select items with valid quantities for this purchase order");
+    }
+
     const paidNowNum = Number(procureForm.paid_now || 0);
     const isAdvanceAdjusted = procureForm.p1_mode === "Advance Adjusted";
 
@@ -2656,46 +2750,120 @@ Thank you for your business!`;
       if (!fundCheck.valid) return alert(fundCheck.message);
     }
 
-    const payload = {
-      supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
-      item_name: procureForm.item_name.trim(),
-      procured_qty: qty,
-      remaining_qty: qty,
-      purchase_rate: purchaseRate,
-      selling_rate: sellingRate,
-      total_amount: total,
-      p1_id: paidNowNum > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : null,
-      p1_amount: Math.min(total, paidNowNum),
-      p1_mode: procureForm.p1_mode
-    };
+    const grandTotal = validLines.reduce(
+      (sum, l) => sum + Number(l.procured_qty || 0) * Number(l.purchase_rate || 0),
+      0
+    );
 
     setSavingProcure(true);
     try {
       if (editingProcureId) {
+        // Edit Mode: update the existing procurement record
+        const firstLine = validLines[0];
+        const qty = Number(firstLine.procured_qty || 0);
+        const purchaseRate = Number(firstLine.purchase_rate || 0);
+        const sellingRate = Number(firstLine.selling_rate || purchaseRate);
+        const total = qty * purchaseRate;
+
+        // Maintain remaining_qty integrity if some items have already been sold
+        const oldProc = procurements.find((p) => p.id === editingProcureId);
+        const soldQty = oldProc ? Math.max(0, Number(oldProc.procured_qty || 0) - Number(oldProc.remaining_qty || 0)) : 0;
+        const newRemaining = Math.max(0, qty - soldQty);
+
+        const payload = {
+          supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+          item_name: firstLine.item_name.trim(),
+          purchase_date: procureForm.purchase_date || oldProc?.purchase_date || new Date().toISOString().split("T")[0],
+          procured_qty: qty,
+          remaining_qty: newRemaining,
+          purchase_rate: purchaseRate,
+          selling_rate: sellingRate,
+          total_amount: total,
+          p1_id: paidNowNum > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : (oldProc?.p1_id || null),
+          p1_amount: Math.min(total, paidNowNum),
+          p1_mode: procureForm.p1_mode
+        };
+
         const { error } = await db.from("procurements").update(payload).eq("id", editingProcureId);
         if (error) throw error;
-        alert("Purchase record updated!");
+
+        // If extra lines were added during edit, insert them as new batches
+        if (validLines.length > 1) {
+          const extraLines = validLines.slice(1);
+          const extraPayloads = extraLines.map((line) => {
+            const lQty = Number(line.procured_qty || 0);
+            const lRate = Number(line.purchase_rate || 0);
+            const lSell = Number(line.selling_rate || lRate);
+            return {
+              purchase_date: procureForm.purchase_date || new Date().toISOString().split("T")[0],
+              supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+              item_name: line.item_name.trim(),
+              procured_qty: lQty,
+              remaining_qty: lQty,
+              purchase_rate: lRate,
+              selling_rate: lSell,
+              total_amount: lQty * lRate,
+              p1_id: null,
+              p1_amount: 0,
+              p1_mode: "Cash"
+            };
+          });
+          const { error: insErr } = await db.from("procurements").insert(extraPayloads);
+          if (insErr) throw insErr;
+        }
+
+        alert("Purchase order updated successfully!");
       } else {
-        const { error } = await db.from("procurements").insert([payload]);
+        // Create Mode: insert all lines into procurements
+        let remainingPaid = paidNowNum;
+        const payloads = validLines.map((line) => {
+          const qty = Number(line.procured_qty || 0);
+          const purchaseRate = Number(line.purchase_rate || 0);
+          const sellingRate = Number(line.selling_rate || purchaseRate);
+          const lineTotal = qty * purchaseRate;
+
+          // Distribute paidNow across lines
+          let linePaid = 0;
+          if (remainingPaid > 0) {
+            linePaid = Math.min(lineTotal, remainingPaid);
+            remainingPaid -= linePaid;
+          }
+
+          return {
+            purchase_date: procureForm.purchase_date || new Date().toISOString().split("T")[0],
+            supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+            item_name: line.item_name.trim(),
+            procured_qty: qty,
+            remaining_qty: qty,
+            purchase_rate: purchaseRate,
+            selling_rate: sellingRate,
+            total_amount: lineTotal,
+            p1_id: linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : null,
+            p1_amount: linePaid,
+            p1_mode: procureForm.p1_mode
+          };
+        });
+
+        const { error } = await db.from("procurements").insert(payloads);
         if (error) throw error;
 
         // If paid via Advance Adjusted, reduce the supplier's negative advance balance (increases toward 0)
         if (isAdvanceAdjusted && !procureForm.is_opening) {
           const sup = suppliers.find((s) => s.name === procureForm.supplier_name.trim());
           if (sup) {
-            const updatedDue = Number(sup.old_due || 0) + Math.min(total, paidNowNum);
+            const updatedDue = Number(sup.old_due || 0) + Math.min(grandTotal, paidNowNum);
             await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
           }
-        } else if (paidNowNum > total && !procureForm.is_opening) {
+        } else if (paidNowNum > grandTotal && !procureForm.is_opening) {
           // If paid more than bill total, credit the excess to supplier as advance!
-          const excessAdv = paidNowNum - total;
+          const excessAdv = paidNowNum - grandTotal;
           const sup = suppliers.find((s) => s.name === procureForm.supplier_name.trim());
           if (sup) {
             const updatedDue = Number(sup.old_due || 0) - excessAdv;
             await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
           }
         }
-        alert(`Purchase saved!`);
+        alert(`Purchase order with ${validLines.length} item line(s) recorded successfully!`);
       }
       setShowProcureModal(false);
       setEditingProcureId(null);
@@ -4523,13 +4691,17 @@ Thank you for your business!`;
                   setEditingProcureId(null);
                   setProcureForm({
                     supplier_name: "",
+                    purchase_date: new Date().toISOString().split("T")[0],
+                    items: [
+                      { item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }
+                    ],
                     item_name: "",
                     procured_qty: "",
                     purchase_rate: "",
                     selling_rate: "",
                     is_opening: false,
                     paid_now: "",
-                    p1_id: "",
+                    p1_id: partners[0]?.id ? String(partners[0].id) : "",
                     p1_mode: "Cash"
                   });
                   setShowProcureModal(true);
@@ -4659,6 +4831,7 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Purchase #</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Item Name</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Supplier</th>
@@ -4674,7 +4847,7 @@ Thank you for your business!`;
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                           {pagedProcurements.length === 0 ? (
                             <tr>
-                              <td colSpan={10} className="p-8 text-center text-slate-400">
+                              <td colSpan={11} className="p-8 text-center text-slate-400">
                                 No purchases or stock records found.
                               </td>
                             </tr>
@@ -4687,9 +4860,22 @@ Thank you for your business!`;
                         const costRate = Number(p.purchase_rate || 0);
                         const sellRate = Number(p.selling_rate || costRate);
                         const margin = costRate > 0 ? Math.round(((sellRate - costRate) / costRate) * 100) : 0;
+                        const dtStr = (p.purchase_date || p.created_at || "").slice(2, 10).replace(/-/g, "");
+                        const purchaseNum = dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`;
 
                         return (
                           <tr key={p.id} className="hover:bg-slate-50 transition">
+                            <td className="p-2.5 border border-sky-200 dark:border-slate-700">
+                              <button
+                                type="button"
+                                onClick={() => handleEditProcurement(p)}
+                                className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                                title="Click purchase number to edit purchase order"
+                              >
+                                <Icon name="edit" size={13} />
+                                {purchaseNum}
+                              </button>
+                            </td>
                             <td className="p-3 text-slate-500 whitespace-nowrap">
                               {p.created_at?.slice(0, 10)}
                             </td>
@@ -4740,14 +4926,6 @@ Thank you for your business!`;
                                     <Icon name="wallet" size={14} />
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  title="Edit Procurement"
-                                  onClick={() => handleEditProcurement(p)}
-                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition"
-                                >
-                                  <Icon name="edit" size={14} />
-                                </button>
                                 {Number(p.remaining_qty || 0) >= Number(p.procured_qty || 0) && (
                                   <button
                                     type="button"
@@ -9247,7 +9425,7 @@ Thank you for your business!`;
       {/* MODAL: ADD / EDIT PURCHASES (FORMATTED LIKE SALES INVOICE SCREEN) */}
       {showProcureModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-xl w-full my-auto max-h-[90dvh] overflow-y-auto space-y-4 shadow-xl">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-2xl w-full my-auto max-h-[90dvh] overflow-y-auto space-y-4 shadow-xl">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
@@ -9265,171 +9443,241 @@ Thank you for your business!`;
                   {editingProcureId ? "Review purchase details and recorded supplier payments" : "Record vendor procurements, batch inventory, and supplier dues"}
                 </p>
               </div>
-              {editingProcureId && (
-                <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
-                  REF: BILL-{editingProcureId}
-                </span>
-              )}
+              {editingProcureId && (() => {
+                const p = procurements.find((x) => x.id === editingProcureId);
+                const pDate = p?.purchase_date || (p?.created_at ? p.created_at.slice(0, 10) : "");
+                const datePart = pDate ? pDate.replace(/-/g, "").slice(2) : "000000";
+                const purchaseNum = p ? `PUR-${datePart}-${String(p.id).padStart(4, "0")}` : `PUR-${editingProcureId}`;
+                return (
+                  <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                    {purchaseNum}
+                  </span>
+                );
+              })()}
             </div>
 
             <form onSubmit={saveProcurement} className="space-y-4">
-              {/* Supplier / Vendor Selector */}
-              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Supplier / Vendor *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingSupplierId(null);
-                      setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
-                      setShowSupplierModal(true);
-                    }}
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              {/* Supplier & Date Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Supplier / Vendor Selector */}
+                <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Supplier / Vendor *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSupplierId(null);
+                        setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
+                        setShowSupplierModal(true);
+                      }}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      + Add New Supplier
+                    </button>
+                  </div>
+                  <select
+                    required
+                    className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold"
+                    value={procureForm.supplier_name}
+                    onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
                   >
-                    + Add New Supplier
-                  </button>
-                </div>
-                <select
-                  required
-                  className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold"
-                  value={procureForm.supplier_name}
-                  onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
-                >
-                  <option value="">-- Choose Supplier --</option>
-                  {uniqueSupplierSuggestions.map((s, idx) => (
-                    <option key={idx} value={s}>{s}</option>
-                  ))}
-                  <option value="Opening Stock">Opening Stock</option>
-                </select>
+                    <option value="">-- Choose Supplier --</option>
+                    {uniqueSupplierSuggestions.map((s, idx) => (
+                      <option key={idx} value={s}>{s}</option>
+                    ))}
+                    <option value="Opening Stock">Opening Stock</option>
+                  </select>
 
-                {/* Supplier Balance / Advance Notification */}
-                {(() => {
-                  const targetSup = suppliers.find((s) => s.name === procureForm.supplier_name);
-                  if (!targetSup) return null;
-                  const adv = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
-                  const due = Number(targetSup.old_due || 0) > 0 ? Number(targetSup.old_due) : 0;
-                  return (
-                    <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-xs">
-                      <span className="text-slate-500 font-medium">Supplier Balance:</span>
-                      {adv > 0 ? (
-                        <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                            Advance: {money(adv)}
+                  {/* Supplier Balance / Advance Notification */}
+                  {(() => {
+                    const targetSup = suppliers.find((s) => s.name === procureForm.supplier_name);
+                    if (!targetSup) return null;
+                    const adv = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
+                    const due = Number(targetSup.old_due || 0) > 0 ? Number(targetSup.old_due) : 0;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Supplier Balance:</span>
+                        {adv > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                              Advance: {money(adv)}
+                            </span>
+                            {!editingProcureId && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const billTotal = procureGrandTotal;
+                                  const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
+                                  setProcureForm({
+                                    ...procureForm,
+                                    paid_now: String(applyAmt),
+                                    p1_mode: "Advance Adjusted"
+                                  });
+                                }}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px]"
+                              >
+                                ⚡ Apply
+                              </button>
+                            )}
+                          </div>
+                        ) : due > 0 ? (
+                          <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                            Due: {money(due)}
                           </span>
-                          {!editingProcureId && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const billTotal = Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
-                                const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
-                                setProcureForm({
-                                  ...procureForm,
-                                  paid_now: String(applyAmt),
-                                  p1_mode: "Advance Adjusted"
-                                });
-                              }}
-                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px]"
-                            >
-                              ⚡ Apply
-                            </button>
-                          )}
-                        </div>
-                      ) : due > 0 ? (
-                        <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
-                          Due: {money(due)}
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                          Settled (₹0.00)
-                        </span>
-                      )}
-                    </div>
-                  );
-                })()}
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            Settled (₹0.00)
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Purchase Date */}
+                <div className="sm:col-span-1 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 flex flex-col justify-between">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                      Purchase Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                      value={procureForm.purchase_date || new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setProcureForm({ ...procureForm, purchase_date: e.target.value })}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">Order / Inward date for batch tracking</p>
+                </div>
               </div>
 
-              {/* Purchase Item Details (POS Layout) */}
-              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+              {/* Purchase Items (Multi-line Support) */}
+              <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Item / Product *
+                    Purchase Items ({procureForm.items?.length || 1}) *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingItemId(null);
-                      setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
-                      setShowItemModal(true);
-                    }}
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItemId(null);
+                        setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+                        setShowItemModal(true);
+                      }}
+                      className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:underline"
+                    >
+                      + Add Master Item
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddProcureLine}
+                      className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                    >
+                      <Icon name="plus" size={13} /> Add Line
+                    </button>
+                  </div>
+                </div>
+
+                {(procureForm.items || [{ item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }]).map((line, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 relative"
                   >
-                    + Add New Item
-                  </button>
-                </div>
-                <select
-                  required
-                  className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-bold"
-                  value={procureForm.item_name}
-                  onChange={(e) => {
-                    const selectedName = e.target.value;
-                    const matchedItem = uniqueItemSuggestions.find((i) => i.name === selectedName);
-                    setProcureForm({
-                      ...procureForm,
-                      item_name: selectedName,
-                      purchase_rate: matchedItem?.purchase_rate ? String(matchedItem.purchase_rate) : procureForm.purchase_rate,
-                      selling_rate: matchedItem?.selling_rate ? String(matchedItem.selling_rate) : procureForm.selling_rate
-                    });
-                  }}
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                        Line #{idx + 1}
+                      </span>
+                      {(procureForm.items?.length || 0) > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProcureLine(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
+                          title="Remove Line"
+                        >
+                          <Icon name="trash" size={15} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Item Selector Dropdown */}
+                    <div>
+                      <select
+                        required
+                        className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                        value={line.item_name}
+                        onChange={(e) => handleUpdateProcureLine(idx, "item_name", e.target.value)}
+                      >
+                        <option value="">-- Choose Item / Product --</option>
+                        {uniqueItemSuggestions.map((item, itemIdx) => (
+                          <option key={itemIdx} value={item.name}>
+                            {item.name} {item.purchase_rate ? `(Default Cost: ₹${item.purchase_rate})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Qty, Cost Rate, Selling Rate, Line Total Grid */}
+                    <div className="grid grid-cols-12 gap-2.5 items-center pt-1">
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
+                        <input
+                          type="number"
+                          required
+                          min="0.01"
+                          step="any"
+                          placeholder="1"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-center text-slate-900 dark:text-slate-100"
+                          value={line.procured_qty}
+                          onChange={(e) => handleUpdateProcureLine(idx, "procured_qty", e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cost Rate (₹)</label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="any"
+                          placeholder="Cost"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100"
+                          value={line.purchase_rate}
+                          onChange={(e) => handleUpdateProcureLine(idx, "purchase_rate", e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Selling (₹)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="Sell"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                          value={line.selling_rate}
+                          onChange={(e) => handleUpdateProcureLine(idx, "selling_rate", e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-3 text-right">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Line Total</label>
+                        <span className="font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white block truncate">
+                          {money(Number(line.procured_qty || 0) * Number(line.purchase_rate || 0))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add Another Line Button */}
+                <button
+                  type="button"
+                  onClick={handleAddProcureLine}
+                  className="w-full py-2.5 border-2 border-dashed border-indigo-200 dark:border-indigo-800/80 hover:border-indigo-400 dark:hover:border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
-                  <option value="">-- Choose Item --</option>
-                  {uniqueItemSuggestions.map((item, idx) => (
-                    <option key={idx} value={item.name}>{item.name}</option>
-                  ))}
-                </select>
-
-                <div className="grid grid-cols-12 gap-2.5 items-center pt-1">
-                  <div className="col-span-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="Qty"
-                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-center"
-                      value={procureForm.procured_qty}
-                      onChange={(e) => setProcureForm({ ...procureForm, procured_qty: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cost Rate (₹)</label>
-                    <input
-                      type="number"
-                      required
-                      placeholder="Cost"
-                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold"
-                      value={procureForm.purchase_rate}
-                      onChange={(e) => setProcureForm({ ...procureForm, purchase_rate: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-4">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Selling Rate (₹)</label>
-                    <input
-                      type="number"
-                      placeholder="Sell"
-                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                      value={procureForm.selling_rate}
-                      onChange={(e) => setProcureForm({ ...procureForm, selling_rate: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Line Total (Qty × Rate):</span>
-                  <span className="font-mono font-black text-sm text-slate-900 dark:text-white">
-                    {money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}
-                  </span>
-                </div>
+                  <Icon name="plus" size={14} /> Add Another Item Line
+                </button>
               </div>
 
               {/* Pulled-Down Settlement Section (Matching Sales Invoice POS) */}
@@ -9439,7 +9687,7 @@ Thank you for your business!`;
                     <span>💳</span> Supplier Payments & Settlement
                   </span>
                   <span className="text-xs font-black font-mono text-slate-900 dark:text-white">
-                    Bill Total: {money(Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0))}
+                    Bill Total: {money(procureGrandTotal)}
                   </span>
                 </div>
 
@@ -9448,9 +9696,12 @@ Thank you for your business!`;
                   (() => {
                     const currentProc = procurements.find((p) => p.id === editingProcureId);
                     const totalPaid = Number(currentProc?.p1_amount || 0);
-                    const billTotalCost = Number(procureForm.procured_qty || 0) * Number(procureForm.purchase_rate || 0);
+                    const billTotalCost = procureGrandTotal;
                     const balanceDueNow = Math.max(0, billTotalCost - totalPaid);
                     const pName = partners.find((p) => p.id == currentProc?.p1_id)?.name || "Partner";
+                    const pDate = currentProc?.purchase_date || (currentProc?.created_at ? currentProc.created_at.slice(0, 10) : "-");
+                    const datePart = pDate && pDate !== "-" ? pDate.replace(/-/g, "").slice(2) : "000000";
+                    const purchaseRef = currentProc ? `PUR-${datePart}-${String(currentProc.id).padStart(4, "0")}` : `BILL-${editingProcureId}`;
 
                     return (
                       <div className="space-y-3">
@@ -9484,10 +9735,10 @@ Thank you for your business!`;
                               ) : (
                                 <tr className="bg-white dark:bg-slate-900">
                                   <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
-                                    {currentProc?.created_at?.slice(0, 10) || "-"}
+                                    {pDate}
                                   </td>
                                   <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
-                                    BILL-{currentProc?.id}
+                                    {purchaseRef}
                                   </td>
                                   <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
                                   <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
@@ -10563,13 +10814,17 @@ Thank you for your business!`;
                   setEditingProcureId(null);
                   setProcureForm({
                     supplier_name: "",
+                    purchase_date: new Date().toISOString().split("T")[0],
+                    items: [
+                      { item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }
+                    ],
                     item_name: "",
-                    procured_qty: "",
+                    procured_qty: "1",
                     purchase_rate: "",
                     selling_rate: "",
                     is_opening: false,
                     paid_now: "",
-                    p1_id: "",
+                    p1_id: partners[0]?.id ? String(partners[0].id) : "",
                     p1_mode: "Cash"
                   });
                   setShowProcureModal(true);
@@ -10601,15 +10856,20 @@ Thank you for your business!`;
                         onClick={() => {
                           setPickerActiveIndex(null);
                           setEditingProcureId(null);
+                          const searchName = stockSearchQuery.trim() || "";
                           setProcureForm({
                             supplier_name: "",
-                            item_name: stockSearchQuery.trim() || "",
-                            procured_qty: "",
+                            purchase_date: new Date().toISOString().split("T")[0],
+                            items: [
+                              { item_name: searchName, procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }
+                            ],
+                            item_name: searchName,
+                            procured_qty: "1",
                             purchase_rate: "",
                             selling_rate: "",
                             is_opening: false,
                             paid_now: "",
-                            p1_id: "",
+                            p1_id: partners[0]?.id ? String(partners[0].id) : "",
                             p1_mode: "Cash"
                           });
                           setShowProcureModal(true);
