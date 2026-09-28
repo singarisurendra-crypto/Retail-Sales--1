@@ -295,6 +295,16 @@ export default function App() {
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
 
   const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
+  const [settingsSubTab, setSettingsSubTab] = useState("general"); // "general" | "app_config"
+  const [selectedReceiptDetail, setSelectedReceiptDetail] = useState(null);
+  const [expandedPaymentRefId, setExpandedPaymentRefId] = useState(null);
+  const [numberingConfig, setNumberingConfig] = useState({
+    sales_invoice: { name: "Sales Invoices", prefix: "INV-", pattern: "INV-{YYMMDD}-{SEQ}", nextSeq: 1 },
+    customer_collection: { name: "Customer Receipts (Collections)", prefix: "REC-", pattern: "REC-{SEQ}", nextSeq: 1 },
+    purchase_order: { name: "Purchase Orders / Bills", prefix: "PUR-", pattern: "PUR-{YYMMDD}-{SEQ}", nextSeq: 1 },
+    supplier_payment: { name: "Supplier Payments", prefix: "PAY-", pattern: "PAY-{SEQ}", nextSeq: 1 },
+    business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 }
+  });
 
   // Forms
   const [editingCustId, setEditingCustId] = useState(null);
@@ -602,6 +612,15 @@ export default function App() {
       setThemeColor(savedColor);
       const savedScale = localStorage.getItem("font_scale") || "normal";
       setFontScale(savedScale);
+      const savedNumConfig = localStorage.getItem("app_numbering_config");
+      if (savedNumConfig) {
+        try {
+          const parsed = JSON.parse(savedNumConfig);
+          if (parsed && typeof parsed === "object") {
+            setNumberingConfig((prev) => ({ ...prev, ...parsed }));
+          }
+        } catch (e) {}
+      }
       const savedUser = localStorage.getItem("app_current_user");
       if (savedUser) {
         try {
@@ -1417,7 +1436,8 @@ export default function App() {
   }, [allCollectionsList, customers, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery, paymentsSort]);
 
   const filteredSupplierPayments = useMemo(() => {
-    let list = procurements.filter((p) => Number(p.p1_amount || 0) > 0 || Number(p.total_amount || 0) > 0);
+    // Only include procurements where an actual payment disbursement was made (p1_amount > 0)
+    let list = procurements.filter((p) => Number(p.p1_amount || 0) > 0);
     if (paymentsPartnerFilter !== "all") {
       list = list.filter((p) => String(p.p1_id) === String(paymentsPartnerFilter));
     }
@@ -1431,11 +1451,159 @@ export default function App() {
       const q = paymentsSearchQuery.toLowerCase();
       list = list.filter((p) =>
         p.supplier_name?.toLowerCase().includes(q) ||
-        p.item_name?.toLowerCase().includes(q)
+        p.item_name?.toLowerCase().includes(q) ||
+        `pay-${p.id}`.includes(q) ||
+        `pur-${p.id}`.includes(q) ||
+        (p.bill_no && p.bill_no.toLowerCase().includes(q))
       );
     }
     return list;
   }, [procurements, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery]);
+
+  // Numbering Sequence Generator (Point 3)
+  const generateNextSeqNumber = (moduleKey, specificDate = null) => {
+    const config = numberingConfig[moduleKey] || { prefix: "INV-", pattern: "{PREFIX}{YYMMDD}-{SEQ}", nextSeq: 1 };
+    const dateStr = (specificDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
+
+    if (moduleKey === "sales_invoice") {
+      const todayInvs = invoices.filter((i) => {
+        const invDateStr = (i.invoice_date || i.created_at || "").replace(/-/g, "").slice(2, 8);
+        return invDateStr === dateStr || (i.invoice_number && i.invoice_number.includes(`-${dateStr}-`));
+      });
+      let maxSeq = 0;
+      todayInvs.forEach((i) => {
+        const parts = (i.invoice_number || "").split("-");
+        const lastPart = parts[parts.length - 1];
+        const num = parseInt(lastPart, 10);
+        if (!isNaN(num) && num > maxSeq) maxSeq = num;
+      });
+      const nextNum = Math.max(maxSeq + 1, Number(config.nextSeq || 1), todayInvs.length + 1);
+      return `${config.prefix || "INV-"}${dateStr}-${String(nextNum).padStart(4, "0")}`;
+    }
+
+    if (moduleKey === "customer_collection") {
+      const nextNum = Math.max(Number(config.nextSeq || 1), collections.length + 1);
+      return `${config.prefix || "REC-"}${String(nextNum).padStart(4, "0")}`;
+    }
+
+    if (moduleKey === "purchase_order") {
+      const nextNum = Math.max(Number(config.nextSeq || 1), procurements.length + 1);
+      return `${config.prefix || "PUR-"}${dateStr}-${String(nextNum).padStart(4, "0")}`;
+    }
+
+    if (moduleKey === "supplier_payment") {
+      const paidProcurements = procurements.filter((p) => Number(p.p1_amount || 0) > 0);
+      const nextNum = Math.max(Number(config.nextSeq || 1), paidProcurements.length + 1);
+      return `${config.prefix || "PAY-"}${String(nextNum).padStart(4, "0")}`;
+    }
+
+    if (moduleKey === "business_loan") {
+      const nextNum = Math.max(Number(config.nextSeq || 1), loanTransactions.length + 1);
+      return `${config.prefix || "LN-"}${String(nextNum).padStart(4, "0")}`;
+    }
+
+    return `${config.prefix || "DOC-"}${String(config.nextSeq || 1).padStart(4, "0")}`;
+  };
+
+  // Helper to find all invoices adjusted by a customer collection (Point 5 & 6)
+  const getAdjustedInvoicesForCollection = (col) => {
+    if (!col) return [];
+    const list = [];
+    if (col.source === "invoice" && col.rawInvoice) {
+      list.push({
+        id: col.rawInvoice.id,
+        invoice_number: col.rawInvoice.invoice_number || `INV-${col.rawInvoice.id}`,
+        amount: Number(col.amount || 0),
+        raw: col.rawInvoice
+      });
+      return list;
+    }
+    // Direct invoice_id
+    if (col.invoice_id) {
+      const inv = invoices.find((i) => String(i.id) === String(col.invoice_id));
+      if (inv) {
+        list.push({
+          id: inv.id,
+          invoice_number: inv.invoice_number || `INV-${inv.id}`,
+          amount: Number(col.amount || 0),
+          raw: inv
+        });
+      }
+    }
+    // FIFO allocations from invoiceAllocationsMap
+    invoiceAllocationsMap.forEach((alloc) => {
+      const matched = (alloc.allocatedCollections || []).find(
+        (ac) => String(ac.id) === String(col.originalId || col.id)
+      );
+      if (matched) {
+        const inv = invoices.find((i) => String(i.id) === String(alloc.invoiceId));
+        if (inv && !list.some((item) => String(item.id) === String(inv.id))) {
+          list.push({
+            id: inv.id,
+            invoice_number: inv.invoice_number || `INV-${inv.id}`,
+            amount: matched.amount,
+            raw: inv
+          });
+        }
+      }
+    });
+    return list;
+  };
+
+  // Relational delete protection across all master management tabs (Points 7 & 8)
+  const isCustomerInUse = (c) => {
+    if (!c) return false;
+    const cId = String(c.id);
+    const hasInvoices = invoices.some((i) => String(i.customer_id) === cId || i.customer_name === c.name);
+    const hasCollections = collections.some((col) => String(col.customer_id) === cId);
+    return hasInvoices || hasCollections;
+  };
+
+  const isSupplierInUse = (s) => {
+    if (!s) return false;
+    const sId = String(s.id);
+    const hasProcurements = procurements.some((p) => String(p.supplier_id) === sId || p.supplier_name === s.name);
+    const hasContraInvoices = invoices.some((i) => i.customer_name === s.name);
+    return hasProcurements || hasContraInvoices;
+  };
+
+  const isItemInUse = (item) => {
+    if (!item) return false;
+    const nameLower = (item.name || item.item_name || "").toLowerCase().trim();
+    if (!nameLower) return false;
+    const hasProcurements = procurements.some((p) => (p.item_name || "").toLowerCase().trim() === nameLower);
+    const hasInvoices = invoices.some(
+      (i) => Array.isArray(i.items) && i.items.some((it) => (it.item_name || "").toLowerCase().trim() === nameLower)
+    );
+    return hasProcurements || hasInvoices;
+  };
+
+  const isLenderInUse = (l) => {
+    if (!l) return false;
+    return loanTransactions.some((lt) => String(lt.lender_id) === String(l.id));
+  };
+
+  const isPartnerInUse = (p) => {
+    if (!p) return false;
+    const pId = String(p.id);
+    const hasInvoices = invoices.some((i) => String(i.upfront_receiver_id) === pId);
+    const hasCollections = collections.some(
+      (c) => String(c.receiver_id) === pId || String(c.partner_id) === pId || String(c.collected_by) === pId
+    );
+    const hasProcurements = procurements.some((pr) => String(pr.p1_id) === pId || String(pr.p2_id) === pId);
+    const hasExpenses = expenses.some((e) => String(e.partner_id) === pId || String(e.paid_by) === pId);
+    const hasLoans = loanTransactions.some((lt) => String(lt.partner_id) === pId);
+    return hasInvoices || hasCollections || hasProcurements || hasExpenses || hasLoans;
+  };
+
+  const isCategoryInUse = (cat) => {
+    if (!cat) return false;
+    const catId = String(cat.id);
+    const catNameLower = (cat.name || "").toLowerCase().trim();
+    return expenses.some(
+      (e) => String(e.category_id) === catId || (e.category_name || "").toLowerCase().trim() === catNameLower
+    );
+  };
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
@@ -1499,8 +1667,7 @@ export default function App() {
       const editBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - totalPaidSoFar);
       const editStatus = isSupplierSale || editBalanceDue <= 0 ? "Collected" : totalPaidSoFar > 0 ? "Partial" : "Due";
 
-      const datePrefix = (saleDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
-      const generatedInvoiceNumber = `INV-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const generatedInvoiceNumber = generateNextSeqNumber("sales_invoice", saleDate);
 
       const invoicePayload = {
         invoice_number: editingInvoiceId ? undefined : generatedInvoiceNumber,
@@ -1557,6 +1724,17 @@ export default function App() {
       } else {
         const { error } = await db.from("invoices").insert([invoicePayload]);
         if (error) throw error;
+        setNumberingConfig((prev) => {
+          const next = {
+            ...prev,
+            sales_invoice: {
+              ...prev.sales_invoice,
+              nextSeq: Number(prev.sales_invoice?.nextSeq || 1) + 1
+            }
+          };
+          if (typeof window !== "undefined") localStorage.setItem("app_numbering_config", JSON.stringify(next));
+          return next;
+        });
         alert(`Invoice created! Status: ${status}${selectedCust.isSupplier ? ` (Contra offset against ${selectedCust.name} Supplier Account)` : excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
       }
 
@@ -2031,6 +2209,9 @@ Thank you for your business!`;
   };
 
   const handleDeleteCustomer = async (c) => {
+    if (isCustomerInUse(c)) {
+      return alert(`Cannot delete customer "${c.name}" because active transactions (invoices or collections) exist for this customer!\n\nYou can edit customer details instead.`);
+    }
     if (!confirm(`Delete customer "${c.name}"?`)) return;
     try {
       await db.from("customers").delete().eq("id", c.id);
@@ -2082,6 +2263,9 @@ Thank you for your business!`;
   };
 
   const handleDeleteSupplier = async (s) => {
+    if (isSupplierInUse(s)) {
+      return alert(`Cannot delete supplier "${s.name}" because active transactions (purchases or contra invoices) exist for this supplier!\n\nYou can edit supplier details instead.`);
+    }
     if (!confirm(`Delete supplier "${s.name}"?`)) return;
     try {
       await db.from("suppliers").delete().eq("id", s.id);
@@ -2232,6 +2416,9 @@ Thank you for your business!`;
   };
 
   const handleDeletePartner = async (p) => {
+    if (isPartnerInUse(p)) {
+      return alert(`Cannot delete partner "${p.name}" because active transactions (collections, payments, expenses, or loans) exist for this partner!\n\nYou can edit partner details instead.`);
+    }
     if (!confirm(`Permanently delete partner "${p.name}"?`)) return;
     try {
       await db.from('receivers').delete().eq('id', p.id);
@@ -2284,6 +2471,9 @@ Thank you for your business!`;
   };
 
   const handleDeleteLender = async (l) => {
+    if (isLenderInUse(l)) {
+      return alert(`Cannot delete lender "${l.name}" because active loan records or repayments exist for this lender!\n\nYou can edit lender details instead.`);
+    }
     if (!confirm(`Delete lender account "${l.name}"?`)) return;
     try {
       await db.from("borrower_transactions").delete().eq("borrower_id", l.id);
@@ -2701,6 +2891,9 @@ Thank you for your business!`;
   };
 
   const handleDeleteCategory = async (cat) => {
+    if (isCategoryInUse(cat)) {
+      return alert(`Cannot delete expense category "${cat.name}" because it is currently used in active expenses!`);
+    }
     if (!confirm(`Delete category "${cat.name}"?`)) return;
     try {
       const { error } = await db.from("expense_categories").delete().eq("id", cat.id);
@@ -3018,7 +3211,7 @@ Thank you for your business!`;
                     maxLength={12}
                     value={loginPin}
                     onChange={(e) => setLoginPin(e.target.value)}
-                    placeholder={loginMode === "admin" ? "PIN (Default: 1234 or 9876)" : "Default: 0000"}
+                    placeholder=""
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
                     autoFocus
                     required
@@ -3089,23 +3282,6 @@ Thank you for your business!`;
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
               >
                 Verify & Enter Dashboard
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const userToLogin = pendingUser || { role: "admin", name: "Administrator" };
-                  const verifiedUser = { ...userToLogin, name: `${userToLogin.name} (2FA Verified)` };
-                  setCurrentUser(verifiedUser);
-                  setPendingUser(null);
-                  setAuthStep("pin");
-                  setTwoFactorCode("");
-                  setLoginError("");
-                  if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(verifiedUser));
-                }}
-                className="w-full py-2.5 bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <span>⚡</span> Quick Login with Master Code (999999)
               </button>
 
               <button
@@ -4688,32 +4864,106 @@ Thank you for your business!`;
                             const cust = customers.find((cu) => cu.id === c.customer_id);
                             const receiver = partners.find((p) => p.id === c.receiver_id);
                             const inv = invoices.find((i) => i.id === c.invoice_id);
+                            const adjustedInvs = getAdjustedInvoicesForCollection(c);
 
                             return (
-                              <tr key={c.id} className="hover:bg-slate-50 transition">
-                                <td className="p-3 font-mono font-bold text-emerald-700">
-                                  {c.reference_no}
+                              <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                <td className="p-3 font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedReceiptDetail(c)}
+                                    className="hover:underline text-emerald-700 dark:text-emerald-400 font-bold cursor-pointer text-left flex items-center gap-1"
+                                    title="Click to view Receipt details, Old Balance & Adjusted Bills"
+                                  >
+                                    <span>{c.reference_no}</span>
+                                  </button>
                                 </td>
-                                <td className="p-3 text-slate-500 whitespace-nowrap">
+                                <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {c.created_at?.slice(0, 10)}
                                 </td>
-                                <td className="p-3 font-bold text-slate-900">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {cust?.name || c.customer_name || "Customer"}
                                 </td>
-                                <td className="p-3 font-mono text-[11px] text-indigo-600">
-                                  {c.invoice_id ? (
+                                <td className="p-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400">
+                                  {adjustedInvs.length > 1 ? (
+                                    expandedPaymentRefId === c.id ? (
+                                      <span className="inline-flex items-center flex-wrap gap-1">
+                                        {adjustedInvs.map((invItem, idx) => (
+                                          <span key={invItem.id} className="inline-flex items-center">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const targetInv = invItem.raw || invoices.find((i) => i.id == invItem.id);
+                                                if (targetInv) setSelectedViewInvoice(targetInv);
+                                              }}
+                                              className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                                              title="View / Print Invoice"
+                                            >
+                                              {invItem.invoice_number}
+                                            </button>
+                                            {idx < adjustedInvs.length - 1 && <span className="text-slate-400 mr-1">,</span>}
+                                          </span>
+                                        ))}
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedPaymentRefId(null)}
+                                          className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition cursor-pointer ml-1"
+                                          title="Collapse invoice references"
+                                        >
+                                          &lt;&lt;
+                                        </button>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const targetInv = adjustedInvs[0].raw || invoices.find((i) => i.id == adjustedInvs[0].id);
+                                            if (targetInv) setSelectedViewInvoice(targetInv);
+                                          }}
+                                          className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                                          title="View / Print Invoice"
+                                        >
+                                          {adjustedInvs[0].invoice_number}
+                                        </button>
+                                        <span className="text-slate-400">,</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setExpandedPaymentRefId(c.id)}
+                                          className="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded transition cursor-pointer"
+                                          title={`Show all ${adjustedInvs.length} adjusted invoices`}
+                                        >
+                                          &gt;&gt;
+                                        </button>
+                                      </span>
+                                    )
+                                  ) : adjustedInvs.length === 1 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const targetInv = adjustedInvs[0].raw || invoices.find((i) => i.id == adjustedInvs[0].id);
+                                        if (targetInv) setSelectedViewInvoice(targetInv);
+                                      }}
+                                      className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                                      title="View / Print Invoice Receipt"
+                                    >
+                                      {adjustedInvs[0].invoice_number}
+                                    </button>
+                                  ) : c.invoice_id ? (
                                     <button
                                       type="button"
                                       onClick={() => {
                                         const targetInv = c.rawInvoice || invoices.find((i) => i.id == c.invoice_id);
                                         if (targetInv) setSelectedViewInvoice(targetInv);
                                       }}
-                                      className="hover:underline font-bold text-indigo-600 cursor-pointer"
+                                      className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
                                       title="View / Print Invoice Receipt"
                                     >
                                       {inv ? (inv.invoice_number || `INV-${inv.id}`) : (c.reference_no || `INV-${c.invoice_id}`)}
                                     </button>
-                                  ) : "-"}
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
                                 </td>
                                 <td className="p-3 text-right font-black text-emerald-700">
                                   {money(c.amount)}
@@ -4885,6 +5135,7 @@ Thank you for your business!`;
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Payment ID / Ref</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Supplier Name</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Item Procured</th>
@@ -4899,7 +5150,7 @@ Thank you for your business!`;
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                               {pagedSupplierPayments.length === 0 ? (
                                 <tr>
-                                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                                  <td colSpan={10} className="p-8 text-center text-slate-400">
                                     No supplier payments recorded.
                                   </td>
                                 </tr>
@@ -4911,11 +5162,21 @@ Thank you for your business!`;
                             const due = Math.max(0, total - paid);
 
                             return (
-                              <tr key={p.id} className="hover:bg-slate-50 transition">
-                                <td className="p-3 text-slate-500 whitespace-nowrap">
+                              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedReceiptDetail({ ...p, isSupplierPayment: true })}
+                                    className="hover:underline text-indigo-600 dark:text-indigo-400 font-bold cursor-pointer text-left"
+                                    title="Click to view Payment details, Old Balance & Bill Reference"
+                                  >
+                                    {p.reference_no || `PAY-${p.id}`}
+                                  </button>
+                                </td>
+                                <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {p.created_at?.slice(0, 10)}
                                 </td>
-                                <td className="p-3 font-bold text-slate-900">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {p.supplier_name}
                                 </td>
                                 <td className="p-3 text-slate-700">
@@ -5528,13 +5789,15 @@ Thank you for your business!`;
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteCustomer(c)}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
-                                >
-                                  Delete
-                                </button>
+                                {!isCustomerInUse(c) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCustomer(c)}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -5629,13 +5892,15 @@ Thank you for your business!`;
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSupplier(s)}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
-                                >
-                                  Delete
-                                </button>
+                                {!isSupplierInUse(s) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSupplier(s)}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -5730,7 +5995,7 @@ Thank you for your business!`;
                                 >
                                   Edit
                                 </button>
-                                {item.id && (
+                                {item.id && !isItemInUse(item) && (
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteItem(item)}
@@ -5812,13 +6077,15 @@ Thank you for your business!`;
                               >
                                 Edit
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteLender(l)}
-                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
-                              >
-                                Delete
-                              </button>
+                              {!isLenderInUse(l) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLender(l)}
+                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -5893,13 +6160,15 @@ Thank you for your business!`;
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeletePartner(p)}
-                                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
-                                >
-                                  Delete
-                                </button>
+                                {!isPartnerInUse(p) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePartner(p)}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -5959,13 +6228,15 @@ Thank you for your business!`;
                             {c.name}
                           </td>
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCategory(c)}
-                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
-                            >
-                              Delete
-                            </button>
+                            {!isCategoryInUse(c) && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCategory(c)}
+                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded font-bold text-xs"
+                              >
+                                Delete
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -6105,13 +6376,15 @@ Thank you for your business!`;
                                 >
                                   Edit
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteLender(l)}
-                                  className="px-2 py-1 bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-lg cursor-pointer"
-                                >
-                                  Delete
-                                </button>
+                                {!isLenderInUse(l) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteLender(l)}
+                                    className="px-2 py-1 bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-lg cursor-pointer"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -7549,14 +7822,16 @@ Thank you for your business!`;
                           >
                             Edit
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePartner(p)}
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                            title="Delete Partner"
-                          >
-                            <Icon name="trash" size={13} />
-                          </button>
+                          {!isPartnerInUse(p) && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePartner(p)}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                              title="Delete Partner"
+                            >
+                              <Icon name="trash" size={13} />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -7651,14 +7926,16 @@ Thank you for your business!`;
                                   >
                                     Edit
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeletePartner(p)}
-                                    className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                                    title="Delete Partner"
-                                  >
-                                    <Icon name="trash" size={13} />
-                                  </button>
+                                  {!isPartnerInUse(p) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePartner(p)}
+                                      className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                      title="Delete Partner"
+                                    >
+                                      <Icon name="trash" size={13} />
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -7687,6 +7964,171 @@ Thank you for your business!`;
                   {t("Configure language, color themes, display modes, Google Authenticator security, and database backup.", "భాష, రంగులు, లైట్/డార్క్ మోడ్, సెక్యూరిటీ మరియు బ్యాకప్ సెట్టింగ్స్")}
                 </p>
               </div>
+
+              {/* Settings Sub-Tab Navigation (Point 3) */}
+              <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto self-start">
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("general")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    settingsSubTab === "general"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Icon name="settings" size={15} /> General Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("app_config")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    settingsSubTab === "app_config"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Icon name="file" size={15} /> Application Configuration
+                </button>
+              </div>
+
+              {/* APPLICATION CONFIGURATION TAB (POINT 3) */}
+              {settingsSubTab === "app_config" && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <Icon name="file" size={16} /> Module Numbering & Display Format Configuration
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Configure module prefixes, numbering format patterns, and next sequence counters. All invoices and receipts will increment sequentially.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaults = {
+                              sales_invoice: { name: "Sales Invoices", prefix: "INV-", pattern: "INV-{YYMMDD}-{SEQ}", nextSeq: 1 },
+                              customer_collection: { name: "Customer Receipts (Collections)", prefix: "REC-", pattern: "REC-{SEQ}", nextSeq: 1 },
+                              purchase_order: { name: "Purchase Orders / Bills", prefix: "PUR-", pattern: "PUR-{YYMMDD}-{SEQ}", nextSeq: 1 },
+                              supplier_payment: { name: "Supplier Payments", prefix: "PAY-", pattern: "PAY-{SEQ}", nextSeq: 1 },
+                              business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 }
+                            };
+                            setNumberingConfig(defaults);
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("app_numbering_config", JSON.stringify(defaults));
+                            }
+                            alert("Reset module numbering to default formats!");
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                        >
+                          Reset Defaults
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("app_numbering_config", JSON.stringify(numberingConfig));
+                            }
+                            alert("Application Configurations saved successfully!");
+                          }}
+                          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition cursor-pointer"
+                        >
+                          Save Configurations
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* ERP Grid Table */}
+                    <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700">
+                      <table className="w-full text-left text-xs border-collapse font-mono">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans">Module Name</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Prefix</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">Numbering Format</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Next Seq #</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700">Live Sample Preview</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-20">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                          {Object.keys(numberingConfig).map((key, idx) => {
+                            const mod = numberingConfig[key];
+                            const sampleDate = new Date().toISOString().split("T")[0].replace(/-/g, "").slice(2);
+                            const seqPad = String(mod.nextSeq || 1).padStart(4, "0");
+                            const preview = key === "sales_invoice" || key === "purchase_order"
+                              ? `${mod.prefix || ""}${sampleDate}-${seqPad}`
+                              : `${mod.prefix || ""}${seqPad}`;
+
+                            return (
+                              <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-bold text-slate-500">
+                                  {idx + 1}
+                                </td>
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans font-bold text-slate-900 dark:text-white">
+                                  {mod.name}
+                                </td>
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">
+                                  <input
+                                    type="text"
+                                    value={mod.prefix}
+                                    onChange={(e) => {
+                                      const updated = {
+                                        ...numberingConfig,
+                                        [key]: { ...mod, prefix: e.target.value.toUpperCase() }
+                                      };
+                                      setNumberingConfig(updated);
+                                    }}
+                                    className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold text-indigo-600 dark:text-indigo-400"
+                                  />
+                                </td>
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center text-slate-600 dark:text-slate-300">
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px]">
+                                    {mod.pattern}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={mod.nextSeq}
+                                    onChange={(e) => {
+                                      const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                      const updated = {
+                                        ...numberingConfig,
+                                        [key]: { ...mod, nextSeq: val }
+                                      };
+                                      setNumberingConfig(updated);
+                                    }}
+                                    className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold"
+                                  />
+                                </td>
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700">
+                                  <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    {preview}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+                                    Active
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* GENERAL SETTINGS CONTAINER */}
+              {settingsSubTab === "general" && (
+                <div className="space-y-6">
 
               {/* SECTION 1: LANGUAGE SELECTION (POINT 1 & 5) */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
@@ -8018,6 +8460,8 @@ Thank you for your business!`;
                   Version 3.0 (Enterprise Custom Edition)
                 </span>
               </div>
+                </div>
+              )}
             </div>
           );
         })()}
@@ -9342,20 +9786,272 @@ Thank you for your business!`;
               {expenseCategories.map((c) => (
                 <div key={c.id} className="p-2.5 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-700 flex justify-between items-center">
                   <span>{c.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteCategory(c)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
-                    title="Delete category"
-                  >
-                    <Icon name="trash" size={13} />
-                  </button>
+                  {!isCategoryInUse(c) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCategory(c)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
+                      title="Delete category"
+                    >
+                      <Icon name="trash" size={13} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         </div>
       )}
+
+      {/* MODAL: TRANSACTION / RECEIPT DETAILS (POINT 5) */}
+      {selectedReceiptDetail && (() => {
+        const isSup = Boolean(selectedReceiptDetail.isSupplierPayment);
+        const refNo = isSup
+          ? (selectedReceiptDetail.reference_no || `PAY-${selectedReceiptDetail.id}`)
+          : (selectedReceiptDetail.reference_no || `REC-${selectedReceiptDetail.id}`);
+        const txDate = (selectedReceiptDetail.created_at || new Date().toISOString()).slice(0, 10);
+        const amountVal = isSup
+          ? Number(selectedReceiptDetail.p1_amount || 0)
+          : Number(selectedReceiptDetail.amount || 0);
+        const mode = isSup
+          ? (selectedReceiptDetail.p1_mode || "Cash")
+          : (selectedReceiptDetail.payment_mode || "Cash");
+        const partnerObj = isSup
+          ? partners.find((p) => p.id === selectedReceiptDetail.p1_id)
+          : partners.find((p) => p.id === selectedReceiptDetail.receiver_id || p.id === selectedReceiptDetail.partner_id);
+        const partnerName = partnerObj?.name || "-";
+
+        // Entity details & balances
+        let partyName = "-";
+        let partyMobile = "-";
+        let oldBalance = 0;
+        let newBalance = 0;
+        let adjustedBills = [];
+
+        if (isSup) {
+          partyName = selectedReceiptDetail.supplier_name || "Supplier";
+          const sup = suppliers.find((s) => s.id === selectedReceiptDetail.supplier_id || s.name === selectedReceiptDetail.supplier_name);
+          partyMobile = sup?.mobile || "-";
+          const totalBill = Number(selectedReceiptDetail.total_amount || 0);
+          oldBalance = totalBill;
+          newBalance = Math.max(0, totalBill - amountVal);
+          adjustedBills = [
+            {
+              ref: selectedReceiptDetail.bill_no || `PUR-${selectedReceiptDetail.id}`,
+              date: txDate,
+              item: selectedReceiptDetail.item_name || "Stock Item",
+              totalAmount: totalBill,
+              adjustedAmount: amountVal,
+              remainingDue: newBalance,
+              type: "Purchase Bill"
+            }
+          ];
+        } else {
+          const cust = customers.find((cu) => cu.id === selectedReceiptDetail.customer_id);
+          partyName = cust?.name || selectedReceiptDetail.customer_name || "Customer";
+          partyMobile = cust?.mobile || "-";
+          const currentBal = cust ? calculateCustomerBalance(cust.id) : 0;
+          oldBalance = Number(currentBal || 0) + amountVal;
+          newBalance = Number(currentBal || 0);
+
+          const rawAdj = getAdjustedInvoicesForCollection(selectedReceiptDetail);
+          if (rawAdj.length > 0) {
+            adjustedBills = rawAdj.map((item) => {
+              const invTot = Number(item.raw?.grand_total || item.raw?.total_amount || item.amount || 0);
+              const invAdj = Number(item.amount || 0);
+              return {
+                ref: item.invoice_number,
+                date: (item.raw?.invoice_date || item.raw?.created_at || txDate).slice(0, 10),
+                item: (item.raw?.items || []).map((it) => it.item_name).join(", ") || "Sales Bill",
+                totalAmount: invTot,
+                adjustedAmount: invAdj,
+                remainingDue: Math.max(0, invTot - invAdj),
+                type: selectedReceiptDetail.source === "invoice" ? "Direct Bill Settlement" : "FIFO Allocation"
+              };
+            });
+          } else {
+            adjustedBills = [
+              {
+                ref: selectedReceiptDetail.invoice_id ? `INV-${selectedReceiptDetail.invoice_id}` : "On Account",
+                date: txDate,
+                item: "General Account Due",
+                totalAmount: amountVal,
+                adjustedAmount: amountVal,
+                remainingDue: 0,
+                type: selectedReceiptDetail.collection_type || "Advance / Account Settlement"
+              }
+            ];
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-white/10 rounded-xl text-lg">
+                    {isSup ? "💳" : "🧾"}
+                  </span>
+                  <div>
+                    <h3 className="font-black text-sm tracking-wide flex items-center gap-2">
+                      {isSup ? "Supplier Payment Voucher" : "Customer Collection Receipt"}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/20 text-white">
+                        {refNo}
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300">
+                      Transaction Date: {txDate} • Mode: <b className="text-amber-300">{mode}</b>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceiptDetail(null)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white font-bold transition cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-5 overflow-y-auto space-y-4">
+                {/* Party & Receiver Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {isSup ? "Supplier Details" : "Customer Details"}
+                    </span>
+                    <b className="text-sm text-slate-900 dark:text-white block mt-0.5">{partyName}</b>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      Mobile: {partyMobile}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      {isSup ? "Disbursed By Partner" : "Collected By Partner"}
+                    </span>
+                    <b className="text-sm text-slate-900 dark:text-white block mt-0.5">{partnerName}</b>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Payment Mode: <span className="font-bold text-indigo-600 dark:text-indigo-400">{mode}</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pre-Payment Old Balance, Amount & Current Balance Grid */}
+                <div className="grid grid-cols-3 gap-2.5 p-3.5 bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800/80 rounded-xl border border-sky-100 dark:border-slate-700 text-center">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">
+                      Old Balance
+                    </span>
+                    <b className="text-xs sm:text-sm font-mono text-slate-700 dark:text-slate-300">
+                      {money(oldBalance)}
+                    </b>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase block">
+                      {isSup ? "Amount Paid" : "Amount Received"}
+                    </span>
+                    <b className="text-sm sm:text-base font-mono font-black text-emerald-700 dark:text-emerald-400">
+                      {money(amountVal)}
+                    </b>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block">
+                      Balance After Tx
+                    </span>
+                    <b className="text-xs sm:text-sm font-mono text-slate-900 dark:text-white">
+                      {money(newBalance)}
+                    </b>
+                  </div>
+                </div>
+
+                {/* Adjusted Bills Breakdown */}
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-2 flex items-center justify-between">
+                    <span>Bills / Invoices Adjusted ({adjustedBills.length})</span>
+                    <span className="text-[11px] text-slate-400 font-normal">Reference Breakdown</span>
+                  </h4>
+                  <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700">
+                    <table className="w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                        <tr>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700">Ref #</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700">Date</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700">Item / Note</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right">Bill Total</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right">Adjusted</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right">Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
+                        {adjustedBills.map((b, bIdx) => (
+                          <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 font-bold text-indigo-600 dark:text-indigo-400">
+                              {b.ref}
+                            </td>
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-slate-500 whitespace-nowrap">
+                              {b.date}
+                            </td>
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 max-w-[140px] truncate">
+                              {b.item}
+                            </td>
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300">
+                              {money(b.totalAmount)}
+                            </td>
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                              {money(b.adjustedAmount)}
+                            </td>
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right text-slate-500">
+                              {money(b.remainingDue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Notes if any */}
+                {(selectedReceiptDetail.notes || selectedReceiptDetail.collection_type) && (
+                  <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Transaction Notes / Memo
+                    </span>
+                    <p className="text-slate-700 dark:text-slate-300 mt-1">
+                      {selectedReceiptDetail.notes || selectedReceiptDetail.collection_type}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center shrink-0">
+                <span className="text-[11px] text-slate-400">
+                  Receipt Ref: <b className="font-mono text-slate-600 dark:text-slate-300">{refNo}</b>
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Icon name="receipt" size={14} /> Print
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReceiptDetail(null)}
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition cursor-pointer shadow-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL: VIEW / PRINT INVOICE */}
       {selectedViewInvoice && (
