@@ -298,13 +298,27 @@ export default function App() {
   const [settingsSubTab, setSettingsSubTab] = useState("general"); // "general" | "app_config"
   const [selectedReceiptDetail, setSelectedReceiptDetail] = useState(null);
   const [expandedPaymentRefId, setExpandedPaymentRefId] = useState(null);
+  const [duplicateLoginPrompt, setDuplicateLoginPrompt] = useState(null);
+  const [sessionKickedNotice, setSessionKickedNotice] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [numberingConfig, setNumberingConfig] = useState({
     sales_invoice: { name: "Sales Invoices", prefix: "INV-", pattern: "INV-{YYMMDD}-{SEQ}", nextSeq: 1 },
     customer_collection: { name: "Customer Receipts (Collections)", prefix: "REC-", pattern: "REC-{SEQ}", nextSeq: 1 },
     purchase_order: { name: "Purchase Orders / Bills", prefix: "PUR-", pattern: "PUR-{YYMMDD}-{SEQ}", nextSeq: 1 },
     supplier_payment: { name: "Supplier Payments", prefix: "PAY-", pattern: "PAY-{SEQ}", nextSeq: 1 },
-    business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 }
+    business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 },
+    expense: { name: "Shop Expenses & Outflows", prefix: "EXP-", pattern: "EXP-{SEQ}", nextSeq: 1 }
   });
+
+  const clientMachineId = useMemo(() => {
+    if (typeof window === "undefined") return "server";
+    let mId = sessionStorage.getItem("jsr_client_machine_id");
+    if (!mId) {
+      mId = "mach_" + Math.random().toString(36).substring(2, 9) + "_" + Date.now().toString(36);
+      sessionStorage.setItem("jsr_client_machine_id", mId);
+    }
+    return mId;
+  }, []);
 
   // Forms
   const [editingCustId, setEditingCustId] = useState(null);
@@ -1502,7 +1516,18 @@ export default function App() {
       return `${config.prefix || "LN-"}${String(nextNum).padStart(4, "0")}`;
     }
 
+    if (moduleKey === "expense") {
+      const nextNum = Math.max(Number(config.nextSeq || 1), expenses.length + 1);
+      return `${config.prefix || "EXP-"}${String(nextNum).padStart(4, "0")}`;
+    }
+
     return `${config.prefix || "DOC-"}${String(config.nextSeq || 1).padStart(4, "0")}`;
+  };
+
+  // Helper for computing live customer balance (Item 1)
+  const calculateCustomerBalance = (custId) => {
+    const cust = customers.find((c) => String(c.id) === String(custId));
+    return Number(cust?.old_due || 0);
   };
 
   // Helper to find all invoices adjusted by a customer collection (Point 5 & 6)
@@ -3061,7 +3086,58 @@ Thank you for your business!`;
     reader.readAsText(file);
   };
 
-  if (!currentUser) {
+
+  // Real-time Concurrent Session Guard (Item 4)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let bc = null;
+    try {
+      bc = new BroadcastChannel("jsr_session_channel");
+    } catch (e) {}
+
+    const authChannel = db.channel("jsr_session_tracker");
+
+    const onPingReceived = (payload) => {
+      if (currentUser && payload?.machineId && payload.machineId !== clientMachineId) {
+        const reply = {
+          type: "pong_active_session",
+          machineId: clientMachineId,
+          userRole: currentUser.role,
+          userName: currentUser.name
+        };
+        authChannel.send({ type: "broadcast", event: "pong_active_session", payload: reply });
+        if (bc) bc.postMessage(reply);
+      }
+    };
+
+    const onKickReceived = (payload) => {
+      if (currentUser && payload?.targetMachineId === clientMachineId) {
+        setCurrentUser(null);
+        localStorage.removeItem("app_current_user");
+        setSessionKickedNotice(true);
+      }
+    };
+
+    authChannel
+      .on("broadcast", { event: "ping_active_session" }, ({ payload }) => onPingReceived(payload))
+      .on("broadcast", { event: "force_logoff_session" }, ({ payload }) => onKickReceived(payload))
+      .subscribe();
+
+    if (bc) {
+      bc.onmessage = (event) => {
+        if (event.data?.type === "ping_active_session") onPingReceived(event.data);
+        if (event.data?.type === "force_logoff_session") onKickReceived(event.data);
+      };
+    }
+
+    return () => {
+      if (bc) bc.close();
+      db.removeChannel(authChannel);
+    };
+  }, [currentUser, clientMachineId]);
+
+    if (!currentUser) {
     const handleLoginSubmit = (e) => {
       e.preventDefault();
       if (lockoutSeconds > 0) return;
@@ -3078,10 +3154,7 @@ Thank you for your business!`;
             setAuthStep("2fa");
             setLoginError("");
           } else {
-            setFailedAttempts(0);
-            setLockoutSeconds(0);
-            setCurrentUser(userObj);
-            if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(userObj));
+            performLoginWithSessionCheck(userObj);
           }
         } else {
           const newFails = failedAttempts + 1;
@@ -3108,10 +3181,7 @@ Thank you for your business!`;
             setAuthStep("2fa");
             setLoginError("");
           } else {
-            setFailedAttempts(0);
-            setLockoutSeconds(0);
-            setCurrentUser(userObj);
-            if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(userObj));
+            performLoginWithSessionCheck(userObj);
           }
         } else {
           const newFails = failedAttempts + 1;
@@ -3127,6 +3197,63 @@ Thank you for your business!`;
       }
     };
 
+    const finalizeUserLogin = (userObj) => {
+      setFailedAttempts(0);
+      setLockoutSeconds(0);
+      setSessionKickedNotice(false);
+      setCurrentUser(userObj);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("app_current_user", JSON.stringify(userObj));
+      }
+    };
+
+    const performLoginWithSessionCheck = async (userObj) => {
+      const checkRemote = new Promise((resolve) => {
+        let done = false;
+        const timer = setTimeout(() => {
+          if (!done) { done = true; resolve(null); }
+        }, 500);
+
+        const authChannel = db.channel("jsr_session_tracker");
+        authChannel.on("broadcast", { event: "pong_active_session" }, ({ payload }) => {
+          if (!done && payload?.machineId && payload.machineId !== clientMachineId) {
+            done = true;
+            clearTimeout(timer);
+            resolve(payload);
+          }
+        });
+
+        authChannel.send({
+          type: "broadcast",
+          event: "ping_active_session",
+          payload: { machineId: clientMachineId, role: userObj.role }
+        });
+
+        try {
+          const bc = new BroadcastChannel("jsr_session_channel");
+          bc.onmessage = (e) => {
+            if (!done && e.data?.type === "pong_active_session" && e.data.machineId !== clientMachineId) {
+              done = true;
+              clearTimeout(timer);
+              resolve(e.data);
+            }
+          };
+          bc.postMessage({ type: "ping_active_session", machineId: clientMachineId, role: userObj.role });
+        } catch (e) {}
+      });
+
+      const remoteSession = await checkRemote;
+      if (remoteSession) {
+        setDuplicateLoginPrompt({
+          userObj,
+          targetMachineId: remoteSession.machineId
+        });
+        return;
+      }
+
+      finalizeUserLogin(userObj);
+    };
+
     const handle2FASubmit = async (e) => {
       e.preventDefault();
       // Verify Google Authenticator 6-digit code or emergency code 999999
@@ -3138,10 +3265,9 @@ Thank you for your business!`;
         setAuthStep("pin");
         setTwoFactorCode("");
         const userToLogin = pendingUser || { role: "admin", name: "Administrator" };
-        const verifiedUser = { ...userToLogin, name: `${userToLogin.name} (2FA Verified)` };
-        setCurrentUser(verifiedUser);
+        const verifiedUser = { ...userToLogin, is2FA: true };
         setPendingUser(null);
-        if (typeof window !== "undefined") localStorage.setItem("app_current_user", JSON.stringify(verifiedUser));
+        performLoginWithSessionCheck(verifiedUser);
       } else {
         setLoginError("Invalid code! Enter any 6-digit code from Google Authenticator or Master Code 999999.");
       }
@@ -3149,7 +3275,62 @@ Thank you for your business!`;
 
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        {/* Multiple Login Confirmation Modal (Item 4) */}
+        {duplicateLoginPrompt && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-white space-y-4 shadow-2xl text-center">
+              <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
+                ⚠️
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base font-black tracking-tight">Active Session Detected</h3>
+                <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                  You are currently logged in from another machine. Do you want to logoff previous login and continue?
+                </p>
+              </div>
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDuplicateLoginPrompt(null)}
+                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  No, Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const authChannel = db.channel("jsr_session_tracker");
+                    authChannel.send({
+                      type: "broadcast",
+                      event: "force_logoff_session",
+                      payload: { targetMachineId: duplicateLoginPrompt.targetMachineId }
+                    });
+                    try {
+                      const bc = new BroadcastChannel("jsr_session_channel");
+                      bc.postMessage({
+                        type: "force_logoff_session",
+                        targetMachineId: duplicateLoginPrompt.targetMachineId
+                      });
+                    } catch (e) {}
+                    finalizeUserLogin(duplicateLoginPrompt.userObj);
+                    setDuplicateLoginPrompt(null);
+                  }}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+                >
+                  Yes, Logoff & Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl text-white space-y-6">
+          {sessionKickedNotice && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-center gap-2">
+              <span>⚠️</span>
+              <span>Your session was logged out because this account was logged in from another machine.</span>
+            </div>
+          )}
           <div className="text-center space-y-2">
             <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-2xl mx-auto shadow-lg shadow-indigo-500/30">
               B
@@ -3348,33 +3529,22 @@ Thank you for your business!`;
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <div className="p-5 border-b border-slate-800 hidden md:flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 ${curTheme.primary} rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg`}>
-                B
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowProfileMenu((prev) => !prev)}
+                className="relative group cursor-pointer"
+                title="Account Profile & Sign Out (Gmail style)"
+              >
+                <div className={`w-10 h-10 ${curTheme.primary} rounded-full flex items-center justify-center text-white font-black text-xl shadow-lg ring-2 ring-indigo-400/40 group-hover:scale-105 transition`}>
+                  B
+                </div>
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+              </button>
               <div>
                 <h1 className="font-black text-white text-base tracking-wide leading-tight">B REDDY SALES</h1>
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Wholesale & Retail</p>
               </div>
             </div>
-          </div>
-
-          {/* User Status Badge */}
-          <div className="mx-3 mt-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-lg ${curTheme.primary} flex items-center justify-center font-bold text-xs`}>
-                {currentUser?.role === "admin" ? "👑" : "🤝"}
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white leading-tight">{currentUser?.name}</p>
-                <p className="text-[10px] text-slate-400 capitalize">{currentUser?.role}</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-lg text-slate-300 font-bold"
-            >
-              Sign Out
-            </button>
           </div>
 
           {/* Navigation Items */}
@@ -3560,6 +3730,22 @@ Thank you for your business!`;
             >
               <span>🌐</span>
               <span>{language === "en" ? "English" : "తెలుగు"}</span>
+            </button>
+
+            {/* Gmail-style User Profile Avatar Button (Item 5) */}
+            <button
+              type="button"
+              onClick={() => setShowProfileMenu((prev) => !prev)}
+              className="relative group flex items-center gap-2 pl-2 pr-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-xs cursor-pointer"
+              title="Account Profile & Sign Out"
+            >
+              <div className={`w-7 h-7 rounded-full ${curTheme.primary} text-white font-black text-xs flex items-center justify-center shadow-xs`}>
+                B
+              </div>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 hidden sm:inline">
+                {currentUser?.name || "Administrator"}
+              </span>
+              <span className="text-[10px] text-slate-400">▼</span>
             </button>
 
             {/* Pill Toggle matching user screenshot */}
@@ -5286,6 +5472,7 @@ Thank you for your business!`;
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Repayment ID / Ref</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Lender / Source</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Type</th>
@@ -5297,7 +5484,7 @@ Thank you for your business!`;
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                               {pagedLoanTx.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                                  <td colSpan={7} className="p-8 text-center text-slate-400">
                                     No loan repayments recorded yet.
                                   </td>
                                 </tr>
@@ -5308,6 +5495,16 @@ Thank you for your business!`;
                           const isPrincipal = tx.tx_type === "Repayment";
                           return (
                             <tr key={tx.id} className="hover:bg-slate-50/70 transition">
+                              <td className="p-3 font-mono font-bold text-purple-700 dark:text-purple-400">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedReceiptDetail({ ...tx, isLoanRepayment: true })}
+                                  className="hover:underline font-bold text-purple-700 dark:text-purple-400 cursor-pointer text-left"
+                                  title="Click to view Loan Repayment Voucher"
+                                >
+                                  {tx.reference_no || `LRP-${tx.id}`}
+                                </button>
+                              </td>
                               <td className="p-3 text-slate-500 whitespace-nowrap">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
                               <td className="p-3 font-bold text-slate-900">{targetL?.name || "Lender"}</td>
                               <td className="p-3 text-center">
@@ -6042,7 +6239,7 @@ Thank you for your business!`;
                   <tbody>
                     {filteredLenders.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-6 text-center text-slate-400 font-sans">
+                        <td colSpan={8} className="p-6 text-center text-slate-400 font-sans">
                           No business loan sources recorded.
                         </td>
                       </tr>
@@ -6095,7 +6292,7 @@ Thank you for your business!`;
                   {filteredLenders.length > 0 && (
                     <tfoot className="bg-slate-100 dark:bg-slate-800/80 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                       <tr>
-                        <td colSpan={5} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <td colSpan={6} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Active Loan Liability ({filteredLenders.length} lenders):
                         </td>
                         <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400">
@@ -6412,6 +6609,7 @@ Thank you for your business!`;
                                       <table className="w-full text-left text-[11px] border-collapse font-mono">
                                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
                                           <tr>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Repayment ID</th>
                                             <th className="p-1.5 border border-slate-200 dark:border-slate-700">Date</th>
                                             <th className="p-1.5 border border-slate-200 dark:border-slate-700">Type</th>
                                             <th className="p-1.5 border border-slate-200 dark:border-slate-700">Paid By</th>
@@ -6425,6 +6623,16 @@ Thank you for your business!`;
                                             const p = partners.find((part) => part.id == tx.partner_id);
                                             return (
                                               <tr key={tx.id} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-mono text-purple-700 dark:text-purple-400">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setSelectedReceiptDetail({ ...tx, isLoanRepayment: true })}
+                                                    className="hover:underline cursor-pointer"
+                                                    title="View Repayment Voucher"
+                                                  >
+                                                    {tx.reference_no || `LRP-${tx.id}`}
+                                                  </button>
+                                                </td>
                                                 <td className="p-1.5 border border-slate-200 dark:border-slate-700">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
                                                 <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-sans">
                                                   <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
@@ -6563,6 +6771,7 @@ Thank you for your business!`;
                 <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                   <tr>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">Expense ID</th>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">Date</th>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">Category</th>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700">Title / Description</th>
@@ -6587,6 +6796,9 @@ Thank you for your business!`;
                           className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                         >
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                            {e.expense_no || `EXP-${e.id}`}
+                          </td>
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{e.expense_date}</td>
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-indigo-700 dark:text-indigo-300">
                             {e.category_name}
@@ -8013,7 +8225,8 @@ Thank you for your business!`;
                               customer_collection: { name: "Customer Receipts (Collections)", prefix: "REC-", pattern: "REC-{SEQ}", nextSeq: 1 },
                               purchase_order: { name: "Purchase Orders / Bills", prefix: "PUR-", pattern: "PUR-{YYMMDD}-{SEQ}", nextSeq: 1 },
                               supplier_payment: { name: "Supplier Payments", prefix: "PAY-", pattern: "PAY-{SEQ}", nextSeq: 1 },
-                              business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 }
+                              business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 },
+                              expense: { name: "Shop Expenses & Outflows", prefix: "EXP-", pattern: "EXP-{SEQ}", nextSeq: 1 }
                             };
                             setNumberingConfig(defaults);
                             if (typeof window !== "undefined") {
@@ -9622,7 +9835,12 @@ Thank you for your business!`;
       {showExpenseModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingExpenseId ? "Edit Shop Expense" : "Record Shop Expense"}</h3>
+            <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+              <span>{editingExpenseId ? "Edit Shop Expense" : "Record Shop Expense"}</span>
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                {editingExpenseId ? `EXP-${editingExpenseId}` : "EXP-NEW"}
+              </span>
+            </h3>
             <form onSubmit={saveExpense} className="space-y-3">
               <select
                 required
@@ -9803,13 +10021,105 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: TRANSACTION / RECEIPT DETAILS (POINT 5) */}
+      {/* GMAIL / GOOGLE-STYLE ACCOUNT POPOVER (ITEM 5) */}
+      {showProfileMenu && (
+        <>
+          <div
+            onClick={() => setShowProfileMenu(false)}
+            className="fixed inset-0 z-40"
+          />
+          <div className="fixed top-16 right-4 sm:right-8 z-50 w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header / Avatar */}
+            <div className="flex flex-col items-center text-center space-y-2 pt-2">
+              <div className="relative">
+                <div className={`w-16 h-16 rounded-full ${curTheme.primary} text-white font-black text-2xl flex items-center justify-center shadow-lg ring-4 ring-indigo-100 dark:ring-indigo-950`}>
+                  B
+                </div>
+                <span className="absolute bottom-0 right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" title="Active Session" />
+              </div>
+              <div>
+                <h4 className="font-black text-base text-slate-900 dark:text-white leading-tight">
+                  {currentUser?.name || "Administrator"}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  B Reddy Wholesale & Retail ERP
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap justify-center pt-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                  <span>🛡️</span> 2FA Verified
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize">
+                  {currentUser?.role === "admin" ? "System Admin" : "Partner"}
+                </span>
+              </div>
+            </div>
+
+            {/* Account Info Card */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-700/60 text-xs space-y-1.5">
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>Security Level:</span>
+                <b className="text-emerald-600 dark:text-emerald-400">Google Authenticator</b>
+              </div>
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
+                <span>Active Store:</span>
+                <b className="text-slate-800 dark:text-slate-200">JSR B Reddy Main Branch</b>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  setActiveTab("settings");
+                }}
+                className="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition text-left cursor-pointer"
+              >
+                <span>⚙️</span> System Settings
+              </button>
+              {currentUser?.role === "admin" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    setShowPinModal(true);
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition text-left cursor-pointer"
+                >
+                  <span>🔑</span> Change Security PIN
+                </button>
+              )}
+            </div>
+
+            {/* Sign Out Button (Gmail style) */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  handleLogout();
+                }}
+                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition cursor-pointer border border-rose-200 dark:border-rose-900"
+              >
+                <Icon name="lock" size={14} /> Sign Out
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* MODAL: TRANSACTION / RECEIPT DETAILS (POINT 5 & ITEM 1) */}
       {selectedReceiptDetail && (() => {
         const isSup = Boolean(selectedReceiptDetail.isSupplierPayment);
+        const isLoan = Boolean(selectedReceiptDetail.isLoanRepayment);
         const refNo = isSup
           ? (selectedReceiptDetail.reference_no || `PAY-${selectedReceiptDetail.id}`)
+          : isLoan
+          ? (selectedReceiptDetail.reference_no || `LRP-${selectedReceiptDetail.id}`)
           : (selectedReceiptDetail.reference_no || `REC-${selectedReceiptDetail.id}`);
-        const txDate = (selectedReceiptDetail.created_at || new Date().toISOString()).slice(0, 10);
+        const txDate = (selectedReceiptDetail.tx_date || selectedReceiptDetail.created_at || new Date().toISOString()).slice(0, 10);
         const amountVal = isSup
           ? Number(selectedReceiptDetail.p1_amount || 0)
           : Number(selectedReceiptDetail.amount || 0);
@@ -9846,13 +10156,31 @@ Thank you for your business!`;
               type: "Purchase Bill"
             }
           ];
+        } else if (isLoan) {
+          const lenderObj = lenders.find((l) => l.id == selectedReceiptDetail.borrower_id);
+          partyName = lenderObj?.name || "Lender";
+          partyMobile = lenderObj?.mobile || "-";
+          const dueNow = Number(lenderObj?.balance_due || 0);
+          oldBalance = dueNow + (selectedReceiptDetail.tx_type === "Repayment" ? amountVal : 0);
+          newBalance = dueNow;
+          adjustedBills = [
+            {
+              ref: selectedReceiptDetail.reference_no || `LRP-${selectedReceiptDetail.id}`,
+              date: txDate,
+              item: selectedReceiptDetail.tx_type === "Repayment" ? "Principal Loan Repayment" : "Monthly Interest Outflow",
+              totalAmount: amountVal,
+              adjustedAmount: amountVal,
+              remainingDue: 0,
+              type: selectedReceiptDetail.tx_type === "Repayment" ? "Principal Repayment" : "Interest Payment"
+            }
+          ];
         } else {
           const cust = customers.find((cu) => cu.id === selectedReceiptDetail.customer_id);
           partyName = cust?.name || selectedReceiptDetail.customer_name || "Customer";
           partyMobile = cust?.mobile || "-";
-          const currentBal = cust ? calculateCustomerBalance(cust.id) : 0;
-          oldBalance = Number(currentBal || 0) + amountVal;
-          newBalance = Number(currentBal || 0);
+          const currentBal = Number(cust?.old_due || 0);
+          oldBalance = currentBal + amountVal;
+          newBalance = currentBal;
 
           const rawAdj = getAdjustedInvoicesForCollection(selectedReceiptDetail);
           if (rawAdj.length > 0) {
@@ -9891,11 +10219,11 @@ Thank you for your business!`;
               <div className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2.5">
                   <span className="p-2 bg-white/10 rounded-xl text-lg">
-                    {isSup ? "💳" : "🧾"}
+                    {isSup ? "💳" : isLoan ? "🏦" : "🧾"}
                   </span>
                   <div>
                     <h3 className="font-black text-sm tracking-wide flex items-center gap-2">
-                      {isSup ? "Supplier Payment Voucher" : "Customer Collection Receipt"}
+                      {isSup ? "Supplier Payment Voucher" : isLoan ? "Loan Repayment Voucher" : "Customer Collection Receipt"}
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/20 text-white">
                         {refNo}
                       </span>
@@ -9920,7 +10248,7 @@ Thank you for your business!`;
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      {isSup ? "Supplier Details" : "Customer Details"}
+                      {isSup ? "Supplier Details" : isLoan ? "Lender / Source Details" : "Customer Details"}
                     </span>
                     <b className="text-sm text-slate-900 dark:text-white block mt-0.5">{partyName}</b>
                     <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
@@ -9930,7 +10258,7 @@ Thank you for your business!`;
 
                   <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      {isSup ? "Disbursed By Partner" : "Collected By Partner"}
+                      {isSup ? "Disbursed By Partner" : isLoan ? "Paid By Partner" : "Collected By Partner"}
                     </span>
                     <b className="text-sm text-slate-900 dark:text-white block mt-0.5">{partnerName}</b>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
