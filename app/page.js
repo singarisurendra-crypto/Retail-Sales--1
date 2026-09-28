@@ -1169,114 +1169,63 @@ export default function App() {
     return combined;
   }, [invoices, procurements, collections, loanTransactions, expenses, lenders, partners, auditFilterType, auditSearchQuery]);
 
-  // Comprehensive Dual-Layer FIFO Allocation Engine
-  // Determines exact collections, upfront paid, total paid, and balance due for every invoice
+  // Comprehensive Direct Invoice Allocation Engine
+  // Accurately maps direct collections and upfront payments to each invoice
   const invoiceAllocationsMap = useMemo(() => {
     const map = new Map();
-    const invoicesByCustomer = {};
-    invoices.forEach((inv) => {
-      const cId = inv.customer_id ? String(inv.customer_id) : `contra_${inv.customer_name}`;
-      if (!invoicesByCustomer[cId]) invoicesByCustomer[cId] = [];
-      invoicesByCustomer[cId].push(inv);
-    });
 
-    const collectionsByCustomer = {};
+    // Group direct collections by invoice_id
+    const directCollectionsByInv = {};
     collections.forEach((col) => {
-      const cId = String(col.customer_id);
-      if (!collectionsByCustomer[cId]) collectionsByCustomer[cId] = [];
-      collectionsByCustomer[cId].push(col);
+      if (!col.invoice_id) return;
+      const invId = String(col.invoice_id);
+      if (!directCollectionsByInv[invId]) directCollectionsByInv[invId] = [];
+      const pName = col.partner_name || partners.find((p) => String(p.id) === String(col.receiver_id || col.partner_id || col.collected_by))?.name || "N/A";
+      const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "-";
+      const ref = col.reference_no || `REC-${col.id}`;
+      const mode = col.payment_mode || col.mode || "Cash";
+      directCollectionsByInv[invId].push({
+        id: col.id,
+        date: dt,
+        ref: ref,
+        partner_name: pName,
+        payment_mode: mode,
+        amount: Number(col.amount || 0),
+        isDirect: true
+      });
     });
 
-    Object.keys(invoicesByCustomer).forEach((cId) => {
-      const custInvs = [...invoicesByCustomer[cId]].sort(
-        (a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || a.id - b.id
-      );
-      const custCols = collectionsByCustomer[cId]
-        ? [...collectionsByCustomer[cId]].sort(
-            (a, b) => new Date(a.created_at) - new Date(b.created_at) || a.id - b.id
-          )
-        : [];
+    invoices.forEach((inv) => {
+      const invId = String(inv.id);
+      const directCols = directCollectionsByInv[invId] || [];
+      const directColsTotal = directCols.reduce((s, c) => s + c.amount, 0);
+      const upfrontPaid = Number(inv.upfront_paid || 0);
+      const billTotal = Number(inv.total_amount || 0);
 
-      const tracker = custInvs.map((inv) => ({
-        invoice: inv,
-        upfrontPaid: Number(inv.upfront_paid || 0),
-        billTotal: Number(inv.total_amount || 0),
-        allocatedCollections: [],
-        totalCollections: 0
-      }));
+      // Total paid is upfront payment plus direct collections recorded for this bill
+      let totalPaid = upfrontPaid + directColsTotal;
+      let balanceDue = Math.max(0, billTotal - totalPaid);
 
-      const unallocatedOnAccountCols = [];
-      custCols.forEach((col) => {
-        const colAmt = Number(col.amount || 0);
-        if (colAmt <= 0) return;
+      // Preserve status if invoice was marked Collected or Contra in DB (e.g. balance_due === 0)
+      if (inv.balance_due !== undefined && Number(inv.balance_due) <= 0 && billTotal > 0 && totalPaid === 0) {
+        totalPaid = billTotal;
+        balanceDue = 0;
+      } else if (inv.balance_due !== undefined && directCols.length === 0 && upfrontPaid === 0) {
+        // Fallback to database stored balance_due if no collections or upfront
+        balanceDue = Number(inv.balance_due);
+        totalPaid = Math.max(0, billTotal - balanceDue);
+      }
 
-        const pName = col.partner_name || partners.find((p) => String(p.id) === String(col.receiver_id || col.partner_id || col.collected_by))?.name || "N/A";
-        const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "-";
-        const ref = col.reference_no || `REC-${col.id}`;
-        const mode = col.payment_mode || col.mode || "Cash";
+      const status = balanceDue <= 0 ? "Collected" : totalPaid > 0 ? "Partial" : "Due";
 
-        if (col.invoice_id) {
-          const target = tracker.find((t) => String(t.invoice.id) === String(col.invoice_id));
-          if (target) {
-            target.allocatedCollections.push({
-              id: col.id,
-              date: dt,
-              ref: ref,
-              partner_name: pName,
-              payment_mode: mode,
-              amount: colAmt,
-              isDirect: true
-            });
-            target.totalCollections += colAmt;
-            return;
-          }
-        }
-        unallocatedOnAccountCols.push({
-          ...col,
-          partner_name: pName,
-          date: dt,
-          ref: ref,
-          payment_mode: mode,
-          remainingAmt: colAmt
-        });
-      });
-
-      unallocatedOnAccountCols.forEach((col) => {
-        let colRem = col.remainingAmt;
-        for (const t of tracker) {
-          if (colRem <= 0) break;
-          const currentBalDue = Math.max(0, t.billTotal - (t.upfrontPaid + t.totalCollections));
-          if (currentBalDue <= 0) continue;
-
-          const alloc = Math.min(colRem, currentBalDue);
-          t.allocatedCollections.push({
-            id: col.id,
-            date: col.date,
-            ref: col.ref,
-            partner_name: col.partner_name,
-            payment_mode: col.payment_mode,
-            amount: alloc,
-            isFIFO: true
-          });
-          t.totalCollections += alloc;
-          colRem -= alloc;
-        }
-      });
-
-      tracker.forEach((t) => {
-        const totalPaid = t.upfrontPaid + t.totalCollections;
-        const balanceDue = Math.max(0, t.billTotal - totalPaid);
-        const status = balanceDue <= 0 ? "Collected" : totalPaid > 0 ? "Partial" : "Due";
-
-        map.set(String(t.invoice.id), {
-          invoiceId: t.invoice.id,
-          upfrontPaid: t.upfrontPaid,
-          totalCollections: t.totalCollections,
-          totalPaid: totalPaid,
-          balanceDue: balanceDue,
-          status: status,
-          allocatedCollections: t.allocatedCollections
-        });
+      map.set(invId, {
+        invoiceId: inv.id,
+        upfrontPaid: upfrontPaid,
+        totalCollections: directColsTotal,
+        totalPaid: totalPaid,
+        balanceDue: balanceDue,
+        status: status,
+        allocatedCollections: directCols
       });
     });
 
@@ -1799,16 +1748,21 @@ export default function App() {
   };
 
   const handleDeleteInvoice = async (inv) => {
-    const isCollected = inv.status === "Collected" || Number(inv.balance_due || 0) <= 0;
-    if (isCollected) {
-      return alert("Collected invoices cannot be deleted to preserve financial audit records.");
+    const invAlloc = invoiceAllocationsMap.get(String(inv.id));
+    const paidAmount = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
+    const hasCollections = collections.some((c) => String(c.invoice_id) === String(inv.id));
+
+    if (paidAmount > 0 || Number(inv.upfront_paid || 0) > 0 || hasCollections) {
+      return alert(
+        "Cannot delete this invoice because payment or collections exist for this bill!\n\n" +
+        "Please delete all associated collections first from 'Payment & Collections'. " +
+        "Only invoices with 0 payments (Due only) can be deleted."
+      );
     }
 
-    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? Any collections made against this bill will also be removed.`)) return;
+    if (!confirm(`Delete invoice ${inv.invoice_number || "INV-" + inv.id}? Stock will be restored to inventory.`)) return;
 
     try {
-      await db.from("collections").delete().eq("invoice_id", inv.id);
-
       if (Array.isArray(inv.items)) {
         for (const item of inv.items) {
           const batch = procurements.find((p) => p.id == item.procure_id);
@@ -1819,7 +1773,7 @@ export default function App() {
       }
 
       // Revert customer or supplier due
-      const netChange = Number(inv.total_amount || 0) - Number(inv.upfront_paid || 0);
+      const netChange = Number(inv.total_amount || 0);
       const cust = customers.find((c) => c.id == inv.customer_id);
       const sup = suppliers.find((s) => s.name === inv.customer_name || (inv.customer_id && s.id == inv.customer_id));
       if (cust) {
@@ -1833,7 +1787,7 @@ export default function App() {
 
       const { error } = await db.from("invoices").delete().eq("id", inv.id);
       if (error) throw error;
-      alert("Invoice and linked payments deleted!");
+      alert("Invoice deleted successfully! Stock restored to inventory.");
       refreshData();
     } catch (err) {
       alert("Error deleting invoice: " + err.message);
@@ -4528,7 +4482,7 @@ Thank you for your business!`;
                                           <Icon name="handcoins" size={14} />
                                         </button>
                                       )}
-                                      {!isPaid && (
+                                      {paidAmount === 0 && !isPaid && (
                                         <button
                                           type="button"
                                           title="Delete Invoice"
