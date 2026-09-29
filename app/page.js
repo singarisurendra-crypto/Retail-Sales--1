@@ -77,6 +77,9 @@ const Icon = ({ name, size = 18, className = "" }) => {
     ),
     search: (
       <path d="M11 19a8 8 0 100-16 8 8 0 000 16zm10 2l-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    chart: (
+      <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     )
   };
 
@@ -293,6 +296,12 @@ export default function App() {
   const [ledgerEndDate, setLedgerEndDate] = useState("");
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState("all");
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
+
+  // Scenario #7: Comprehensive Analysis & Reports State
+  const [analysisPeriod, setAnalysisPeriod] = useState("this_month");
+  const [analysisFromDate, setAnalysisFromDate] = useState("");
+  const [analysisToDate, setAnalysisToDate] = useState("");
+  const [analysisSubTab, setAnalysisSubTab] = useState("sales");
 
   const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
   const [settingsSubTab, setSettingsSubTab] = useState("general"); // "general" | "app_config"
@@ -1532,13 +1541,6 @@ export default function App() {
         if (balanceDue > 0 && colPool.length > 0) {
           for (const c of colPool) {
             if (balanceDue <= 0) break;
-            const colDate = toISODate(c.created_at || c.date);
-            // If the customer has an outstanding debt (old_due >= 0), an on-account collection
-            // received on colDate can only settle bills existing on or before colDate (invDate <= colDate).
-            // It cannot settle future bills created after the collection was already received.
-            if (!hasPrepaidCredit && invDate && colDate && invDate > colDate) {
-              continue;
-            }
             if (c.remainingAmt > 0) {
               const allocAmt = Math.min(balanceDue, c.remainingAmt);
               allocatedCols.push({
@@ -1658,42 +1660,79 @@ export default function App() {
     return sorted;
   }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSort, invoiceAllocationsMap]);
 
+  const purchaseOrdersGrouped = useMemo(() => {
+    const map = new Map();
+    procurements.forEach((p) => {
+      const isPoRef = typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-");
+      const dtStr = (p.purchase_date || p.created_at || "").slice(2, 10).replace(/-/g, "");
+      const poNum = isPoRef ? p.receiver_2_mode : (dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`);
+      const groupKey = isPoRef ? p.receiver_2_mode : `PO_ROW_${p.id}`;
+
+      if (!map.has(groupKey)) {
+        map.set(groupKey, {
+          id: p.id,
+          groupKey: groupKey,
+          purchaseNum: poNum,
+          purchase_date: p.purchase_date || p.created_at?.slice(0, 10),
+          created_at: p.created_at,
+          created_by: p.created_by,
+          supplier_name: p.supplier_name,
+          payment_mode: p.p1_mode || p.payment_mode || "Credit",
+          total_amount: 0,
+          paid_amount: 0,
+          remaining_qty: 0,
+          procured_qty: 0,
+          items: [],
+          rawRows: []
+        });
+      }
+      const entry = map.get(groupKey);
+      entry.items.push(p);
+      entry.rawRows.push(p);
+      entry.total_amount += Number(p.total_amount || 0);
+      entry.paid_amount += Number(p.p1_amount || 0);
+      entry.remaining_qty += Number(p.remaining_qty || 0);
+      entry.procured_qty += Number(p.procured_qty || 0);
+    });
+    return Array.from(map.values());
+  }, [procurements]);
+
   const filteredProcurements = useMemo(() => {
-    let list = procurements;
+    let list = purchaseOrdersGrouped;
     if (procureStockFilter === "in_stock") {
       list = list.filter((p) => Number(p.remaining_qty || 0) > 0);
     } else if (procureStockFilter === "out_of_stock") {
       list = list.filter((p) => Number(p.remaining_qty || 0) <= 0);
     } else if (procureStockFilter === "hide_settled") {
-      // Scenario 5: Skip records that are fully paid and have 0 stock
-      list = list.filter((p) => !(Number(p.remaining_qty || 0) <= 0 && Number(p.p1_amount || 0) >= Number(p.total_amount || 0)));
+      list = list.filter((p) => !(Number(p.remaining_qty || 0) <= 0 && Number(p.paid_amount || 0) >= Number(p.total_amount || 0)));
     }
     if (procureSupplierFilter !== "all") {
       list = list.filter((p) => p.supplier_name === procureSupplierFilter);
     }
     if (procureDateFilter !== "all") {
-      list = list.filter((p) => matchDateFilter(p.created_at, procureDateFilter));
+      list = list.filter((p) => matchDateFilter(p.purchase_date || p.created_at, procureDateFilter));
     }
     if (procureSearchQuery.trim()) {
       const q = procureSearchQuery.toLowerCase();
       list = list.filter((p) =>
-        p.item_name?.toLowerCase().includes(q) ||
-        p.supplier_name?.toLowerCase().includes(q)
+        p.purchaseNum?.toLowerCase().includes(q) ||
+        p.supplier_name?.toLowerCase().includes(q) ||
+        p.items.some((it) => it.item_name?.toLowerCase().includes(q))
       );
     }
 
     const sorted = [...list];
     if (procureSort === "date_desc") {
-      sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      sorted.sort((a, b) => new Date(b.purchase_date || b.created_at) - new Date(a.purchase_date || a.created_at));
     } else if (procureSort === "date_asc") {
-      sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      sorted.sort((a, b) => new Date(a.purchase_date || a.created_at) - new Date(b.purchase_date || b.created_at));
     } else if (procureSort === "stock_desc") {
       sorted.sort((a, b) => Number(b.remaining_qty || 0) - Number(a.remaining_qty || 0));
     } else if (procureSort === "valuation_desc") {
-      sorted.sort((a, b) => (Number(b.remaining_qty || 0) * Number(b.purchase_rate || 0)) - (Number(a.remaining_qty || 0) * Number(a.purchase_rate || 0)));
+      sorted.sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0));
     }
     return sorted;
-  }, [procurements, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery, procureSort]);
+  }, [purchaseOrdersGrouped, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery, procureSort]);
 
   const allCollectionsList = useMemo(() => {
     // 1. Regular due collections & advances from collections table
@@ -1918,6 +1957,24 @@ export default function App() {
         }
       }
     });
+
+    // Also parse any permanently stored invoice references from collection_type or notes
+    const embeddedText = `${col.collection_type || ""} ${col.notes || ""}`;
+    const matches = embeddedText.match(/INV-[A-Za-z0-9-]+/g);
+    if (matches && matches.length > 0) {
+      matches.forEach((invNo) => {
+        const found = invoices.find((i) => (i.invoice_number || `INV-${i.id}`) === invNo);
+        if (found && !list.some((item) => String(item.id) === String(found.id))) {
+          list.push({
+            id: found.id,
+            invoice_number: found.invoice_number || `INV-${found.id}`,
+            amount: 0,
+            raw: found
+          });
+        }
+      });
+    }
+
     return list;
   };
 
@@ -2081,15 +2138,6 @@ export default function App() {
       };
 
       if (editingInvoiceId) {
-        if (oldInv && Array.isArray(oldInv.items)) {
-          for (const item of oldInv.items) {
-            const batch = procurements.find((p) => p.id == item.procure_id);
-            if (batch) {
-              await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
-            }
-          }
-        }
-
         // Scenario #1: Insert new advance application line into collections without overwriting previous advance
         if (editSessionAdvances.length > 0) {
           for (const adv of editSessionAdvances) {
@@ -2125,12 +2173,42 @@ export default function App() {
         alert(`Invoice created! Status: ${status}${selectedCust.isSupplier ? ` (Contra offset against ${selectedCust.name} Supplier Account)` : isAdvanceAdjusted ? ` (Advance Adjusted: ₹${effectiveUpfront.toLocaleString('en-IN')})` : excessAdvance > 0 ? ` (Advance Credited: ₹${excessAdvance.toLocaleString('en-IN')})` : ''}`);
       }
 
-      // Decrement inventory
-      for (const line of cart) {
-        const batch = procurements.find((p) => p.id == line.procure_id);
-        if (batch) {
-          const rem = Math.max(0, Number(batch.remaining_qty) - Number(line.qty));
-          await db.from("procurements").update({ remaining_qty: rem }).eq("id", batch.id);
+      // Scenario #2: Delta-based Inventory Stock Movement (Prevents Double Deduction on Invoice Edit)
+      if (editingInvoiceId && oldInv) {
+        const oldItemQty = {};
+        (oldInv.items || []).forEach((it) => {
+          const pid = String(it.procure_id);
+          oldItemQty[pid] = (oldItemQty[pid] || 0) + Number(it.qty || 0);
+        });
+
+        const newItemQty = {};
+        cart.forEach((it) => {
+          const pid = String(it.procure_id);
+          newItemQty[pid] = (newItemQty[pid] || 0) + Number(it.qty || 0);
+        });
+
+        const allProcureIds = new Set([...Object.keys(oldItemQty), ...Object.keys(newItemQty)]);
+        for (const pidStr of allProcureIds) {
+          const oldQ = oldItemQty[pidStr] || 0;
+          const newQ = newItemQty[pidStr] || 0;
+          const delta = newQ - oldQ; // > 0 means more units sold (decrement), < 0 means units returned (increment)
+
+          if (delta !== 0) {
+            const { data: dbBatch } = await db.from("procurements").select("id, remaining_qty").eq("id", Number(pidStr)).maybeSingle();
+            const currentRem = Number(dbBatch ? dbBatch.remaining_qty : (procurements.find((p) => String(p.id) === pidStr)?.remaining_qty || 0));
+            const nextRem = Math.max(0, currentRem - delta);
+            await db.from("procurements").update({ remaining_qty: nextRem }).eq("id", Number(pidStr));
+            setProcurements((prev) => prev.map((p) => String(p.id) === pidStr ? { ...p, remaining_qty: nextRem } : p));
+          }
+        }
+      } else {
+        // Decrement inventory for newly created invoice
+        for (const line of cart) {
+          const { data: dbBatch } = await db.from("procurements").select("id, remaining_qty").eq("id", Number(line.procure_id)).maybeSingle();
+          const currentRem = Number(dbBatch ? dbBatch.remaining_qty : (procurements.find((p) => p.id == line.procure_id)?.remaining_qty || 0));
+          const nextRem = Math.max(0, currentRem - Number(line.qty || 0));
+          await db.from("procurements").update({ remaining_qty: nextRem }).eq("id", Number(line.procure_id));
+          setProcurements((prev) => prev.map((p) => p.id == line.procure_id ? { ...p, remaining_qty: nextRem } : p));
         }
       }
 
@@ -2220,30 +2298,65 @@ export default function App() {
         action: "Deleted",
         details: `Deleted invoice for ${inv.customer_name}. Total: ${money(inv.total_amount)}`
       });
+
+      // Scenario #1: Atomically restore stock for each item directly from database
       if (Array.isArray(inv.items)) {
         for (const item of inv.items) {
-          const batch = procurements.find((p) => p.id == item.procure_id);
-          if (batch) {
-            await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
+          const qtyToRestore = Number(item.qty || 0);
+          if (qtyToRestore <= 0) continue;
+
+          let targetBatchId = null;
+          let currentRemaining = 0;
+
+          if (item.procure_id) {
+            const { data: dbBatch } = await db.from("procurements").select("id, remaining_qty").eq("id", Number(item.procure_id)).maybeSingle();
+            if (dbBatch) {
+              targetBatchId = dbBatch.id;
+              currentRemaining = Number(dbBatch.remaining_qty || 0);
+            }
+          }
+
+          // Fallback matching by item_name if procure_id was missing or not found
+          if (!targetBatchId && item.item_name) {
+            const { data: nameBatch } = await db.from("procurements").select("id, remaining_qty").eq("item_name", item.item_name).order("created_at", { ascending: false }).limit(1).maybeSingle();
+            if (nameBatch) {
+              targetBatchId = nameBatch.id;
+              currentRemaining = Number(nameBatch.remaining_qty || 0);
+            }
+          }
+
+          if (targetBatchId) {
+            const restoredQty = currentRemaining + qtyToRestore;
+            await db.from("procurements").update({ remaining_qty: restoredQty }).eq("id", targetBatchId);
+            setProcurements((prev) => prev.map((p) => p.id === targetBatchId ? { ...p, remaining_qty: restoredQty } : p));
           }
         }
       }
 
-      // Revert customer or supplier due
-      const netChange = Number(inv.total_amount || 0);
+      // Revert customer or supplier due strictly for this single invoice
+      const upfrontCash = inv.upfront_mode === "Advance Adjusted" ? 0 : Number(inv.upfront_paid || 0);
+      const netChange = Math.max(0, Number(inv.total_amount || 0) - upfrontCash);
+
       const cust = customers.find((c) => c.id == inv.customer_id);
       const sup = suppliers.find((s) => s.name === inv.customer_name || (inv.customer_id && s.id == inv.customer_id));
-      if (cust) {
+      if (cust && netChange > 0) {
         const newDue = Number(cust.old_due || 0) - netChange;
         await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
-      } else if (sup) {
+        setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
+      } else if (sup && netChange > 0) {
         // Restores the supplier payable balance
         const newDue = Number(sup.old_due || 0) + netChange;
         await db.from("suppliers").update({ old_due: newDue }).eq("id", sup.id);
+        setSuppliers((prev) => prev.map((s) => s.id == sup.id ? { ...s, old_due: newDue } : s));
       }
 
+      // Delete ONLY this single invoice by its unique primary key ID
       const { error } = await db.from("invoices").delete().eq("id", inv.id);
       if (error) throw error;
+
+      // Update state immediately so other invoices for this customer remain intact
+      setInvoices((prev) => prev.filter((i) => String(i.id) !== String(inv.id)));
+
       alert("Invoice deleted successfully! Stock restored to inventory.");
       refreshData();
     } catch (err) {
@@ -2413,11 +2526,29 @@ Thank you for your business!`;
     const datePrefix = new Date().toISOString().split("T")[0].replace(/-/g, "").slice(2);
     const refNo = collectForm.reference_no?.trim() || `REC-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const colType = collectForm.invoice_id
-      ? "Invoice Collection"
-      : collectForm.notes?.trim()
-      ? `On Account (${collectForm.notes.trim()})`
-      : "On Account";
+    let colType = "On Account";
+    if (collectForm.invoice_id) {
+      colType = "Invoice Collection";
+    } else {
+      const custInvs = invoices
+        .filter((i) => String(i.customer_id) === String(collectForm.customer_id))
+        .sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || Number(a.id || 0) - Number(b.id || 0));
+      let remAmt = amt;
+      const settledRefs = [];
+      for (const inv of custInvs) {
+        const invAlloc = invoiceAllocationsMap.get(String(inv.id));
+        const currentDue = invAlloc ? invAlloc.balanceDue : Number(inv.balance_due || 0);
+        if (currentDue > 0 && remAmt > 0) {
+          settledRefs.push(inv.invoice_number || `INV-${inv.id}`);
+          remAmt -= Math.min(currentDue, remAmt);
+        }
+      }
+      if (settledRefs.length > 0) {
+        colType = `On Account (${settledRefs.join(", ")})`;
+      } else if (collectForm.notes?.trim()) {
+        colType = `On Account (${collectForm.notes.trim()})`;
+      }
+    }
 
     // Strictly match Supabase collections table schema:
     // ['id', 'created_at', 'customer_id', 'amount', 'payment_mode', 'receiver_id', 'invoice_id', 'collection_type']
@@ -3249,20 +3380,39 @@ Thank you for your business!`;
   };
 
   const handleDeleteProcurement = async (p) => {
-    if (Number(p.remaining_qty || 0) < Number(p.procured_qty || 0)) {
-      return alert("This stock batch has already been sold in customer sales invoices and cannot be deleted!");
+    const rowsToDelete = p.rawRows && p.rawRows.length > 0 ? p.rawRows : [p];
+    const anySold = rowsToDelete.some((r) => Number(r.remaining_qty || 0) < Number(r.procured_qty || 0));
+    if (anySold) {
+      return alert("One or more items in this purchase order have already been sold in customer sales invoices and cannot be deleted!");
     }
-    if (!confirm(`Delete purchase "${p.item_name}" from ${p.supplier_name}?`)) return;
+    const orderTitle = p.purchaseNum || p.receiver_2_mode || `PUR-${p.id}`;
+    if (!confirm(`Delete purchase order ${orderTitle} from ${p.supplier_name}? Stock will be reversed.`)) return;
     try {
       logAuditEvent({
-        docRef: p.receiver_2_mode || `PUR-${p.id}`,
+        docRef: orderTitle,
         docType: "Purchase Order",
         action: "Deleted",
-        details: `Deleted purchase batch for ${p.supplier_name} (${p.item_name})`
+        details: `Deleted purchase order ${orderTitle} for ${p.supplier_name}. Total: ${money(p.total_amount || p.total)}`
       });
-      const { error } = await db.from("procurements").delete().eq("id", p.id);
-      if (error) throw error;
-      alert("Purchase deleted!");
+      for (const r of rowsToDelete) {
+        const { error } = await db.from("procurements").delete().eq("id", r.id);
+        if (error) throw error;
+      }
+
+      // Revert supplier old_due
+      const sup = suppliers.find((s) => s.name === p.supplier_name);
+      if (sup) {
+        const totalCost = Number(p.total_amount || p.total || 0);
+        const totalPaid = Number(p.paid_amount || p.p1_amount || 0);
+        const unpaidDue = Math.max(0, totalCost - totalPaid);
+        if (unpaidDue > 0) {
+          const updatedDue = Math.max(0, Number(sup.old_due || 0) - unpaidDue);
+          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+          setSuppliers((prev) => prev.map((s) => s.id === sup.id ? { ...s, old_due: updatedDue } : s));
+        }
+      }
+
+      alert("Purchase order deleted successfully! Stock and supplier dues updated.");
       refreshData();
     } catch (err) {
       alert("Error deleting procurement: " + err.message);
@@ -4335,6 +4485,14 @@ Thank you for your business!`;
                   <Icon name="dashboard" size={17} /> {t("Business Snapshot", "వ్యాపార సమాచారం")}
                 </button>
                 <button
+                  onClick={() => navigateTab("analysis")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                    activeTab === "analysis" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="chart" size={17} /> {t("Analysis & Reports", "విశ్లేషణ & నివేదికలు")}
+                </button>
+                <button
                   onClick={() => navigateTab("history_audit")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                     activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
@@ -5125,35 +5283,7 @@ Thank you for your business!`;
               </button>
             </div>
 
-            {/* Metric Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Invoices</span>
-                <b className="text-xl font-black text-slate-900 mt-1 block">{invoices.length}</b>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">Lifetime bills generated</span>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales Billed</span>
-                <b className="text-xl font-black text-indigo-600 mt-1 block">
-                  {money(invoices.reduce((s, i) => s + Number(i.total_amount || 0), 0))}
-                </b>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">Gross sales volume</span>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Collected</span>
-                <b className="text-xl font-black text-emerald-600 mt-1 block">
-                  {money(invoices.reduce((s, i) => s + Math.max(0, Number(i.total_amount || 0) - Number(i.balance_due || 0)), 0))}
-                </b>
-                <span className="text-[11px] text-emerald-600/80 mt-0.5 block">Upfront & dues recovered</span>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Outstanding Dues</span>
-                <b className="text-xl font-black text-rose-600 mt-1 block">
-                  {money(invoices.reduce((s, i) => s + Number(i.balance_due || 0), 0))}
-                </b>
-                <span className="text-[11px] text-rose-500/80 mt-0.5 block">Pending payment recovery</span>
-              </div>
-            </div>
+
 
             {/* Search & Universal Filters Toolbar */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
@@ -5253,20 +5383,19 @@ Thank you for your business!`;
                           <tr>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Invoice #", "ఇన్‌వాయిస్ #")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Date", "తేదీ")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Customer", "కస్టమర్")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Items Summary", "వస్తువుల వివరాలు")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Total", "మొత్తం")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Paid", "చెల్లించినది")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Balance Due", "బకాయి")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{t("Status", "స్థితి")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{t("Actions", "చర్యలు")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
                           {pagedInvoices.length === 0 ? (
                             <tr>
-                              <td colSpan={11} className="p-8 text-center text-slate-400">
+                              <td colSpan={9} className="p-8 text-center text-slate-400">
                                 No invoices found matching your criteria.
                               </td>
                             </tr>
@@ -5295,10 +5424,6 @@ Thank you for your business!`;
                                   </td>
                                   <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                                     {inv.invoice_date || inv.created_at?.slice(0, 10)}
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap text-[11px] text-slate-500">
-                                    <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(inv.created_at)}</div>
-                                    <div className="text-[10px] text-slate-400">By: {inv.created_by || "Admin (B Reddy)"}</div>
                                   </td>
                                   <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">
                                     <div>
@@ -5340,7 +5465,7 @@ Thank you for your business!`;
                                       {statusLabel}
                                     </span>
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                                     <div className="flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
@@ -5442,37 +5567,7 @@ Thank you for your business!`;
               </button>
             </div>
 
-            {/* Metric Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Purchases</span>
-                <b className="text-xl font-black text-slate-900 mt-1 block">
-                  {money(procurements.reduce((s, p) => s + Number(p.total_amount || 0), 0))}
-                </b>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">{procurements.length} total procurement entries</span>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Stock Valuation (Cost)</span>
-                <b className="text-xl font-black text-indigo-600 mt-1 block">
-                  {money(procurements.reduce((s, p) => s + Number(p.remaining_qty || 0) * Number(p.purchase_rate || 0), 0))}
-                </b>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">Current remaining unsold stock</span>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Paid to Suppliers</span>
-                <b className="text-xl font-black text-emerald-600 mt-1 block">
-                  {money(procurements.reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
-                </b>
-                <span className="text-[11px] text-emerald-600/80 mt-0.5 block">Cleared supplier payments</span>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Supplier Dues Pending</span>
-                <b className="text-xl font-black text-rose-600 mt-1 block">
-                  {money(procurements.reduce((s, p) => s + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)), 0))}
-                </b>
-                <span className="text-[11px] text-rose-500/80 mt-0.5 block">Outstanding vendor payables</span>
-              </div>
-            </div>
+
 
             {/* Search & Filter Toolbar */}
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
@@ -5563,122 +5658,115 @@ Thank you for your business!`;
                           <tr>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Purchase #", "కొనుగోలు #")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Item Name", "వస్తువు పేరు")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Supplier", "సరఫరాదారు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Items Summary", "వస్తువుల వివరాలు")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Stock (Left / Total)", "స్టాక్ (మిగిలినది / మొత్తం)")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Cost Rate", "కొనుగోలు ధర")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Selling Rate", "అమ్మకపు ధర")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid", "చెల్లించినది")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Due", "బకాయి")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Actions", "చర్యలు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                           {pagedProcurements.length === 0 ? (
                             <tr>
-                              <td colSpan={12} className="p-8 text-center text-slate-400">
+                              <td colSpan={9} className="p-8 text-center text-slate-400">
                                 No purchases or stock records found.
                               </td>
                             </tr>
                           ) : (
                             pagedProcurements.map((p) => {
-                        const total = Number(p.total_amount || 0);
-                        const paid = Number(p.p1_amount || 0);
-                        const due = Math.max(0, total - paid);
-                        const inStock = Number(p.remaining_qty || 0) > 0;
-                        const costRate = Number(p.purchase_rate || 0);
-                        const sellRate = Number(p.selling_rate || costRate);
-                        const margin = costRate > 0 ? Math.round(((sellRate - costRate) / costRate) * 100) : 0;
-                        const dtStr = (p.purchase_date || p.created_at || "").slice(2, 10).replace(/-/g, "");
-                        const isPoRef = typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-");
-                        const purchaseNum = isPoRef ? p.receiver_2_mode : (dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`);
+                              const total = Number(p.total_amount || 0);
+                              const paid = Number(p.paid_amount !== undefined ? p.paid_amount : (p.p1_amount || 0));
+                              const due = Math.max(0, total - paid);
+                              const remQty = Number(p.remaining_qty || 0);
+                              const totQty = Number(p.procured_qty || 0);
+                              const inStock = remQty > 0;
+                              const itemsList = p.items && p.items.length > 0 ? p.items : [p];
+                              const firstItem = itemsList[0];
+                              const itemsSummary = itemsList.length > 1
+                                ? `${firstItem?.item_name || "Item"} (${firstItem?.procured_qty || 1}) + ${itemsList.length - 1} more`
+                                : `${firstItem?.item_name || "Item"} (${firstItem?.procured_qty || 1})`;
 
-                        return (
-                          <tr key={p.id} className="hover:bg-slate-50 transition">
-                            <td className="p-2.5 border border-sky-200 dark:border-slate-700">
-                              <button
-                                type="button"
-                                onClick={() => handleEditProcurement(p)}
-                                className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
-                                title="Click purchase number to edit purchase order"
-                              >
-                                <Icon name="edit" size={13} />
-                                {purchaseNum}
-                              </button>
-                            </td>
-                            <td className="p-3 text-slate-500 whitespace-nowrap">
-                              {p.purchase_date || p.created_at?.slice(0, 10)}
-                            </td>
-                            <td className="p-3 whitespace-nowrap text-[11px] text-slate-500">
-                              <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(p.created_at)}</div>
-                              <div className="text-[10px] text-slate-400">By: {p.created_by || "Admin (B Reddy)"}</div>
-                            </td>
-                            <td className="p-3 font-bold text-slate-900">
-                              <div>{p.item_name}</div>
-                            </td>
-                            <td className="p-3 text-slate-600">
-                              {p.supplier_name}
-                            </td>
-                            <td className="p-3 text-center">
-                              <div className="inline-flex items-center gap-1.5">
-                                <span className={`font-black text-xs ${inStock ? "text-emerald-700" : "text-rose-600"}`}>
-                                  {p.remaining_qty}
-                                </span>
-                                <span className="text-slate-400 text-[10px]">/ {p.procured_qty}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-                                  inStock ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                                }`}>
-                                  {inStock ? "In Stock" : "Sold Out"}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="p-3 text-right font-medium text-slate-700">
-                              {money(costRate)}
-                            </td>
-                            <td className="p-3 text-right font-bold text-indigo-600">
-                              {money(sellRate)}
-                              {margin > 0 && <span className="text-[10px] text-emerald-600 ml-1 font-semibold">(+{margin}%)</span>}
-                            </td>
-                            <td className="p-3 text-right font-black text-slate-900">
-                              {money(total)}
-                            </td>
-                            <td className="p-3 text-right text-emerald-600 font-bold">
-                              {money(paid)}
-                            </td>
-                            <td className="p-3 text-right font-black text-rose-600">
-                              {money(due)}
-                            </td>
-                            <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {due > 0 && (
-                                  <button
-                                    type="button"
-                                    title="Pay Supplier Bill"
-                                    onClick={() => handleEditPurchasePayment(p)}
-                                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition"
-                                  >
-                                    <Icon name="wallet" size={14} />
-                                  </button>
-                                )}
-                                {Number(p.remaining_qty || 0) >= Number(p.procured_qty || 0) && (
-                                  <button
-                                    type="button"
-                                    title="Delete Procurement"
-                                    onClick={() => handleDeleteProcurement(p)}
-                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                                  >
-                                    <Icon name="trash" size={14} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
+                              return (
+                                <tr key={p.groupKey || p.id} className="hover:bg-slate-50 transition">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditProcurement(p)}
+                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                                      title="Click purchase number to edit purchase order"
+                                    >
+                                      <Icon name="edit" size={13} />
+                                      {p.purchaseNum}
+                                    </button>
+                                  </td>
+                                  <td className="p-3 text-slate-500 whitespace-nowrap">
+                                    {p.purchase_date || p.created_at?.slice(0, 10)}
+                                  </td>
+                                  <td className="p-3 text-slate-600 font-semibold">
+                                    {p.supplier_name}
+                                  </td>
+                                  <td className="p-3 font-bold text-slate-900">
+                                    <div>{itemsSummary}</div>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <div className="inline-flex items-center gap-1.5">
+                                      <span className={`font-black text-xs ${inStock ? "text-emerald-700" : "text-rose-600"}`}>
+                                        {remQty}
+                                      </span>
+                                      <span className="text-slate-400 text-[10px]">/ {totQty}</span>
+                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                                        inStock ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                                      }`}>
+                                        {inStock ? "In Stock" : "Sold Out"}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-right font-black text-slate-900">
+                                    {money(total)}
+                                  </td>
+                                  <td className="p-3 text-right text-emerald-600 font-bold">
+                                    {money(paid)}
+                                  </td>
+                                  <td className="p-3 text-right font-black text-rose-600">
+                                    {money(due)}
+                                  </td>
+                                  <td className="p-3 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {due > 0 && (
+                                        <button
+                                          type="button"
+                                          title="Pay Supplier Bill"
+                                          onClick={() => handleEditPurchasePayment(p.rawRows?.[0] || p)}
+                                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition"
+                                        >
+                                          <Icon name="wallet" size={14} />
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        title="Edit Purchase Order"
+                                        onClick={() => handleEditProcurement(p)}
+                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition"
+                                      >
+                                        <Icon name="edit" size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Delete Purchase Order"
+                                        onClick={() => handleDeleteProcurement(p)}
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                      >
+                                        <Icon name="trash" size={14} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
                 </table>
               </div>
               {renderPagination(safeProcPage, filteredProcurements.length, 10, setProcurePage)}
@@ -5795,30 +5883,6 @@ Thank you for your business!`;
             {/* SUB-VIEW 1: CUSTOMER COLLECTIONS */}
             {paymentsSubTab === "collections" && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Recoveries</span>
-                    <b className="text-xl font-black text-emerald-600 mt-1 block">
-                      {money(allCollectionsList.reduce((s, c) => s + Number(c.amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">{allCollectionsList.length} total receipts recorded</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cash Collected</span>
-                    <b className="text-xl font-black text-slate-900 mt-1 block">
-                      {money(allCollectionsList.filter((c) => (c.payment_mode || "").toUpperCase() === "CASH").reduce((s, c) => s + Number(c.amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Physical cash receipts</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs col-span-2 lg:col-span-1">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI Collected</span>
-                    <b className="text-xl font-black text-indigo-600 mt-1 block">
-                      {money(allCollectionsList.filter((c) => (c.payment_mode || "").toUpperCase() === "UPI").reduce((s, c) => s + Number(c.amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Direct bank transfers</span>
-                  </div>
-                </div>
-
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                   <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
                     <div className="relative flex-1">
@@ -5897,20 +5961,18 @@ Thank you for your business!`;
                               <tr>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receipt #", "రసీదు #")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Customer", "కస్టమర్")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Invoice Ref", "ఇన్‌వాయిస్ రెఫరెన్స్")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Amount", "మొత్తం")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Mode", "చెల్లింపు పద్ధతి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Notes", "గమనికలు")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Actions", "చర్యలు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                               {pagedCollections.length === 0 ? (
                                 <tr>
-                                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                                  <td colSpan={8} className="p-8 text-center text-slate-400">
                                     No customer collections recorded yet.
                                   </td>
                                 </tr>
@@ -5936,78 +5998,30 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {c.collection_date || c.created_at?.slice(0, 10)}
                                 </td>
-                                <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
-                                  <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(c.created_at)}</div>
-                                  <div className="text-[10px] text-slate-400">By: {receiver?.name || "Admin (B Reddy)"}</div>
-                                </td>
                                 <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {cust?.name || c.customer_name || "Customer"}
                                 </td>
                                 <td className="p-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400">
-                                  {adjustedInvs.length > 1 ? (
-                                    expandedPaymentRefId === c.id ? (
-                                      <span className="inline-flex items-center flex-wrap gap-1">
-                                        {adjustedInvs.map((invItem, idx) => (
-                                          <span key={invItem.id} className="inline-flex items-center">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const targetInv = invItem.raw || invoices.find((i) => i.id == invItem.id);
-                                                if (targetInv) setSelectedViewInvoice(targetInv);
-                                              }}
-                                              className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                                              title="View / Print Invoice"
-                                            >
-                                              {invItem.invoice_number} {invItem.amount ? `(${money(invItem.amount)})` : ""}
-                                            </button>
-                                            {idx < adjustedInvs.length - 1 && <span className="text-slate-400 mr-1">,</span>}
-                                          </span>
-                                        ))}
-                                        <button
-                                          type="button"
-                                          onClick={() => setExpandedPaymentRefId(null)}
-                                          className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded transition cursor-pointer ml-1"
-                                          title="Collapse invoice references"
-                                        >
-                                          &lt;&lt;
-                                        </button>
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const targetInv = adjustedInvs[0].raw || invoices.find((i) => i.id == adjustedInvs[0].id);
-                                            if (targetInv) setSelectedViewInvoice(targetInv);
-                                          }}
-                                          className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                                          title="View / Print Invoice"
-                                        >
-                                          {adjustedInvs[0].invoice_number} {adjustedInvs[0].amount ? `(${money(adjustedInvs[0].amount)})` : ""}
-                                        </button>
-                                        <span className="text-slate-400">,</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => setExpandedPaymentRefId(c.id)}
-                                          className="px-1.5 py-0.5 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded transition cursor-pointer"
-                                          title={`Show all ${adjustedInvs.length} adjusted invoices`}
-                                        >
-                                          &gt;&gt;
-                                        </button>
-                                      </span>
-                                    )
-                                  ) : adjustedInvs.length === 1 ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const targetInv = adjustedInvs[0].raw || invoices.find((i) => i.id == adjustedInvs[0].id);
-                                        if (targetInv) setSelectedViewInvoice(targetInv);
-                                      }}
-                                      className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                                      title="View / Print Invoice Receipt"
-                                    >
-                                      {adjustedInvs[0].invoice_number} {adjustedInvs[0].amount ? `(${money(adjustedInvs[0].amount)})` : ""}
-                                    </button>
+                                  {adjustedInvs.length > 0 ? (
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      {adjustedInvs.map((invItem, idx) => (
+                                        <span key={invItem.id || idx} className="inline-flex items-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const targetInv = invItem.raw || invoices.find((i) => i.id == invItem.id);
+                                              if (targetInv) setSelectedViewInvoice(targetInv);
+                                            }}
+                                            className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                                            title="Click to view/print invoice"
+                                          >
+                                            {invItem.invoice_number}
+                                            {invItem.amount ? ` (${money(invItem.amount)})` : ""}
+                                          </button>
+                                          {idx < adjustedInvs.length - 1 && <span className="text-slate-400 mr-1">,</span>}
+                                        </span>
+                                      ))}
+                                    </div>
                                   ) : c.invoice_id ? (
                                     <button
                                       type="button"
@@ -6037,15 +6051,7 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-700 font-medium">
                                   {receiver?.name || "-"}
                                 </td>
-                                <td className="p-3 text-slate-500 text-[11px] max-w-xs truncate">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold mr-1.5 ${
-                                    c.source === "invoice" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
-                                  }`}>
-                                    {c.collection_type || (c.source === "invoice" ? "Bill Upfront" : "On Account")}
-                                  </span>
-                                  {c.notes && c.notes !== c.collection_type ? c.notes : ""}
-                                </td>
-                                <td className="p-3 text-center">
+                                <td className="p-3 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                                   <div className="flex items-center justify-center gap-1.5">
                                     {c.source === "invoice" ? (
                                       <>
@@ -6106,30 +6112,6 @@ Thank you for your business!`;
             {/* SUB-VIEW 2: SUPPLIER PAYMENTS */}
             {paymentsSubTab === "supplier_payments" && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Supplier Disbursements</span>
-                    <b className="text-xl font-black text-indigo-600 mt-1 block">
-                      {money(procurements.reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Total payments made for procurements</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cash Paid</span>
-                    <b className="text-xl font-black text-slate-900 mt-1 block">
-                      {money(procurements.filter((p) => p.p1_mode === "Cash").reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Paid by partners in cash</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs col-span-2 lg:col-span-1">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI Paid</span>
-                    <b className="text-xl font-black text-indigo-600 mt-1 block">
-                      {money(procurements.filter((p) => p.p1_mode === "UPI").reduce((s, p) => s + Number(p.p1_amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Paid by partners via UPI</span>
-                  </div>
-                </div>
-
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
                   <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
                     <div className="relative flex-1">
@@ -6309,30 +6291,6 @@ Thank you for your business!`;
             {/* Scenario 3: SUB-VIEW: LOAN REPAYMENTS */}
             {paymentsSubTab === "loan_repayments" && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Loan Outflows</span>
-                    <b className="text-xl font-black text-purple-600 mt-1 block">
-                      {money(loanTransactions.reduce((s, tx) => s + Number(tx.amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Lifetime principal & interest paid</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Principal Repaid</span>
-                    <b className="text-xl font-black text-emerald-600 mt-1 block">
-                      {money(loanTransactions.filter((tx) => tx.tx_type === "Repayment").reduce((s, tx) => s + Number(tx.amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Reduces lender outstanding debt</span>
-                  </div>
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Interest Paid</span>
-                    <b className="text-xl font-black text-amber-600 mt-1 block">
-                      {money(loanTransactions.filter((tx) => tx.tx_type === "Interest").reduce((s, tx) => s + Number(tx.amount || 0), 0))}
-                    </b>
-                    <span className="text-[11px] text-slate-400 mt-0.5 block">Recorded under Expenses & P&L</span>
-                  </div>
-                </div>
-
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
                   <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
                     <h3 className="font-black text-sm text-slate-900 dark:text-white">Loan Repayment Ledger ({loanTransactions.length})</h3>
@@ -6776,6 +6734,1507 @@ Thank you for your business!`;
             })()}
           </div>
         )}
+
+
+        {/* VIEW: COMPREHENSIVE ANALYSIS & REPORTS */}
+        {activeTab === "analysis" && (() => {
+          // 1. DATE BOUNDARIES & FILTERING
+          const now = new Date();
+          const todayStr = toISODate(now) || now.toISOString().slice(0, 10);
+
+          let periodStart = "1970-01-01";
+          let periodEnd = "2099-12-31";
+          let periodLabel = "All Time";
+          let prevStart = "1970-01-01";
+          let prevEnd = "1970-01-01";
+
+          if (analysisPeriod === "today") {
+            periodStart = todayStr;
+            periodEnd = todayStr;
+            periodLabel = `Today (${todayStr})`;
+            const y = new Date();
+            y.setDate(y.getDate() - 1);
+            prevStart = toISODate(y) || y.toISOString().slice(0, 10);
+            prevEnd = prevStart;
+          } else if (analysisPeriod === "yesterday") {
+            const y = new Date();
+            y.setDate(y.getDate() - 1);
+            periodStart = toISODate(y) || y.toISOString().slice(0, 10);
+            periodEnd = periodStart;
+            periodLabel = `Yesterday (${periodStart})`;
+            const by = new Date();
+            by.setDate(by.getDate() - 2);
+            prevStart = toISODate(by) || by.toISOString().slice(0, 10);
+            prevEnd = prevStart;
+          } else if (analysisPeriod === "this_week") {
+            const w = new Date();
+            w.setDate(w.getDate() - 7);
+            periodStart = toISODate(w) || w.toISOString().slice(0, 10);
+            periodEnd = todayStr;
+            periodLabel = `Last 7 Days (${periodStart} to ${periodEnd})`;
+            const pw = new Date();
+            pw.setDate(pw.getDate() - 14);
+            prevStart = toISODate(pw) || pw.toISOString().slice(0, 10);
+            prevEnd = periodStart;
+          } else if (analysisPeriod === "this_month") {
+            const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            periodStart = toISODate(mStart) || mStart.toISOString().slice(0, 10);
+            periodEnd = todayStr;
+            periodLabel = `This Month (${now.toLocaleString("default", { month: "short", year: "numeric" })})`;
+            const prevMStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const prevMEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+            prevStart = toISODate(prevMStart) || prevMStart.toISOString().slice(0, 10);
+            prevEnd = toISODate(prevMEnd) || prevMEnd.toISOString().slice(0, 10);
+          } else if (analysisPeriod === "last_month") {
+            const prevMStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const prevMEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+            periodStart = toISODate(prevMStart) || prevMStart.toISOString().slice(0, 10);
+            periodEnd = toISODate(prevMEnd) || prevMEnd.toISOString().slice(0, 10);
+            periodLabel = `Last Month (${prevMStart.toLocaleString("default", { month: "short", year: "numeric" })})`;
+            const p2MStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+            const p2MEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0);
+            prevStart = toISODate(p2MStart) || p2MStart.toISOString().slice(0, 10);
+            prevEnd = toISODate(p2MEnd) || p2MEnd.toISOString().slice(0, 10);
+          } else if (analysisPeriod === "this_year") {
+            periodStart = `${now.getFullYear()}-01-01`;
+            periodEnd = todayStr;
+            periodLabel = `This Year (${now.getFullYear()})`;
+            prevStart = `${now.getFullYear() - 1}-01-01`;
+            prevEnd = `${now.getFullYear() - 1}-12-31`;
+          } else if (analysisPeriod === "custom") {
+            periodStart = analysisFromDate || "1970-01-01";
+            periodEnd = analysisToDate || todayStr;
+            periodLabel = `Custom (${periodStart} to ${periodEnd})`;
+            const diff = Math.max(1, Math.round((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24)) + 1);
+            const pEnd = new Date(periodStart);
+            pEnd.setDate(pEnd.getDate() - 1);
+            const pStart = new Date(pEnd);
+            pStart.setDate(pStart.getDate() - diff + 1);
+            prevStart = toISODate(pStart) || pStart.toISOString().slice(0, 10);
+            prevEnd = toISODate(pEnd) || pEnd.toISOString().slice(0, 10);
+          }
+
+          const inPeriod = (dateStr, start = periodStart, end = periodEnd) => {
+            if (!dateStr) return false;
+            const d = dateStr.slice(0, 10);
+            return d >= start && d <= end;
+          };
+
+          // 2. DATA FILTERING
+          const periodInvoices = invoices.filter((i) => inPeriod(i.invoice_date));
+          const periodProcurements = procurements.filter((p) => inPeriod(p.purchase_date));
+          const periodCollections = allCollectionsList.filter((c) => inPeriod(c.collection_date || c.created_at));
+          const periodExpenses = expenses.filter((e) => inPeriod(e.expense_date || e.created_at));
+          const periodLoanInterest = loanTransactions.filter((l) => l.tx_type === "Interest" && inPeriod(l.tx_date || l.created_at));
+
+          // Previous period for comparison
+          const prevInvoices = invoices.filter((i) => inPeriod(i.invoice_date, prevStart, prevEnd));
+          const prevProcurements = procurements.filter((p) => inPeriod(p.purchase_date, prevStart, prevEnd));
+          const prevCollections = allCollectionsList.filter((c) => inPeriod(c.collection_date || c.created_at, prevStart, prevEnd));
+          const prevExpenses = expenses.filter((e) => inPeriod(e.expense_date || e.created_at, prevStart, prevEnd));
+
+          // 3. ITEM COST MAPPING (Weighted average purchase rate)
+          const costMap = {};
+          procurements.forEach((p) => {
+            if (!p.item_name) return;
+            const key = p.item_name.trim().toLowerCase();
+            const rate = Number(p.purchase_rate || 0);
+            const qty = Number(p.procured_qty || 0);
+            if (!costMap[key]) costMap[key] = { cost: 0, qty: 0, rate: rate };
+            costMap[key].cost += rate * qty;
+            costMap[key].qty += qty;
+            if (rate > 0) costMap[key].rate = rate;
+          });
+          masterItems.forEach((m) => {
+            if (!m.name) return;
+            const key = m.name.trim().toLowerCase();
+            const rate = Number(m.purchase_rate || 0);
+            if (!costMap[key]) costMap[key] = { cost: 0, qty: 0, rate: rate };
+            else if (!costMap[key].rate && rate > 0) costMap[key].rate = rate;
+          });
+          const getItemCost = (name) => {
+            if (!name) return 0;
+            const key = name.trim().toLowerCase();
+            const item = costMap[key];
+            if (!item) return 0;
+            return item.qty > 0 ? item.cost / item.qty : item.rate;
+          };
+
+          // 4. METRIC COMPUTATIONS
+          const totalRevenue = periodInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
+          const totalPurchasesSpend = periodProcurements.reduce(
+            (sum, p) => sum + Number(p.total_amount || Number(p.procured_qty || 0) * Number(p.purchase_rate || 0)),
+            0
+          );
+          const totalCollections = periodCollections.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+          const totalCustomerDues = customers.reduce((sum, c) => sum + Math.max(0, Number(c.old_due || 0)), 0);
+          const totalSupplierDues = suppliers.reduce((sum, s) => sum + Math.max(0, Number(s.old_due || 0)), 0);
+
+          let periodCogs = 0;
+          periodInvoices.forEach((inv) => {
+            if (Array.isArray(inv.items)) {
+              inv.items.forEach((it) => {
+                const qty = Number(it.qty || it.quantity || 0);
+                periodCogs += qty * getItemCost(it.item_name);
+              });
+            }
+          });
+          const grossProfit = totalRevenue - periodCogs;
+          const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : 0;
+
+          const inventoryValuation = procurements.reduce(
+            (sum, p) => sum + Math.max(0, Number(p.remaining_qty || 0)) * Number(p.purchase_rate || 0),
+            0
+          );
+          const totalInvoicesCount = periodInvoices.length;
+          const totalPurchasesCount = periodProcurements.length;
+
+          const totalExpensesSpend = periodExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+          const totalInterestSpend = periodLoanInterest.reduce((sum, l) => sum + Number(l.amount || 0), 0);
+          const totalOperatingOutflows = totalExpensesSpend + totalInterestSpend;
+          const netProfit = grossProfit - totalOperatingOutflows;
+          const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
+
+          // Comparison metrics
+          const prevRevenue = prevInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
+          const prevPurchasesSpend = prevProcurements.reduce(
+            (sum, p) => sum + Number(p.total_amount || Number(p.procured_qty || 0) * Number(p.purchase_rate || 0)),
+            0
+          );
+          const prevCollectionsTotal = prevCollections.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+          const prevExpensesSpend = prevExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+          let prevCogs = 0;
+          prevInvoices.forEach((inv) => {
+            if (Array.isArray(inv.items)) {
+              inv.items.forEach((it) => {
+                prevCogs += Number(it.qty || it.quantity || 0) * getItemCost(it.item_name);
+              });
+            }
+          });
+          const prevGrossProfit = prevRevenue - prevCogs;
+          const prevNetProfit = prevGrossProfit - prevExpensesSpend;
+
+          // 5. SUB-TAB DATA COMPUTATION
+          // Top Customers
+          const customerSalesMap = {};
+          periodInvoices.forEach((inv) => {
+            const cId = inv.customer_id || inv.customer_name || "Unknown";
+            const name = inv.customer_name || "Walk-in Customer";
+            if (!customerSalesMap[cId]) {
+              customerSalesMap[cId] = { name, count: 0, total: 0, id: cId };
+            }
+            customerSalesMap[cId].count += 1;
+            customerSalesMap[cId].total += Number(inv.total_amount || 0);
+          });
+          const topCustomers = Object.values(customerSalesMap).sort((a, b) => b.total - a.total).slice(0, 10);
+
+          // Top Items
+          const itemSalesMap = {};
+          periodInvoices.forEach((inv) => {
+            if (Array.isArray(inv.items)) {
+              inv.items.forEach((it) => {
+                const name = it.item_name || "Unknown";
+                if (!itemSalesMap[name]) itemSalesMap[name] = { name, qty: 0, revenue: 0 };
+                itemSalesMap[name].qty += Number(it.qty || it.quantity || 0);
+                itemSalesMap[name].revenue += Number(it.total || Number(it.qty || 0) * Number(it.rate || 0));
+              });
+            }
+          });
+          const topItemsSold = Object.values(itemSalesMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+
+          // Payment mode split
+          const salesModeMap = { Cash: 0, UPI: 0, Due: 0 };
+          periodInvoices.forEach((inv) => {
+            const alloc = invoiceAllocationsMap.get(String(inv.id));
+            const paid = alloc ? alloc.totalPaid : Number(inv.upfront_paid || 0);
+            const due = alloc ? alloc.balanceDue : Number(inv.balance_due || 0);
+            const mode = (inv.payment_mode || "Cash").toUpperCase();
+            if (mode.includes("CASH")) salesModeMap.Cash += paid;
+            else salesModeMap.UPI += paid;
+            if (due > 0) salesModeMap.Due += due;
+          });
+
+          // Purchases by Supplier
+          const supplierPurchaseMap = {};
+          periodProcurements.forEach((p) => {
+            const sName = p.supplier_name || "Direct Vendor";
+            if (!supplierPurchaseMap[sName]) {
+              supplierPurchaseMap[sName] = { name: sName, count: 0, total: 0, paid: 0, due: 0 };
+            }
+            supplierPurchaseMap[sName].count += 1;
+            const tot = Number(p.total_amount || Number(p.procured_qty || 0) * Number(p.purchase_rate || 0));
+            const pd = Number(p.p1_amount || 0);
+            supplierPurchaseMap[sName].total += tot;
+            supplierPurchaseMap[sName].paid += pd;
+            supplierPurchaseMap[sName].due += Math.max(0, tot - pd);
+          });
+          const purchasesBySupplier = Object.values(supplierPurchaseMap).sort((a, b) => b.total - a.total);
+
+          // Collections by Mode & Partner
+          const collectionsByMode = {};
+          const collectionsByPartner = {};
+          periodCollections.forEach((c) => {
+            const mode = c.payment_mode || "Cash";
+            collectionsByMode[mode] = (collectionsByMode[mode] || 0) + Number(c.amount || 0);
+            const pName = c.receiver_name || partners.find((p) => String(p.id) === String(c.receiver_id))?.name || "Store Default";
+            collectionsByPartner[pName] = (collectionsByPartner[pName] || 0) + Number(c.amount || 0);
+          });
+
+          // Customer Aging Analysis
+          const debtorsList = customers
+            .filter((c) => Number(c.old_due || 0) > 0)
+            .map((c) => {
+              const custInvs = invoices.filter((i) => String(i.customer_id) === String(c.id) || i.customer_name === c.name);
+              let oldestDate = null;
+              custInvs.forEach((i) => {
+                const alloc = invoiceAllocationsMap.get(String(i.id));
+                const due = alloc ? alloc.balanceDue : Number(i.balance_due || 0);
+                if (due > 0 && (!oldestDate || i.invoice_date < oldestDate)) {
+                  oldestDate = i.invoice_date;
+                }
+              });
+              const days = oldestDate ? Math.max(0, Math.round((now - new Date(oldestDate)) / (1000 * 60 * 60 * 24))) : 0;
+              let bucket = "0-30 Days";
+              let bucketBadge = "bg-emerald-50 text-emerald-700 border-emerald-200";
+              if (days > 90) {
+                bucket = "90+ Days";
+                bucketBadge = "bg-rose-50 text-rose-700 border-rose-200";
+              } else if (days > 60) {
+                bucket = "61-90 Days";
+                bucketBadge = "bg-amber-50 text-amber-700 border-amber-200";
+              } else if (days > 30) {
+                bucket = "31-60 Days";
+                bucketBadge = "bg-indigo-50 text-indigo-700 border-indigo-200";
+              }
+              return { ...c, oldestDate, days, bucket, bucketBadge, due: Number(c.old_due || 0) };
+            })
+            .sort((a, b) => b.due - a.due);
+
+          const customerAgingBuckets = { "0-30 Days": 0, "31-60 Days": 0, "61-90 Days": 0, "90+ Days": 0 };
+          debtorsList.forEach((d) => {
+            customerAgingBuckets[d.bucket] = (customerAgingBuckets[d.bucket] || 0) + d.due;
+          });
+
+          // Supplier Aging Analysis
+          const payablesList = suppliers
+            .filter((s) => Number(s.old_due || 0) > 0)
+            .map((s) => {
+              const supProcs = procurements.filter((p) => String(p.supplier_id) === String(s.id) || p.supplier_name === s.name);
+              let lastDate = null;
+              supProcs.forEach((p) => {
+                if (!lastDate || p.purchase_date > lastDate) lastDate = p.purchase_date;
+              });
+              const days = lastDate ? Math.max(0, Math.round((now - new Date(lastDate)) / (1000 * 60 * 60 * 24))) : 0;
+              let bucket = "0-30 Days";
+              let bucketBadge = "bg-emerald-50 text-emerald-700 border-emerald-200";
+              if (days > 60) {
+                bucket = "60+ Days";
+                bucketBadge = "bg-rose-50 text-rose-700 border-rose-200";
+              } else if (days > 30) {
+                bucket = "31-60 Days";
+                bucketBadge = "bg-amber-50 text-amber-700 border-amber-200";
+              }
+              return { ...s, lastDate, days, bucket, bucketBadge, due: Number(s.old_due || 0) };
+            })
+            .sort((a, b) => b.due - a.due);
+
+          const supplierAgingBuckets = { "0-30 Days": 0, "31-60 Days": 0, "60+ Days": 0 };
+          payablesList.forEach((p) => {
+            supplierAgingBuckets[p.bucket] = (supplierAgingBuckets[p.bucket] || 0) + p.due;
+          });
+
+          // Stock Items Valuation Breakdown
+          const stockInventoryList = masterItems
+            .map((m) => {
+              const relatedProcs = procurements.filter(
+                (p) => p.item_name && p.item_name.trim().toLowerCase() === m.name.trim().toLowerCase()
+              );
+              const totalProcured = relatedProcs.reduce((s, p) => s + Number(p.procured_qty || 0), 0);
+              const remQty = relatedProcs.reduce((s, p) => s + Number(p.remaining_qty || 0), 0);
+              const totalSold = Math.max(0, totalProcured - remQty);
+              const costRate = getItemCost(m.name);
+              const valuation = remQty * costRate;
+              const isLow = remQty > 0 && remQty <= 5;
+              const isOut = remQty <= 0;
+              return {
+                ...m,
+                totalProcured,
+                remQty,
+                totalSold,
+                costRate,
+                valuation,
+                isLow,
+                isOut,
+                status: isOut ? "Out of Stock" : isLow ? "Low Stock" : "In Stock"
+              };
+            })
+            .sort((a, b) => b.valuation - a.valuation);
+
+          // Expenses by Category
+          const expenseCatMap = {};
+          periodExpenses.forEach((e) => {
+            const cName = e.category_name || expenseCategories.find((c) => String(c.id) === String(e.category_id))?.name || "General Expenses";
+            expenseCatMap[cName] = (expenseCatMap[cName] || 0) + Number(e.amount || 0);
+          });
+          if (totalInterestSpend > 0) {
+            expenseCatMap["Loan Interest Paid"] = totalInterestSpend;
+          }
+          const expensesByCategory = Object.entries(expenseCatMap)
+            .map(([name, amount]) => ({ name, amount }))
+            .sort((a, b) => b.amount - a.amount);
+
+          // CSV Export Handler
+          const handleExportAnalysisCSV = () => {
+            const rows = [
+              ["JSR RETAIL SALES - COMPREHENSIVE BUSINESS ANALYSIS REPORT"],
+              [`Generated On: ${new Date().toLocaleString()}`, `Period: ${periodLabel}`],
+              [],
+              ["=== 1. EXECUTIVE KPI SUMMARY ==="],
+              ["Metric", "Value"],
+              ["Total Sales Revenue", totalRevenue],
+              ["Total Cost of Goods Sold (COGS)", periodCogs],
+              ["Gross Profit", grossProfit],
+              ["Gross Profit Margin %", `${grossMargin}%`],
+              ["Total Shop Expenses", totalExpensesSpend],
+              ["Loan Interest Paid", totalInterestSpend],
+              ["Net Business Profit / (Loss)", netProfit],
+              ["Net Profit Margin %", `${netMargin}%`],
+              ["Total Goods Procured", totalPurchasesSpend],
+              ["Customer Collections Inflow", totalCollections],
+              ["Total Pending Customer Dues", totalCustomerDues],
+              ["Total Pending Supplier Payables", totalSupplierDues],
+              ["Current Stock Valuation", inventoryValuation],
+              ["Invoices Issued Count", totalInvoicesCount],
+              ["Purchases Recorded Count", totalPurchasesCount],
+              [],
+              ["=== 2. TOP CUSTOMERS (SALES) ==="],
+              ["Customer Name", "Invoices Count", "Total Revenue (Rs)", "Share %"],
+              ...topCustomers.map((c) => [
+                `"${c.name.replace(/"/g, '""')}"`,
+                c.count,
+                c.total,
+                totalRevenue > 0 ? `${((c.total / totalRevenue) * 100).toFixed(1)}%` : "0%"
+              ]),
+              [],
+              ["=== 3. TOP SELLING PRODUCTS ==="],
+              ["Product Name", "Units Sold", "Revenue (Rs)", "Share %"],
+              ...topItemsSold.map((it) => [
+                `"${it.name.replace(/"/g, '""')}"`,
+                it.qty,
+                it.revenue,
+                totalRevenue > 0 ? `${((it.revenue / totalRevenue) * 100).toFixed(1)}%` : "0%"
+              ]),
+              [],
+              ["=== 4. CUSTOMER OUTSTANDING AGING ==="],
+              ["Customer Name", "Mobile", "Outstanding Due (Rs)", "Aging Bracket", "Oldest Bill Date"],
+              ...debtorsList.map((d) => [
+                `"${d.name.replace(/"/g, '""')}"`,
+                d.mobile || "",
+                d.due,
+                d.bucket,
+                d.oldestDate || "N/A"
+              ]),
+              [],
+              ["=== 5. INVENTORY & STOCK VALUATION ==="],
+              ["Item Name", "Category", "Procured Qty", "Available Stock", "Cost Rate (Rs)", "Valuation (Rs)", "Status"],
+              ...stockInventoryList.map((s) => [
+                `"${s.name.replace(/"/g, '""')}"`,
+                s.category || "General",
+                s.totalProcured,
+                s.remQty,
+                s.costRate,
+                s.valuation,
+                s.status
+              ]),
+              [],
+              ["=== 6. EXPENSES BREAKDOWN ==="],
+              ["Expense Category", "Amount (Rs)", "Share %"],
+              ...expensesByCategory.map((e) => [
+                `"${e.name.replace(/"/g, '""')}"`,
+                e.amount,
+                totalOperatingOutflows > 0 ? `${((e.amount / totalOperatingOutflows) * 100).toFixed(1)}%` : "0%"
+              ])
+            ];
+
+            const csvContent = "data:text/csv;charset=utf-8,﻿" + rows.map((r) => r.join(",")).join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `JSR_Retails_Analysis_${analysisPeriod}_${todayStr}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          };
+
+          // Render comparison helper badge
+          const renderGrowthBadge = (curr, prev) => {
+            if (!prev && !curr) return <span className="text-slate-400 text-xs">--</span>;
+            if (!prev && curr > 0) return <span className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded-full">New</span>;
+            const diff = curr - prev;
+            const pct = prev !== 0 ? ((diff / Math.abs(prev)) * 100).toFixed(1) : 0;
+            const isPos = diff >= 0;
+            return (
+              <span className={`inline-flex items-center gap-0.5 font-bold text-xs px-2 py-0.5 rounded-full ${
+                isPos ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+              }`}>
+                {isPos ? "↑" : "↓"} {isPos ? `+${pct}%` : `${pct}%`}
+              </span>
+            );
+          };
+
+          return (
+            <div className="space-y-6">
+              {/* TOP HEADER & UNIVERSAL PERIOD SELECTOR */}
+              <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                      <Icon name="chart" size={24} className="text-indigo-600" />
+                      Comprehensive Analysis & Reports
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                      Real-time analytical intelligence, aging ledgers, visual metrics, and periodic P&L
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportAnalysisCSV}
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                    >
+                      <Icon name="download" size={14} /> Export CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAnalysisSubTab("export_print")}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                    >
+                      <span>🖨️</span> Print Report
+                    </button>
+                  </div>
+                </div>
+
+                {/* PERIOD PRESET BUTTONS & CUSTOM DATES */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                    {[
+                      { id: "today", label: "Today" },
+                      { id: "yesterday", label: "Yesterday" },
+                      { id: "this_week", label: "This Week" },
+                      { id: "this_month", label: "This Month" },
+                      { id: "last_month", label: "Last Month" },
+                      { id: "this_year", label: "This Year" },
+                      { id: "all", label: "All Time" },
+                      { id: "custom", label: "Custom Dates" }
+                    ].map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setAnalysisPeriod(p.id)}
+                        className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer ${
+                          analysisPeriod === p.id
+                            ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
+                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {analysisPeriod === "custom" && (
+                    <div className="flex items-center gap-2 text-xs font-semibold">
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-500">From:</span>
+                        <input
+                          type="date"
+                          value={analysisFromDate}
+                          onChange={(e) => setAnalysisFromDate(e.target.value)}
+                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-xs font-bold"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-slate-500">To:</span>
+                        <input
+                          type="date"
+                          value={analysisToDate}
+                          onChange={(e) => setAnalysisToDate(e.target.value)}
+                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-right text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/50 self-start lg:self-auto">
+                    📅 {periodLabel}
+                  </div>
+                </div>
+              </div>
+
+              {/* 9 KPI SUMMARY CARDS */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-9 gap-3">
+                {/* 1. Total Revenue */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sales Revenue</span>
+                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
+                    {money(totalRevenue)}
+                  </b>
+                  <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 block">{totalInvoicesCount} invoices</span>
+                </div>
+
+                {/* 2. Total Purchases */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Purchases</span>
+                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
+                    {money(totalPurchasesSpend)}
+                  </b>
+                  <span className="text-[10px] text-indigo-600 font-semibold mt-0.5 block">{totalPurchasesCount} orders</span>
+                </div>
+
+                {/* 3. Collections */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Collections</span>
+                  <b className="text-lg font-black text-emerald-600 mt-1 block truncate">
+                    {money(totalCollections)}
+                  </b>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">{periodCollections.length} receipts</span>
+                </div>
+
+                {/* 4. Customer Due */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Customer Dues</span>
+                  <b className="text-lg font-black text-rose-600 mt-1 block truncate">
+                    {money(totalCustomerDues)}
+                  </b>
+                  <span className="text-[10px] text-rose-400 font-semibold mt-0.5 block">{debtorsList.length} debtors</span>
+                </div>
+
+                {/* 5. Supplier Due */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">Supplier Dues</span>
+                  <b className="text-lg font-black text-amber-600 mt-1 block truncate">
+                    {money(totalSupplierDues)}
+                  </b>
+                  <span className="text-[10px] text-amber-400 font-semibold mt-0.5 block">{payablesList.length} payables</span>
+                </div>
+
+                {/* 6. Gross Profit */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">Gross Profit</span>
+                  <b className={`text-lg font-black mt-1 block truncate ${grossProfit >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
+                    {money(grossProfit)}
+                  </b>
+                  <span className="text-[10px] text-indigo-400 font-semibold mt-0.5 block">{grossMargin}% margin</span>
+                </div>
+
+                {/* 7. Stock Valuation */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider block">Stock Valuation</span>
+                  <b className="text-lg font-black text-cyan-700 dark:text-cyan-400 mt-1 block truncate">
+                    {money(inventoryValuation)}
+                  </b>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">{masterItems.length} active SKUs</span>
+                </div>
+
+                {/* 8. Invoices Count */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bills Issued</span>
+                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
+                    {totalInvoicesCount}
+                  </b>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">Avg: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}</span>
+                </div>
+
+                {/* 9. Purchases Count */}
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">POs Recorded</span>
+                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
+                    {totalPurchasesCount}
+                  </b>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">Avg: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}</span>
+                </div>
+              </div>
+
+              {/* 10 SUB-TABS NAVIGATION */}
+              <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-x-auto">
+                <div className="flex items-center gap-1.5 min-w-max text-xs font-bold">
+                  {[
+                    { id: "sales", label: "🛒 Sales Analysis", count: periodInvoices.length },
+                    { id: "purchases", label: "📦 Purchases Analysis", count: periodProcurements.length },
+                    { id: "collections", label: "📥 Collections & Inflows", count: periodCollections.length },
+                    { id: "customers", label: "👥 Customer Aging", count: debtorsList.length },
+                    { id: "suppliers", label: "🚚 Supplier Payables", count: payablesList.length },
+                    { id: "stock", label: "📊 Stock Valuation", count: masterItems.length },
+                    { id: "pnl", label: "⚖️ Profit & Loss (P&L)", highlight: true },
+                    { id: "charts", label: "📈 Visual Charts" },
+                    { id: "comparison", label: "🔄 Period Comparison" },
+                    { id: "export_print", label: "🖨️ Export & Print" }
+                  ].map((sub) => (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => setAnalysisSubTab(sub.id)}
+                      className={`px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
+                        analysisSubTab === sub.id
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : sub.highlight
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <span>{sub.label}</span>
+                      {sub.count !== undefined && (
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          analysisSubTab === sub.id ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}>
+                          {sub.count}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* SUB-TAB 1: SALES ANALYSIS */}
+              {analysisSubTab === "sales" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* Top 10 Customers */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🏆</span> Top Customers by Revenue ({topCustomers.length})
+                        </h3>
+                        <span className="text-xs text-slate-400">Selected Period</span>
+                      </div>
+                      {topCustomers.length === 0 ? (
+                        <p className="text-xs text-slate-400 p-4 text-center">No sales recorded in this period.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {topCustomers.map((cust, idx) => {
+                            const share = totalRevenue > 0 ? (cust.total / totalRevenue) * 100 : 0;
+                            return (
+                              <div key={idx} className="space-y-1">
+                                <div className="flex justify-between text-xs font-bold">
+                                  <span className="text-slate-800 dark:text-slate-200">
+                                    {idx + 1}. {cust.name} ({cust.count} bills)
+                                  </span>
+                                  <span className="text-indigo-600 dark:text-indigo-400">
+                                    {money(cust.total)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                  <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Top 10 Selling Items */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🔥</span> Top Products Sold ({topItemsSold.length})
+                        </h3>
+                        <span className="text-xs text-slate-400">By Revenue</span>
+                      </div>
+                      {topItemsSold.length === 0 ? (
+                        <p className="text-xs text-slate-400 p-4 text-center">No item lines found in period invoices.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {topItemsSold.map((it, idx) => {
+                            const share = totalRevenue > 0 ? (it.revenue / totalRevenue) * 100 : 0;
+                            return (
+                              <div key={idx} className="space-y-1">
+                                <div className="flex justify-between text-xs font-bold">
+                                  <span className="text-slate-800 dark:text-slate-200">
+                                    {idx + 1}. {it.name} ({it.qty} units)
+                                  </span>
+                                  <span className="text-emerald-600 dark:text-emerald-400">
+                                    {money(it.revenue)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                  <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Mode Breakdown Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cash Inflow on Invoices</span>
+                      <b className="text-xl font-black text-slate-900 dark:text-white mt-1 block">{money(salesModeMap.Cash)}</b>
+                      <span className="text-[11px] text-slate-400 mt-0.5 block">Physical cash collected upfront</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI / Digital Inflow</span>
+                      <b className="text-xl font-black text-indigo-600 mt-1 block">{money(salesModeMap.UPI)}</b>
+                      <span className="text-[11px] text-slate-400 mt-0.5 block">Electronic payments</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                      <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider block">Credit / Pending Balance</span>
+                      <b className="text-xl font-black text-rose-600 mt-1 block">{money(salesModeMap.Due)}</b>
+                      <span className="text-[11px] text-rose-400 mt-0.5 block">Customer market dues added</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 2: PURCHASES ANALYSIS */}
+              {analysisSubTab === "purchases" && (
+                <div className="space-y-6">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>🚚</span> Vendor Procurements Breakdown ({purchasesBySupplier.length})
+                      </h3>
+                      <span className="text-xs text-slate-400">Ranked by Total Spend</span>
+                    </div>
+                    {purchasesBySupplier.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-4 text-center">No purchases recorded in this period.</p>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                        <table className="w-full text-left text-xs border-collapse font-mono">
+                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5">Supplier Name</th>
+                              <th className="p-2.5 text-center">Orders Count</th>
+                              <th className="p-2.5 text-right">Total Invoiced (₹)</th>
+                              <th className="p-2.5 text-right">Amount Paid (₹)</th>
+                              <th className="p-2.5 text-right">Balance Due (₹)</th>
+                              <th className="p-2.5 text-right">Spend Share</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {purchasesBySupplier.map((sup, idx) => {
+                              const share = totalPurchasesSpend > 0 ? ((sup.total / totalPurchasesSpend) * 100).toFixed(1) : 0;
+                              return (
+                                <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                  <td className="p-2.5 font-bold text-slate-900 dark:text-white">{sup.name}</td>
+                                  <td className="p-2.5 text-center">{sup.count}</td>
+                                  <td className="p-2.5 text-right font-bold text-slate-800 dark:text-slate-200">{money(sup.total)}</td>
+                                  <td className="p-2.5 text-right font-bold text-emerald-600">{money(sup.paid)}</td>
+                                  <td className="p-2.5 text-right font-bold text-rose-600">{money(sup.due)}</td>
+                                  <td className="p-2.5 text-right font-bold text-indigo-600">{share}%</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 3: COLLECTIONS & INFLOWS */}
+              {analysisSubTab === "collections" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* Collections by Payment Mode */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>💳</span> Collections by Payment Mode
+                        </h3>
+                        <span className="text-xs font-bold text-emerald-600">{money(totalCollections)}</span>
+                      </div>
+                      <div className="space-y-3">
+                        {Object.entries(collectionsByMode).map(([mode, amt], idx) => {
+                          const share = totalCollections > 0 ? (amt / totalCollections) * 100 : 0;
+                          return (
+                            <div key={idx} className="space-y-1">
+                              <div className="flex justify-between text-xs font-bold">
+                                <span className="text-slate-800 dark:text-slate-200">{mode}</span>
+                                <span className="text-emerald-600">
+                                  {money(amt)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Collections by Partner */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🤝</span> Inflow by Receiving Partner
+                        </h3>
+                        <span className="text-xs text-slate-400">Store Depositories</span>
+                      </div>
+                      <div className="space-y-3">
+                        {Object.entries(collectionsByPartner).map(([pName, amt], idx) => {
+                          const share = totalCollections > 0 ? (amt / totalCollections) * 100 : 0;
+                          return (
+                            <div key={idx} className="space-y-1">
+                              <div className="flex justify-between text-xs font-bold">
+                                <span className="text-slate-800 dark:text-slate-200">{pName}</span>
+                                <span className="text-indigo-600 dark:text-indigo-400">
+                                  {money(amt)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
+                                </span>
+                              </div>
+                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                                <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 4: CUSTOMER AGING ANALYSIS */}
+              {analysisSubTab === "customers" && (
+                <div className="space-y-6">
+                  {/* Aging Bucket Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">0–30 Days (Current)</span>
+                      <b className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-1 block">{money(customerAgingBuckets["0-30 Days"])}</b>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Healthy receivables</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">31–60 Days</span>
+                      <b className="text-lg font-black text-indigo-700 dark:text-indigo-400 mt-1 block">{money(customerAgingBuckets["31-60 Days"])}</b>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Standard credit terms</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">61–90 Days</span>
+                      <b className="text-lg font-black text-amber-700 dark:text-amber-400 mt-1 block">{money(customerAgingBuckets["61-90 Days"])}</b>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Attention needed</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">90+ Days (Overdue)</span>
+                      <b className="text-lg font-black text-rose-700 dark:text-rose-400 mt-1 block">{money(customerAgingBuckets["90+ Days"])}</b>
+                      <span className="text-[10px] text-rose-400 mt-0.5 block">Critical follow-up</span>
+                    </div>
+                  </div>
+
+                  {/* Debtors List Table */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>📋</span> Customer Receivables Aging Ledger ({debtorsList.length})
+                      </h3>
+                      <span className="text-xs font-bold text-rose-600">Total Due: {money(totalCustomerDues)}</span>
+                    </div>
+                    {debtorsList.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-4 text-center">No outstanding customer dues found.</p>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                        <table className="w-full text-left text-xs border-collapse font-mono">
+                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5">Customer Name</th>
+                              <th className="p-2.5">Mobile</th>
+                              <th className="p-2.5 text-right">Outstanding (₹)</th>
+                              <th className="p-2.5">Oldest Bill Date</th>
+                              <th className="p-2.5 text-center">Days Outstanding</th>
+                              <th className="p-2.5 text-center">Aging Bracket</th>
+                              <th className="p-2.5 text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            {debtorsList.map((d) => (
+                              <tr key={d.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
+                                <td className="p-2.5 font-bold text-slate-900 dark:text-white">{d.name}</td>
+                                <td className="p-2.5 text-slate-500">{d.mobile || "--"}</td>
+                                <td className="p-2.5 text-right font-black text-rose-600">{money(d.due)}</td>
+                                <td className="p-2.5">{d.oldestDate || "Opening Bal"}</td>
+                                <td className="p-2.5 text-center font-bold">{d.days > 0 ? `${d.days} days` : "--"}</td>
+                                <td className="p-2.5 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${d.bucketBadge}`}>
+                                    {d.bucket}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCollectForm({
+                                          customer_id: String(d.id),
+                                          invoice_id: "",
+                                          amount: String(d.due),
+                                          payment_mode: "Cash",
+                                          receiver_id: upfrontPartnerId || "",
+                                          reference_no: "",
+                                          notes: "Aging Settlement"
+                                        });
+                                        setShowCollectModal(true);
+                                      }}
+                                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer"
+                                    >
+                                      Collect
+                                    </button>
+                                    {d.mobile && (
+                                      <a
+                                        href={`https://wa.me/91${d.mobile.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                                          `Dear ${d.name}, your outstanding due balance at B Reddy Sales is ${money(d.due)}. Please settle at your earliest convenience.`
+                                        )}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="p-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold border border-emerald-200"
+                                        title="WhatsApp Reminder"
+                                      >
+                                        💬
+                                      </a>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 5: SUPPLIER PAYABLES & AGING */}
+              {analysisSubTab === "suppliers" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">0–30 Days</span>
+                      <b className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-1 block">{money(supplierAgingBuckets["0-30 Days"])}</b>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Recent purchase bills</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">31–60 Days</span>
+                      <b className="text-lg font-black text-amber-700 dark:text-amber-400 mt-1 block">{money(supplierAgingBuckets["31-60 Days"])}</b>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Due for payment</span>
+                    </div>
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 shadow-xs">
+                      <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">60+ Days</span>
+                      <b className="text-lg font-black text-rose-700 dark:text-rose-400 mt-1 block">{money(supplierAgingBuckets["60+ Days"])}</b>
+                      <span className="text-[10px] text-rose-400 mt-0.5 block">Overdue vendor payables</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>🚚</span> Supplier Outstanding Payables ({payablesList.length})
+                      </h3>
+                      <span className="text-xs font-bold text-amber-600">Total Payable: {money(totalSupplierDues)}</span>
+                    </div>
+                    {payablesList.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-4 text-center">No outstanding supplier payables found.</p>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                        <table className="w-full text-left text-xs border-collapse font-mono">
+                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5">Supplier Name</th>
+                              <th className="p-2.5">Mobile</th>
+                              <th className="p-2.5 text-right">Outstanding (₹)</th>
+                              <th className="p-2.5">Last Purchase Date</th>
+                              <th className="p-2.5 text-center">Aging Bracket</th>
+                              <th className="p-2.5 text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            {payablesList.map((s) => (
+                              <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
+                                <td className="p-2.5 font-bold text-slate-900 dark:text-white">{s.name}</td>
+                                <td className="p-2.5 text-slate-500">{s.mobile ? formatSupplierMobile(s.mobile) : "--"}</td>
+                                <td className="p-2.5 text-right font-black text-amber-600">{money(s.due)}</td>
+                                <td className="p-2.5">{s.lastDate || "Opening Bal"}</td>
+                                <td className="p-2.5 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${s.bucketBadge}`}>
+                                    {s.bucket}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsBillLocked(false);
+                                      setPaySupplierMode("single");
+                                      setPayPurchaseForm({
+                                        purchase_id: "",
+                                        amount: String(s.due),
+                                        partner_id: upfrontPartnerId || "",
+                                        payment_mode: "Cash",
+                                        reference_no: "",
+                                        notes: "Aging Settlement"
+                                      });
+                                      setShowPayPurchaseModal(true);
+                                    }}
+                                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer"
+                                  >
+                                    Pay Supplier
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 6: STOCK & VALUATION */}
+              {analysisSubTab === "stock" && (
+                <div className="space-y-6">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>📊</span> Item-wise Inventory Valuation ({stockInventoryList.length} SKUs)
+                        </h3>
+                        <p className="text-xs text-slate-400">Total Stock Value: <b className="text-indigo-600">{money(inventoryValuation)}</b></p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse font-mono">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5">Item Name</th>
+                            <th className="p-2.5">Category / Unit</th>
+                            <th className="p-2.5 text-center">Total Procured</th>
+                            <th className="p-2.5 text-center">Total Sold</th>
+                            <th className="p-2.5 text-center">Available Stock</th>
+                            <th className="p-2.5 text-right">Avg Cost (₹)</th>
+                            <th className="p-2.5 text-right">Stock Valuation (₹)</th>
+                            <th className="p-2.5 text-center">Reorder Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                          {stockInventoryList.map((item, idx) => (
+                            <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
+                              <td className="p-2.5 font-bold text-slate-900 dark:text-white">{item.name}</td>
+                              <td className="p-2.5 text-slate-500">{item.category || "General"} ({item.unit || "Units"})</td>
+                              <td className="p-2.5 text-center">{item.totalProcured}</td>
+                              <td className="p-2.5 text-center text-slate-600 dark:text-slate-400">{item.totalSold}</td>
+                              <td className="p-2.5 text-center font-black text-slate-900 dark:text-white">
+                                {item.remQty} {item.unit || ""}
+                              </td>
+                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">{money(item.costRate)}</td>
+                              <td className="p-2.5 text-right font-black text-indigo-600 dark:text-indigo-400">{money(item.valuation)}</td>
+                              <td className="p-2.5 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                                  item.isOut
+                                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                                    : item.isLow
+                                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                }`}>
+                                  {item.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 7: PROFIT & LOSS (P&L) STATEMENT */}
+              {analysisSubTab === "pnl" && (
+                <div className="space-y-6 max-w-4xl mx-auto">
+                  <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
+                    <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-slate-800">
+                      <div>
+                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Financial Report</span>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white">Trading & Profit & Loss Statement</h3>
+                        <p className="text-xs text-slate-400 mt-0.5">Period: {periodLabel}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-xs font-black px-3 py-1 rounded-full border ${
+                          netProfit >= 0
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}>
+                          {netProfit >= 0 ? "✓ Net Operating Profit" : "⚠️ Net Operating Loss"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* A. TRADING ACCOUNT / GROSS PROFIT */}
+                    <div className="space-y-2.5">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">A. Trading Account (Gross Profit)</h4>
+                      <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl space-y-2 text-xs font-mono">
+                        <div className="flex justify-between items-center text-slate-800 dark:text-slate-200">
+                          <span>(+) Gross Sales Invoices Revenue</span>
+                          <span className="font-bold">{money(totalRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-rose-600 dark:text-rose-400">
+                          <span>(-) Cost of Goods Sold (COGS)</span>
+                          <span className="font-bold">-{money(periodCogs)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-sm font-black text-indigo-700 dark:text-indigo-400">
+                          <span>= Gross Trading Profit</span>
+                          <span>{money(grossProfit)} ({grossMargin}%)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* B. OPERATING EXPENSES */}
+                    <div className="space-y-2.5">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">B. Operating & Shop Expenses</h4>
+                      <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl space-y-2 text-xs font-mono">
+                        {expensesByCategory.length === 0 ? (
+                          <p className="text-slate-400 italic">No shop expenses recorded in this period.</p>
+                        ) : (
+                          expensesByCategory.map((exp, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-slate-600 dark:text-slate-300">
+                              <span>(-) {exp.name}</span>
+                              <span className="font-bold text-slate-900 dark:text-slate-100">-{money(exp.amount)}</span>
+                            </div>
+                          ))
+                        )}
+                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center font-bold text-rose-600">
+                          <span>Total Operating Outflows</span>
+                          <span>-{money(totalOperatingOutflows)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* C. NET BUSINESS RESULT */}
+                    <div className={`p-5 rounded-2xl border text-center space-y-1.5 ${
+                      netProfit >= 0
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
+                        : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-100"
+                    }`}>
+                      <span className="text-[11px] font-black uppercase tracking-wider block">
+                        Net Operating Profit / (Loss) for Period
+                      </span>
+                      <h2 className="text-3xl font-black font-mono tracking-tight">
+                        {money(netProfit)}
+                      </h2>
+                      <span className="text-xs font-bold block opacity-80">
+                        Net Margin: {netMargin}% of Total Revenue
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 8: VISUAL CHARTS (PURE SVG) */}
+              {analysisSubTab === "charts" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* Chart 1: Sales Payment Modes (SVG Donut) */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🍩</span> Sales Payment Modes Breakdown
+                        </h3>
+                        <span className="text-xs font-bold text-slate-500">Revenue Split</span>
+                      </div>
+
+                      {(() => {
+                        const totalModes = (salesModeMap.Cash + salesModeMap.UPI + salesModeMap.Due) || 1;
+                        const pCash = (salesModeMap.Cash / totalModes) * 100;
+                        const pUPI = (salesModeMap.UPI / totalModes) * 100;
+                        const pDue = (salesModeMap.Due / totalModes) * 100;
+
+                        // Circumference for r=50 is ~314.15
+                        const circ = 2 * Math.PI * 50;
+                        const dashCash = (pCash / 100) * circ;
+                        const dashUPI = (pUPI / 100) * circ;
+                        const dashDue = (pDue / 100) * circ;
+
+                        return (
+                          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4">
+                            <svg width="160" height="160" viewBox="0 0 140 140" className="transform -rotate-90">
+                              <circle cx="70" cy="70" r="50" fill="transparent" stroke="#e2e8f0" strokeWidth="20" />
+                              {/* Cash Slice (Emerald) */}
+                              <circle
+                                cx="70"
+                                cy="70"
+                                r="50"
+                                fill="transparent"
+                                stroke="#10b981"
+                                strokeWidth="20"
+                                strokeDasharray={`${dashCash} ${circ}`}
+                                strokeDashoffset="0"
+                              />
+                              {/* UPI Slice (Indigo) */}
+                              <circle
+                                cx="70"
+                                cy="70"
+                                r="50"
+                                fill="transparent"
+                                stroke="#6366f1"
+                                strokeWidth="20"
+                                strokeDasharray={`${dashUPI} ${circ}`}
+                                strokeDashoffset={`-${dashCash}`}
+                              />
+                              {/* Due Slice (Rose) */}
+                              <circle
+                                cx="70"
+                                cy="70"
+                                r="50"
+                                fill="transparent"
+                                stroke="#f43f5e"
+                                strokeWidth="20"
+                                strokeDasharray={`${dashDue} ${circ}`}
+                                strokeDashoffset={`-${dashCash + dashUPI}`}
+                              />
+                            </svg>
+
+                            <div className="space-y-2 text-xs font-bold">
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300">Cash:</span>
+                                <span className="font-mono text-slate-900 dark:text-white font-black">{money(salesModeMap.Cash)} ({pCash.toFixed(1)}%)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full bg-indigo-500 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300">UPI / Bank:</span>
+                                <span className="font-mono text-slate-900 dark:text-white font-black">{money(salesModeMap.UPI)} ({pUPI.toFixed(1)}%)</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300">Market Due:</span>
+                                <span className="font-mono text-slate-900 dark:text-white font-black">{money(salesModeMap.Due)} ({pDue.toFixed(1)}%)</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Chart 2: Cashflow Comparison Grouped Bar Chart */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>📊</span> Financial Inflow vs Outflow Comparison
+                        </h3>
+                        <span className="text-xs font-bold text-slate-500">Totals</span>
+                      </div>
+
+                      {(() => {
+                        const maxVal = Math.max(totalRevenue, totalPurchasesSpend, totalCollections, totalOperatingOutflows, 1);
+                        const items = [
+                          { label: "Revenue", val: totalRevenue, color: "bg-indigo-600" },
+                          { label: "Purchases", val: totalPurchasesSpend, color: "bg-amber-500" },
+                          { label: "Collections", val: totalCollections, color: "bg-emerald-600" },
+                          { label: "Expenses", val: totalOperatingOutflows, color: "bg-rose-500" }
+                        ];
+
+                        return (
+                          <div className="py-2 space-y-3">
+                            {items.map((it, idx) => {
+                              const pct = Math.max(4, (it.val / maxVal) * 100);
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className="flex justify-between text-xs font-bold">
+                                    <span className="text-slate-700 dark:text-slate-300">{it.label}</span>
+                                    <span className="font-mono text-slate-900 dark:text-white font-black">{money(it.val)}</span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-3.5 rounded-full overflow-hidden">
+                                    <div className={`${it.color} h-full rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 9: PERIOD COMPARISON */}
+              {analysisSubTab === "comparison" && (
+                <div className="space-y-6">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🔄</span> Comparative Growth Matrix: Selected vs Previous Period
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          Comparing <b className="text-indigo-600">{periodLabel}</b> against preceding duration ({prevStart} to {prevEnd})
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse font-mono">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5">Key Performance Indicator</th>
+                            <th className="p-2.5 text-right">Current Period (₹)</th>
+                            <th className="p-2.5 text-right">Previous Period (₹)</th>
+                            <th className="p-2.5 text-right">Variance (Delta ₹)</th>
+                            <th className="p-2.5 text-center">Growth / Decline %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                          {[
+                            { name: "Gross Sales Revenue", curr: totalRevenue, prev: prevRevenue },
+                            { name: "Inventory Purchases Spend", curr: totalPurchasesSpend, prev: prevPurchasesSpend },
+                            { name: "Customer Collections (Inflows)", curr: totalCollections, prev: prevCollectionsTotal },
+                            { name: "Operating Expenses Outflow", curr: totalExpensesSpend, prev: prevExpensesSpend },
+                            { name: "Gross Trading Profit", curr: grossProfit, prev: prevGrossProfit },
+                            { name: "Net Operating Profit", curr: netProfit, prev: prevNetProfit }
+                          ].map((row, idx) => {
+                            const diff = row.curr - row.prev;
+                            return (
+                              <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                <td className="p-2.5 font-bold text-slate-900 dark:text-white">{row.name}</td>
+                                <td className="p-2.5 text-right font-black text-slate-900 dark:text-white">{money(row.curr)}</td>
+                                <td className="p-2.5 text-right text-slate-500">{money(row.prev)}</td>
+                                <td className={`p-2.5 text-right font-black ${diff >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                  {diff >= 0 ? `+${money(diff)}` : `-${money(Math.abs(diff))}`}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {renderGrowthBadge(row.curr, row.prev)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-TAB 10: EXPORT & PRINT */}
+              {analysisSubTab === "export_print" && (
+                <div className="space-y-6">
+                  {/* Action Toolbar */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 no-print">
+                    <div>
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white">Print-Ready Executive Report</h3>
+                      <p className="text-xs text-slate-400">Formatted for A4 desktop printing and PDF generation</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleExportAnalysisCSV}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      >
+                        <Icon name="download" size={15} /> Download CSV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      >
+                        <span>🖨️</span> Print Document / Save PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clean A4 Printable Container */}
+                  <div className="bg-white text-slate-900 p-8 rounded-2xl border border-slate-200 shadow-md space-y-6 print:p-0 print:border-none print:shadow-none font-sans">
+                    {/* Header */}
+                    <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+                      <div>
+                        <h1 className="text-2xl font-black tracking-tight text-slate-950">JSR RETAIL SALES</h1>
+                        <p className="text-xs font-bold text-slate-600 mt-0.5">B Reddy Sales & Inventory Management System</p>
+                        <p className="text-[11px] text-slate-400">Executive Performance & Financial Summary</p>
+                      </div>
+                      <div className="text-right text-xs space-y-0.5">
+                        <p className="font-bold text-slate-900">Period: {periodLabel}</p>
+                        <p className="text-slate-500">Date Range: {periodStart} to {periodEnd}</p>
+                        <p className="text-slate-400 text-[10px]">Generated: {new Date().toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    {/* KPI Matrix */}
+                    <div className="grid grid-cols-3 gap-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Gross Sales Revenue</span>
+                        <p className="text-lg font-black text-slate-900 font-mono mt-0.5">{money(totalRevenue)}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Goods Procured</span>
+                        <p className="text-lg font-black text-slate-900 font-mono mt-0.5">{money(totalPurchasesSpend)}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Collections Inflow</span>
+                        <p className="text-lg font-black text-emerald-600 font-mono mt-0.5">{money(totalCollections)}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Customer Receivables</span>
+                        <p className="text-lg font-black text-rose-600 font-mono mt-0.5">{money(totalCustomerDues)}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Supplier Payables</span>
+                        <p className="text-lg font-black text-amber-600 font-mono mt-0.5">{money(totalSupplierDues)}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Current Stock Value</span>
+                        <p className="text-lg font-black text-indigo-600 font-mono mt-0.5">{money(inventoryValuation)}</p>
+                      </div>
+                    </div>
+
+                    {/* P&L Snapshot */}
+                    <div className="border border-slate-200 rounded-xl p-4 space-y-2 text-xs font-mono">
+                      <h4 className="font-black text-xs uppercase tracking-wider text-slate-900 font-sans border-b border-slate-200 pb-1">
+                        P&L Snapshot
+                      </h4>
+                      <div className="flex justify-between">
+                        <span>Sales Revenue:</span>
+                        <span className="font-bold">{money(totalRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between text-rose-600">
+                        <span>Cost of Goods Sold (COGS):</span>
+                        <span className="font-bold">-{money(periodCogs)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1">
+                        <span>Gross Trading Profit:</span>
+                        <span>{money(grossProfit)} ({grossMargin}%)</span>
+                      </div>
+                      <div className="flex justify-between text-rose-600">
+                        <span>Operating Outflows & Expenses:</span>
+                        <span className="font-bold">-{money(totalOperatingOutflows)}</span>
+                      </div>
+                      <div className="flex justify-between font-black text-sm text-indigo-900 border-t-2 border-slate-900 pt-2">
+                        <span>Net Operating Profit / (Loss):</span>
+                        <span>{money(netProfit)} ({netMargin}%)</span>
+                      </div>
+                    </div>
+
+                    {/* Signature sign-off */}
+                    <div className="pt-10 flex justify-between items-end text-xs font-bold text-slate-600">
+                      <div>
+                        <div className="w-36 border-b border-slate-400 mb-1" />
+                        <span>Prepared By / Store Incharge</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="w-36 border-b border-slate-400 mb-1 ml-auto" />
+                        <span>Authorized Partner Signature</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
 
         {/* VIEW 3: HISTORY & AUDIT LEDGER */}
         {activeTab === "history_audit" && (
@@ -7267,6 +8726,7 @@ Thank you for your business!`;
                     <tr>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700">Item Master Name</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Item Stock</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Purchase Cost Rate (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Selling Rate (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Markup Margin (₹)</th>
@@ -7276,13 +8736,17 @@ Thank you for your business!`;
                   <tbody>
                     {filteredItems.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-6 text-center text-slate-400 font-sans">
+                        <td colSpan={7} className="p-6 text-center text-slate-400 font-sans">
                           No item catalogue found.
                         </td>
                       </tr>
                     ) : (
                       filteredItems.map((item, idx) => {
                         const margin = Number(item.selling_rate || 0) - Number(item.purchase_rate || 0);
+                        const itemStock = procurements
+                          .filter((p) => (p.item_name || "").toLowerCase().trim() === (item.name || "").toLowerCase().trim())
+                          .reduce((sum, p) => sum + Number(p.remaining_qty || 0), 0);
+
                         return (
                           <tr
                             key={idx}
@@ -7291,6 +8755,13 @@ Thank you for your business!`;
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
                               {item.name}
+                            </td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
+                                itemStock > 0 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                              }`}>
+                                {itemStock} {itemStock === 1 ? "unit" : "units"}
+                              </span>
                             </td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300">
                               {money(item.purchase_rate)}
