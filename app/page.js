@@ -525,6 +525,7 @@ export default function App() {
   const [upfrontMode, setUpfrontMode] = useState("Cash");
   const [upfrontPartnerId, setUpfrontPartnerId] = useState("");
   const [savingSale, setSavingSale] = useState(false);
+  const [editSessionAdvances, setEditSessionAdvances] = useState([]);
 
   // Enhancement: Multi-line purchase order tracking, Expenses expand/collapse & System Audit Trail
   const [expandedExpenseId, setExpandedExpenseId] = useState(null);
@@ -593,6 +594,7 @@ export default function App() {
     setUpfrontAmount("");
     setUpfrontMode("Cash");
     setUpfrontPartnerId(partners[0]?.id ? String(partners[0].id) : "");
+    setEditSessionAdvances([]);
     setSaleDate(toISODate(new Date()) || new Date().toISOString().split("T")[0]);
   };
 
@@ -601,8 +603,8 @@ export default function App() {
     if (activeTab === "sale" && targetTab !== "sale") {
       resetPOSBillingState();
     }
-    // If entering POS Billing cleanly (via tab navigation), reset POS billing state unless explicitly editing
-    if (targetTab === "sale" && !editingInvoiceId) {
+    // If entering POS Billing cleanly (via tab navigation), reset POS billing state so it starts fresh
+    if (targetTab === "sale") {
       resetPOSBillingState();
     }
     // If leaving Purchases, reset any purchase edit state and close modal
@@ -1804,18 +1806,38 @@ export default function App() {
     const dateStr = (specificDate || new Date().toISOString().split("T")[0]).replace(/-/g, "").slice(2);
 
     if (moduleKey === "sales_invoice") {
-      const todayInvs = invoices.filter((i) => {
-        const invDateStr = (i.invoice_date || i.created_at || "").replace(/-/g, "").slice(2, 8);
-        return invDateStr === dateStr || (i.invoice_number && i.invoice_number.includes(`-${dateStr}-`));
-      });
-      let maxSeq = 0;
-      todayInvs.forEach((i) => {
+      let maxSeqAcrossAll = 0;
+      // 1. Scan all existing invoices in memory across all dates
+      invoices.forEach((i) => {
         const parts = (i.invoice_number || "").split("-");
         const lastPart = parts[parts.length - 1];
         const num = parseInt(lastPart, 10);
-        if (!isNaN(num) && num > maxSeq) maxSeq = num;
+        if (!isNaN(num) && num > maxSeqAcrossAll) maxSeqAcrossAll = num;
       });
-      const nextNum = Math.max(maxSeq + 1, Number(config.nextSeq || 1), todayInvs.length + 1);
+      // 2. Scan audit trail logs so deleted invoices are never reused
+      if (Array.isArray(auditTrailLogs)) {
+        auditTrailLogs.forEach((log) => {
+          if (log.docType === "Sales Invoice" && log.docRef) {
+            const parts = String(log.docRef).split("-");
+            const lastPart = parts[parts.length - 1];
+            const num = parseInt(lastPart, 10);
+            if (!isNaN(num) && num > maxSeqAcrossAll) maxSeqAcrossAll = num;
+          }
+        });
+      }
+      // 3. Check persistent high-water mark in localStorage
+      let storedMax = 0;
+      if (typeof window !== "undefined") {
+        try {
+          storedMax = Number(localStorage.getItem("jsr_max_invoice_seq") || 0);
+        } catch (e) {}
+      }
+      const nextNum = Math.max(maxSeqAcrossAll + 1, storedMax + 1, Number(config.nextSeq || 1));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("jsr_max_invoice_seq", String(nextNum));
+        } catch (e) {}
+      }
       return `${config.prefix || "INV-"}${dateStr}-${String(nextNum).padStart(4, "0")}`;
     }
 
@@ -2023,7 +2045,8 @@ export default function App() {
 
       const invAlloc = editingInvoiceId ? invoiceAllocationsMap.get(String(editingInvoiceId)) : null;
       const existingCollections = invAlloc ? invAlloc.totalCollections : 0;
-      const totalPaidSoFar = effectiveUpfront + existingCollections;
+      const pendingAdvTotal = editingInvoiceId ? editSessionAdvances.reduce((s, a) => s + Number(a.amount || 0), 0) : 0;
+      const totalPaidSoFar = effectiveUpfront + existingCollections + pendingAdvTotal;
       const editBalanceDue = isSupplierSale ? 0 : Math.max(0, cartTotal - totalPaidSoFar);
       const editStatus = isSupplierSale || editBalanceDue <= 0 ? "Collected" : totalPaidSoFar > 0 ? "Partial" : "Due";
 
@@ -2042,7 +2065,7 @@ export default function App() {
         upfront_receiver_id: effectiveReceiver,
         status: editingInvoiceId ? editStatus : status,
         payment_mode: editingInvoiceId
-          ? (effectiveMode === "Advance Adjusted" ? "Advance Adjusted" : editStatus === "Collected" ? (oldInv?.payment_mode || "Collected") : "Partial")
+          ? (effectiveMode === "Advance Adjusted" || pendingAdvTotal > 0 ? "Advance Adjusted" : editStatus === "Collected" ? (oldInv?.payment_mode || "Collected") : "Partial")
           : isSupplierSale
           ? (upfrontPaidNum >= cartTotal ? upfrontMode : upfrontPaidNum > 0 ? `${upfrontMode} + Contra` : "Contra Offset")
           : (upfrontPaidNum === 0 ? "Due" : upfrontMode === "Advance Adjusted" ? "Advance Adjusted" : upfrontPaidNum >= cartTotal ? upfrontMode : "Partial"),
@@ -2065,17 +2088,20 @@ export default function App() {
               await db.from("procurements").update({ remaining_qty: Number(batch.remaining_qty) + Number(item.qty) }).eq("id", batch.id);
             }
           }
-          // Reverse previous invoice's net effect on customer due:
-          // Goods bought add to customer's due; fresh cash upfront reduces what was added. Advance adjustment was credit-based, so full total was added.
-          const prevNet = Number(oldInv.total_amount || 0) - (oldInv.upfront_mode === "Advance Adjusted" ? 0 : Number(oldInv.upfront_paid || 0));
-          if (selectedCust.isSupplier) {
-            const currentSup = suppliers.find((s) => s.id === selectedCust.id);
-            const restoredDue = Number(currentSup?.old_due || 0) + prevNet;
-            await db.from("suppliers").update({ old_due: restoredDue }).eq("id", selectedCust.id);
-          } else {
-            const currentCust = customers.find((c) => c.id === selectedCust.id);
-            const restoredCustDue = Number(currentCust?.old_due || 0) - prevNet;
-            await db.from("customers").update({ old_due: restoredCustDue }).eq("id", selectedCust.id);
+        }
+
+        // Scenario #1: Insert new advance application line into collections without overwriting previous advance
+        if (editSessionAdvances.length > 0) {
+          for (const adv of editSessionAdvances) {
+            const { error: advErr } = await db.from("collections").insert([{
+              customer_id: selectedCust.id,
+              invoice_id: editingInvoiceId,
+              amount: Number(adv.amount || 0),
+              payment_mode: "Advance Adjusted",
+              collection_type: "Adjusted Advance",
+              receiver_id: null
+            }]);
+            if (advErr) throw advErr;
           }
         }
 
@@ -2108,19 +2134,41 @@ export default function App() {
         }
       }
 
-      // Update customer balance or supplier balance (contra account):
-      // Cash upfront reduces the addition to due. Advance adjustment consumes customer credit (so full cartTotal is added to old_due).
-      const newCashUpfront = effectiveMode === "Advance Adjusted" ? 0 : effectiveUpfront;
-      const netDueChange = cartTotal - newCashUpfront;
-      if (selectedCust.isSupplier) {
-        // Selling to supplier reduces what we owe the supplier!
-        const currentSup = suppliers.find((s) => s.id === selectedCust.id);
-        const updatedDue = Number(currentSup?.old_due || 0) - netDueChange;
-        await db.from("suppliers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+      // Scenario #5: Atomic Delta-based customer/supplier balance update to prevent repeated customer due inflation
+      if (editingInvoiceId && oldInv) {
+        const oldCartTotal = Number(oldInv.total_amount || 0);
+        const oldCashUpfront = oldInv.upfront_mode === "Advance Adjusted" ? 0 : Number(oldInv.upfront_paid || 0);
+        const oldNetDue = oldCartTotal - oldCashUpfront;
+
+        const newCashUpfront = effectiveMode === "Advance Adjusted" ? 0 : effectiveUpfront;
+        const newNetDue = cartTotal - newCashUpfront;
+        const deltaDue = newNetDue - oldNetDue;
+
+        if (selectedCust.isSupplier) {
+          const currentSup = suppliers.find((s) => s.id === selectedCust.id);
+          const updatedDue = Number(currentSup?.old_due || 0) - deltaDue;
+          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+          setSuppliers((prev) => prev.map((s) => s.id === selectedCust.id ? { ...s, old_due: updatedDue } : s));
+        } else {
+          const currentCust = customers.find((c) => c.id === selectedCust.id);
+          const updatedDue = Number(currentCust?.old_due || 0) + deltaDue;
+          await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+          setCustomers((prev) => prev.map((c) => c.id === selectedCust.id ? { ...c, old_due: updatedDue } : c));
+        }
       } else {
-        const currentCust = customers.find((c) => c.id === selectedCust.id);
-        const updatedDue = Number(currentCust?.old_due || 0) + netDueChange;
-        await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+        const newCashUpfront = effectiveMode === "Advance Adjusted" ? 0 : effectiveUpfront;
+        const netDueChange = cartTotal - newCashUpfront;
+        if (selectedCust.isSupplier) {
+          const currentSup = suppliers.find((s) => s.id === selectedCust.id);
+          const updatedDue = Number(currentSup?.old_due || 0) - netDueChange;
+          await db.from("suppliers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+          setSuppliers((prev) => prev.map((s) => s.id === selectedCust.id ? { ...s, old_due: updatedDue } : s));
+        } else {
+          const currentCust = customers.find((c) => c.id === selectedCust.id);
+          const updatedDue = Number(currentCust?.old_due || 0) + netDueChange;
+          await db.from("customers").update({ old_due: updatedDue }).eq("id", selectedCust.id);
+          setCustomers((prev) => prev.map((c) => c.id === selectedCust.id ? { ...c, old_due: updatedDue } : c));
+        }
       }
 
       // Log Audit Event
@@ -2128,9 +2176,10 @@ export default function App() {
         docRef: editingInvoiceId ? (currentEditingInvoice?.invoice_number || `INV-${editingInvoiceId}`) : generatedInvoiceNumber,
         docType: "Sales Invoice",
         action: editingInvoiceId ? "Modified" : "Created",
-        details: `${editingInvoiceId ? "Updated" : "Created"} invoice for ${selectedCust?.name || "Customer"}. Items: ${cart.length}, Total: ${money(cartTotal)}, Paid: ${money(editingInvoiceId ? effectiveUpfront : upfrontPaidNum)}, Due: ${money(editingInvoiceId ? editBalanceDue : billBalanceDue)}`
+        details: `${editingInvoiceId ? "Updated" : "Created"} invoice for ${selectedCust?.name || "Customer"}. Items: ${cart.length}, Total: ${money(cartTotal)}, Paid: ${money(editingInvoiceId ? (effectiveUpfront + pendingAdvTotal) : upfrontPaidNum)}, Due: ${money(editingInvoiceId ? editBalanceDue : billBalanceDue)}`
       });
 
+      setEditSessionAdvances([]);
       resetPOSBillingState();
 
       // Immediately navigate to Invoices tab with reset filters so created invoice is right on top
@@ -2204,6 +2253,7 @@ export default function App() {
 
   const handleEditInvoice = (inv) => {
     setEditingInvoiceId(inv.id);
+    setEditSessionAdvances([]);
     const cust = customers.find((c) => c.id == inv.customer_id);
     const sup = suppliers.find((s) => s.name === inv.customer_name || (inv.customer_id && s.id == inv.customer_id));
     if (cust) {
@@ -2281,7 +2331,8 @@ Thank you for your business!`;
       handleEditInvoice(col.rawInvoice || invoices.find((i) => i.id == col.invoice_id));
       return;
     }
-    setEditingCollectionId(col.originalId || col.id);
+    const realId = Number(String(col.originalId || col.id).replace("col_", ""));
+    setEditingCollectionId(realId);
     setCollectForm({
       customer_id: String(col.customer_id),
       invoice_id: col.invoice_id ? String(col.invoice_id) : "",
@@ -2303,6 +2354,10 @@ Thank you for your business!`;
 
     try {
       const amt = Number(col.amount || 0);
+      const realColId = Number(String(col.originalId || col.id).replace("col_", ""));
+      if (!realColId || isNaN(realColId)) {
+        throw new Error(`Invalid collection ID: ${col.id}`);
+      }
 
       if (col.invoice_id) {
         const targetInv = invoices.find((i) => i.id == col.invoice_id);
@@ -2330,10 +2385,18 @@ Thank you for your business!`;
         setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
       }
 
-      const { error: delErr } = await db.from("collections").delete().eq("id", col.id);
+      const { error: delErr } = await db.from("collections").delete().eq("id", realColId);
       if (delErr) throw delErr;
-      setCollections((prev) => prev.filter((c) => c.id !== col.id));
-      alert("Collection deleted! Invoice and customer balance restored.");
+
+      logAuditEvent({
+        docRef: col.reference_no || `REC-${realColId}`,
+        docType: "Customer Collection",
+        action: "Deleted",
+        details: `Deleted collection receipt of ${money(amt)} for ${cust?.name || "Customer"}`
+      });
+
+      setCollections((prev) => prev.filter((c) => Number(c.id) !== realColId));
+      alert("Collection deleted successfully! Partner amount reduced and customer due restored.");
       refreshData();
     } catch (err) {
       alert("Error deleting collection: " + err.message);
@@ -2370,8 +2433,10 @@ Thank you for your business!`;
     setSavingCollection(true);
     try {
       if (editingCollectionId) {
-        const oldCol = collections.find((c) => c.id === editingCollectionId);
-        const diff = amt - Number(oldCol?.amount || 0);
+        const colDbId = Number(String(editingCollectionId).replace("col_", ""));
+        const oldCol = collections.find((c) => Number(c.id) === colDbId);
+        const oldAmt = Number(oldCol?.amount || 0);
+        const diff = amt - oldAmt;
 
         if (collectForm.invoice_id) {
           const targetInv = invoices.find((i) => i.id == collectForm.invoice_id);
@@ -2394,16 +2459,16 @@ Thank you for your business!`;
           setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
         }
 
-        const { error: colErr } = await db.from("collections").update(payload).eq("id", editingCollectionId);
+        const { error: colErr } = await db.from("collections").update(payload).eq("id", colDbId);
         if (colErr) throw colErr;
-        setCollections((prev) => prev.map((c) => c.id === editingCollectionId ? { ...c, ...payload } : c));
+        setCollections((prev) => prev.map((c) => Number(c.id) === colDbId ? { ...c, ...payload, id: colDbId } : c));
         logAuditEvent({
-          docRef: colForm.reference_no || `REC-${editingCollectionId}`,
+          docRef: collectForm.reference_no || `REC-${colDbId}`,
           docType: "Customer Collection",
           action: "Modified",
-          details: `Updated collection receipt of ${money(amt)} via ${colForm.payment_mode}`
+          details: `Updated collection receipt from ${money(oldAmt)} to ${money(amt)} (Difference: ${money(diff)}) via ${collectForm.payment_mode}`
         });
-        alert("Collection updated successfully!");
+        alert(`Collection updated successfully! Partner balance adjusted by ${money(diff)}.`);
       } else {
         const { data: inserted, error: colErr } = await db.from("collections").insert([payload]).select();
         if (colErr) throw colErr;
@@ -3253,6 +3318,18 @@ Thank you for your business!`;
       let remainingPaid = paidNowNum;
 
       if (editingProcureId) {
+        // Scenario #7: Delete removed item lines from database so they do not reappear
+        const existingOrderRows = procurements.filter(
+          (p) => (targetOrderNumber && p.receiver_2_mode === targetOrderNumber) || p.id === editingProcureId
+        );
+        const activeLineIds = new Set(validLines.map((l) => l.procure_id).filter(Boolean));
+        const removedRows = existingOrderRows.filter((p) => !activeLineIds.has(p.id));
+
+        for (const delRow of removedRows) {
+          const { error: delErr } = await db.from("procurements").delete().eq("id", delRow.id);
+          if (delErr) console.error("Error deleting removed PO line from DB:", delErr);
+        }
+
         // Multi-line edit integrity: Update existing rows and insert added lines without overwriting
         for (let i = 0; i < validLines.length; i++) {
           const line = validLines[i];
@@ -4539,6 +4616,7 @@ Thank you for your business!`;
                     const val = e.target.value;
                     setUpfrontAmount("");
                     setUpfrontMode("Cash");
+                    setEditSessionAdvances([]);
                     if (!val) {
                       setSelectedCust(null);
                       return;
@@ -4686,24 +4764,66 @@ Thank you for your business!`;
                 <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-emerald-800 dark:text-emerald-300">Available Advance Credit:</span>
-                    <span className="font-black text-emerald-700 dark:text-emerald-400">{money(Math.abs(Number(selectedCust.old_due)))}</span>
+                    <span className="font-black text-emerald-700 dark:text-emerald-400">
+                      {money(
+                        Math.max(
+                          0,
+                          Math.abs(Number(selectedCust.old_due)) -
+                            editSessionAdvances.reduce((s, a) => s + Number(a.amount || 0), 0)
+                        )
+                      )}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const avail = Math.abs(Number(selectedCust.old_due));
-                      const toApply = Math.min(avail, cartTotal);
-                      if (toApply > 0) {
-                        setUpfrontAmount(String(toApply));
-                        setUpfrontMode("Advance Adjusted");
-                      } else {
-                        alert("Please add items to the bill before applying advance.");
-                      }
-                    }}
-                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition"
-                  >
-                    <span>⚡</span> Apply Advance to Bill ({money(Math.min(Math.abs(Number(selectedCust.old_due)), cartTotal))})
-                  </button>
+                  {(() => {
+                    const rawAvail = Math.abs(Number(selectedCust.old_due));
+                    const pendingAdv = editSessionAdvances.reduce((s, a) => s + Number(a.amount || 0), 0);
+                    const availCredit = Math.max(0, rawAvail - pendingAdv);
+
+                    const invAlloc = editingInvoiceId ? invoiceAllocationsMap.get(String(editingInvoiceId)) : null;
+                    const invColsTotal = invAlloc ? invAlloc.totalCollections : 0;
+                    const oldInv = editingInvoiceId ? (currentEditingInvoice || invoices.find((i) => i.id === editingInvoiceId)) : null;
+                    const oldUpfront = Number(oldInv?.upfront_paid || 0);
+                    const currentUpfront = upfrontAmount !== "" ? Number(upfrontAmount) : oldUpfront;
+                    const totalPaidSoFar = editingInvoiceId ? (currentUpfront + invColsTotal + pendingAdv) : Number(upfrontAmount || 0);
+                    const remainingBill = Math.max(0, cartTotal - totalPaidSoFar);
+                    const toApply = Math.min(availCredit, editingInvoiceId ? remainingBill : cartTotal);
+
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (cartTotal <= 0 || !cart.some((c) => c.item_name && Number(c.qty) > 0)) {
+                            return alert("Please add items to the bill before applying advance.");
+                          }
+                          if (toApply <= 0) {
+                            return alert("Bill is already fully covered by previous payments or advance.");
+                          }
+
+                          if (editingInvoiceId) {
+                            // Scenario #1: Add new advance application line into Collection Details grid without overwriting previous lines
+                            const newAdvLine = {
+                              id: `adv_temp_${Date.now()}`,
+                              date: toISODate(new Date()) || new Date().toISOString().split("T")[0],
+                              ref: `ADV-APP-${Math.floor(1000 + Math.random() * 9000)}`,
+                              partner_name: "Customer Advance Credit",
+                              payment_mode: "Advance Adjusted",
+                              amount: toApply,
+                              collection_type: "Adjusted Advance",
+                              isAdvanceLine: true
+                            };
+                            setEditSessionAdvances((prev) => [...prev, newAdvLine]);
+                          } else {
+                            setUpfrontAmount(String(toApply));
+                            setUpfrontMode("Advance Adjusted");
+                          }
+                        }}
+                        disabled={toApply <= 0}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-bold text-xs shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition"
+                      >
+                        <span>⚡</span> Apply Advance to Bill {toApply > 0 ? `(${money(toApply)})` : "(Fully Applied)"}
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -4717,10 +4837,11 @@ Thank you for your business!`;
                   const effectiveUpfront = upfrontAmount !== "" ? Number(upfrontAmount) : oldUpfront;
                   const effectiveMode = upfrontAmount !== "" ? upfrontMode : (oldInv?.upfront_mode || "Cash");
                   const effectiveReceiver = oldInv?.upfront_receiver_id;
-                  const totalPaidSoFar = effectiveUpfront + totalCols;
+                  const pendingAdv = editSessionAdvances.reduce((s, a) => s + Number(a.amount || 0), 0);
+                  const totalPaidSoFar = effectiveUpfront + totalCols + pendingAdv;
                   const balanceDueNow = Math.max(0, cartTotal - totalPaidSoFar);
 
-                  // Combine upfront payment with subsequent collections so all payments are visible
+                  // Combine upfront payment, existing collections, and new session advance lines so all payments are preserved
                   const allInvoicePayments = [
                     ...(effectiveUpfront > 0
                       ? [
@@ -4738,7 +4859,8 @@ Thank you for your business!`;
                           }
                         ]
                       : []),
-                    ...invCols
+                    ...invCols,
+                    ...editSessionAdvances
                   ];
 
                   return (
@@ -4963,6 +5085,12 @@ Thank you for your business!`;
 
               {editingInvoiceId && (
                 <>
+                  {renderTransactionAuditTrailGrid(
+                    currentEditingInvoice?.invoice_number || `INV-${currentEditingInvoice?.id}`,
+                    "Sales Invoice",
+                    currentEditingInvoice
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -4972,12 +5100,6 @@ Thank you for your business!`;
                   >
                     Cancel Edit
                   </button>
-
-                  {renderTransactionAuditTrailGrid(
-                    currentEditingInvoice?.invoice_number || `INV-${currentEditingInvoice?.id}`,
-                    "Sales Invoice",
-                    currentEditingInvoice
-                  )}
                 </>
               )}
             </div>
@@ -5165,10 +5287,9 @@ Thank you for your business!`;
                                     <button
                                       type="button"
                                       onClick={() => handleEditInvoice(inv)}
-                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
                                       title="Click invoice ID to edit bill in POS"
                                     >
-                                      <Icon name="edit" size={13} />
                                       {inv.invoice_number || `INV-${inv.id}`}
                                     </button>
                                   </td>
