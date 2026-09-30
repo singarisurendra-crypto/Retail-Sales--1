@@ -296,6 +296,7 @@ export default function App() {
   const [ledgerEndDate, setLedgerEndDate] = useState("");
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState("all");
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
+  const [ledgerSortOrder, setLedgerSortOrder] = useState("asc"); // "asc" | "desc"
 
   // Scenario #7: Comprehensive Analysis & Reports State
   const [analysisPeriod, setAnalysisPeriod] = useState("this_month");
@@ -5702,10 +5703,9 @@ Thank you for your business!`;
                                     <button
                                       type="button"
                                       onClick={() => setSelectedViewProcure(p)}
-                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
+                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer block"
                                       title="Click to view purchase order bill"
                                     >
-                                      <Icon name="receipt" size={13} />
                                       {p.purchaseNum}
                                     </button>
                                   </td>
@@ -10162,12 +10162,50 @@ Thank you for your business!`;
           const custTotalInvoiced = custInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
           const custTotalCollected = custCollections.reduce((s, c) => s + Number(c.amount || 0), 0);
 
-          // Supplier records
+          // Format date and time for ledger display and sorting
+          const formatLedgerDateWithTime = (dateStr, createdAtStr) => {
+            const dPart = dateStr ? dateStr.slice(0, 10) : (createdAtStr ? createdAtStr.slice(0, 10) : "-");
+            let tPart = "";
+            if (createdAtStr && typeof createdAtStr === "string" && createdAtStr.includes("T")) {
+              try {
+                const dt = new Date(createdAtStr);
+                if (!isNaN(dt.getTime())) {
+                  tPart = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+                }
+              } catch {
+                tPart = "";
+              }
+            }
+            return { date: dPart, time: tPart };
+          };
+
+          const parseTransactionTimestamp = (dateStr, createdAtStr, subOffset = 0) => {
+            if (createdAtStr && typeof createdAtStr === "string" && createdAtStr.includes("T")) {
+              const t = new Date(createdAtStr).getTime();
+              if (!isNaN(t) && t > 0) {
+                const calDate = dateStr ? dateStr.slice(0, 10) : "";
+                const createdDate = createdAtStr.slice(0, 10);
+                if (calDate && calDate !== createdDate) {
+                  const timePart = createdAtStr.slice(11);
+                  const combined = new Date(`${calDate}T${timePart}`).getTime();
+                  if (!isNaN(combined) && combined > 0) return combined + subOffset;
+                }
+                return t + subOffset;
+              }
+            }
+            if (dateStr) {
+              const t = new Date(`${dateStr.slice(0, 10)}T00:00:00`).getTime();
+              if (!isNaN(t) && t > 0) return t + subOffset;
+            }
+            return subOffset;
+          };
+
+          // Supplier records (using purchaseOrdersGrouped for cohesive PO grouping & quantities)
           const supPurchases = !isCustomer && currentParty
-            ? procurements.filter((p) => p.supplier_name === currentParty.name || String(p.supplier_id) === String(currentParty.id))
+            ? purchaseOrdersGrouped.filter((p) => p.supplier_name === currentParty.name || String(p.supplier_id) === String(currentParty.id))
             : [];
           const supTotalPurchased = supPurchases.reduce((s, p) => s + Number(p.total_amount || 0), 0);
-          const supTotalPaid = supPurchases.reduce((s, p) => s + Number(p.p1_amount || 0), 0);
+          const supTotalPaid = supPurchases.reduce((s, p) => s + Number(p.paid_amount !== undefined ? p.paid_amount : (p.p1_amount || 0)), 0);
 
           // Dynamic Balance calculation (Point 12: fixes Badvel Nagaraju and dynamic party dues)
           const balAmount = isCustomer
@@ -10186,13 +10224,16 @@ Thank you for your business!`;
 
           if (isCustomer && currentParty) {
             custInvoices.forEach((inv) => {
-              const dt = inv.invoice_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-CA") : "N/A");
+              const dt = inv.invoice_date || (inv.created_at ? inv.created_at.slice(0, 10) : "N/A");
+              const dtInfo = formatLedgerDateWithTime(dt, inv.created_at);
               const itemsDesc = Array.isArray(inv.items) && inv.items.length > 0
-                ? inv.items.map((it) => `${it.item_name || "Item"} (${it.qty || 1})`).join(", ")
+                ? inv.items.map((it) => `${it.item_name || "Item"} (${it.qty || it.quantity || 1})`).join(", ")
                 : "Sales Goods";
               ledgerEntries.push({
-                rawDate: dt,
-                date: dt,
+                rawDate: dtInfo.date,
+                date: dtInfo.date,
+                time: dtInfo.time,
+                timestamp: parseTransactionTimestamp(dt, inv.created_at, 0),
                 type: "Sales Invoice",
                 ref: inv.invoice_number || `INV-${inv.id}`,
                 desc: itemsDesc,
@@ -10203,10 +10244,13 @@ Thank you for your business!`;
             });
 
             custCollections.forEach((col) => {
-              const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A";
+              const dt = col.collection_date || (col.created_at ? col.created_at.slice(0, 10) : "N/A");
+              const dtInfo = formatLedgerDateWithTime(dt, col.created_at);
               ledgerEntries.push({
-                rawDate: dt,
-                date: dt,
+                rawDate: dtInfo.date,
+                date: dtInfo.date,
+                time: dtInfo.time,
+                timestamp: parseTransactionTimestamp(dt, col.created_at, 1),
                 type: "Payment Received",
                 ref: col.reference_no || `REC-${col.id}`,
                 desc: col.collection_type || "Customer Payment",
@@ -10217,36 +10261,49 @@ Thank you for your business!`;
             });
           } else if (!isCustomer && currentParty) {
             supPurchases.forEach((p) => {
-              const dt = p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A";
-              const itemDesc = `${p.items?.item_name || p.item_name || "Stock Item"} (${p.quantity || 1} qty)`;
+              const dt = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : "N/A");
+              const dtInfo = formatLedgerDateWithTime(dt, p.created_at);
+              const poRef = p.purchaseNum || (p.receiver_2_mode?.startsWith("PUR-") ? p.receiver_2_mode : `PUR-${p.id}`);
+              const itemsList = Array.isArray(p.items) && p.items.length > 0 ? p.items : (p.rawRows || [p]);
+              const itemsDesc = itemsList
+                .map((it) => `${it.item_name || "Stock Item"} (${it.procured_qty || it.quantity || 1})`)
+                .join(", ");
+              const billTimestamp = parseTransactionTimestamp(dt, p.created_at, 0);
+
               ledgerEntries.push({
-                rawDate: dt,
-                date: dt,
+                rawDate: dtInfo.date,
+                date: dtInfo.date,
+                time: dtInfo.time,
+                timestamp: billTimestamp,
                 type: "Purchase Bill",
-                ref: `BILL-${p.id}`,
-                desc: itemDesc,
+                ref: poRef,
+                desc: itemsDesc || "Purchase Goods",
                 debit: Number(p.total_amount || 0),
                 credit: 0,
-                mode: "Bill Payable"
+                mode: p.payment_mode || "Bill Payable"
               });
 
-              if (Number(p.p1_amount || 0) > 0) {
+              const paidAmt = Number(p.paid_amount !== undefined ? p.paid_amount : (p.p1_amount || 0));
+              if (paidAmt > 0) {
+                const payRef = poRef.startsWith("PUR-") ? poRef.replace("PUR-", "PAY-") : `PAY-${p.id}`;
                 ledgerEntries.push({
-                  rawDate: dt,
-                  date: dt,
+                  rawDate: dtInfo.date,
+                  date: dtInfo.date,
+                  time: dtInfo.time,
+                  timestamp: billTimestamp + 1,
                   type: "Supplier Payment",
-                  ref: `PAY-${p.id}`,
-                  desc: `Payment for Bill #${p.id}`,
+                  ref: payRef,
+                  desc: `Payment for Bill #${poRef}`,
                   debit: 0,
-                  credit: Number(p.p1_amount || 0),
-                  mode: p.p1_mode || "Cash"
+                  credit: paidAmt,
+                  mode: p.p1_mode || p.payment_mode || "Cash"
                 });
               }
             });
           }
 
-          // Sort chronologically ascending
-          ledgerEntries.sort((a, b) => (a.rawDate || "").localeCompare(b.rawDate || ""));
+          // Sort strictly in chronological sequence (oldest first) by Date WITH Time timestamp
+          ledgerEntries.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
           // Local time date calculations for robust filtering
           const localToday = new Date().toLocaleDateString("en-CA");
@@ -10309,6 +10366,9 @@ Thank you for your business!`;
               balance: runningBalTracker
             };
           });
+
+          // Apply Date & Time sort order (Oldest first vs Newest first) while preserving continuous running balance
+          const finalLedgerRows = ledgerSortOrder === "desc" ? [...displayLedgerRows].reverse() : displayLedgerRows;
 
           return (
             <div className="space-y-6">
@@ -10449,12 +10509,12 @@ Thank you for your business!`;
                         <span>📊</span> Complete Running Ledger Statement
                       </h4>
                       <span className="text-xs text-slate-500 font-mono no-print">
-                        {displayLedgerRows.length} of {ledgerEntries.length} Transactions Recorded
+                        {finalLedgerRows.length} of {ledgerEntries.length} Transactions Recorded
                       </span>
                     </div>
 
                     {/* Dynamic Filter Controls (Point 9) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1 pb-1 no-print">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1 pb-1 no-print">
                       <input
                         type="text"
                         placeholder="Search ref, particulars, mode..."
@@ -10481,6 +10541,14 @@ Thank you for your business!`;
                         <option value="all">🔄 All Transactions</option>
                         <option value="debit">Debit Only ({isCustomer ? "Invoices" : "Bills"})</option>
                         <option value="credit">Credit Only ({isCustomer ? "Collections" : "Payments"})</option>
+                      </select>
+                      <select
+                        value={ledgerSortOrder}
+                        onChange={(e) => setLedgerSortOrder(e.target.value)}
+                        className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-white font-mono"
+                      >
+                        <option value="asc">⏱️ Sort: Date & Time (Oldest First)</option>
+                        <option value="desc">⏱️ Sort: Date & Time (Newest First)</option>
                       </select>
                       {ledgerDateFilter === "custom" ? (
                         <div className="flex items-center gap-1.5">
@@ -10510,7 +10578,16 @@ Thank you for your business!`;
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">#</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">Date</th>
+                            <th
+                              onClick={() => setLedgerSortOrder(ledgerSortOrder === "asc" ? "desc" : "asc")}
+                              className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition"
+                              title="Click to toggle Date & Time sort order"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Date & Time</span>
+                                <span className="text-[10px] opacity-75">{ledgerSortOrder === "asc" ? "▲ Oldest" : "▼ Newest"}</span>
+                              </div>
+                            </th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Type</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Ref / Bill #</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700">Particulars / Details</th>
@@ -10537,17 +10614,24 @@ Thank you for your business!`;
                           </tr>
 
                           {/* Chronological Transactions */}
-                          {displayLedgerRows.length === 0 ? (
+                          {finalLedgerRows.length === 0 ? (
                             <tr>
                               <td colSpan={9} className="p-4 text-center text-slate-400 font-sans">
                                 No billing or payment transactions match the current filter selection.
                               </td>
                             </tr>
                           ) : (
-                            displayLedgerRows.map((row, idx) => (
+                            finalLedgerRows.map((row, idx) => (
                               <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/40">
                                 <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-mono">{idx + 1}</td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700">{row.date}</td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200">{row.date}</div>
+                                  {row.time && (
+                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
+                                      🕒 {row.time}
+                                    </div>
+                                  )}
+                                </td>
                                 <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                     row.debit > 0
@@ -10575,17 +10659,17 @@ Thank you for your business!`;
                             ))
                           )}
                         </tbody>
-                        {displayLedgerRows.length > 0 && (
+                        {finalLedgerRows.length > 0 && (
                           <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                             <tr>
                               <td colSpan={5} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
-                                Filtered Total ({displayLedgerRows.length} items):
+                                Filtered Total ({finalLedgerRows.length} items):
                               </td>
                               <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400">
-                                {money(displayLedgerRows.reduce((s, r) => s + r.debit, 0))}
+                                {money(finalLedgerRows.reduce((s, r) => s + r.debit, 0))}
                               </td>
                               <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400">
-                                {money(displayLedgerRows.reduce((s, r) => s + r.credit, 0))}
+                                {money(finalLedgerRows.reduce((s, r) => s + r.credit, 0))}
                               </td>
                               <td className={`p-2.5 text-right font-black ${runningBalTracker > 0 ? "text-rose-600" : runningBalTracker < 0 ? "text-emerald-600" : ""}`}>
                                 {money(runningBalTracker)}
