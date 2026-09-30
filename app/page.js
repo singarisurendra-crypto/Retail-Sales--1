@@ -7304,135 +7304,6 @@ Thank you for your business!`;
                   </div>
                 </div>
               </div>
-
-              {/* TWO-TIER FINANCIAL KPI SUMMARY GRID (ZERO TRUNCATION) */}
-              <div className="space-y-3.5">
-                {/* TIER 1: 5 Core Financial Performance Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-                  {/* 1. Total Revenue */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-blue-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sales Revenue</span>
-                      <div className="text-lg xl:text-xl font-black text-blue-600 dark:text-blue-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {money(totalRevenue)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
-                      {totalInvoicesCount} invoices (Avg: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)})
-                    </span>
-                  </div>
-
-                  {/* 2. Total Purchases */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Purchases Spend</span>
-                      <div className="text-lg xl:text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {money(totalPurchasesSpend)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
-                      {totalPurchasesCount} orders (Avg: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)})
-                    </span>
-                  </div>
-
-                  {/* 3. Collections */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Collections Received</span>
-                      <div className="text-lg xl:text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {money(totalCollections)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
-                      {periodCollections.length} receipts recorded
-                    </span>
-                  </div>
-
-                  {/* 4. Gross Profit */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-teal-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gross Profit</span>
-                      <div className={`text-lg xl:text-xl font-black mt-1.5 whitespace-nowrap font-mono tracking-tight ${
-                        grossProfit >= 0 ? "text-teal-600 dark:text-teal-400" : "text-rose-600"
-                      }`}>
-                        {money(grossProfit)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-teal-600 dark:text-teal-400 font-semibold mt-2 block">
-                      {grossMargin}% gross margin
-                    </span>
-                  </div>
-
-                  {/* 5. Stock Valuation */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-cyan-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Stock Valuation</span>
-                      <div className="text-lg xl:text-xl font-black text-cyan-700 dark:text-cyan-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {money(inventoryValuation)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
-                      {masterItems.length} active inventory SKUs
-                    </span>
-                  </div>
-                </div>
-
-                {/* TIER 2: 4 Dues & Order Volume Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                  {/* 6. Customer Outstanding Dues */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-rose-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Customer Outstanding Dues</span>
-                      <div className="text-lg xl:text-xl font-black text-rose-600 dark:text-rose-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {money(totalCustomerDues)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-rose-500 font-semibold mt-2 block">
-                      {debtorsList.length} customers with pending balance
-                    </span>
-                  </div>
-
-                  {/* 7. Supplier Outstanding Dues */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">Supplier Pending Payables</span>
-                      <div className="text-lg xl:text-xl font-black text-amber-600 dark:text-amber-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {money(totalSupplierDues)}
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-amber-500 font-semibold mt-2 block">
-                      {payablesList.length} suppliers awaiting payment
-                    </span>
-                  </div>
-
-                  {/* 8. Bills Issued */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-purple-500 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bills Issued</span>
-                      <div className="text-lg xl:text-xl font-black text-slate-900 dark:text-white mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {totalInvoicesCount} Invoices
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
-                      Average Ticket: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}
-                    </span>
-                  </div>
-
-                  {/* 9. POs Recorded */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-slate-400 shadow-xs flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">POs Recorded</span>
-                      <div className="text-lg xl:text-xl font-black text-slate-900 dark:text-white mt-1.5 whitespace-nowrap font-mono tracking-tight">
-                        {totalPurchasesCount} Orders
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
-                      Average Order: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               {/* 10 SUB-TABS NAVIGATION */}
               <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-x-auto">
                 <div className="flex items-center gap-1.5 min-w-max text-xs font-bold">
@@ -8306,6 +8177,250 @@ Thank you for your business!`;
                         <span>Authorized Partner Signature</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* EXECUTIVE FINANCIAL SUMMARY GRID (STRUCTURED ERP TABLE PLACED BELOW) */}
+              {analysisSubTab !== "export_print" && (
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div>
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <Icon name="chart" size={17} className="text-indigo-600" />
+                        <span>Executive Financial & Operational Summary</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Consolidated ledger indicators and business KPIs for {periodLabel}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <span className="text-slate-400">Date Range:</span>
+                      <span className="px-2.5 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-mono text-[11px] border border-indigo-100 dark:border-indigo-900/60 font-black">
+                        {periodStart} → {periodEnd}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="p-3 text-left">Financial Indicator / Stream</th>
+                          <th className="p-3 text-left">Activity Volume</th>
+                          <th className="p-3 text-right">Consolidated Total (₹)</th>
+                          <th className="p-3 text-left">Key Performance Ratio / Benchmark</th>
+                          <th className="p-3 text-center">Accounting Classification</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {/* 1. Sales Revenue */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">🛒</span>
+                            <span>Sales Revenue</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {totalInvoicesCount} Invoices Billed
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-blue-600 dark:text-blue-400 text-sm whitespace-nowrap">
+                            {money(totalRevenue)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Average Ticket: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
+                              Operating Inflow
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 2. Purchases Spend */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">📦</span>
+                            <span>Purchases & Procurement Spend</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {totalPurchasesCount} Orders Placed
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap">
+                            {money(totalPurchasesSpend)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Average Order: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase">
+                              Procurement Cost
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 3. Collections Received */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">📥</span>
+                            <span>Customer Collections Received</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {periodCollections.length} Receipts Settled
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
+                            {money(totalCollections)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Cash, UPI & Bank Receipts
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase">
+                              Realized Cash
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 4. Gross Profit */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">⚖️</span>
+                            <span>Gross Trading Profit</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            Revenue − COGS ({money(periodCogs)})
+                          </td>
+                          <td className={`p-3 text-right font-mono font-black text-sm whitespace-nowrap ${
+                            grossProfit >= 0 ? "text-teal-600 dark:text-teal-400" : "text-rose-600"
+                          }`}>
+                            {money(grossProfit)}
+                          </td>
+                          <td className="p-3 font-bold text-teal-600 dark:text-teal-400">
+                            {grossMargin}% Gross Margin
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 uppercase">
+                              Trading Margin
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 5. Operating Outflows */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">💸</span>
+                            <span>Shop Operating Expenses & Interest</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {periodExpenses.length} Expense Vouchers
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
+                            -{money(totalOperatingOutflows)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Overhead Outflows & Loan Servicing
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase">
+                              Operating Outflow
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 6. Net Profit / (Loss) */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition bg-slate-50/50 dark:bg-slate-800/20">
+                          <td className="p-3 font-black text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">🎯</span>
+                            <span>Net Operating Profit / (Loss)</span>
+                          </td>
+                          <td className="p-3 text-slate-700 dark:text-slate-300 font-bold">
+                            Gross Profit − Expenses
+                          </td>
+                          <td className={`p-3 text-right font-mono font-black text-sm whitespace-nowrap ${
+                            netProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600"
+                          }`}>
+                            {money(netProfit)}
+                          </td>
+                          <td className={`p-3 font-bold ${netProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600"}`}>
+                            {netMargin}% Net Margin
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
+                              netProfit >= 0
+                                ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
+                                : "bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800"
+                            }`}>
+                              {netProfit >= 0 ? "Net Profit" : "Net Deficit"}
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 7. Stock Valuation */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">📊</span>
+                            <span>Stock Inventory Valuation</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {masterItems.length} Active Catalog SKUs
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-cyan-700 dark:text-cyan-400 text-sm whitespace-nowrap">
+                            {money(inventoryValuation)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Real-time Cost Value of Physical Stock
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 uppercase">
+                              Current Asset
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 8. Customer Dues */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">👥</span>
+                            <span>Customer Outstanding Dues</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {debtorsList.length} Customers with Balances
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
+                            {money(totalCustomerDues)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Market Receivables Pending Settlement
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase">
+                              Accounts Receivable
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* 9. Supplier Dues */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span className="text-base">🚚</span>
+                            <span>Supplier Pending Payables</span>
+                          </td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                            {payablesList.length} Vendors Awaiting Payment
+                          </td>
+                          <td className="p-3 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-sm whitespace-nowrap">
+                            {money(totalSupplierDues)}
+                          </td>
+                          <td className="p-3 text-slate-500 font-medium">
+                            Vendor Procurement Liabilities
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 uppercase">
+                              Accounts Payable
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
