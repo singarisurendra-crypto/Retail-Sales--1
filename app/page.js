@@ -80,6 +80,12 @@ const Icon = ({ name, size = 18, className = "" }) => {
     ),
     chart: (
       <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    kebab: (
+      <path d="M12 5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 8.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 8.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" fill="currentColor" />
+    ),
+    "more-vertical": (
+      <path d="M12 5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 8.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 8.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" fill="currentColor" />
     )
   };
 
@@ -296,7 +302,8 @@ export default function App() {
   const [ledgerEndDate, setLedgerEndDate] = useState("");
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState("all");
   const [ledgerSearchQuery, setLedgerSearchQuery] = useState("");
-  const [ledgerSortOrder, setLedgerSortOrder] = useState("asc"); // "asc" | "desc"
+  const [ledgerSortOrder, setLedgerSortOrder] = useState("desc"); // Default to latest transaction first (descending)
+  const [openMobileActionId, setOpenMobileActionId] = useState(null); // Mobile kebab actions menu tracking
 
   // Scenario #7: Comprehensive Analysis & Reports State
   const [analysisPeriod, setAnalysisPeriod] = useState("this_month");
@@ -1116,14 +1123,23 @@ export default function App() {
 
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
+    const costMap = new Map();
+    procurements.forEach((p) => {
+      const trimmed = (p.item_name || "").trim();
+      if (trimmed && Number(p.purchase_rate || 0) > 0 && !costMap.has(trimmed.toLowerCase())) {
+        costMap.set(trimmed.toLowerCase(), Number(p.purchase_rate));
+      }
+    });
+
     masterItems.forEach((i) => {
       const trimmed = (i.item_name || i.name || "").trim();
       if (trimmed && !map.has(trimmed.toLowerCase())) {
+        const cost = costMap.get(trimmed.toLowerCase()) || i.purchase_rate || i.unit_price || 0;
         map.set(trimmed.toLowerCase(), {
           id: i.id,
           name: trimmed,
-          purchase_rate: i.unit_price || i.purchase_rate || 0,
-          selling_rate: i.unit_price || i.selling_rate || 0
+          purchase_rate: cost,
+          selling_rate: i.unit_price || i.selling_rate || cost
         });
       }
     });
@@ -1133,8 +1149,8 @@ export default function App() {
         map.set(trimmed.toLowerCase(), {
           id: null,
           name: trimmed,
-          purchase_rate: p.purchase_rate,
-          selling_rate: p.selling_rate
+          purchase_rate: Number(p.purchase_rate || 0),
+          selling_rate: Number(p.selling_rate || p.purchase_rate || 0)
         });
       }
     });
@@ -1687,19 +1703,48 @@ export default function App() {
           remaining_qty: 0,
           procured_qty: 0,
           items: [],
+          payments: [],
           rawRows: []
         });
       }
       const entry = map.get(groupKey);
-      entry.items.push(p);
       entry.rawRows.push(p);
-      entry.total_amount += Number(p.total_amount || 0);
-      entry.paid_amount += Number(p.p1_amount || 0);
-      entry.remaining_qty += Number(p.remaining_qty || 0);
-      entry.procured_qty += Number(p.procured_qty || 0);
+
+      const isGoodsLine = Number(p.procured_qty || 0) > 0 || Number(p.total_amount || 0) > 0;
+      if (isGoodsLine) {
+        entry.items.push(p);
+        entry.total_amount += Number(p.total_amount || 0);
+        entry.remaining_qty += Number(p.remaining_qty || 0);
+        entry.procured_qty += Number(p.procured_qty || 0);
+      }
+
+      const pAmt = Number(p.p1_amount || 0);
+      if (pAmt > 0) {
+        entry.paid_amount += pAmt;
+        const pPartner = partners.find((pa) => String(pa.id) === String(p.p1_id));
+        entry.payments.push({
+          id: p.id,
+          date: p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : "-"),
+          ref: `PAY-${p.id}`,
+          partner_id: p.p1_id,
+          partner_name: pPartner ? pPartner.name : "Partner",
+          payment_mode: p.p1_mode || p.payment_mode || "Cash",
+          amount: pAmt,
+          isUpfront: isGoodsLine,
+          rawRow: p
+        });
+      }
     });
+
+    // Fallback if PO only had payment rows or items was empty
+    map.forEach((entry) => {
+      if (entry.items.length === 0 && entry.rawRows.length > 0) {
+        entry.items = [entry.rawRows[0]];
+      }
+    });
+
     return Array.from(map.values());
-  }, [procurements]);
+  }, [procurements, partners]);
 
   const filteredProcurements = useMemo(() => {
     let list = purchaseOrdersGrouped;
@@ -2039,7 +2084,12 @@ export default function App() {
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
-    const defaultSellingRate = Number(item.selling_rate || item.purchase_rate || 0);
+    const masterObj = masterItems.find(
+      (m) => (m.item_name || m.name || "").toLowerCase().trim() === (item.item_name || "").toLowerCase().trim()
+    );
+    const defaultSellingRate = masterObj && Number(masterObj.unit_price || 0) > 0
+      ? Number(masterObj.unit_price)
+      : Number(item.selling_rate || item.purchase_rate || 0);
 
     const newCart = [...cart];
     newCart[pickerActiveIndex] = {
@@ -2677,32 +2727,70 @@ Thank you for your business!`;
   };
 
   // PURCHASES PAYMENTS
-  const handleEditPurchasePayment = (p) => {
-    setEditingPaymentId(p.id);
+  const handlePayPurchaseOrder = (po) => {
+    setEditingPaymentId(null);
     setIsBillLocked(true);
     setPaySupplierMode("single");
-    const remDue = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
+    const total = Number(po.total_amount || 0);
+    const paid = Number(po.paid_amount !== undefined ? po.paid_amount : (po.p1_amount || 0));
+    const remDue = Math.max(0, total - paid);
     setPayPurchaseForm({
-      purchase_id: String(p.id),
-      amount: String(remDue > 0 ? remDue : p.p1_amount || ""),
-      partner_id: p.p1_id ? String(p.p1_id) : upfrontPartnerId,
-      payment_mode: p.p1_mode || "Cash",
-      reference_no: `PAY-${p.id}`,
+      purchase_id: String(po.id),
+      amount: remDue > 0 ? String(remDue) : "",
+      partner_id: upfrontPartnerId || (partners[0] ? String(partners[0].id) : ""),
+      payment_mode: "Cash",
+      reference_no: "",
       notes: ""
     });
     setShowPayPurchaseModal(true);
   };
 
+  const handleEditPurchasePayment = (p) => {
+    setEditingPaymentId(p.id);
+    setIsBillLocked(true);
+    setPaySupplierMode("single");
+    const pAmt = Number(p.amount !== undefined ? p.amount : (p.p1_amount || 0));
+    setPayPurchaseForm({
+      purchase_id: String(p.purchase_id || p.id),
+      amount: String(pAmt || ""),
+      partner_id: p.partner_id ? String(p.partner_id) : (p.p1_id ? String(p.p1_id) : upfrontPartnerId),
+      payment_mode: p.payment_mode || p.p1_mode || "Cash",
+      reference_no: p.ref || p.reference_no || `PAY-${p.id}`,
+      notes: p.notes || ""
+    });
+    setShowPayPurchaseModal(true);
+  };
+
   const handleDeletePurchasePayment = async (p) => {
-    if (!confirm(`Void payment for purchase bill "${p.item_name}"?`)) return;
+    const rowId = p.id;
+    const targetRow = procurements.find((x) => x.id === rowId);
+    const pAmt = Number(p.amount !== undefined ? p.amount : (targetRow?.p1_amount || 0));
+    const desc = p.ref || targetRow?.item_name || `Payment #${rowId}`;
+    if (!confirm(`Void payment of ${money(pAmt)} for "${desc}"? Partner balance and supplier due will be adjusted back.`)) return;
 
     try {
-      await db.from("procurements").update({
-        p1_amount: 0,
-        p1_id: null
-      }).eq("id", p.id);
+      if (!targetRow) {
+        await db.from("procurements").delete().eq("id", rowId);
+      } else if (Number(targetRow.total_amount || 0) > 0 || Number(targetRow.procured_qty || 0) > 0) {
+        // Upfront payment on a goods row: zero out the payment without deleting the goods item
+        await db.from("procurements").update({
+          p1_amount: 0,
+          p1_id: null,
+          p1_mode: null
+        }).eq("id", rowId);
+      } else {
+        // Dedicated payment row: delete record
+        await db.from("procurements").delete().eq("id", rowId);
+      }
 
-      alert("Purchase payment voided!");
+      logAuditEvent({
+        docRef: p.ref || `PAY-${rowId}`,
+        docType: "Supplier Payment",
+        action: "Deleted",
+        details: `Voided supplier payment of ${money(pAmt)}`
+      });
+
+      alert("Purchase payment voided successfully!");
       refreshData();
     } catch (err) {
       alert("Error deleting payment: " + err.message);
@@ -2729,29 +2817,37 @@ Thank you for your business!`;
 
     try {
       if (paySupplierMode === "multi") {
-        // Scenario 2: Multi-bill FIFO payment across all pending bills for this supplier
+        // Multi-bill FIFO payment across all pending bills for this supplier
         const targetSup = suppliers.find((s) => String(s.id) === String(multiSupplierId) || s.name === multiSupplierId);
         if (!targetSup) return alert("Select a supplier to settle bills for");
 
-        const supplierBills = procurements
-          .filter((p) => p.supplier_name === targetSup.name && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0)
-          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        const pendingPOs = purchaseOrdersGrouped
+          .filter((po) => po.supplier_name === targetSup.name && Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)) > 0)
+          .sort((a, b) => new Date(a.purchase_date || a.created_at) - new Date(b.purchase_date || b.created_at) || a.id - b.id);
 
         let rem = amt;
-        for (const bill of supplierBills) {
+        for (const po of pendingPOs) {
           if (rem <= 0) break;
-          const due = Math.max(0, Number(bill.total_amount || 0) - Number(bill.p1_amount || 0));
+          const due = Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0));
           const alloc = Math.min(due, rem);
-          await db.from("procurements").update({
-            p1_amount: Number(bill.p1_amount || 0) + alloc,
+          await db.from("procurements").insert([{
+            purchase_date: new Date().toISOString().split("T")[0],
+            supplier_name: targetSup.name,
+            item_name: "Supplier Payment",
+            procured_qty: 0,
+            remaining_qty: 0,
+            purchase_rate: 0,
+            selling_rate: 0,
+            total_amount: 0,
             p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
-            p1_mode: payPurchaseForm.payment_mode
-          }).eq("id", bill.id);
+            p1_amount: alloc,
+            p1_mode: payPurchaseForm.payment_mode,
+            receiver_2_mode: po.purchaseNum || po.receiver_2_mode || `PUR-${po.id}`
+          }]);
           rem -= alloc;
         }
 
-        // If payment exceeded all pending bills (or supplier had 0 due like Dornala Subbarao),
-        // credit excess as Advance to supplier AND create a visible procurement disbursement record
+        // If payment exceeded all pending bills, credit excess as Advance to supplier
         if (rem > 0) {
           const updatedDue = Number(targetSup.old_due || 0) - rem;
           await db.from("suppliers").update({ old_due: updatedDue }).eq("id", targetSup.id);
@@ -2781,58 +2877,83 @@ Thank you for your business!`;
 
         alert(`Supplier payment of ${money(amt)} recorded and allocated successfully!`);
       } else {
-        const targetP = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
-        if (!targetP) return alert("Purchase not found");
+        // Single PO branch: either EDIT an existing payment or CREATE a distinct payment record
+        const targetId = payPurchaseForm.purchase_id;
+        const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === String(targetId) || po.purchaseNum === targetId || po.receiver_2_mode === targetId);
+        const targetP = procurements.find((p) => String(p.id) === String(targetId));
+        const supplierName = targetPO?.supplier_name || targetP?.supplier_name || "Vendor";
+        const poRef = targetPO?.purchaseNum || targetPO?.receiver_2_mode || targetP?.receiver_2_mode || `PUR-${targetId}`;
 
-        const currentTotal = Number(targetP.total_amount || 0);
-        const existingPaid = Number(targetP.p1_amount || 0);
-        const currentDue = Math.max(0, currentTotal - existingPaid);
-
-        const newPaid = Math.min(currentTotal, existingPaid + amt);
-        await db.from("procurements").update({
-          p1_amount: newPaid,
-          p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
-          p1_mode: payPurchaseForm.payment_mode
-        }).eq("id", targetP.id);
-
-        if (isAdvanceAdjusted) {
-          const sup = suppliers.find((s) => s.name === targetP.supplier_name);
-          if (sup) {
-            const updatedDue = Number(sup.old_due || 0) + amt;
-            await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
-          }
-        } else if (amt > currentDue) {
-          const excessAdv = amt - currentDue;
-          const sup = suppliers.find((s) => s.name === targetP.supplier_name);
-          if (sup) {
-            const updatedDue = Number(sup.old_due || 0) - excessAdv;
-            await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
-
-            await db.from("procurements").insert([{
-              purchase_date: new Date().toISOString().split("T")[0],
-              supplier_name: targetP.supplier_name,
-              item_name: "Supplier Disbursement / Excess Advance",
-              procured_qty: 1,
-              remaining_qty: 0,
-              purchase_rate: excessAdv,
-              selling_rate: excessAdv,
-              total_amount: excessAdv,
+        if (editingPaymentId) {
+          // UPDATE EXISTING PAYMENT
+          const existingRow = procurements.find((p) => p.id === editingPaymentId);
+          if (existingRow) {
+            await db.from("procurements").update({
+              p1_amount: amt,
               p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
-              p1_amount: excessAdv,
-              p1_mode: payPurchaseForm.payment_mode,
-              receiver_2_mode: `PAY-${Date.now().toString().slice(-4)}`
-            }]);
+              p1_mode: payPurchaseForm.payment_mode
+            }).eq("id", editingPaymentId);
           }
+
+          logAuditEvent({
+            docRef: `PAY-${editingPaymentId}`,
+            docType: "Supplier Payment",
+            action: "Modified",
+            details: `Updated payment of ${money(amt)} for ${supplierName} (${poRef}) via ${payPurchaseForm.payment_mode}`
+          });
+
+          alert(`Payment updated successfully!`);
+        } else {
+          // CREATE NEW DISTINCT PAYMENT RECORD FOR THIS PURCHASE ORDER
+          const newPaymentRow = {
+            purchase_date: new Date().toISOString().split("T")[0],
+            supplier_name: supplierName,
+            item_name: "Supplier Payment",
+            procured_qty: 0,
+            remaining_qty: 0,
+            purchase_rate: 0,
+            selling_rate: 0,
+            total_amount: 0,
+            p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
+            p1_amount: amt,
+            p1_mode: payPurchaseForm.payment_mode,
+            receiver_2_mode: poRef
+          };
+
+          const { error: insErr } = await db.from("procurements").insert([newPaymentRow]);
+          if (insErr) throw insErr;
+
+          // If payment was Advance Adjusted, adjust supplier old_due
+          if (isAdvanceAdjusted) {
+            const sup = suppliers.find((s) => s.name === supplierName);
+            if (sup) {
+              const updatedDue = Number(sup.old_due || 0) + amt;
+              await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+            }
+          } else {
+            // Check if amount exceeded remaining due of PO
+            const currentTotal = Number(targetPO?.total_amount || targetP?.total_amount || 0);
+            const currentPaid = Number(targetPO?.paid_amount !== undefined ? targetPO.paid_amount : (targetP?.p1_amount || 0));
+            const currentDue = Math.max(0, currentTotal - currentPaid);
+            if (amt > currentDue) {
+              const excessAdv = amt - currentDue;
+              const sup = suppliers.find((s) => s.name === supplierName);
+              if (sup) {
+                const updatedDue = Number(sup.old_due || 0) - excessAdv;
+                await db.from("suppliers").update({ old_due: updatedDue }).eq("id", sup.id);
+              }
+            }
+          }
+
+          logAuditEvent({
+            docRef: poRef,
+            docType: "Supplier Payment",
+            action: "Created",
+            details: `Recorded purchase bill payment of ${money(amt)} for ${supplierName} (${poRef}) via ${payPurchaseForm.payment_mode}`
+          });
+
+          alert("Purchase payment recorded!");
         }
-
-        logAuditEvent({
-          docRef: targetP.receiver_2_mode || `PUR-${targetP.id}`,
-          docType: "Supplier Payment",
-          action: "Created",
-          details: `Recorded purchase bill payment of ${money(amt)} for ${targetP.supplier_name} (${targetP.item_name})`
-        });
-
-        alert(`Purchase payment recorded!`);
       }
 
       setShowPayPurchaseModal(false);
@@ -3005,13 +3126,25 @@ Thank you for your business!`;
       current_stock: openingQty
     };
     try {
-      if (editingItemId) {
-        const { error } = await db.from("items").update(payload).eq("id", editingItemId);
+      let targetId = editingItemId;
+      if (!targetId) {
+        const existing = masterItems.find(
+          (m) => (m.item_name || m.name || "").toLowerCase().trim() === itemName.toLowerCase().trim()
+        );
+        if (existing) targetId = existing.id;
+      }
+
+      if (targetId) {
+        const { error } = await db.from("items").update(payload).eq("id", targetId);
         if (error) throw error;
+        setMasterItems((prev) => prev.map((m) => (m.id === targetId ? { ...m, ...payload, id: targetId } : m)));
         alert("Item updated!");
       } else {
         const { error, data } = await db.from("items").insert([payload]).select();
         if (error) throw error;
+        if (data && data[0]) {
+          setMasterItems((prev) => [...prev, data[0]]);
+        }
         // If opening stock qty > 0, create an opening stock entry in procurements
         if (openingQty > 0) {
           const procPayload = {
@@ -3352,7 +3485,8 @@ Thank you for your business!`;
             ? procurements.filter((x) => x.receiver_2_mode === orderRef)
             : [p]);
 
-    const loadedLines = rawRows.map((row) => ({
+    const goodsRows = rawRows.filter((r) => Number(r.procured_qty || 0) > 0 || Number(r.total_amount || 0) > 0);
+    const loadedLines = (goodsRows.length > 0 ? goodsRows : rawRows).map((row) => ({
       procure_id: row.id,
       item_name: row.item_name || "",
       procured_qty: String(row.procured_qty || "1"),
@@ -3477,17 +3611,22 @@ Thank you for your business!`;
       let remainingPaid = paidNowNum;
 
       if (editingProcureId) {
-        // Scenario #7: Delete removed item lines from database so they do not reappear
+        // Scenario #7: Delete removed item lines from database so they do not reappear (protect payment records)
         const existingOrderRows = procurements.filter(
           (p) => (targetOrderNumber && p.receiver_2_mode === targetOrderNumber) || p.id === editingProcureId
         );
         const activeLineIds = new Set(validLines.map((l) => l.procure_id).filter(Boolean));
-        const removedRows = existingOrderRows.filter((p) => !activeLineIds.has(p.id));
+        const removedRows = existingOrderRows.filter((p) => {
+          const isGoodsLine = Number(p.procured_qty || 0) > 0 || Number(p.total_amount || 0) > 0;
+          return isGoodsLine && !activeLineIds.has(p.id);
+        });
 
         for (const delRow of removedRows) {
           const { error: delErr } = await db.from("procurements").delete().eq("id", delRow.id);
           if (delErr) console.error("Error deleting removed PO line from DB:", delErr);
         }
+
+        const hasSeparatePayments = existingOrderRows.some((p) => Number(p.procured_qty || 0) <= 0 && Number(p.p1_amount || 0) > 0);
 
         // Multi-line edit integrity: Update existing rows and insert added lines without overwriting
         for (let i = 0; i < validLines.length; i++) {
@@ -3518,9 +3657,9 @@ Thank you for your business!`;
               purchase_rate: purchaseRate,
               selling_rate: sellingRate,
               total_amount: lineTotal,
-              p1_id: linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : (oldProc?.p1_id || null),
-              p1_amount: linePaid,
-              p1_mode: procureForm.p1_mode,
+              p1_id: hasSeparatePayments ? (oldProc?.p1_id || null) : (linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : (oldProc?.p1_id || null)),
+              p1_amount: hasSeparatePayments ? Number(oldProc?.p1_amount || 0) : linePaid,
+              p1_mode: hasSeparatePayments ? (oldProc?.p1_mode || null) : procureForm.p1_mode,
               receiver_2_mode: targetOrderNumber
             };
 
@@ -5398,7 +5537,7 @@ Thank you for your business!`;
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Paid", "చెల్లించినది")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Balance Due", "బకాయి")}</th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{t("Status", "స్థితి")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">{t("Actions", "చర్యలు")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
@@ -5474,8 +5613,8 @@ Thank you for your business!`;
                                       {statusLabel}
                                     </span>
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                                    <div className="flex items-center justify-center gap-1.5">
+                                  <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                    <div className="hidden sm:flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
                                         title="View / Print Invoice"
@@ -5491,6 +5630,14 @@ Thank you for your business!`;
                                         className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer"
                                       >
                                         <Icon name="share" size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Edit Invoice"
+                                        onClick={() => handleEditInvoice(inv)}
+                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
+                                      >
+                                        <Icon name="edit" size={14} />
                                       </button>
                                       {!isPaid && (
                                         <button
@@ -5523,6 +5670,80 @@ Thank you for your business!`;
                                         >
                                           <Icon name="trash" size={14} />
                                         </button>
+                                      )}
+                                    </div>
+
+                                    {/* Mobile Kebab Dropdown Menu */}
+                                    <div className="relative inline-block text-left sm:hidden">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenMobileActionId(openMobileActionId === `inv_${inv.id}` ? null : `inv_${inv.id}`);
+                                        }}
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                        title="Actions"
+                                      >
+                                        <Icon name="more-vertical" size={15} />
+                                      </button>
+                                      {openMobileActionId === `inv_${inv.id}` && (
+                                        <>
+                                          <div className="fixed inset-0 z-40" onClick={() => setOpenMobileActionId(null)} />
+                                          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-left text-xs font-semibold">
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); setSelectedViewInvoice(inv); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
+                                            >
+                                              <Icon name="receipt" size={14} /> View / Print
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); handleShareWhatsApp(inv); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300"
+                                            >
+                                              <Icon name="share" size={14} /> WhatsApp
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); handleEditInvoice(inv); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                            >
+                                              <Icon name="edit" size={14} /> Edit Invoice
+                                            </button>
+                                            {!isPaid && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  setEditingCollectionId(null);
+                                                  setCollectForm({
+                                                    customer_id: String(inv.customer_id),
+                                                    invoice_id: String(inv.id),
+                                                    amount: String(dueAmount),
+                                                    payment_mode: "Cash",
+                                                    receiver_id: upfrontPartnerId || "",
+                                                    reference_no: "",
+                                                    notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
+                                                  });
+                                                  setShowCollectModal(true);
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                              >
+                                                <Icon name="handcoins" size={14} /> Collect Due
+                                              </button>
+                                            )}
+                                            {paidAmount === 0 && !isPaid && (
+                                              <button
+                                                type="button"
+                                                onClick={() => { setOpenMobileActionId(null); handleDeleteInvoice(inv); }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400"
+                                              >
+                                                <Icon name="trash" size={14} /> Delete Bill
+                                              </button>
+                                            )}
+                                          </div>
+                                        </>
                                       )}
                                     </div>
                                   </td>
@@ -5672,8 +5893,8 @@ Thank you for your business!`;
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Stock (Left / Total)", "స్టాక్ (మిగిలినది / మొత్తం)")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid", "చెల్లించినది")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Due", "బకాయి")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">{t("Actions", "చర్యలు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Due", "బకాయి")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -5692,13 +5913,9 @@ Thank you for your business!`;
                               const totQty = Number(p.procured_qty || 0);
                               const inStock = remQty > 0;
                               const itemsList = p.items && p.items.length > 0 ? p.items : [p];
-                              const firstItem = itemsList[0];
-                              const itemsSummary = itemsList.length > 1
-                                ? `${firstItem?.item_name || "Item"} (${firstItem?.procured_qty || 1}) + ${itemsList.length - 1} more`
-                                : `${firstItem?.item_name || "Item"} (${firstItem?.procured_qty || 1})`;
 
                               return (
-                                <tr key={p.groupKey || p.id} className="hover:bg-slate-50 transition">
+                                <tr key={p.groupKey || p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                                   <td className="p-2.5 border border-sky-200 dark:border-slate-700">
                                     <button
                                       type="button"
@@ -5709,54 +5926,56 @@ Thank you for your business!`;
                                       {p.purchaseNum}
                                     </button>
                                   </td>
-                                  <td className="p-3 text-slate-500 whitespace-nowrap">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                                     {p.purchase_date || p.created_at?.slice(0, 10)}
                                   </td>
-                                  <td className="p-3 text-slate-600 font-semibold">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
                                     {p.supplier_name}
                                   </td>
-                                  <td className="p-3">
-                                    <div className="space-y-1">
-                                      {itemsList.map((it, idx) => (
-                                        <div key={idx} className="flex items-center gap-1.5 text-xs">
-                                          <span className="font-bold text-slate-900 dark:text-white">{it.item_name}</span>
-                                          <span className="text-slate-500 dark:text-slate-400 text-[11px]">({it.procured_qty} pcs @ {money(it.purchase_rate)})</span>
-                                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px] ml-auto">
-                                            {money(Number(it.total_amount || (Number(it.procured_qty || 0) * Number(it.purchase_rate || 0))))}
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                                    {itemsList.map((it) => it.item_name).filter(Boolean).join(", ") || "-"}
+                                  </td>
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-mono">
+                                    {(() => {
+                                      const isFullStock = remQty >= totQty && totQty > 0;
+                                      const isPartialStock = remQty > 0 && remQty < totQty;
+                                      const isSoldOut = remQty <= 0;
+                                      const badgeClass = isFullStock
+                                        ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                                        : isPartialStock
+                                        ? "bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                                        : "bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-800";
+                                      const badgeLabel = isFullStock ? "Full Stock" : isPartialStock ? "In Stock" : "Sold Out";
+                                      return (
+                                        <div className="inline-flex items-center gap-1.5">
+                                          <span className={`font-black text-xs ${isSoldOut ? "text-rose-600" : isFullStock ? "text-emerald-700 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                                            {remQty}
+                                          </span>
+                                          <span className="text-slate-400 text-[10px]">/ {totQty}</span>
+                                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${badgeClass}`}>
+                                            {badgeLabel}
                                           </span>
                                         </div>
-                                      ))}
-                                    </div>
+                                      );
+                                    })()}
                                   </td>
-                                  <td className="p-3 text-center">
-                                    <div className="inline-flex items-center gap-1.5">
-                                      <span className={`font-black text-xs ${inStock ? "text-emerald-700" : "text-rose-600"}`}>
-                                        {remQty}
-                                      </span>
-                                      <span className="text-slate-400 text-[10px]">/ {totQty}</span>
-                                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
-                                        inStock ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                                      }`}>
-                                        {inStock ? "In Stock" : "Sold Out"}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-right font-black text-slate-900">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-black text-slate-900 dark:text-white">
                                     {money(total)}
                                   </td>
-                                  <td className="p-3 text-right text-emerald-600 font-bold">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right text-emerald-600 font-bold">
                                     {money(paid)}
                                   </td>
-                                  <td className="p-3 text-right font-black text-rose-600">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-black text-rose-600">
                                     {money(due)}
                                   </td>
-                                  <td className="p-3 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                                    <div className="flex items-center justify-center gap-1.5">
+                                  <td className="p-2 sm:p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border border-sky-200 dark:border-slate-700">
+                                    {/* Desktop Actions */}
+                                    <div className="hidden sm:flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
                                         title="View Purchase Order Bill"
                                         onClick={() => setSelectedViewProcure(p)}
-                                        className="p-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg transition"
+                                        className="p-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 dark:bg-slate-800 dark:text-sky-300 rounded-lg transition"
                                       >
                                         <Icon name="receipt" size={14} />
                                       </button>
@@ -5764,8 +5983,8 @@ Thank you for your business!`;
                                         <button
                                           type="button"
                                           title="Pay Supplier Bill"
-                                          onClick={() => handleEditPurchasePayment(p.rawRows?.[0] || p)}
-                                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition"
+                                          onClick={() => handlePayPurchaseOrder(p)}
+                                          className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-slate-800 dark:text-emerald-300 rounded-lg transition"
                                         >
                                           <Icon name="wallet" size={14} />
                                         </button>
@@ -5774,7 +5993,7 @@ Thank you for your business!`;
                                         type="button"
                                         title="Edit Purchase Order"
                                         onClick={() => handleEditProcurement(p)}
-                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition"
+                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-slate-800 dark:text-indigo-300 rounded-lg transition"
                                       >
                                         <Icon name="edit" size={14} />
                                       </button>
@@ -5782,10 +6001,62 @@ Thank you for your business!`;
                                         type="button"
                                         title="Delete Purchase Order"
                                         onClick={() => handleDeleteProcurement(p)}
-                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                                        className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-slate-800 dark:text-rose-300 rounded-lg transition"
                                       >
                                         <Icon name="trash" size={14} />
                                       </button>
+                                    </div>
+
+                                    {/* Mobile Kebab Dropdown Menu */}
+                                    <div className="relative inline-block text-left sm:hidden">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenMobileActionId(openMobileActionId === `po_${p.groupKey || p.id}` ? null : `po_${p.groupKey || p.id}`);
+                                        }}
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                        title="Actions"
+                                      >
+                                        <Icon name="more-vertical" size={15} />
+                                      </button>
+                                      {openMobileActionId === `po_${p.groupKey || p.id}` && (
+                                        <>
+                                          <div className="fixed inset-0 z-40" onClick={() => setOpenMobileActionId(null)} />
+                                          <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-left text-xs font-semibold">
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); setSelectedViewProcure(p); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
+                                            >
+                                              <Icon name="receipt" size={14} /> View PO Bill
+                                            </button>
+                                            {due > 0 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => { setOpenMobileActionId(null); handlePayPurchaseOrder(p); }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300"
+                                              >
+                                                <Icon name="wallet" size={14} /> Pay Due
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); handleEditProcurement(p); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                            >
+                                              <Icon name="edit" size={14} /> Edit PO
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); handleDeleteProcurement(p); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400"
+                                            >
+                                              <Icon name="trash" size={14} /> Delete PO
+                                            </button>
+                                          </div>
+                                        </>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
@@ -5992,7 +6263,7 @@ Thank you for your business!`;
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Amount", "మొత్తం")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Mode", "చెల్లింపు పద్ధతి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">{t("Actions", "చర్యలు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -6077,8 +6348,8 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-700 font-medium">
                                   {receiver?.name || "-"}
                                 </td>
-                                <td className="p-3 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                                  <div className="flex items-center justify-center gap-1.5">
+                                <td className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                  <div className="hidden sm:flex items-center justify-center gap-1.5">
                                     {c.source === "invoice" ? (
                                       <>
                                         <button
@@ -6116,6 +6387,85 @@ Thank you for your business!`;
                                         >
                                           <Icon name="trash" size={14} />
                                         </button>
+                                      </>
+                                    )}
+                                  </div>
+
+                                  {/* Mobile Kebab Dropdown Menu */}
+                                  <div className="relative inline-block text-left sm:hidden">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenMobileActionId(openMobileActionId === `col_${c.id}` ? null : `col_${c.id}`);
+                                      }}
+                                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                      title="Actions"
+                                    >
+                                      <Icon name="more-vertical" size={15} />
+                                    </button>
+                                    {openMobileActionId === `col_${c.id}` && (
+                                      <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setOpenMobileActionId(null)} />
+                                        <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-left text-xs font-semibold">
+                                          {c.source === "invoice" ? (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  setSelectedViewInvoice(c.rawInvoice || invoices.find((i) => i.id == c.invoice_id));
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
+                                              >
+                                                <Icon name="receipt" size={14} /> Receipt
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  handleEditInvoice(c.rawInvoice || invoices.find((i) => i.id == c.invoice_id));
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                              >
+                                                <Icon name="edit" size={14} /> Edit Invoice
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  setSelectedReceiptDetail(c);
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
+                                              >
+                                                <Icon name="receipt" size={14} /> View Receipt
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  handleEditCollection(c);
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                              >
+                                                <Icon name="edit" size={14} /> Edit
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  handleDeleteCollection(c);
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400"
+                                              >
+                                                <Icon name="trash" size={14} /> Delete
+                                              </button>
+                                            </>
+                                          )}
+                                        </div>
                                       </>
                                     )}
                                   </div>
@@ -6212,7 +6562,7 @@ Thank you for your business!`;
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Remaining Due", "మిగిలిన బకాయి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Payment Mode", "చెల్లింపు పద్ధతి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Funding Partner", "చెల్లించిన భాగస్వామి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Actions", "చర్యలు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -6277,8 +6627,8 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-700 font-medium">
                                   {partner?.name || (paid > 0 ? "Partner" : "-")}
                                 </td>
-                                <td className="p-3 text-center">
-                                  <div className="flex items-center justify-center gap-1.5">
+                                <td className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                  <div className="hidden sm:flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
                                       title="Edit / Record Payment"
@@ -6296,6 +6646,60 @@ Thank you for your business!`;
                                       >
                                         <Icon name="trash" size={14} />
                                       </button>
+                                    )}
+                                  </div>
+
+                                  {/* Mobile Kebab Dropdown Menu */}
+                                  <div className="relative inline-block text-left sm:hidden">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenMobileActionId(openMobileActionId === `pay_${p.id}` ? null : `pay_${p.id}`);
+                                      }}
+                                      className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                      title="Actions"
+                                    >
+                                      <Icon name="more-vertical" size={15} />
+                                    </button>
+                                    {openMobileActionId === `pay_${p.id}` && (
+                                      <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setOpenMobileActionId(null)} />
+                                        <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-left text-xs font-semibold">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setOpenMobileActionId(null);
+                                              setSelectedReceiptDetail({ ...p, isSupplierPayment: true });
+                                            }}
+                                            className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
+                                          >
+                                            <Icon name="receipt" size={14} /> Voucher
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setOpenMobileActionId(null);
+                                              handleEditPurchasePayment(p);
+                                            }}
+                                            className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                          >
+                                            <Icon name="edit" size={14} /> Edit Payment
+                                          </button>
+                                          {paid > 0 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setOpenMobileActionId(null);
+                                                handleDeletePurchasePayment(p);
+                                              }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400"
+                                            >
+                                              <Icon name="trash" size={14} /> Void Payment
+                                            </button>
+                                          )}
+                                        </div>
+                                      </>
                                     )}
                                   </div>
                                 </td>
@@ -7596,7 +8000,7 @@ Thank you for your business!`;
                               <th className="p-2.5">Oldest Bill Date</th>
                               <th className="p-2.5 text-center">Days Outstanding</th>
                               <th className="p-2.5 text-center">Aging Bracket</th>
-                              <th className="p-2.5 text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10">Actions</th>
+                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-24">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -7612,7 +8016,7 @@ Thank you for your business!`;
                                     {d.bucket}
                                   </span>
                                 </td>
-                                <td className="p-2.5 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
@@ -7697,7 +8101,7 @@ Thank you for your business!`;
                               <th className="p-2.5 text-right">Outstanding (₹)</th>
                               <th className="p-2.5">Last Purchase Date</th>
                               <th className="p-2.5 text-center">Aging Bracket</th>
-                              <th className="p-2.5 text-center sticky right-0 bg-[#e4effa] dark:bg-slate-800 z-10">Actions</th>
+                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-28">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -7712,7 +8116,7 @@ Thank you for your business!`;
                                     {s.bucket}
                                   </span>
                                 </td>
-                                <td className="p-2.5 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -10162,21 +10566,22 @@ Thank you for your business!`;
           const custTotalInvoiced = custInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
           const custTotalCollected = custCollections.reduce((s, c) => s + Number(c.amount || 0), 0);
 
-          // Format date and time for ledger display and sorting
+          // Format date for ledger display (Date ONLY, e.g. 30-Sep-2026) and sorting
           const formatLedgerDateWithTime = (dateStr, createdAtStr) => {
-            const dPart = dateStr ? dateStr.slice(0, 10) : (createdAtStr ? createdAtStr.slice(0, 10) : "-");
-            let tPart = "";
-            if (createdAtStr && typeof createdAtStr === "string" && createdAtStr.includes("T")) {
+            const rawPart = dateStr ? dateStr.slice(0, 10) : (createdAtStr ? createdAtStr.slice(0, 10) : "-");
+            let dDisplay = rawPart;
+            if (rawPart && rawPart.length === 10 && rawPart.includes("-")) {
               try {
-                const dt = new Date(createdAtStr);
-                if (!isNaN(dt.getTime())) {
-                  tPart = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+                const parts = rawPart.split("-");
+                if (parts.length === 3) {
+                  const dObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  if (!isNaN(dObj.getTime())) {
+                    dDisplay = dObj.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-");
+                  }
                 }
-              } catch {
-                tPart = "";
-              }
+              } catch {}
             }
-            return { date: dPart, time: tPart };
+            return { date: dDisplay, rawDate: rawPart, time: "" };
           };
 
           const parseTransactionTimestamp = (dateStr, createdAtStr, subOffset = 0) => {
@@ -10230,9 +10635,9 @@ Thank you for your business!`;
                 ? inv.items.map((it) => `${it.item_name || "Item"} (${it.qty || it.quantity || 1})`).join(", ")
                 : "Sales Goods";
               ledgerEntries.push({
-                rawDate: dtInfo.date,
+                rawDate: dtInfo.rawDate || dtInfo.date,
                 date: dtInfo.date,
-                time: dtInfo.time,
+                time: "",
                 timestamp: parseTransactionTimestamp(dt, inv.created_at, 0),
                 type: "Sales Invoice",
                 ref: inv.invoice_number || `INV-${inv.id}`,
@@ -10247,9 +10652,9 @@ Thank you for your business!`;
               const dt = col.collection_date || (col.created_at ? col.created_at.slice(0, 10) : "N/A");
               const dtInfo = formatLedgerDateWithTime(dt, col.created_at);
               ledgerEntries.push({
-                rawDate: dtInfo.date,
+                rawDate: dtInfo.rawDate || dtInfo.date,
                 date: dtInfo.date,
-                time: dtInfo.time,
+                time: "",
                 timestamp: parseTransactionTimestamp(dt, col.created_at, 1),
                 type: "Payment Received",
                 ref: col.reference_no || `REC-${col.id}`,
@@ -10271,9 +10676,9 @@ Thank you for your business!`;
               const billTimestamp = parseTransactionTimestamp(dt, p.created_at, 0);
 
               ledgerEntries.push({
-                rawDate: dtInfo.date,
+                rawDate: dtInfo.rawDate || dtInfo.date,
                 date: dtInfo.date,
-                time: dtInfo.time,
+                time: "",
                 timestamp: billTimestamp,
                 type: "Purchase Bill",
                 ref: poRef,
@@ -10283,21 +10688,42 @@ Thank you for your business!`;
                 mode: p.payment_mode || "Bill Payable"
               });
 
-              const paidAmt = Number(p.paid_amount !== undefined ? p.paid_amount : (p.p1_amount || 0));
-              if (paidAmt > 0) {
-                const payRef = poRef.startsWith("PUR-") ? poRef.replace("PUR-", "PAY-") : `PAY-${p.id}`;
-                ledgerEntries.push({
-                  rawDate: dtInfo.date,
-                  date: dtInfo.date,
-                  time: dtInfo.time,
-                  timestamp: billTimestamp + 1,
-                  type: "Supplier Payment",
-                  ref: payRef,
-                  desc: `Payment for Bill #${poRef}`,
-                  debit: 0,
-                  credit: paidAmt,
-                  mode: p.p1_mode || p.payment_mode || "Cash"
+              // Individual Payments made against this Purchase Order
+              if (Array.isArray(p.payments) && p.payments.length > 0) {
+                p.payments.forEach((pay, payIdx) => {
+                  const payDt = pay.date || dt;
+                  const payDtInfo = formatLedgerDateWithTime(payDt, pay.rawRow?.created_at || p.created_at);
+                  const payTimestamp = parseTransactionTimestamp(payDt, pay.rawRow?.created_at || p.created_at, payIdx + 1);
+                  ledgerEntries.push({
+                    rawDate: payDtInfo.rawDate || payDtInfo.date,
+                    date: payDtInfo.date,
+                    time: "",
+                    timestamp: payTimestamp,
+                    type: "Supplier Payment",
+                    ref: pay.ref || `PAY-${pay.id}`,
+                    desc: `Payment for Bill #${poRef} (${pay.partner_name || "Partner"})`,
+                    debit: 0,
+                    credit: Number(pay.amount || 0),
+                    mode: pay.payment_mode || "Cash"
+                  });
                 });
+              } else {
+                const paidAmt = Number(p.paid_amount !== undefined ? p.paid_amount : (p.p1_amount || 0));
+                if (paidAmt > 0) {
+                  const payRef = poRef.startsWith("PUR-") ? poRef.replace("PUR-", "PAY-") : `PAY-${p.id}`;
+                  ledgerEntries.push({
+                    rawDate: dtInfo.rawDate || dtInfo.date,
+                    date: dtInfo.date,
+                    time: "",
+                    timestamp: billTimestamp + 1,
+                    type: "Supplier Payment",
+                    ref: payRef,
+                    desc: `Payment for Bill #${poRef}`,
+                    debit: 0,
+                    credit: paidAmt,
+                    mode: p.p1_mode || p.payment_mode || "Cash"
+                  });
+                }
               }
             });
           }
@@ -10581,10 +11007,10 @@ Thank you for your business!`;
                             <th
                               onClick={() => setLedgerSortOrder(ledgerSortOrder === "asc" ? "desc" : "asc")}
                               className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition"
-                              title="Click to toggle Date & Time sort order"
+                              title="Click to toggle Date sort order"
                             >
                               <div className="flex items-center justify-between">
-                                <span>Date & Time</span>
+                                <span>Date</span>
                                 <span className="text-[10px] opacity-75">{ledgerSortOrder === "asc" ? "▲ Oldest" : "▼ Newest"}</span>
                               </div>
                             </th>
@@ -10624,13 +11050,8 @@ Thank you for your business!`;
                             finalLedgerRows.map((row, idx) => (
                               <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/40">
                                 <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-mono">{idx + 1}</td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                                   <div className="font-bold text-slate-800 dark:text-slate-200">{row.date}</div>
-                                  {row.time && (
-                                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">
-                                      🕒 {row.time}
-                                    </div>
-                                  )}
                                 </td>
                                 <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -10697,19 +11118,20 @@ Thank you for your business!`;
                           return true;
                         })
                       : supPurchases.filter((p) => {
-                          const dt = p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "";
+                          const dt = p.purchase_date || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "");
                           if (filterStartDate && dt < filterStartDate) return false;
                           if (filterEndDate && dt > filterEndDate) return false;
                           if (ledgerSearchQuery.trim()) {
                             const q = ledgerSearchQuery.toLowerCase();
-                            if (!(`BILL-${p.id}`).toLowerCase().includes(q)) return false;
+                            const refStr = (p.purchaseNum || `PUR-${p.id}`).toLowerCase();
+                            if (!refStr.includes(q)) return false;
                           }
                           return true;
                         });
 
                     const displayCollected = isCustomer
                       ? custCollections.filter((col) => {
-                          const dt = col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "";
+                          const dt = col.collection_date || (col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "");
                           if (filterStartDate && dt < filterStartDate) return false;
                           if (filterEndDate && dt > filterEndDate) return false;
                           if (ledgerSearchQuery.trim()) {
@@ -10719,11 +11141,17 @@ Thank you for your business!`;
                           }
                           return true;
                         })
-                      : supPurchases.filter((p) => {
+                      : procurements.filter((p) => {
+                          if (p.supplier_name !== currentParty.name && String(p.supplier_id) !== String(currentParty.id)) return false;
                           if (Number(p.p1_amount || 0) <= 0) return false;
-                          const dt = p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "";
+                          const dt = p.purchase_date || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "");
                           if (filterStartDate && dt < filterStartDate) return false;
                           if (filterEndDate && dt > filterEndDate) return false;
+                          if (ledgerSearchQuery.trim()) {
+                            const q = ledgerSearchQuery.toLowerCase();
+                            const payRef = p.reference_no || (p.receiver_2_mode?.startsWith("PUR-") ? p.receiver_2_mode.replace("PUR-", "PAY-") : `PAY-${p.id}`);
+                            if (!payRef.toLowerCase().includes(q) && !(p.item_name || "").toLowerCase().includes(q)) return false;
+                          }
                           return true;
                         });
 
@@ -10744,7 +11172,7 @@ Thank you for your business!`;
                             <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                               <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
                                 <tr>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Bill No</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Doc / Bill #</th>
                                   <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
                                   <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount</th>
                                   <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
@@ -10779,12 +11207,14 @@ Thank you for your business!`;
                                   ) : (
                                     displayInvoiced.map((p) => {
                                       const total = Number(p.total_amount || 0);
-                                      const paid = Number(p.p1_amount || 0);
+                                      const paid = Number(p.paid_amount !== undefined ? p.paid_amount : (p.p1_amount || 0));
                                       const due = Math.max(0, total - paid);
+                                      const poRef = p.purchaseNum || (p.receiver_2_mode?.startsWith("PUR-") ? p.receiver_2_mode : `PUR-${p.id}`);
+                                      const dtStr = p.purchase_date || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A");
                                       return (
                                         <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A"}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{poRef}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{dtStr}</td>
                                           <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(total)}</td>
                                           <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(paid)}</td>
                                           <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">{money(due)}</td>
@@ -10821,7 +11251,7 @@ Thank you for your business!`;
                                   ) : (
                                     displayCollected.map((col) => (
                                       <tr key={col.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A"}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{col.collection_date || (col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A")}</td>
                                         <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">
                                           {col.reference_no || `REC-${col.id}`}
                                           {col.isUpfront && (
@@ -10839,14 +11269,18 @@ Thank you for your business!`;
                                   displayCollected.length === 0 ? (
                                     <tr><td colSpan={4} className="p-3 text-center text-slate-400 font-sans">No payments recorded in filtered period</td></tr>
                                   ) : (
-                                    displayCollected.map((p) => (
-                                      <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A"}</td>
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">BILL-{p.id}</td>
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{p.p1_mode || "Cash"}</td>
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(p.p1_amount)}</td>
-                                      </tr>
-                                    ))
+                                    displayCollected.map((p) => {
+                                      const payRef = p.reference_no || (p.receiver_2_mode?.startsWith("PUR-") ? p.receiver_2_mode.replace("PUR-", "PAY-") : `PAY-${p.id}`);
+                                      const dtStr = p.purchase_date || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A");
+                                      return (
+                                        <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{dtStr}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{payRef}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{p.p1_mode || "Cash"}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(p.p1_amount)}</td>
+                                        </tr>
+                                      );
+                                    })
                                   )
                                 )}
                               </tbody>
@@ -11794,8 +12228,8 @@ Thank you for your business!`;
                     className="w-full p-2.5 border rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-600"
                     value={payPurchaseForm.purchase_id}
                 onChange={(e) => {
-                  const target = procurements.find((p) => p.id == e.target.value);
-                  const remDue = target ? Math.max(0, Number(target.total_amount || 0) - Number(target.p1_amount || 0)) : "";
+                  const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === e.target.value || po.purchaseNum === e.target.value);
+                  const remDue = targetPO ? Math.max(0, Number(targetPO.total_amount || 0) - Number(targetPO.paid_amount || 0)) : "";
                   setPayPurchaseForm({
                     ...payPurchaseForm,
                     purchase_id: e.target.value,
@@ -11804,13 +12238,13 @@ Thank you for your business!`;
                 }}
               >
                 <option value="">-- Choose Purchase Bill with Due --</option>
-                {procurements
-                  .filter((p) => editingPaymentId || p.id == payPurchaseForm.purchase_id || Number(p.total_amount || 0) > Number(p.p1_amount || 0))
-                  .map((p) => {
-                    const due = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
+                {purchaseOrdersGrouped
+                  .filter((po) => editingPaymentId || String(po.id) === String(payPurchaseForm.purchase_id) || (Number(po.total_amount || 0) - Number(po.paid_amount || 0)) > 0)
+                  .map((po) => {
+                    const due = Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0));
                     return (
-                      <option key={p.id} value={p.id}>
-                        {p.supplier_name} — Due: {money(due)} (PUR-{p.id})
+                      <option key={po.id} value={po.id}>
+                        {po.supplier_name} — Due: {money(due)} ({po.purchaseNum})
                       </option>
                     );
                   })}
@@ -11830,18 +12264,18 @@ Thank you for your business!`;
                       setMultiSupplierId(sid);
                       const targetSup = suppliers.find((s) => String(s.id) === sid);
                       if (targetSup) {
-                        const totalDue = procurements
-                          .filter((p) => p.supplier_name === targetSup.name)
-                          .reduce((s, p) => s + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)), 0);
+                        const totalDue = purchaseOrdersGrouped
+                          .filter((po) => po.supplier_name === targetSup.name)
+                          .reduce((s, po) => s + Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)), 0);
                         setPayPurchaseForm((prev) => ({ ...prev, amount: totalDue > 0 ? String(totalDue) : "" }));
                       }
                     }}
                   >
                     <option value="">-- Choose Supplier --</option>
                     {suppliers.map((s) => {
-                      const totalDue = procurements
-                        .filter((p) => p.supplier_name === s.name)
-                        .reduce((sum, p) => sum + Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)), 0);
+                      const totalDue = purchaseOrdersGrouped
+                        .filter((po) => po.supplier_name === s.name)
+                        .reduce((sum, po) => sum + Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)), 0);
                       return (
                         <option key={s.id} value={s.id}>
                           {s.name} — Pending Bills Due: {money(totalDue)}
@@ -11880,19 +12314,24 @@ Thank you for your business!`;
 
               {/* DETAILS CARD: SINGLE BILL MODE */}
               {paySupplierMode === "single" && payPurchaseForm.purchase_id && (() => {
-                const target = procurements.find((p) => p.id == payPurchaseForm.purchase_id);
+                const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === String(payPurchaseForm.purchase_id) || po.purchaseNum === payPurchaseForm.purchase_id);
+                const target = targetPO || procurements.find((p) => String(p.id) === String(payPurchaseForm.purchase_id));
                 if (!target) return null;
                 const tot = Number(target.total_amount || 0);
-                const paid = Number(target.p1_amount || 0);
+                const paid = Number(target.paid_amount !== undefined ? target.paid_amount : (target.p1_amount || 0));
                 const due = Math.max(0, tot - paid);
+                const poTitle = target.purchaseNum || (typeof target.receiver_2_mode === "string" && target.receiver_2_mode.startsWith("PUR-") ? target.receiver_2_mode : `PUR-${target.id}`);
+                const itemsSummary = Array.isArray(target.items) && target.items.length > 0
+                  ? target.items.map((it) => it.item_name).filter(Boolean).join(", ")
+                  : (target.item_name || "Items");
                 return (
                   <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1 text-xs">
                     <div className="flex justify-between font-bold text-slate-800">
-                      <span>PUR-{target.id}</span>
-                      <span className="text-slate-500">{target.created_at?.slice(0, 10)}</span>
+                      <span>{poTitle}</span>
+                      <span className="text-slate-500">{target.purchase_date || target.created_at?.slice(0, 10)}</span>
                     </div>
                     <div className="text-slate-600 font-medium">
-                      Supplier: <strong className="text-slate-900">{target.supplier_name}</strong> | Item: <strong className="text-slate-900">{target.item_name}</strong> ({target.procured_qty} qty)
+                      Supplier: <strong className="text-slate-900">{target.supplier_name}</strong> | Items: <strong className="text-slate-900">{itemsSummary}</strong>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-indigo-100 text-[11px]">
                       <span>Total: <strong>{money(tot)}</strong></span>
@@ -12506,14 +12945,17 @@ Thank you for your business!`;
                 {editingProcureId ? (
                   /* Edit Mode: Show Supplier Payments ERP Grid */
                   (() => {
-                    const currentProc = procurements.find((p) => p.id === editingProcureId);
-                    const totalPaid = Number(currentProc?.p1_amount || 0);
+                    const currentPO = purchaseOrdersGrouped.find(
+                      (po) => po.id === editingProcureId || po.purchaseNum === editingOrderRef || po.receiver_2_mode === editingOrderRef
+                    ) || {
+                      total_amount: procureGrandTotal,
+                      paid_amount: Number(procureForm.paid_now || 0),
+                      payments: []
+                    };
+                    const poPayments = currentPO.payments || [];
+                    const totalPaid = poPayments.reduce((s, pay) => s + Number(pay.amount || 0), 0);
                     const billTotalCost = procureGrandTotal;
                     const balanceDueNow = Math.max(0, billTotalCost - totalPaid);
-                    const pName = partners.find((p) => p.id == currentProc?.p1_id)?.name || "Partner";
-                    const pDate = currentProc?.purchase_date || (currentProc?.created_at ? currentProc.created_at.slice(0, 10) : "-");
-                    const datePart = pDate && pDate !== "-" ? pDate.replace(/-/g, "").slice(2) : "000000";
-                    const purchaseRef = currentProc ? `PUR-${datePart}-${String(currentProc.id).padStart(4, "0")}` : `BILL-${editingProcureId}`;
 
                     return (
                       <div className="space-y-3">
@@ -12521,9 +12963,20 @@ Thank you for your business!`;
                           <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                             💰 Supplier Payments Total:
                           </span>
-                          <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
-                            {money(totalPaid)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                              {money(totalPaid)}
+                            </span>
+                            {balanceDueNow > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handlePayPurchaseOrder(currentPO)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer transition"
+                              >
+                                <Icon name="plus" size={12} /> Record Payment
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
@@ -12535,31 +12988,68 @@ Thank you for your business!`;
                                 <th className="p-1.5 border border-sky-200 dark:border-slate-700">Funding Partner</th>
                                 <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Mode</th>
                                 <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right">Amount (₹)</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {totalPaid <= 0 ? (
+                              {poPayments.length === 0 ? (
                                 <tr>
-                                  <td colSpan={5} className="p-3 text-center text-slate-400 font-sans text-xs">
+                                  <td colSpan={6} className="p-3 text-center text-slate-400 font-sans text-xs">
                                     No payments recorded yet for this purchase bill (Full Due).
                                   </td>
                                 </tr>
                               ) : (
-                                <tr className="bg-white dark:bg-slate-900">
-                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
-                                    {pDate}
-                                  </td>
-                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
-                                    {purchaseRef}
-                                  </td>
-                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
-                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
-                                    {currentProc?.p1_mode || "Cash"}
-                                  </td>
-                                  <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
-                                    {money(totalPaid)}
-                                  </td>
-                                </tr>
+                                poPayments.map((pay, pIdx) => {
+                                  const pDate = pay.date || "-";
+                                  const pRef = pay.ref || `PAY-${pay.id}`;
+                                  const pName = pay.partner_name || "Partner";
+                                  return (
+                                    <tr key={pay.id || pIdx} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                                        {pDate}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
+                                        {pRef}
+                                        {pay.isUpfront && (
+                                          <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-sans">
+                                            Upfront
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                          pay.payment_mode === "UPI" ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
+                                        }`}>
+                                          {pay.payment_mode || "Cash"}
+                                        </span>
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                        {money(pay.amount)}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            title="Edit Payment"
+                                            onClick={() => handleEditPurchasePayment(pay.rawRow || pay)}
+                                            className="p-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded transition"
+                                          >
+                                            <Icon name="edit" size={12} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            title="Void / Delete Payment"
+                                            onClick={() => handleDeletePurchasePayment(pay.rawRow || pay)}
+                                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-300 rounded transition"
+                                          >
+                                            <Icon name="trash" size={12} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
                               )}
                             </tbody>
                           </table>
@@ -12627,7 +13117,7 @@ Thank you for your business!`;
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setShowProcureModal(false); setEditingProcureId(null); }}
+                  onClick={() => { setShowProcureModal(false); setEditingProcureId(null); setEditingOrderRef(null); }}
                   className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                 >
                   Cancel
@@ -12640,6 +13130,20 @@ Thank you for your business!`;
                   {savingProcure ? "Saving..." : editingProcureId ? "Update Purchase Order" : "Save Purchase Order"}
                 </button>
               </div>
+
+              {editingProcureId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProcureModal(false);
+                    setEditingProcureId(null);
+                    setEditingOrderRef(null);
+                  }}
+                  className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider cursor-pointer"
+                >
+                  Cancel Edit
+                </button>
+              )}
             </form>
           </div>
         </div>
@@ -13899,7 +14403,12 @@ Thank you for your business!`;
                 return sorted.map((p) => {
                   const rem = Number(p.remaining_qty || 0);
                   const inStock = rem > 0;
-                  const sellRate = Number(p.selling_rate || p.purchase_rate || 0);
+                  const masterObj = masterItems.find(
+                    (m) => (m.item_name || m.name || "").toLowerCase().trim() === (p.item_name || "").toLowerCase().trim()
+                  );
+                  const sellRate = masterObj && Number(masterObj.unit_price || 0) > 0
+                    ? Number(masterObj.unit_price)
+                    : Number(p.selling_rate || p.purchase_rate || 0);
 
                   return (
                     <div
