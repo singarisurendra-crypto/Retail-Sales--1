@@ -304,6 +304,7 @@ export default function App() {
   const [analysisSubTab, setAnalysisSubTab] = useState("sales");
 
   const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
+  const [selectedViewProcure, setSelectedViewProcure] = useState(null);
   const [settingsSubTab, setSettingsSubTab] = useState("general"); // "general" | "app_config"
   const [selectedReceiptDetail, setSelectedReceiptDetail] = useState(null);
   const [expandedPaymentRefId, setExpandedPaymentRefId] = useState(null);
@@ -1673,6 +1674,7 @@ export default function App() {
           id: p.id,
           groupKey: groupKey,
           purchaseNum: poNum,
+          receiver_2_mode: p.receiver_2_mode,
           purchase_date: p.purchase_date || p.created_at?.slice(0, 10),
           created_at: p.created_at,
           created_by: p.created_by,
@@ -3334,28 +3336,33 @@ Thank you for your business!`;
     const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : new Date().toISOString().split("T")[0]);
     const dtStr = pDate.replace(/-/g, "").slice(2);
     const defaultOrderRef = dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`;
-    const isPoRef = typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-");
-    const orderRef = isPoRef ? p.receiver_2_mode : defaultOrderRef;
+    const orderRef = (typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-"))
+      ? p.receiver_2_mode
+      : (typeof p.purchaseNum === "string" && p.purchaseNum.startsWith("PUR-") ? p.purchaseNum : defaultOrderRef);
     setEditingOrderRef(orderRef);
 
-    // Only match siblings if this is a genuine multi-line order reference starting with PUR-
-    const siblingRows = isPoRef
-      ? procurements.filter((x) => x.receiver_2_mode === p.receiver_2_mode)
-      : [p];
+    // Identify all line items belonging to this purchase order
+    const rawRows = (p.rawRows && p.rawRows.length > 0)
+      ? p.rawRows
+      : (p.items && p.items.length > 0)
+        ? p.items
+        : (orderRef && orderRef.startsWith("PUR-")
+            ? procurements.filter((x) => x.receiver_2_mode === orderRef)
+            : [p]);
 
-    const loadedLines = siblingRows.map((row) => ({
+    const loadedLines = rawRows.map((row) => ({
       procure_id: row.id,
       item_name: row.item_name || "",
       procured_qty: String(row.procured_qty || "1"),
       purchase_rate: String(row.purchase_rate || ""),
-      selling_rate: String(row.selling_rate || ""),
-      total: Number(row.total_amount || 0)
+      selling_rate: String(row.selling_rate || row.purchase_rate || ""),
+      total: Number(row.total_amount || (Number(row.procured_qty || 0) * Number(row.purchase_rate || 0)))
     }));
 
-    const totalPaidOnOrder = siblingRows.reduce((sum, r) => sum + Number(r.p1_amount || 0), 0);
+    const totalPaidOnOrder = rawRows.reduce((sum, r) => sum + Number(r.p1_amount || 0), 0);
 
     setProcureForm({
-      supplier_name: p.supplier_name || "",
+      supplier_name: p.supplier_name || rawRows[0]?.supplier_name || "",
       purchase_date: pDate,
       items: loadedLines.length > 0 ? loadedLines : [
         {
@@ -3367,14 +3374,14 @@ Thank you for your business!`;
           total: Number(p.total_amount || 0)
         }
       ],
-      item_name: p.item_name || "",
-      procured_qty: String(p.procured_qty || "1"),
-      purchase_rate: String(p.purchase_rate || ""),
-      selling_rate: String(p.selling_rate || ""),
+      item_name: loadedLines[0]?.item_name || p.item_name || "",
+      procured_qty: loadedLines[0]?.procured_qty || String(p.procured_qty || "1"),
+      purchase_rate: loadedLines[0]?.purchase_rate || String(p.purchase_rate || ""),
+      selling_rate: loadedLines[0]?.selling_rate || String(p.selling_rate || ""),
       is_opening: p.supplier_name === "Opening Stock",
       paid_now: String(totalPaidOnOrder),
-      p1_id: p.p1_id ? String(p.p1_id) : (partners[0]?.id ? String(partners[0].id) : ""),
-      p1_mode: p.p1_mode || "Cash"
+      p1_id: p.p1_id ? String(p.p1_id) : (rawRows[0]?.p1_id ? String(rawRows[0].p1_id) : (partners[0]?.id ? String(partners[0].id) : "")),
+      p1_mode: p.p1_mode || rawRows[0]?.p1_mode || "Cash"
     });
     setShowProcureModal(true);
   };
@@ -5693,11 +5700,11 @@ Thank you for your business!`;
                                   <td className="p-2.5 border border-sky-200 dark:border-slate-700">
                                     <button
                                       type="button"
-                                      onClick={() => handleEditProcurement(p)}
+                                      onClick={() => setSelectedViewProcure(p)}
                                       className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer flex items-center gap-1"
-                                      title="Click purchase number to edit purchase order"
+                                      title="Click to view purchase order bill"
                                     >
-                                      <Icon name="edit" size={13} />
+                                      <Icon name="receipt" size={13} />
                                       {p.purchaseNum}
                                     </button>
                                   </td>
@@ -5707,8 +5714,18 @@ Thank you for your business!`;
                                   <td className="p-3 text-slate-600 font-semibold">
                                     {p.supplier_name}
                                   </td>
-                                  <td className="p-3 font-bold text-slate-900">
-                                    <div>{itemsSummary}</div>
+                                  <td className="p-3">
+                                    <div className="space-y-1">
+                                      {itemsList.map((it, idx) => (
+                                        <div key={idx} className="flex items-center gap-1.5 text-xs">
+                                          <span className="font-bold text-slate-900 dark:text-white">{it.item_name}</span>
+                                          <span className="text-slate-500 dark:text-slate-400 text-[11px]">({it.procured_qty} pcs @ {money(it.purchase_rate)})</span>
+                                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px] ml-auto">
+                                            {money(Number(it.total_amount || (Number(it.procured_qty || 0) * Number(it.purchase_rate || 0))))}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </td>
                                   <td className="p-3 text-center">
                                     <div className="inline-flex items-center gap-1.5">
@@ -5734,6 +5751,14 @@ Thank you for your business!`;
                                   </td>
                                   <td className="p-3 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                                     <div className="flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        title="View Purchase Order Bill"
+                                        onClick={() => setSelectedViewProcure(p)}
+                                        className="p-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg transition"
+                                      >
+                                        <Icon name="receipt" size={14} />
+                                      </button>
                                       {due > 0 && (
                                         <button
                                           type="button"
@@ -6846,15 +6871,16 @@ Thank you for your business!`;
             if (rate > 0) costMap[key].rate = rate;
           });
           masterItems.forEach((m) => {
-            if (!m.name) return;
-            const key = m.name.trim().toLowerCase();
-            const rate = Number(m.purchase_rate || 0);
+            const itemName = (m.item_name || m.name || "").trim();
+            if (!itemName) return;
+            const key = itemName.toLowerCase();
+            const rate = Number(m.unit_price || m.purchase_rate || 0);
             if (!costMap[key]) costMap[key] = { cost: 0, qty: 0, rate: rate };
             else if (!costMap[key].rate && rate > 0) costMap[key].rate = rate;
           });
           const getItemCost = (name) => {
             if (!name) return 0;
-            const key = name.trim().toLowerCase();
+            const key = String(name).trim().toLowerCase();
             const item = costMap[key];
             if (!item) return 0;
             return item.qty > 0 ? item.cost / item.qty : item.rate;
@@ -7044,20 +7070,23 @@ Thank you for your business!`;
           });
 
           // Stock Items Valuation Breakdown
-          const stockInventoryList = masterItems
+          const stockInventoryList = (uniqueItemSuggestions.length > 0 ? uniqueItemSuggestions : masterItems)
             .map((m) => {
+              const itemName = (m.item_name || m.name || "").trim();
               const relatedProcs = procurements.filter(
-                (p) => p.item_name && p.item_name.trim().toLowerCase() === m.name.trim().toLowerCase()
+                (p) => p.item_name && p.item_name.trim().toLowerCase() === itemName.toLowerCase()
               );
               const totalProcured = relatedProcs.reduce((s, p) => s + Number(p.procured_qty || 0), 0);
               const remQty = relatedProcs.reduce((s, p) => s + Number(p.remaining_qty || 0), 0);
               const totalSold = Math.max(0, totalProcured - remQty);
-              const costRate = getItemCost(m.name);
+              const costRate = getItemCost(itemName) || Number(m.unit_price || m.purchase_rate || 0);
               const valuation = remQty * costRate;
               const isLow = remQty > 0 && remQty <= 5;
               const isOut = remQty <= 0;
               return {
                 ...m,
+                name: itemName,
+                item_name: itemName,
                 totalProcured,
                 remQty,
                 totalSold,
@@ -12144,6 +12173,9 @@ Thank you for your business!`;
                         onChange={(e) => handleUpdateProcureLine(idx, "item_name", e.target.value)}
                       >
                         <option value="">-- Choose Item / Product --</option>
+                        {line.item_name && !uniqueItemSuggestions.some((i) => i.name.toLowerCase() === line.item_name.trim().toLowerCase()) && (
+                          <option value={line.item_name}>{line.item_name}</option>
+                        )}
                         {uniqueItemSuggestions.map((item, itemIdx) => (
                           <option key={itemIdx} value={item.name}>
                             {item.name} {item.purchase_rate ? `(Default Cost: ₹${item.purchase_rate})` : ""}
@@ -13299,6 +13331,199 @@ Thank you for your business!`;
                 type="button"
                 onClick={() => window.print()}
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Icon name="download" size={15} /> Print / Save PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW PURCHASE ORDER BILL */}
+      {selectedViewProcure && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              #printable-procure-receipt, #printable-procure-receipt * { visibility: visible !important; }
+              #printable-procure-receipt {
+                position: fixed !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 15px !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              .no-print { display: none !important; }
+            }
+          `}</style>
+          <div id="printable-procure-receipt" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">Purchase Order Bill</span>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">{selectedViewProcure.purchaseNum || selectedViewProcure.receiver_2_mode || `PUR-${selectedViewProcure.id}`}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Date: {selectedViewProcure.purchase_date || selectedViewProcure.created_at?.slice(0, 10)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedViewProcure(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg no-print cursor-pointer"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800 p-3.5 rounded-xl border border-slate-100 dark:border-slate-700 flex justify-between items-center text-xs">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Supplier / Vendor</span>
+                <b className="text-slate-900 dark:text-white text-sm">{selectedViewProcure.supplier_name}</b>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-slate-400 uppercase block">Payment Status</span>
+                {(() => {
+                  const tot = Number(selectedViewProcure.total_amount || 0);
+                  const pd = Number(selectedViewProcure.paid_amount !== undefined ? selectedViewProcure.paid_amount : (selectedViewProcure.p1_amount || 0));
+                  const isSettled = pd >= tot && tot > 0;
+                  const isPartial = pd > 0 && pd < tot;
+                  return (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      isSettled ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" :
+                      isPartial ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" :
+                      "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200"
+                    }`}>
+                      {isSettled ? "Fully Paid" : isPartial ? "Partially Paid" : "Unpaid / Due"}
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Itemized Breakdown & Stock Status</h4>
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="p-2.5">#</th>
+                      <th className="p-2.5">Item</th>
+                      <th className="p-2.5 text-center">Qty</th>
+                      <th className="p-2.5 text-right">Cost Rate</th>
+                      <th className="p-2.5 text-right">Selling Rate</th>
+                      <th className="p-2.5 text-center">Tax</th>
+                      <th className="p-2.5 text-center">Stock Left</th>
+                      <th className="p-2.5 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {(() => {
+                      const itemsList = selectedViewProcure.rawRows && selectedViewProcure.rawRows.length > 0
+                        ? selectedViewProcure.rawRows
+                        : (selectedViewProcure.items && selectedViewProcure.items.length > 0
+                            ? selectedViewProcure.items
+                            : [selectedViewProcure]);
+                      return itemsList.map((it, idx) => {
+                        const q = Number(it.procured_qty || 0);
+                        const r = Number(it.purchase_rate || 0);
+                        const lineTotal = Number(it.total_amount || q * r);
+                        const rem = Number(it.remaining_qty !== undefined ? it.remaining_qty : q);
+                        return (
+                          <tr key={idx} className="odd:bg-white even:bg-slate-50/50 dark:odd:bg-slate-900 dark:even:bg-slate-800/40">
+                            <td className="p-2.5 text-slate-400">{idx + 1}</td>
+                            <td className="p-2.5 font-bold text-slate-900 dark:text-white">{it.item_name}</td>
+                            <td className="p-2.5 text-center font-semibold text-slate-800 dark:text-slate-200">{q}</td>
+                            <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{money(r)}</td>
+                            <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400 font-semibold">{money(it.selling_rate || r)}</td>
+                            <td className="p-2.5 text-center text-slate-400 text-[10px]">0% (Exempt)</td>
+                            <td className="p-2.5 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                rem > 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                              }`}>
+                                {rem} left
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-right font-black text-slate-900 dark:text-white">{money(lineTotal)}</td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800/90 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs font-mono">
+              <div className="flex justify-between font-bold text-slate-700 dark:text-slate-300">
+                <span>Subtotal:</span>
+                <span>{money(selectedViewProcure.total_amount)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-slate-500">
+                <span>Applicable Tax:</span>
+                <span>₹0.00 (Exempt)</span>
+              </div>
+              <div className="flex justify-between font-bold text-emerald-600 dark:text-emerald-400">
+                <span>Paid Now / Disbursed:</span>
+                <span>{money(selectedViewProcure.paid_amount !== undefined ? selectedViewProcure.paid_amount : (selectedViewProcure.p1_amount || 0))}</span>
+              </div>
+              <div className="flex justify-between font-black text-sm text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-700 pt-1.5">
+                <span>Balance Due to Supplier:</span>
+                <span className="text-rose-600 dark:text-rose-400">
+                  {money(Math.max(0, Number(selectedViewProcure.total_amount || 0) - Number(selectedViewProcure.paid_amount !== undefined ? selectedViewProcure.paid_amount : (selectedViewProcure.p1_amount || 0))))}
+                </span>
+              </div>
+            </div>
+
+            {/* Supplier Overall Balance */}
+            {(() => {
+              const sup = suppliers.find((s) => s.name === selectedViewProcure.supplier_name);
+              const overallDue = Number(sup?.old_due || 0);
+              return (
+                <div className={`p-3.5 rounded-xl border flex justify-between items-center text-xs ${
+                  overallDue > 0
+                    ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200"
+                    : overallDue < 0
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900 text-emerald-900 dark:text-emerald-200"
+                    : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                }`}>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider block opacity-75">
+                      Supplier Current Ledger Balance (సరఫరాదారు బకాయి / అడ్వాన్స్)
+                    </span>
+                    <span className="font-bold text-xs">
+                      {overallDue > 0 ? "Total Pending Payable" : overallDue < 0 ? "Supplier Advance Paid" : "Account All Clear"}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-black font-mono">
+                      {overallDue > 0
+                        ? `₹${overallDue.toLocaleString("en-IN")}`
+                        : overallDue < 0
+                        ? `Advance: ₹${Math.abs(overallDue).toLocaleString("en-IN")}`
+                        : "₹0 (Clear)"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-2 pt-2 no-print">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = selectedViewProcure;
+                  setSelectedViewProcure(null);
+                  handleEditProcurement(target);
+                }}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
+              >
+                <Icon name="edit" size={15} /> Edit Purchase Order
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
               >
                 <Icon name="download" size={15} /> Print / Save PDF
               </button>
