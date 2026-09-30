@@ -1502,7 +1502,8 @@ export default function App() {
           partner_name: pName,
           payment_mode: mode,
           amount: colAmt,
-          isDirect: true
+          isDirect: true,
+          rawRow: col
         });
       } else if (col.customer_id) {
         const custId = String(col.customer_id);
@@ -1515,7 +1516,8 @@ export default function App() {
           payment_mode: mode,
           amount: colAmt,
           created_at: col.created_at,
-          isDirect: false
+          isDirect: false,
+          rawRow: col
         });
       }
     });
@@ -1570,7 +1572,8 @@ export default function App() {
                 payment_mode: c.payment_mode,
                 amount: allocAmt,
                 isDirect: false,
-                isFIFO: true
+                isFIFO: true,
+                rawRow: c.rawRow || c
               });
               c.remainingAmt -= allocAmt;
               totalPaid += allocAmt;
@@ -4508,71 +4511,309 @@ Thank you for your business!`;
   }
 
   return (
-    <div className={`min-h-screen flex flex-col md:flex-row font-sans antialiased transition-colors duration-200 ${
+    <div className={`min-h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${
       darkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-800"
     } ${fontScale === "large" ? "text-base" : fontScale === "xl" ? "text-lg" : "text-sm"}`}>
-      {/* Mobile Header */}
-      <header className="md:hidden bg-slate-900 text-white p-3.5 flex items-center justify-between sticky top-0 z-40 shadow-md border-b border-slate-800">
-        <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 ${curTheme.primary} rounded-lg flex items-center justify-center font-black text-sm`}>B</div>
-          <span className="font-bold text-sm tracking-wide">B Reddy Sales</span>
+      {/* HORIZONTAL TOP NAVIGATION HEADER */}
+      <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md">
+        {/* Top Tier: Brand, Quick Actions & System Utilities */}
+        <div className="px-3.5 sm:px-6 py-2 flex items-center justify-between gap-3 border-b border-slate-800/80">
+          {/* Brand Logo & Name */}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShowProfileMenu((prev) => !prev)}
+              className="relative group cursor-pointer shrink-0"
+              title="Account Profile & Sign Out"
+            >
+              <div className={`w-8 h-8 sm:w-9 sm:h-9 ${curTheme.primary} rounded-xl flex items-center justify-center text-white font-black text-sm sm:text-base shadow-sm ring-1 ring-white/10 group-hover:scale-105 transition`}>
+                B
+              </div>
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full" />
+            </button>
+            <div>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="font-black text-white text-xs sm:text-sm md:text-base tracking-wide leading-tight">B REDDY SALES</h1>
+                <span className="hidden md:inline px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[10px] font-semibold rounded">Wholesale & Retail</span>
+              </div>
+              <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold hidden sm:block">JSR Retail System</p>
+            </div>
+          </div>
+
+          {/* Quick Action Shortcuts (Desktop) */}
+          <div className="hidden lg:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingCollectionId(null);
+                setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
+                setShowCollectModal(true);
+              }}
+              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+            >
+              <Icon name="rupee" size={13} /> {t("Collect Customer Due", "కస్టమర్ బకాయి వసూలు")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingPaymentId(null);
+                setIsBillLocked(false);
+                setPaySupplierMode("single");
+                setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
+                setShowPayPurchaseModal(true);
+              }}
+              className={`px-3 py-1 ${curTheme.primary} hover:opacity-95 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 transition shadow-2xs cursor-pointer`}
+            >
+              <Icon name="wallet" size={13} /> {t("Pay Purchase Bill", "సరుకు బిల్లు చెల్లింపు")}
+            </button>
+          </div>
+
+          {/* Utilities: Language, Theme, User Profile */}
+          <div className="flex items-center gap-2">
+            {/* Language Selector Pill */}
+            <button
+              type="button"
+              onClick={() => toggleLanguage()}
+              className="px-2.5 py-1 rounded-full border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 flex items-center gap-1 font-bold text-xs transition shadow-2xs cursor-pointer"
+              title="Change Language / భాష మార్చండి"
+            >
+              <span>🌐</span>
+              <span className="hidden sm:inline">{language === "en" ? "English" : "తెలుగు"}</span>
+              <span className="sm:hidden">{language === "en" ? "EN" : "తె"}</span>
+            </button>
+
+            {/* Dark/Light Mode Pill */}
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              className={`px-2.5 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 font-bold text-xs transition shadow-2xs cursor-pointer ${
+                darkMode ? "bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700" : "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
+              }`}
+              title="Toggle Theme"
+            >
+              {darkMode ? <span>🌙</span> : <span className="text-amber-500">☀️</span>}
+              <span className="hidden sm:inline">{darkMode ? "Dark" : "Light"}</span>
+            </button>
+
+            {/* Profile Avatar Button */}
+            <button
+              type="button"
+              onClick={() => setShowProfileMenu((prev) => !prev)}
+              className="relative flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 bg-slate-800 border border-slate-700 rounded-full hover:bg-slate-700 text-slate-200 transition text-xs font-bold cursor-pointer"
+              title="Account Profile & Sign Out"
+            >
+              <div className={`w-6 h-6 rounded-full ${curTheme.primary} text-white font-black text-[11px] flex items-center justify-center`}>
+                B
+              </div>
+              <span className="hidden md:inline max-w-[100px] truncate">
+                {currentUser?.name || "Admin"}
+              </span>
+              <span className="text-[9px] text-slate-400">▼</span>
+            </button>
+
+            {/* Logout Button */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="hidden sm:inline-flex text-[11px] bg-slate-800 hover:bg-rose-950/40 border border-slate-700 hover:border-rose-500/40 px-2.5 py-1 rounded-full text-rose-400 font-bold transition cursor-pointer"
+            >
+              Logout
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Language Toggle */}
+
+        {/* Lower Tier: Horizontal Top Navigation Bar */}
+        {/* EXACT ORDER: Menu | Dashboard | POS | Invoice & Receipts | Purchase & Stock | Payment & Collections | Analysis | Masters | Reports */}
+        <nav className="px-2 sm:px-4 py-1.5 bg-slate-900/95 overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1 sm:gap-1.5">
+          {/* 1. Menu */}
           <button
             type="button"
-            onClick={() => toggleLanguage()}
-            className="px-2.5 py-1 rounded-full border border-slate-700 text-slate-300 font-bold text-xs"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              sidebarOpen
+                ? "bg-indigo-600 text-white shadow-xs"
+                : ["ledger", "history_audit", "lenders", "expenses", "partners", "settings"].includes(activeTab)
+                ? "bg-slate-800 text-indigo-400 border border-indigo-500/50"
+                : "bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60"
+            }`}
+            title="Open Menu (Ledgers, Loans, Expenses, Settings & Quick Actions)"
           >
-            {language === "en" ? "EN" : "తెలుగు"}
+            <Icon name={sidebarOpen ? "close" : "menu"} size={15} />
+            <span>{t("Menu", "మెనూ")}</span>
+            <span className="text-[9px] text-slate-400">▼</span>
           </button>
-          {/* Light/Dark Pill */}
+
+          <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
+
+          {/* 2. Dashboard */}
           <button
             type="button"
-            onClick={toggleDarkMode}
-            className={`px-3 py-1 rounded-full border flex items-center gap-1 font-bold text-xs transition cursor-pointer ${
-              darkMode ? "bg-slate-800 border-slate-700 text-amber-400" : "bg-white border-slate-200 text-slate-800"
+            onClick={() => navigateTab("summary")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "summary"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
             }`}
           >
-            {darkMode ? <span>🌙</span> : <span>☀️</span>}
+            <Icon name="dashboard" size={15} />
+            <span>{t("Dashboard", "డ్యాష్‌బోర్డ్")}</span>
           </button>
+
+          {/* 3. POS */}
           <button
-            onClick={handleLogout}
-            className="text-[10px] bg-slate-800 px-2 py-1 rounded-lg text-rose-400 font-bold"
+            type="button"
+            onClick={() => navigateTab("sale")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "sale"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
           >
-            Logout
+            <Icon name="rupee" size={15} />
+            <span>{t("POS", "పీఓఎస్")}</span>
           </button>
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded-xl text-slate-300">
-            <Icon name={sidebarOpen ? "close" : "menu"} size={22} />
+
+          {/* 4. Invoice & Receipts */}
+          <button
+            type="button"
+            onClick={() => navigateTab("invoices")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "invoices"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Icon name="filetext" size={15} />
+            <span>{t("Invoice & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}</span>
           </button>
-        </div>
+
+          {/* 5. Purchase & Stock */}
+          <button
+            type="button"
+            onClick={() => navigateTab("purchases")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "purchases" || activeTab === "procurement"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Icon name="package" size={15} />
+            <span>{t("Purchase & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
+          </button>
+
+          {/* 6. Payment & Collections */}
+          <button
+            type="button"
+            onClick={() => navigateTab("payments_collections")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "payments_collections"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Icon name="receipt" size={15} />
+            <span>{t("Payment & Collections", "చెల్లింపులు & వసూళ్లు")}</span>
+          </button>
+
+          {/* 7. Analysis */}
+          <button
+            type="button"
+            onClick={() => navigateTab("analysis")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "analysis"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Icon name="chart" size={15} />
+            <span>{t("Analysis", "విశ్లేషణ")}</span>
+          </button>
+
+          {/* 8. Masters */}
+          <button
+            type="button"
+            onClick={() => navigateTab("masters")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "masters"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Icon name="layers" size={15} />
+            <span>{t("Masters", "మాస్టర్స్")}</span>
+          </button>
+
+          {/* 9. Reports */}
+          <button
+            type="button"
+            onClick={() => navigateTab("reports")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+              activeTab === "reports"
+                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
+          >
+            <Icon name="filetext" size={15} />
+            <span>{t("Reports", "నివేదికలు")}</span>
+          </button>
+        </nav>
       </header>
 
-      {/* SIDEBAR */}
+      {/* SLIDE-OUT NAVIGATION DRAWER (ACCESSED VIA "MENU" BUTTON) */}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen max-h-[100dvh] w-72 bg-slate-900 text-slate-300 flex flex-col justify-between z-40 transition-transform duration-200 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        className={`fixed top-0 left-0 h-screen max-h-[100dvh] w-80 bg-slate-900 text-slate-300 flex flex-col justify-between z-50 shadow-2xl transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <div className="p-5 border-b border-slate-800 hidden md:flex items-center justify-between">
+          {/* Drawer Header */}
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowProfileMenu((prev) => !prev)}
-                className="relative group cursor-pointer"
-                title="Account Profile & Sign Out (Gmail style)"
-              >
-                <div className={`w-10 h-10 ${curTheme.primary} rounded-full flex items-center justify-center text-white font-black text-xl shadow-lg ring-2 ring-indigo-400/40 group-hover:scale-105 transition`}>
-                  B
-                </div>
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-slate-900 rounded-full" />
-              </button>
+              <div className={`w-9 h-9 ${curTheme.primary} rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md`}>
+                B
+              </div>
               <div>
-                <h1 className="font-black text-white text-base tracking-wide leading-tight">B REDDY SALES</h1>
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Wholesale & Retail</p>
+                <h2 className="font-black text-white text-sm tracking-wide leading-tight">B REDDY SALES</h2>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Wholesale & Retail ERP</p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              title="Close Menu"
+            >
+              <Icon name="close" size={20} />
+            </button>
+          </div>
+
+          {/* Quick Action Buttons */}
+          <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block px-1">Quick Actions</span>
+            <button
+              onClick={() => {
+                setEditingCollectionId(null);
+                setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
+                setShowCollectModal(true);
+                setSidebarOpen(false);
+              }}
+              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer transition"
+            >
+              <Icon name="rupee" size={15} /> {t("Collect Customer Due", "కస్టమర్ బకాయి వసూలు")}
+            </button>
+            <button
+              onClick={() => {
+                setEditingPaymentId(null);
+                setIsBillLocked(false);
+                setPaySupplierMode("single");
+                setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
+                setShowPayPurchaseModal(true);
+                setSidebarOpen(false);
+              }}
+              className={`w-full py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer transition`}
+            >
+              <Icon name="wallet" size={15} /> {t("Pay Purchase Bill", "సరుకు కొనుగోలు బిల్లు చెల్లించండి")}
+            </button>
           </div>
 
           {/* Navigation Items */}
@@ -4582,41 +4823,41 @@ Thank you for your business!`;
               <div className="space-y-1">
                 <button
                   onClick={() => navigateTab("sale")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "sale" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="rupee" size={17} /> {t("POS Billing", "పీఓఎస్ బిల్లింగ్")}
+                  <Icon name="rupee" size={16} /> {t("POS Billing", "పీఓఎస్ బిల్లింగ్")}
                 </button>
                 <button
                   onClick={() => navigateTab("invoices")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "invoices" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="filetext" size={17} /> {t("Invoices & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}
+                  <Icon name="filetext" size={16} /> {t("Invoices & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}
                 </button>
               </div>
             </div>
 
             <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Purchases & Suppliers", "కొనుగోళ్లు & సరఫరాదారులు")}</span>
+              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Purchases & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
               <div className="space-y-1">
                 <button
                   onClick={() => navigateTab("purchases")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "purchases" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === "purchases" || activeTab === "procurement" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="package" size={17} /> {t("Purchases & Stock", "కొనుగోళ్లు & స్టాక్")}
+                  <Icon name="package" size={16} /> {t("Purchases & Stock Inventory", "కొనుగోళ్లు & స్టాక్")}
                 </button>
                 <button
                   onClick={() => navigateTab("payments_collections")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "payments_collections" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="receipt" size={17} /> {t("Payments & Collections", "చెల్లింపులు & వసూళ్లు")}
+                  <Icon name="receipt" size={16} /> {t("Payments & Collections", "చెల్లింపులు & వసూళ్లు")}
                 </button>
               </div>
             </div>
@@ -4626,60 +4867,59 @@ Thank you for your business!`;
               <div className="space-y-1">
                 <button
                   onClick={() => navigateTab("summary")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "summary" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="dashboard" size={17} /> {t("Business Snapshot", "వ్యాపార సమాచారం")}
+                  <Icon name="dashboard" size={16} /> {t("Business Snapshot (Dashboard)", "వ్యాపార సమాచారం")}
                 </button>
-                <button
-                  onClick={() => navigateTab("analysis")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "analysis" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="chart" size={17} /> {t("Analysis & Reports", "విశ్లేషణ & నివేదికలు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("history_audit")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="history" size={17} /> {t("Transaction Audit Ledger", "లావాదేవీల ఆడిట్ లెడ్జర్")}
-                </button>
-                <button
-                  onClick={() => navigateTab("lenders")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="handcoins" size={17} /> {t("Business Loans", "వ్యాపార రుణాలు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("expenses")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="creditcard" size={17} /> {t("Shop Expenses & Outflow", "షాపు ఖర్చులు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("reports")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                    activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="filetext" size={17} /> {t("B Reddy Excel Sheet (PDF)", "బి రెడ్డి ఎక్సెల్ షీట్ (PDF)")}
-                </button>
-                {/* RENAMED TO LEDGER STATEMENT (ITEM 3 & 8) */}
                 <button
                   onClick={() => navigateTab("ledger")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "ledger" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="layers" size={17} /> {t("Ledger Statement", "ఖాతా వివరాల నివేదిక")}
+                  <Icon name="layers" size={16} /> {t("Ledger Statement", "ఖాతా వివరాల నివేదిక")}
+                </button>
+                <button
+                  onClick={() => navigateTab("history_audit")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="history" size={16} /> {t("Transaction Audit Ledger", "లావాదేవీల ఆడిట్ లెడ్జర్")}
+                </button>
+                <button
+                  onClick={() => navigateTab("lenders")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="handcoins" size={16} /> {t("Business Loans", "వ్యాపార రుణాలు")}
+                </button>
+                <button
+                  onClick={() => navigateTab("expenses")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="creditcard" size={16} /> {t("Shop Expenses & Outflow", "షాపు ఖర్చులు")}
+                </button>
+                <button
+                  onClick={() => navigateTab("analysis")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === "analysis" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="chart" size={16} /> {t("Analysis & Insights", "విశ్లేషణ & నివేదికలు")}
+                </button>
+                <button
+                  onClick={() => navigateTab("reports")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  <Icon name="filetext" size={16} /> {t("B Reddy Excel Sheet (PDF)", "బి రెడ్డి ఎక్సెల్ షీట్ (PDF)")}
                 </button>
               </div>
             </div>
@@ -4689,139 +4929,63 @@ Thank you for your business!`;
               <div className="space-y-1">
                 <button
                   onClick={() => navigateTab("masters")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "masters" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="layers" size={17} /> {t("Master Management", "మాస్టర్ డేటా నిర్వహణ")}
+                  <Icon name="layers" size={16} /> {t("Master Management", "మాస్టర్ డేటా నిర్వహణ")}
                 </button>
                 <button
                   onClick={() => navigateTab("partners")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "partners" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <Icon name="wallet" size={17} /> {t("Partner Capital Accounts", "భాగస్వాముల మూలధన ఖాతాలు")}
+                  <Icon name="wallet" size={16} /> {t("Partner Capital Accounts", "భాగస్వాముల మూలధన ఖాతాలు")}
                 </button>
                 <button
                   onClick={() => navigateTab("settings")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     activeTab === "settings" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
                   }`}
                 >
-                  <span className="text-base">⚙️</span> {t("Settings", "సెట్టింగులు")}
+                  <span className="text-sm">⚙️</span> {t("System Settings", "సిస్టమ్ సెట్టింగులు")}
                 </button>
               </div>
             </div>
           </nav>
         </div>
 
-        <div className="p-4 border-t border-slate-800 space-y-2 shrink-0 bg-slate-900">
+        {/* Drawer Footer */}
+        <div className="p-3 border-t border-slate-800 flex items-center justify-between shrink-0 bg-slate-950">
+          <div className="flex items-center gap-2">
+            <div className={`w-7 h-7 rounded-full ${curTheme.primary} text-white font-black text-xs flex items-center justify-center`}>
+              B
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white leading-tight">{currentUser?.name || "Administrator"}</div>
+              <div className="text-[10px] text-slate-500 capitalize">{currentUser?.role || "Admin"}</div>
+            </div>
+          </div>
           <button
-            onClick={() => {
-              setEditingCollectionId(null);
-              setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
-              setShowCollectModal(true);
-              setSidebarOpen(false);
-            }}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow"
+            onClick={handleLogout}
+            className="text-xs bg-slate-800 hover:bg-rose-900/50 text-rose-400 font-bold px-2.5 py-1.5 rounded-lg border border-slate-700 hover:border-rose-700/50 transition cursor-pointer"
           >
-            <Icon name="rupee" size={15} /> {t("Collect Customer Due", "కస్టమర్ బకాయి వసూలు")}
-          </button>
-          <button
-            onClick={() => {
-              setEditingPaymentId(null);
-              setIsBillLocked(false);
-              setPaySupplierMode("single");
-              setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
-              setShowPayPurchaseModal(true);
-              setSidebarOpen(false);
-            }}
-            className={`w-full py-2.5 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow`}
-          >
-            <Icon name="wallet" size={15} /> {t("Pay Purchase Bill", "సరుకు కొనుగోలు బిల్లు చెల్లించండి")}
+            Logout
           </button>
         </div>
       </aside>
 
-      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-xs" />}
+      {/* BACKDROP FOR DRAWER */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/60 z-45 backdrop-blur-xs transition-opacity duration-300"
+        />
+      )}
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-3.5 sm:p-6 md:p-8 pb-24 md:pb-8 overflow-y-auto max-w-7xl mx-auto w-full">
-        {/* Desktop Topbar with Pill Toggle, Language Selector & Settings */}
-        <div className="hidden md:flex justify-between items-center pb-3.5 mb-4 border-b border-slate-200/60 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">JSR Retail System</span>
-            <span className={`text-xs font-black ${curTheme.text}`}>/ B Reddy Wholesale & Retail</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            {/* Language Selector Pill */}
-            <button
-              type="button"
-              onClick={() => toggleLanguage()}
-              className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 font-bold text-xs transition shadow-xs cursor-pointer ${
-                darkMode ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700" : "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
-              }`}
-              title="Change Language / భాష మార్చండి"
-            >
-              <span>🌐</span>
-              <span>{language === "en" ? "English" : "తెలుగు"}</span>
-            </button>
-
-            {/* Gmail-style User Profile Avatar Button (Item 5) */}
-            <button
-              type="button"
-              onClick={() => setShowProfileMenu((prev) => !prev)}
-              className="relative group flex items-center gap-2 pl-2 pr-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-xs cursor-pointer"
-              title="Account Profile & Sign Out"
-            >
-              <div className={`w-7 h-7 rounded-full ${curTheme.primary} text-white font-black text-xs flex items-center justify-center shadow-xs`}>
-                B
-              </div>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 hidden sm:inline">
-                {currentUser?.name || "Administrator"}
-              </span>
-              <span className="text-[10px] text-slate-400">▼</span>
-            </button>
-
-            {/* Pill Toggle matching user screenshot */}
-            <button
-              type="button"
-              onClick={toggleDarkMode}
-              className={`px-3.5 py-1.5 rounded-full border flex items-center gap-2 font-bold text-xs transition shadow-xs cursor-pointer ${
-                darkMode ? "bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700" : "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
-              }`}
-            >
-              {darkMode ? (
-                <>
-                  <span>🌙</span>
-                  <span>Dark</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-amber-500">☀️</span>
-                  <span>Light</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("settings")}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer border transition ${
-                activeTab === "settings"
-                  ? curTheme.primary
-                  : darkMode
-                  ? "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
-                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200"
-              }`}
-              title="System Settings"
-            >
-              <span>⚙️</span>
-              <span>Settings</span>
-            </button>
-          </div>
-        </div>
+      {/* MAIN CONTENT AREA - 100% FULL WIDTH */}
+      <main className="flex-1 p-3.5 sm:p-6 md:p-8 pb-24 md:pb-8 overflow-y-auto w-full">
 
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
@@ -5161,7 +5325,8 @@ Thank you for your business!`;
                                 : (partners.find((p) => String(p.id) === String(effectiveReceiver))?.name || "Store / Admin"),
                             payment_mode: effectiveMode,
                             amount: effectiveUpfront,
-                            isUpfront: true
+                            isUpfront: true,
+                            rawRow: oldInv
                           }
                         ]
                       : []),
@@ -5177,9 +5342,34 @@ Thank you for your business!`;
                           <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                             <span>💰</span> Collections Received Total:
                           </span>
-                          <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
-                            {money(totalPaidSoFar)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                              {money(totalPaidSoFar)}
+                            </span>
+                            {balanceDueNow > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const inv = currentEditingInvoice || invoices.find((i) => i.id === editingInvoiceId);
+                                  setEditingCollectionId(null);
+                                  setCollectForm({
+                                    customer_id: String(inv?.customer_id || selectedCust?.id || ""),
+                                    invoice_id: String(inv?.id || editingInvoiceId),
+                                    amount: String(balanceDueNow),
+                                    payment_mode: "Cash",
+                                    receiver_id: upfrontPartnerId || "",
+                                    reference_no: "",
+                                    notes: `Collection for ${inv?.invoice_number || "INV-" + (inv?.id || editingInvoiceId)}`
+                                  });
+                                  setShowCollectModal(true);
+                                }}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1 transition"
+                                title="Record payment collection against this invoice"
+                              >
+                                <Icon name="plus" size={12} /> Record Collection
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
@@ -5191,12 +5381,13 @@ Thank you for your business!`;
                                 <th className="p-1.5 border border-sky-200 dark:border-slate-700">Partner</th>
                                 <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Mode</th>
                                 <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right">Amount (₹)</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
                               {allInvoicePayments.length === 0 ? (
                                 <tr>
-                                  <td colSpan={5} className="p-3 text-center text-slate-400 font-sans text-xs">
+                                  <td colSpan={6} className="p-3 text-center text-slate-400 font-sans text-xs">
                                     No customer collections recorded yet for this invoice.
                                   </td>
                                 </tr>
@@ -5244,6 +5435,71 @@ Thank you for your business!`;
                                       </td>
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
                                         {money(c.amount)}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            title="Edit Collection"
+                                            onClick={() => {
+                                              if (c.isUpfront) {
+                                                const el = document.getElementById("upfront-payment-input");
+                                                if (el) {
+                                                  el.focus();
+                                                  el.scrollIntoView({ behavior: "smooth", block: "center" });
+                                                } else {
+                                                  alert(`Upfront payment can be modified in the Upfront Payment box.`);
+                                                }
+                                              } else if (c.isAdvanceLine) {
+                                                alert(`This advance line was added in this session. You can delete it using the trash button and re-apply from the Advance Credit section.`);
+                                              } else {
+                                                const targetCol = c.rawRow || collections.find((col) => String(col.id) === String(c.id).replace("col_", ""));
+                                                if (targetCol) {
+                                                  handleEditCollection(targetCol);
+                                                } else {
+                                                  setEditingCollectionId(c.id);
+                                                  setCollectForm({
+                                                    customer_id: String(oldInv?.customer_id || ""),
+                                                    invoice_id: String(oldInv?.id || ""),
+                                                    amount: String(c.amount),
+                                                    payment_mode: c.payment_mode || "Cash",
+                                                    receiver_id: c.receiver_id || upfrontPartnerId || "",
+                                                    reference_no: c.ref || "",
+                                                    notes: c.notes || ""
+                                                  });
+                                                  setShowCollectModal(true);
+                                                }
+                                              }
+                                            }}
+                                            className="p-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded transition cursor-pointer"
+                                          >
+                                            <Icon name="edit" size={12} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            title="Delete Collection"
+                                            onClick={async () => {
+                                              if (c.isUpfront) {
+                                                if (!confirm(`Void upfront payment of ${money(c.amount)} on this invoice?`)) return;
+                                                setUpfrontAmount("0");
+                                                alert("Upfront payment cleared to ₹0. Click 'Update & Save Invoice' to save changes.");
+                                              } else if (c.isAdvanceLine) {
+                                                if (!confirm(`Remove session advance credit of ${money(c.amount)}?`)) return;
+                                                setEditSessionAdvances((prev) => prev.filter((a) => a.id !== c.id));
+                                              } else {
+                                                const targetCol = c.rawRow || collections.find((col) => String(col.id) === String(c.id).replace("col_", ""));
+                                                if (targetCol) {
+                                                  handleDeleteCollection(targetCol);
+                                                } else {
+                                                  handleDeleteCollection(c);
+                                                }
+                                              }
+                                            }}
+                                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-300 rounded transition cursor-pointer"
+                                          >
+                                            <Icon name="trash" size={12} />
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -5296,6 +5552,7 @@ Thank you for your business!`;
                     <div className="relative">
                       <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">₹</span>
                       <input
+                        id="upfront-payment-input"
                         type="number"
                         placeholder="0"
                         className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-black text-emerald-600 outline-none"
@@ -6554,7 +6811,6 @@ Thank you for your business!`;
                               <tr>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Payment ID / Ref", "చెల్లింపు ID / రెఫరెన్స్")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">{t("Created", "సృష్టించబడింది")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Supplier Name", "సరఫరాదారు పేరు")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Item Procured", "కొనుగోలు చేసిన వస్తువు")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
@@ -6568,7 +6824,7 @@ Thank you for your business!`;
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                               {pagedSupplierPayments.length === 0 ? (
                                 <tr>
-                                  <td colSpan={10} className="p-8 text-center text-slate-400">
+                                  <td colSpan={9} className="p-8 text-center text-slate-400">
                                     No supplier payments recorded.
                                   </td>
                                 </tr>
@@ -6593,10 +6849,6 @@ Thank you for your business!`;
                                 </td>
                                 <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {p.purchase_date || p.created_at?.slice(0, 10)}
-                                </td>
-                                <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
-                                  <div className="font-semibold text-slate-700 dark:text-slate-300">{formatCreated(p.created_at)}</div>
-                                  <div className="text-[10px] text-slate-400">By: {partner?.name || "Admin (B Reddy)"}</div>
                                 </td>
                                 <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {p.supplier_name}
@@ -12185,7 +12437,7 @@ Thank you for your business!`;
 
       {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
       {showPayPurchaseModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-[70] overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
             <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
 
@@ -12477,7 +12729,7 @@ Thank you for your business!`;
 
       {/* MODAL: INVOICE-WISE DUE COLLECTION */}
       {showCollectModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-[70] overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
             <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
             <form onSubmit={saveInvoiceCollection} className="space-y-3">
@@ -12697,9 +12949,22 @@ Thank you for your business!`;
                 const datePart = pDate ? pDate.replace(/-/g, "").slice(2) : "000000";
                 const purchaseNum = p ? `PUR-${datePart}-${String(p.id).padStart(4, "0")}` : `PUR-${editingProcureId}`;
                 return (
-                  <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                    {purchaseNum}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProcureModal(false);
+                        setEditingProcureId(null);
+                        setEditingOrderRef(null);
+                      }}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
+                    >
+                      ← Cancel Edit
+                    </button>
+                    <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      {purchaseNum}
+                    </span>
+                  </div>
                 );
               })()}
             </div>
@@ -13115,13 +13380,15 @@ Thank you for your business!`;
 
               {/* Action Buttons */}
               <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => { setShowProcureModal(false); setEditingProcureId(null); setEditingOrderRef(null); }}
-                  className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                >
-                  Cancel
-                </button>
+                {!editingProcureId && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowProcureModal(false); setEditingProcureId(null); setEditingOrderRef(null); }}
+                    className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={savingProcure}
@@ -13139,7 +13406,7 @@ Thank you for your business!`;
                     setEditingProcureId(null);
                     setEditingOrderRef(null);
                   }}
-                  className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider cursor-pointer"
+                  className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider cursor-pointer"
                 >
                   Cancel Edit
                 </button>
@@ -13555,7 +13822,7 @@ Thank you for your business!`;
             onClick={() => setShowProfileMenu(false)}
             className="fixed inset-0 z-40"
           />
-          <div className="fixed top-16 right-4 sm:right-8 z-50 w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="fixed top-20 sm:top-24 right-4 sm:right-8 z-50 w-80 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             {/* Header / Avatar */}
             <div className="flex flex-col items-center text-center space-y-2 pt-2">
               <div className="relative">
