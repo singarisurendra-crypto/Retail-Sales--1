@@ -302,6 +302,7 @@ export default function App() {
   const [analysisFromDate, setAnalysisFromDate] = useState("");
   const [analysisToDate, setAnalysisToDate] = useState("");
   const [analysisSubTab, setAnalysisSubTab] = useState("sales");
+  const [analysisSearchQuery, setAnalysisSearchQuery] = useState("");
 
   const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
   const [selectedViewProcure, setSelectedViewProcure] = useState(null);
@@ -7212,175 +7213,223 @@ Thank you for your business!`;
           };
 
           return (
-            <div className="space-y-6">
-              {/* TOP HEADER & UNIVERSAL PERIOD SELECTOR */}
-              <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                      <Icon name="chart" size={24} className="text-indigo-600" />
-                      Comprehensive Analysis & Reports
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                      Real-time analytical intelligence, aging ledgers, visual metrics, and periodic P&L
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleExportAnalysisCSV}
-                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                    >
-                      <Icon name="download" size={14} /> Export CSV
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAnalysisSubTab("export_print")}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                    >
-                      <span>🖨️</span> Print Report
-                    </button>
-                  </div>
+            <div className="space-y-5">
+              {/* TOP HEADER */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Icon name="chart" size={24} className="text-indigo-600" />
+                    Comprehensive Analysis & Reports
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                    Real-time analytical intelligence, aging ledgers, visual metrics, and periodic P&L
+                  </p>
                 </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportAnalysisCSV}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                  >
+                    <Icon name="download" size={14} /> Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnalysisSubTab("export_print")}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                  >
+                    <span>🖨️</span> Print Report
+                  </button>
+                </div>
+              </div>
 
-                {/* PERIOD PRESET BUTTONS & CUSTOM DATES */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
-                    {[
-                      { id: "today", label: "Today" },
-                      { id: "yesterday", label: "Yesterday" },
-                      { id: "this_week", label: "This Week" },
-                      { id: "this_month", label: "This Month" },
-                      { id: "last_month", label: "Last Month" },
-                      { id: "this_year", label: "This Year" },
-                      { id: "all", label: "All Time" },
-                      { id: "custom", label: "Custom Dates" }
-                    ].map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setAnalysisPeriod(p.id)}
-                        className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition cursor-pointer ${
-                          analysisPeriod === p.id
-                            ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs"
-                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
+              {/* FILTER TOOLBAR (MATCHING PAYMENTS & COLLECTIONS IN IMAGE 1) */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-2.5 text-slate-400">
+                      <Icon name="search" size={15} />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search analysis records (customers, items, suppliers, receipts)..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                      value={analysisSearchQuery}
+                      onChange={(e) => setAnalysisSearchQuery(e.target.value)}
+                    />
                   </div>
 
-                  {analysisPeriod === "custom" && (
-                    <div className="flex items-center gap-2 text-xs font-semibold">
-                      <div className="flex items-center gap-1">
-                        <span className="text-slate-500">From:</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Period Filter Dropdown */}
+                    <select
+                      className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
+                      value={analysisPeriod}
+                      onChange={(e) => setAnalysisPeriod(e.target.value)}
+                    >
+                      <option value="all">📅 All Time</option>
+                      <option value="today">Today</option>
+                      <option value="yesterday">Yesterday</option>
+                      <option value="this_week">This Week</option>
+                      <option value="this_month">This Month</option>
+                      <option value="last_month">Last Month</option>
+                      <option value="this_year">This Year</option>
+                      <option value="custom">Custom Dates</option>
+                    </select>
+
+                    {/* Custom Date Pickers */}
+                    {analysisPeriod === "custom" && (
+                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold">
+                        <span className="text-slate-400 font-bold">From:</span>
                         <input
                           type="date"
                           value={analysisFromDate}
                           onChange={(e) => setAnalysisFromDate(e.target.value)}
-                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-xs font-bold"
+                          className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                         />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-slate-500">To:</span>
+                        <span className="text-slate-400">→</span>
+                        <span className="text-slate-400 font-bold">To:</span>
                         <input
                           type="date"
                           value={analysisToDate}
                           onChange={(e) => setAnalysisToDate(e.target.value)}
-                          className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none text-xs font-bold"
+                          className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
                         />
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <div className="text-right text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/50 self-start lg:self-auto">
-                    📅 {periodLabel}
+                    {/* Active Period Badge */}
+                    <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900/50 whitespace-nowrap">
+                      📅 {periodLabel}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 9 KPI SUMMARY CARDS */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-9 gap-3">
-                {/* 1. Total Revenue */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sales Revenue</span>
-                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
-                    {money(totalRevenue)}
-                  </b>
-                  <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 block">{totalInvoicesCount} invoices</span>
+              {/* TWO-TIER FINANCIAL KPI SUMMARY GRID (ZERO TRUNCATION) */}
+              <div className="space-y-3.5">
+                {/* TIER 1: 5 Core Financial Performance Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                  {/* 1. Total Revenue */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-blue-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sales Revenue</span>
+                      <div className="text-lg xl:text-xl font-black text-blue-600 dark:text-blue-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {money(totalRevenue)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
+                      {totalInvoicesCount} invoices (Avg: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)})
+                    </span>
+                  </div>
+
+                  {/* 2. Total Purchases */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-indigo-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Purchases Spend</span>
+                      <div className="text-lg xl:text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {money(totalPurchasesSpend)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
+                      {totalPurchasesCount} orders (Avg: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)})
+                    </span>
+                  </div>
+
+                  {/* 3. Collections */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-emerald-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Collections Received</span>
+                      <div className="text-lg xl:text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {money(totalCollections)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
+                      {periodCollections.length} receipts recorded
+                    </span>
+                  </div>
+
+                  {/* 4. Gross Profit */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-teal-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gross Profit</span>
+                      <div className={`text-lg xl:text-xl font-black mt-1.5 whitespace-nowrap font-mono tracking-tight ${
+                        grossProfit >= 0 ? "text-teal-600 dark:text-teal-400" : "text-rose-600"
+                      }`}>
+                        {money(grossProfit)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-teal-600 dark:text-teal-400 font-semibold mt-2 block">
+                      {grossMargin}% gross margin
+                    </span>
+                  </div>
+
+                  {/* 5. Stock Valuation */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-cyan-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Stock Valuation</span>
+                      <div className="text-lg xl:text-xl font-black text-cyan-700 dark:text-cyan-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {money(inventoryValuation)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
+                      {masterItems.length} active inventory SKUs
+                    </span>
+                  </div>
                 </div>
 
-                {/* 2. Total Purchases */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Purchases</span>
-                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
-                    {money(totalPurchasesSpend)}
-                  </b>
-                  <span className="text-[10px] text-indigo-600 font-semibold mt-0.5 block">{totalPurchasesCount} orders</span>
-                </div>
+                {/* TIER 2: 4 Dues & Order Volume Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {/* 6. Customer Outstanding Dues */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-rose-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Customer Outstanding Dues</span>
+                      <div className="text-lg xl:text-xl font-black text-rose-600 dark:text-rose-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {money(totalCustomerDues)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-rose-500 font-semibold mt-2 block">
+                      {debtorsList.length} customers with pending balance
+                    </span>
+                  </div>
 
-                {/* 3. Collections */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Collections</span>
-                  <b className="text-lg font-black text-emerald-600 mt-1 block truncate">
-                    {money(totalCollections)}
-                  </b>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">{periodCollections.length} receipts</span>
-                </div>
+                  {/* 7. Supplier Outstanding Dues */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-amber-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">Supplier Pending Payables</span>
+                      <div className="text-lg xl:text-xl font-black text-amber-600 dark:text-amber-400 mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {money(totalSupplierDues)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-amber-500 font-semibold mt-2 block">
+                      {payablesList.length} suppliers awaiting payment
+                    </span>
+                  </div>
 
-                {/* 4. Customer Due */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Customer Dues</span>
-                  <b className="text-lg font-black text-rose-600 mt-1 block truncate">
-                    {money(totalCustomerDues)}
-                  </b>
-                  <span className="text-[10px] text-rose-400 font-semibold mt-0.5 block">{debtorsList.length} debtors</span>
-                </div>
+                  {/* 8. Bills Issued */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-purple-500 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bills Issued</span>
+                      <div className="text-lg xl:text-xl font-black text-slate-900 dark:text-white mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {totalInvoicesCount} Invoices
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
+                      Average Ticket: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}
+                    </span>
+                  </div>
 
-                {/* 5. Supplier Due */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">Supplier Dues</span>
-                  <b className="text-lg font-black text-amber-600 mt-1 block truncate">
-                    {money(totalSupplierDues)}
-                  </b>
-                  <span className="text-[10px] text-amber-400 font-semibold mt-0.5 block">{payablesList.length} payables</span>
-                </div>
-
-                {/* 6. Gross Profit */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">Gross Profit</span>
-                  <b className={`text-lg font-black mt-1 block truncate ${grossProfit >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
-                    {money(grossProfit)}
-                  </b>
-                  <span className="text-[10px] text-indigo-400 font-semibold mt-0.5 block">{grossMargin}% margin</span>
-                </div>
-
-                {/* 7. Stock Valuation */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-cyan-600 uppercase tracking-wider block">Stock Valuation</span>
-                  <b className="text-lg font-black text-cyan-700 dark:text-cyan-400 mt-1 block truncate">
-                    {money(inventoryValuation)}
-                  </b>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">{masterItems.length} active SKUs</span>
-                </div>
-
-                {/* 8. Invoices Count */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Bills Issued</span>
-                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
-                    {totalInvoicesCount}
-                  </b>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">Avg: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}</span>
-                </div>
-
-                {/* 9. Purchases Count */}
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">POs Recorded</span>
-                  <b className="text-lg font-black text-slate-900 dark:text-white mt-1 block truncate">
-                    {totalPurchasesCount}
-                  </b>
-                  <span className="text-[10px] text-slate-400 font-semibold mt-0.5 block">Avg: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}</span>
+                  {/* 9. POs Recorded */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-slate-400 shadow-xs flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">POs Recorded</span>
+                      <div className="text-lg xl:text-xl font-black text-slate-900 dark:text-white mt-1.5 whitespace-nowrap font-mono tracking-tight">
+                        {totalPurchasesCount} Orders
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-semibold mt-2 block">
+                      Average Order: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
