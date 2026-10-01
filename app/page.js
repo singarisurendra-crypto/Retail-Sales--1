@@ -242,6 +242,16 @@ export default function App() {
   const [customers, setCustomers] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [masterItems, setMasterItems] = useState([]);
+  const [itemRatesMap, setItemRatesMap] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("jsr_master_item_rates") || "{}");
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
   const [invoices, setInvoices] = useState([]);
   const [collections, setCollections] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -1088,7 +1098,30 @@ export default function App() {
         }
       }
 
-      if (pr.data) setProcurements(pr.data);
+      if (pr.data) {
+        setProcurements(pr.data);
+        const openingStockRates = {};
+        pr.data.forEach((p) => {
+          if (p.supplier_name === "Opening Stock" && p.item_name) {
+            const key = p.item_name.toLowerCase().trim();
+            if (!openingStockRates[key]) {
+              openingStockRates[key] = {
+                purchase_rate: Number(p.purchase_rate || 0),
+                selling_rate: Number(p.selling_rate || 0)
+              };
+            }
+          }
+        });
+        setItemRatesMap((prev) => {
+          let stored = {};
+          if (typeof window !== "undefined") {
+            try {
+              stored = JSON.parse(localStorage.getItem("jsr_master_item_rates") || "{}");
+            } catch (err) {}
+          }
+          return { ...openingStockRates, ...stored, ...prev };
+        });
+      }
       if (c.data) setCustomers(c.data);
       if (inv.data) setInvoices(inv.data);
       if (col.data) setCollections(col.data);
@@ -1124,38 +1157,79 @@ export default function App() {
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     const costMap = new Map();
+    const sellMap = new Map();
+
     procurements.forEach((p) => {
-      const trimmed = (p.item_name || "").trim();
-      if (trimmed && Number(p.purchase_rate || 0) > 0 && !costMap.has(trimmed.toLowerCase())) {
-        costMap.set(trimmed.toLowerCase(), Number(p.purchase_rate));
+      const trimmed = (p.item_name || "").trim().toLowerCase();
+      if (!trimmed) return;
+      if (Number(p.purchase_rate || 0) > 0 && (!costMap.has(trimmed) || p.supplier_name === "Opening Stock")) {
+        costMap.set(trimmed, Number(p.purchase_rate));
+      }
+      if (Number(p.selling_rate || 0) > 0 && (!sellMap.has(trimmed) || p.supplier_name === "Opening Stock")) {
+        sellMap.set(trimmed, Number(p.selling_rate));
       }
     });
 
     masterItems.forEach((i) => {
       const trimmed = (i.item_name || i.name || "").trim();
-      if (trimmed && !map.has(trimmed.toLowerCase())) {
-        const cost = costMap.get(trimmed.toLowerCase()) || i.purchase_rate || i.unit_price || 0;
-        map.set(trimmed.toLowerCase(), {
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      const reg = itemRatesMap[key] || {};
+
+      // Priority 1: Master Registry (localStorage/state)
+      // Priority 2: i.purchase_rate on object
+      // Priority 3: Opening Stock / latest procurement costMap
+      // Priority 4: unit_price or 0
+      const purchaseRate = reg.purchase_rate !== undefined && reg.purchase_rate !== null && reg.purchase_rate !== ""
+        ? Number(reg.purchase_rate)
+        : (i.purchase_rate !== undefined && i.purchase_rate !== null && Number(i.purchase_rate) > 0
+            ? Number(i.purchase_rate)
+            : (costMap.get(key) || Number(i.unit_price || 0)));
+
+      // Priority 1: Master Registry (localStorage/state)
+      // Priority 2: i.unit_price from Supabase items table
+      // Priority 3: Opening Stock / latest procurement sellMap
+      // Priority 4: purchaseRate fallback
+      const sellingRate = reg.selling_rate !== undefined && reg.selling_rate !== null && reg.selling_rate !== ""
+        ? Number(reg.selling_rate)
+        : (Number(i.unit_price || 0) > 0
+            ? Number(i.unit_price)
+            : (sellMap.get(key) || (i.selling_rate ? Number(i.selling_rate) : purchaseRate)));
+
+      if (!map.has(key)) {
+        map.set(key, {
           id: i.id,
           name: trimmed,
-          purchase_rate: cost,
-          selling_rate: i.unit_price || i.selling_rate || cost
+          purchase_rate: purchaseRate,
+          selling_rate: sellingRate
         });
       }
     });
+
     procurements.forEach((p) => {
       const trimmed = (p.item_name || "").trim();
-      if (trimmed && !map.has(trimmed.toLowerCase())) {
-        map.set(trimmed.toLowerCase(), {
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (!map.has(key)) {
+        const reg = itemRatesMap[key] || {};
+        const purchaseRate = reg.purchase_rate !== undefined && reg.purchase_rate !== null && reg.purchase_rate !== ""
+          ? Number(reg.purchase_rate)
+          : (costMap.get(key) || Number(p.purchase_rate || 0));
+        const sellingRate = reg.selling_rate !== undefined && reg.selling_rate !== null && reg.selling_rate !== ""
+          ? Number(reg.selling_rate)
+          : (sellMap.get(key) || Number(p.selling_rate || p.purchase_rate || 0));
+
+        map.set(key, {
           id: null,
           name: trimmed,
-          purchase_rate: Number(p.purchase_rate || 0),
-          selling_rate: Number(p.selling_rate || p.purchase_rate || 0)
+          purchase_rate: purchaseRate,
+          selling_rate: sellingRate
         });
       }
     });
+
     return Array.from(map.values());
-  }, [masterItems, procurements]);
+  }, [masterItems, procurements, itemRatesMap]);
 
   const uniqueSupplierSuggestions = useMemo(() => {
     const set = new Set();
@@ -2087,12 +2161,16 @@ export default function App() {
 
   const handlePickStockItem = (item) => {
     if (pickerActiveIndex === null) return;
+    const itemKey = (item.item_name || "").toLowerCase().trim();
     const masterObj = masterItems.find(
-      (m) => (m.item_name || m.name || "").toLowerCase().trim() === (item.item_name || "").toLowerCase().trim()
+      (m) => (m.item_name || m.name || "").toLowerCase().trim() === itemKey
     );
-    const defaultSellingRate = masterObj && Number(masterObj.unit_price || 0) > 0
-      ? Number(masterObj.unit_price)
-      : Number(item.selling_rate || item.purchase_rate || 0);
+    const regSellRate = itemRatesMap[itemKey]?.selling_rate;
+    const defaultSellingRate = regSellRate !== undefined && Number(regSellRate) > 0
+      ? Number(regSellRate)
+      : (masterObj && Number(masterObj.unit_price || 0) > 0
+          ? Number(masterObj.unit_price)
+          : Number(item.selling_rate || item.purchase_rate || 0));
 
     const newCart = [...cart];
     newCart[pickerActiveIndex] = {
@@ -3103,11 +3181,28 @@ Thank you for your business!`;
 
   // ITEM MASTER HANDLERS
   const handleEditItem = (item) => {
-    setEditingItemId(item.id);
+    setEditingItemId(item.id || null);
+    const resolvedName = item.name || item.item_name || "";
+    const key = resolvedName.toLowerCase().trim();
+    const reg = itemRatesMap[key] || {};
+
+    const pRate = reg.purchase_rate !== undefined && reg.purchase_rate !== null && reg.purchase_rate !== ""
+      ? reg.purchase_rate
+      : (item.purchase_rate !== undefined && item.purchase_rate !== null && item.purchase_rate !== ""
+          ? item.purchase_rate
+          : "");
+
+    const sRate = reg.selling_rate !== undefined && reg.selling_rate !== null && reg.selling_rate !== ""
+      ? reg.selling_rate
+      : (item.selling_rate !== undefined && item.selling_rate !== null && item.selling_rate !== ""
+          ? item.selling_rate
+          : (item.unit_price ? item.unit_price : ""));
+
     setItemForm({
-      name: item.name || "",
-      purchase_rate: item.purchase_rate || "",
-      selling_rate: item.selling_rate || ""
+      name: resolvedName,
+      purchase_rate: pRate !== "" && pRate !== undefined ? String(pRate) : "",
+      selling_rate: sRate !== "" && sRate !== undefined ? String(sRate) : "",
+      opening_qty: ""
     });
     setShowItemModal(true);
   };
@@ -3120,13 +3215,30 @@ Thank you for your business!`;
     if (isUsedInSales) {
       return alert(`Cannot delete item "${item.name || item.item_name}" because it is already used in sales invoices!\n\nYou can edit its rate or name instead.`);
     }
-    const isUsedInProcure = procurements.some((p) => (p.item_name || "").toLowerCase().trim() === targetName);
+    const isUsedInProcure = procurements.some((p) => (p.item_name || "").toLowerCase().trim() === targetName && p.supplier_name !== "Opening Stock");
     if (isUsedInProcure) {
       return alert(`Cannot delete item "${item.name || item.item_name}" because it is used in purchase stock records!\n\nYou can edit its rate or name instead.`);
     }
     if (!confirm(`Delete item "${item.name || item.item_name}" from master?`)) return;
     try {
-      await db.from("items").delete().eq("id", item.id);
+      if (item.id) {
+        await db.from("items").delete().eq("id", item.id);
+      }
+      // Also remove any 0-qty Opening Stock rate placeholder in procurements
+      await db.from("procurements").delete().eq("item_name", item.name || item.item_name).eq("supplier_name", "Opening Stock").eq("procured_qty", 0);
+
+      // Clean up itemRatesMap
+      setItemRatesMap((prev) => {
+        const next = { ...prev };
+        delete next[targetName];
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_master_item_rates", JSON.stringify(next));
+          } catch (e) {}
+        }
+        return next;
+      });
+
       alert("Item deleted!");
       refreshData();
     } catch (err) {
@@ -3160,32 +3272,65 @@ Thank you for your business!`;
       if (targetId) {
         const { error } = await db.from("items").update(payload).eq("id", targetId);
         if (error) throw error;
-        setMasterItems((prev) => prev.map((m) => (m.id === targetId ? { ...m, ...payload, id: targetId } : m)));
-        alert("Item updated!");
+        setMasterItems((prev) => prev.map((m) => (m.id === targetId ? { ...m, ...payload, id: targetId, purchase_rate: purchaseRate, selling_rate: sellingRate } : m)));
       } else {
         const { error, data } = await db.from("items").insert([payload]).select();
         if (error) throw error;
         if (data && data[0]) {
-          setMasterItems((prev) => [...prev, data[0]]);
+          targetId = data[0].id;
+          setMasterItems((prev) => [...prev, { ...data[0], purchase_rate: purchaseRate, selling_rate: sellingRate }]);
         }
-        // If opening stock qty > 0, create an opening stock entry in procurements
-        if (openingQty > 0) {
-          const procPayload = {
-            supplier_name: "Opening Stock",
-            item_name: itemName,
-            procured_qty: openingQty,
-            remaining_qty: openingQty,
-            purchase_rate: purchaseRate,
-            selling_rate: sellingRate,
-            total_amount: openingQty * purchaseRate,
-            p1_id: null,
-            p1_amount: openingQty * purchaseRate,
-            p1_mode: "Cash"
-          };
-          await db.from("procurements").insert([procPayload]);
-        }
-        alert("Item created successfully!");
       }
+
+      // Check for existing Opening Stock record in procurements for this item
+      const existingOpening = procurements.find(
+        (p) => (p.item_name || "").toLowerCase().trim() === itemName.toLowerCase().trim() && p.supplier_name === "Opening Stock"
+      );
+
+      if (existingOpening) {
+        await db.from("procurements").update({
+          purchase_rate: purchaseRate,
+          selling_rate: sellingRate,
+          ...(openingQty > 0 ? { procured_qty: openingQty, remaining_qty: openingQty, total_amount: openingQty * purchaseRate } : {})
+        }).eq("id", existingOpening.id);
+      } else if (purchaseRate > 0 || openingQty > 0) {
+        const procPayload = {
+          supplier_name: "Opening Stock",
+          item_name: itemName,
+          procured_qty: openingQty,
+          remaining_qty: openingQty,
+          purchase_rate: purchaseRate,
+          selling_rate: sellingRate,
+          total_amount: openingQty * purchaseRate,
+          p1_id: null,
+          p1_amount: openingQty * purchaseRate,
+          p1_mode: "Cash",
+          purchase_date: new Date().toISOString().split("T")[0]
+        };
+        await db.from("procurements").insert([procPayload]);
+      }
+
+      // Update persistent Master Rate registry in localStorage & React state
+      const itemKey = itemName.toLowerCase().trim();
+      const updatedRates = {
+        ...itemRatesMap,
+        [itemKey]: {
+          purchase_rate: purchaseRate,
+          selling_rate: sellingRate,
+          updated_at: new Date().toISOString()
+        }
+      };
+      setItemRatesMap(updatedRates);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("jsr_master_item_rates", JSON.stringify(updatedRates));
+        } catch (e) {
+          console.error("Failed to save master item rates to localStorage:", e);
+        }
+      }
+
+      alert(editingItemId ? "Item updated successfully!" : "Item created successfully!");
+
       setProcureForm((prev) => ({
         ...prev,
         item_name: itemName,
@@ -7564,9 +7709,13 @@ Thank you for your business!`;
             const itemName = (m.item_name || m.name || "").trim();
             if (!itemName) return;
             const key = itemName.toLowerCase();
-            const rate = Number(m.unit_price || m.purchase_rate || 0);
+            const regRate = itemRatesMap[key]?.purchase_rate;
+            const rate = regRate !== undefined && Number(regRate) > 0
+              ? Number(regRate)
+              : Number(m.purchase_rate || m.unit_price || 0);
             if (!costMap[key]) costMap[key] = { cost: 0, qty: 0, rate: rate };
             else if (!costMap[key].rate && rate > 0) costMap[key].rate = rate;
+            if (regRate !== undefined && Number(regRate) > 0) costMap[key].rate = Number(regRate);
           });
           const getItemCost = (name) => {
             if (!name) return 0;
@@ -9662,15 +9811,7 @@ Thank you for your business!`;
                               <div className="flex items-center justify-center gap-1.5 font-sans">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setEditingItemId(item.id || null);
-                                    setItemForm({
-                                      name: item.name,
-                                      purchase_rate: item.purchase_rate ? String(item.purchase_rate) : "",
-                                      selling_rate: item.selling_rate ? String(item.selling_rate) : ""
-                                    });
-                                    setShowItemModal(true);
-                                  }}
+                                  onClick={() => handleEditItem(item)}
                                   className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-bold text-xs"
                                 >
                                   Edit
@@ -13522,7 +13663,7 @@ Thank you for your business!`;
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Item</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">{editingItemId ? "Update Item" : "Save Item"}</button>
               </div>
             </form>
           </div>
@@ -14724,12 +14865,16 @@ Thank you for your business!`;
                 return sorted.map((p) => {
                   const rem = Number(p.remaining_qty || 0);
                   const inStock = rem > 0;
+                  const itemKey = (p.item_name || "").toLowerCase().trim();
                   const masterObj = masterItems.find(
-                    (m) => (m.item_name || m.name || "").toLowerCase().trim() === (p.item_name || "").toLowerCase().trim()
+                    (m) => (m.item_name || m.name || "").toLowerCase().trim() === itemKey
                   );
-                  const sellRate = masterObj && Number(masterObj.unit_price || 0) > 0
-                    ? Number(masterObj.unit_price)
-                    : Number(p.selling_rate || p.purchase_rate || 0);
+                  const regSellRate = itemRatesMap[itemKey]?.selling_rate;
+                  const sellRate = regSellRate !== undefined && Number(regSellRate) > 0
+                    ? Number(regSellRate)
+                    : (masterObj && Number(masterObj.unit_price || 0) > 0
+                        ? Number(masterObj.unit_price)
+                        : Number(p.selling_rate || p.purchase_rate || 0));
 
                   return (
                     <div
