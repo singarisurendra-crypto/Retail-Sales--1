@@ -2812,10 +2812,30 @@ Thank you for your business!`;
       return alert("Select partner paying this bill");
     }
 
-    // Validate partner cash/UPI funds
+    // Validate partner cash/UPI funds (differential validation if editing an existing payment)
     if (!isAdvanceAdjusted) {
-      const fundCheck = validatePartnerFunds(payPurchaseForm.partner_id, amt, payPurchaseForm.payment_mode);
-      if (!fundCheck.valid) return alert(fundCheck.message);
+      if (editingPaymentId) {
+        const existingPayRow = procurements.find((p) => p.id === editingPaymentId);
+        const oldPartnerId = String(existingPayRow?.p1_id || "");
+        const oldMode = existingPayRow?.p1_mode || "Cash";
+        const oldAmt = Number(existingPayRow?.p1_amount || 0);
+        const newPartnerId = String(payPurchaseForm.partner_id);
+        const newMode = payPurchaseForm.payment_mode;
+
+        if (oldPartnerId === newPartnerId && oldMode === newMode) {
+          const diff = amt - oldAmt;
+          if (diff > 0) {
+            const fundCheck = validatePartnerFunds(newPartnerId, diff, newMode);
+            if (!fundCheck.valid) return alert(fundCheck.message);
+          }
+        } else {
+          const fundCheck = validatePartnerFunds(newPartnerId, amt, newMode);
+          if (!fundCheck.valid) return alert(fundCheck.message);
+        }
+      } else {
+        const fundCheck = validatePartnerFunds(payPurchaseForm.partner_id, amt, payPurchaseForm.payment_mode);
+        if (!fundCheck.valid) return alert(fundCheck.message);
+      }
     }
 
     try {
@@ -3518,9 +3538,9 @@ Thank you for your business!`;
       purchase_rate: loadedLines[0]?.purchase_rate || String(p.purchase_rate || ""),
       selling_rate: loadedLines[0]?.selling_rate || String(p.selling_rate || ""),
       is_opening: p.supplier_name === "Opening Stock",
-      paid_now: String(totalPaidOnOrder),
-      p1_id: p.p1_id ? String(p.p1_id) : (rawRows[0]?.p1_id ? String(rawRows[0].p1_id) : (partners[0]?.id ? String(partners[0].id) : "")),
-      p1_mode: p.p1_mode || rawRows[0]?.p1_mode || "Cash"
+      paid_now: "0",
+      p1_id: partners[0]?.id ? String(partners[0].id) : "",
+      p1_mode: "Cash"
     });
     setShowProcureModal(true);
   };
@@ -3585,15 +3605,12 @@ Thank you for your business!`;
       return alert("Select items with valid quantities for this purchase order");
     }
 
-    const paidNowNum = Number(procureForm.paid_now || 0);
+    const paidNowNum = editingProcureId ? 0 : Number(procureForm.paid_now || 0);
     const isAdvanceAdjusted = procureForm.p1_mode === "Advance Adjusted";
 
-    if (paidNowNum > 0 && !isAdvanceAdjusted && !procureForm.p1_id) {
-      return alert("Select funding partner.");
-    }
-
-    // Partner fund validation: prevent negative partner balance
-    if (paidNowNum > 0 && !isAdvanceAdjusted) {
+    // Partner fund validation: prevent negative partner balance ONLY when creating a new purchase order with an upfront payment
+    if (!editingProcureId && paidNowNum > 0 && !isAdvanceAdjusted) {
+      if (!procureForm.p1_id) return alert("Select funding partner.");
       const fundCheck = validatePartnerFunds(procureForm.p1_id, paidNowNum, procureForm.p1_mode);
       if (!fundCheck.valid) return alert(fundCheck.message);
     }
@@ -3614,6 +3631,8 @@ Thank you for your business!`;
       let remainingPaid = paidNowNum;
 
       if (editingProcureId) {
+        const targetSupplier = procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor";
+
         // Scenario #7: Delete removed item lines from database so they do not reappear (protect payment records)
         const existingOrderRows = procurements.filter(
           (p) => (targetOrderNumber && p.receiver_2_mode === targetOrderNumber) || p.id === editingProcureId
@@ -3629,9 +3648,7 @@ Thank you for your business!`;
           if (delErr) console.error("Error deleting removed PO line from DB:", delErr);
         }
 
-        const hasSeparatePayments = existingOrderRows.some((p) => Number(p.procured_qty || 0) <= 0 && Number(p.p1_amount || 0) > 0);
-
-        // Multi-line edit integrity: Update existing rows and insert added lines without overwriting
+        // Multi-line edit integrity: Update existing goods rows and insert added lines without touching payments
         for (let i = 0; i < validLines.length; i++) {
           const line = validLines[i];
           const qty = Number(line.procured_qty || 0);
@@ -3639,20 +3656,14 @@ Thank you for your business!`;
           const sellingRate = Number(line.selling_rate || purchaseRate);
           const lineTotal = qty * purchaseRate;
 
-          let linePaid = 0;
-          if (remainingPaid > 0) {
-            linePaid = Math.min(lineTotal, remainingPaid);
-            remainingPaid -= linePaid;
-          }
-
           if (line.procure_id) {
-            // Update existing line
+            // Update existing goods line: strictly preserve whatever payment was already recorded on this line!
             const oldProc = procurements.find((p) => p.id === line.procure_id);
             const soldQty = oldProc ? Math.max(0, Number(oldProc.procured_qty || 0) - Number(oldProc.remaining_qty || 0)) : 0;
             const newRemaining = Math.max(0, qty - soldQty);
 
             const payload = {
-              supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+              supplier_name: targetSupplier,
               item_name: line.item_name.trim(),
               purchase_date: poDate,
               procured_qty: qty,
@@ -3660,28 +3671,28 @@ Thank you for your business!`;
               purchase_rate: purchaseRate,
               selling_rate: sellingRate,
               total_amount: lineTotal,
-              p1_id: hasSeparatePayments ? (oldProc?.p1_id || null) : (linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : (oldProc?.p1_id || null)),
-              p1_amount: hasSeparatePayments ? Number(oldProc?.p1_amount || 0) : linePaid,
-              p1_mode: hasSeparatePayments ? (oldProc?.p1_mode || null) : procureForm.p1_mode,
+              p1_id: oldProc?.p1_id || null,
+              p1_amount: Number(oldProc?.p1_amount || 0),
+              p1_mode: oldProc?.p1_mode || null,
               receiver_2_mode: targetOrderNumber
             };
 
             const { error: updErr } = await db.from("procurements").update(payload).eq("id", line.procure_id);
             if (updErr) throw updErr;
           } else {
-            // Newly added line in edit mode: insert as new row linked to same order number
+            // Newly added line in edit mode: insert as new goods row (no upfront payment on new line during edit)
             const insPayload = {
               purchase_date: poDate,
-              supplier_name: procureForm.is_opening ? "Opening Stock" : procureForm.supplier_name.trim() || "Vendor",
+              supplier_name: targetSupplier,
               item_name: line.item_name.trim(),
               procured_qty: qty,
               remaining_qty: qty,
               purchase_rate: purchaseRate,
               selling_rate: sellingRate,
               total_amount: lineTotal,
-              p1_id: linePaid > 0 && !isAdvanceAdjusted ? Number(procureForm.p1_id) : null,
-              p1_amount: linePaid,
-              p1_mode: procureForm.p1_mode,
+              p1_id: null,
+              p1_amount: 0,
+              p1_mode: null,
               receiver_2_mode: targetOrderNumber
             };
 
@@ -3690,11 +3701,18 @@ Thank you for your business!`;
           }
         }
 
+        // Keep all separate payment rows linked to this PO in sync with updated supplier name
+        if (targetOrderNumber) {
+          await db.from("procurements").update({
+            supplier_name: targetSupplier
+          }).eq("receiver_2_mode", targetOrderNumber);
+        }
+
         logAuditEvent({
           docRef: targetOrderNumber,
           docType: "Purchase Order",
           action: "Modified",
-          details: `Updated purchase order ${targetOrderNumber} for ${procureForm.supplier_name}. Lines: ${validLines.length}, Total: ${money(grandTotal)}, Paid: ${money(paidNowNum)}`
+          details: `Updated purchase order ${targetOrderNumber} for ${targetSupplier}. Lines: ${validLines.length}, Total: ${money(grandTotal)}`
         });
 
         alert("Purchase order updated successfully with all lines preserved!");
