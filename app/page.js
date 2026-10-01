@@ -455,17 +455,72 @@ export default function App() {
   const [auditPage, setAuditPage] = useState(1);
   const [expensePage, setExpensePage] = useState(1);
 
-  // ERP Numeric Pagination Box matching user's Image 1
+  // Common 10-Page Grouping Pagination (First, ‹, ..., ›, Last)
   const renderPagination = (currentPage, totalItems, pageSize, onPageChange) => {
     const totalPages = Math.ceil(totalItems / pageSize);
     if (totalPages <= 1) return null;
+
+    // Determine 10-page group (block)
+    const groupIndex = Math.floor((currentPage - 1) / 10);
+    const startPage = groupIndex * 10 + 1;
+    const endPage = Math.min(totalPages, (groupIndex + 1) * 10);
+
     const pages = [];
-    for (let i = 1; i <= totalPages; i++) {
+    for (let i = startPage; i <= endPage; i++) {
       pages.push(i);
     }
+
+    const hasPrevGroup = startPage > 1;
+    const hasNextGroup = endPage < totalPages;
+    const canGoPrev = currentPage > 1;
+    const canGoNext = currentPage < totalPages;
+
     return (
-      <div className="flex justify-center items-center py-2.5">
-        <div className="inline-flex items-stretch border border-sky-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 shadow-2xs divide-x divide-sky-200 dark:divide-slate-600 overflow-hidden text-xs">
+      <div className="flex justify-center items-center py-1 select-none">
+        <div className="inline-flex items-center border border-sky-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 shadow-2xs divide-x divide-sky-200 dark:divide-slate-600 overflow-hidden text-xs font-mono">
+          {/* First Page Button */}
+          <button
+            type="button"
+            disabled={!canGoPrev}
+            onClick={() => onPageChange(1)}
+            className={`px-2.5 py-1 text-center font-bold transition ${
+              !canGoPrev
+                ? "opacity-35 cursor-not-allowed text-slate-400 bg-slate-50 dark:bg-slate-850"
+                : "text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+            }`}
+            title="First Page"
+          >
+            First
+          </button>
+
+          {/* Previous Page Button (‹) */}
+          <button
+            type="button"
+            disabled={!canGoPrev}
+            onClick={() => onPageChange(currentPage - 1)}
+            className={`px-2.5 py-1 text-center font-bold transition ${
+              !canGoPrev
+                ? "opacity-35 cursor-not-allowed text-slate-400 bg-slate-50 dark:bg-slate-850"
+                : "text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+            }`}
+            title="Previous Page"
+          >
+            ‹
+          </button>
+
+          {/* Previous 10 Pages Ellipsis (...) */}
+          {hasPrevGroup && (
+            <button
+              type="button"
+              onClick={() => onPageChange(startPage - 1)}
+              className="px-2 py-1 text-center font-bold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+              title={`Previous 10 pages (${startPage - 10}–${startPage - 1})`}
+            >
+              ...
+            </button>
+          )}
+
+          {/* Numbered Page Buttons (Maximum 10 displayed) */}
           {pages.map((p) => {
             const isActive = p === currentPage;
             return (
@@ -473,16 +528,58 @@ export default function App() {
                 key={p}
                 type="button"
                 onClick={() => onPageChange(p)}
-                className={`min-w-7.5 px-2.5 py-1 text-center font-bold transition cursor-pointer ${
+                className={`min-w-8 px-2.5 py-1 text-center font-bold transition cursor-pointer ${
                   isActive
-                    ? "bg-sky-50 dark:bg-slate-700 text-slate-800 dark:text-white"
-                    : "text-sky-600 dark:text-sky-400 hover:bg-sky-50/70 dark:hover:bg-slate-700 underline"
+                    ? "bg-indigo-600 text-white dark:bg-indigo-600 dark:text-white"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700"
                 }`}
               >
                 {p}
               </button>
             );
           })}
+
+          {/* Next 10 Pages Ellipsis (...) */}
+          {hasNextGroup && (
+            <button
+              type="button"
+              onClick={() => onPageChange(endPage + 1)}
+              className="px-2 py-1 text-center font-bold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+              title={`Next 10 pages (${endPage + 1}–${Math.min(totalPages, endPage + 10)})`}
+            >
+              ...
+            </button>
+          )}
+
+          {/* Next Page Button (›) */}
+          <button
+            type="button"
+            disabled={!canGoNext}
+            onClick={() => onPageChange(currentPage + 1)}
+            className={`px-2.5 py-1 text-center font-bold transition ${
+              !canGoNext
+                ? "opacity-35 cursor-not-allowed text-slate-400 bg-slate-50 dark:bg-slate-850"
+                : "text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+            }`}
+            title="Next Page"
+          >
+            ›
+          </button>
+
+          {/* Last Page Button */}
+          <button
+            type="button"
+            disabled={!canGoNext}
+            onClick={() => onPageChange(totalPages)}
+            className={`px-2.5 py-1 text-center font-bold transition ${
+              !canGoNext
+                ? "opacity-35 cursor-not-allowed text-slate-400 bg-slate-50 dark:bg-slate-850"
+                : "text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-700 cursor-pointer"
+            }`}
+            title="Last Page"
+          >
+            Last
+          </button>
         </div>
       </div>
     );
@@ -1154,12 +1251,26 @@ export default function App() {
     }
   };
 
+  // Financial Isolation: identifies pure supplier payment/disbursement records
+  const isPaymentProcurementRow = (r) => {
+    if (!r) return false;
+    const name = (r.item_name || r.name || "").trim().toLowerCase();
+    return (
+      name === "supplier payment" ||
+      name.includes("supplier payment") ||
+      name.includes("disbursement") ||
+      name.includes("advance settlement") ||
+      (Number(r.procured_qty || 0) === 0 && Number(r.purchase_rate || 0) === 0 && Number(r.p1_amount || 0) > 0)
+    );
+  };
+
   const uniqueItemSuggestions = useMemo(() => {
     const map = new Map();
     const costMap = new Map();
     const sellMap = new Map();
 
-    procurements.forEach((p) => {
+    // 1. Gather procurement costs/selling rates (excluding payment disbursement records)
+    procurements.filter((p) => !isPaymentProcurementRow(p)).forEach((p) => {
       const trimmed = (p.item_name || "").trim().toLowerCase();
       if (!trimmed) return;
       if (Number(p.purchase_rate || 0) > 0 && (!costMap.has(trimmed) || p.supplier_name === "Opening Stock")) {
@@ -1170,7 +1281,8 @@ export default function App() {
       }
     });
 
-    masterItems.forEach((i) => {
+    // 2. Map Master Items (excluding any accidentally created payment items)
+    masterItems.filter((i) => !isPaymentProcurementRow(i)).forEach((i) => {
       const trimmed = (i.item_name || i.name || "").trim();
       if (!trimmed) return;
       const key = trimmed.toLowerCase();
@@ -1206,7 +1318,8 @@ export default function App() {
       }
     });
 
-    procurements.forEach((p) => {
+    // 3. Map any procurement-derived items (excluding payment disbursement records)
+    procurements.filter((p) => !isPaymentProcurementRow(p)).forEach((p) => {
       const trimmed = (p.item_name || "").trim();
       if (!trimmed) return;
       const key = trimmed.toLowerCase();
@@ -1787,7 +1900,7 @@ export default function App() {
       const entry = map.get(groupKey);
       entry.rawRows.push(p);
 
-      const isGoodsLine = Number(p.procured_qty || 0) > 0 || Number(p.total_amount || 0) > 0;
+      const isGoodsLine = !isPaymentProcurementRow(p) && (Number(p.procured_qty || 0) > 0 || Number(p.total_amount || 0) > 0);
       if (isGoodsLine) {
         entry.items.push(p);
         entry.total_amount += Number(p.total_amount || 0);
@@ -1813,10 +1926,13 @@ export default function App() {
       }
     });
 
-    // Fallback if PO only had payment rows or items was empty
+    // Fallback if PO items was empty, only fallback to actual goods lines (never payment rows)
     map.forEach((entry) => {
-      if (entry.items.length === 0 && entry.rawRows.length > 0) {
-        entry.items = [entry.rawRows[0]];
+      if (entry.items.length === 0) {
+        const goodsCandidate = entry.rawRows.find((r) => !isPaymentProcurementRow(r));
+        if (goodsCandidate) {
+          entry.items = [goodsCandidate];
+        }
       }
     });
 
@@ -1861,45 +1977,94 @@ export default function App() {
   }, [purchaseOrdersGrouped, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery, procureSort]);
 
   const allCollectionsList = useMemo(() => {
-    // 1. Regular due collections & advances from collections table
-    const regularCols = collections.map((c) => ({
-      ...c,
-      id: `col_${c.id}`,
-      originalId: c.id,
-      source: "collection",
-      reference_no: c.reference_no || `REC-${c.id}`,
-      collection_type: c.collection_type || "On Account",
-      notes: c.collection_type || c.notes || "",
-      created_at: c.created_at,
-      customer_id: c.customer_id,
-      invoice_id: c.invoice_id,
-      amount: Number(c.amount || 0),
-      payment_mode: c.payment_mode || "Cash",
-      receiver_id: c.receiver_id
-    }));
-
-    // 2. Upfront billing collections from invoices where upfront_paid > 0
-    const upfrontCols = invoices
-      .filter((i) => Number(i.upfront_paid || 0) > 0)
-      .map((i) => ({
-        id: `inv_${i.id}`,
-        originalId: i.id,
-        source: "invoice",
-        reference_no: i.invoice_number || `INV-${i.id}`,
-        collection_type: i.upfront_mode === "Advance Adjusted" ? "Adjusted Advance" : "Bill Upfront",
-        notes: i.upfront_mode === "Advance Adjusted" ? `Adjusted from Advance on ${i.invoice_number || `INV-${i.id}`}` : `Upfront on ${i.invoice_number || `INV-${i.id}`}`,
-        created_at: i.invoice_date || i.created_at,
-        customer_id: i.customer_id,
-        customer_name: i.customer_name,
-        invoice_id: i.id,
-        amount: Number(i.upfront_paid || 0),
-        payment_mode: i.upfront_mode || "Cash",
-        receiver_id: i.upfront_receiver_id,
-        rawInvoice: i
+    // Strictly genuine collection records from collections table (excluding auto-generated session advance adjustments)
+    const genuineCols = collections
+      .filter((c) => c.collection_type !== "Adjusted Advance" && c.payment_mode !== "Advance Adjusted")
+      .map((c) => ({
+        ...c,
+        id: `col_${c.id}`,
+        originalId: c.id,
+        source: "collection",
+        reference_no: c.reference_no || `REC-${c.id}`,
+        collection_type: c.collection_type || "On Account",
+        notes: c.collection_type || c.notes || "",
+        created_at: c.created_at,
+        customer_id: c.customer_id,
+        invoice_id: c.invoice_id,
+        amount: Number(c.amount || 0),
+        payment_mode: c.payment_mode || "Cash",
+        receiver_id: c.receiver_id
       }));
 
-    return [...regularCols, ...upfrontCols];
-  }, [collections, invoices]);
+    // Chronologically compute running balances per customer
+    const colsByCust = {};
+    genuineCols.forEach((col) => {
+      const cid = String(col.customer_id || "unknown");
+      if (!colsByCust[cid]) colsByCust[cid] = [];
+      colsByCust[cid].push(col);
+    });
+
+    const enrichedList = [];
+
+    customers.forEach((cust) => {
+      const cid = String(cust.id);
+      const custCols = colsByCust[cid] || [];
+      if (custCols.length === 0) return;
+
+      const custInvs = invoices.filter((i) => String(i.customer_id) === cid);
+      const totalInvoicedNet = custInvs.reduce(
+        (s, i) => s + (Number(i.total_amount || 0) - (i.upfront_mode === "Advance Adjusted" ? 0 : Number(i.upfront_paid || 0))),
+        0
+      );
+      const totalCollected = custCols.reduce((s, c) => s + Number(c.amount || 0), 0);
+      const currentDue = Number(cust.old_due || 0);
+      const initialOpeningDue = Math.max(0, currentDue - totalInvoicedNet + totalCollected);
+
+      // Build chronological events timeline for this customer
+      const events = [
+        ...custInvs.map((inv) => ({
+          type: "inv",
+          time: new Date(inv.invoice_date || inv.created_at || 0).getTime(),
+          id: Number(inv.id || 0),
+          amount: Number(inv.total_amount || 0) - (inv.upfront_mode === "Advance Adjusted" ? 0 : Number(inv.upfront_paid || 0)),
+          raw: inv
+        })),
+        ...custCols.map((col) => ({
+          type: "col",
+          time: new Date(col.created_at || col.collection_date || 0).getTime(),
+          id: Number(col.originalId || 0),
+          amount: Number(col.amount || 0),
+          raw: col
+        }))
+      ];
+
+      // Invoices debit balance, collections credit balance
+      events.sort((a, b) => a.time - b.time || (a.type === "inv" ? -1 : 1) || a.id - b.id);
+
+      let runningBal = initialOpeningDue;
+      events.forEach((ev) => {
+        if (ev.type === "inv") {
+          runningBal += ev.amount;
+        } else if (ev.type === "col") {
+          const before = Math.max(0, runningBal);
+          const after = Math.max(0, runningBal - ev.amount);
+          ev.raw.balanceBefore = before;
+          ev.raw.balanceAfter = after;
+          runningBal = after;
+          enrichedList.push(ev.raw);
+        }
+      });
+    });
+
+    // Add any collections without assigned customer
+    (colsByCust["unknown"] || []).forEach((c) => {
+      c.balanceBefore = 0;
+      c.balanceAfter = 0;
+      enrichedList.push(c);
+    });
+
+    return enrichedList;
+  }, [collections, invoices, customers]);
 
   const filteredCollections = useMemo(() => {
     let list = allCollectionsList;
@@ -2207,6 +2372,36 @@ export default function App() {
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
       return alert("Select items with valid quantities");
     }
+
+    // Scenario #1: Pre-flight stock availability check
+    const oldInvForStock = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
+    for (const line of cart) {
+      if (!line.procure_id) continue;
+      const pid = Number(line.procure_id);
+      const batch = procurements.find((p) => p.id === pid);
+      let availableStock = Number(batch ? batch.remaining_qty : 0);
+
+      // In edit mode, restore stock quantity already allocated to this invoice from that batch
+      if (editingInvoiceId && oldInvForStock && Array.isArray(oldInvForStock.items)) {
+        const oldLine = oldInvForStock.items.find((it) => Number(it.procure_id) === pid);
+        if (oldLine) {
+          availableStock += Number(oldLine.qty || 0);
+        }
+      }
+
+      const reqQty = Number(line.qty || 0);
+      if (reqQty > availableStock) {
+        const shortage = reqQty - availableStock;
+        return alert(
+          `Insufficient stock for ${line.item_name || "item"}.\n\n` +
+          `Available stock: ${availableStock}.\n` +
+          `Required quantity: ${reqQty}.\n` +
+          `Shortage: ${shortage}.\n\n` +
+          `Please reduce the quantity or select a different item.`
+        );
+      }
+    }
+
     const isAdvanceAdjusted = upfrontMode === "Advance Adjusted";
     if (upfrontPaidNum > 0 && !isAdvanceAdjusted && !upfrontPartnerId) {
       return alert("Select which partner received the upfront payment");
@@ -2273,21 +2468,7 @@ export default function App() {
       };
 
       if (editingInvoiceId) {
-        // Scenario #1: Insert new advance application line into collections without overwriting previous advance
-        if (editSessionAdvances.length > 0) {
-          for (const adv of editSessionAdvances) {
-            const { error: advErr } = await db.from("collections").insert([{
-              customer_id: selectedCust.id,
-              invoice_id: editingInvoiceId,
-              amount: Number(adv.amount || 0),
-              payment_mode: "Advance Adjusted",
-              collection_type: "Adjusted Advance",
-              receiver_id: null
-            }]);
-            if (advErr) throw advErr;
-          }
-        }
-
+        // Pure Transaction Isolation: Never insert or generate collection records automatically on invoice update
         const { error } = await db.from("invoices").update(invoicePayload).eq("id", editingInvoiceId);
         if (error) throw error;
         alert("Invoice updated successfully!");
@@ -2957,11 +3138,11 @@ Thank you for your business!`;
             purchase_date: new Date().toISOString().split("T")[0],
             supplier_name: targetSup.name,
             item_name: "Supplier Disbursement / Advance Settlement",
-            procured_qty: 1,
+            procured_qty: 0,
             remaining_qty: 0,
-            purchase_rate: rem,
-            selling_rate: rem,
-            total_amount: rem,
+            purchase_rate: 0,
+            selling_rate: 0,
+            total_amount: 0,
             p1_id: isAdvanceAdjusted ? null : Number(payPurchaseForm.partner_id),
             p1_amount: rem,
             p1_mode: payPurchaseForm.payment_mode,
@@ -3655,8 +3836,8 @@ Thank you for your business!`;
             ? procurements.filter((x) => x.receiver_2_mode === orderRef)
             : [p]);
 
-    const goodsRows = rawRows.filter((r) => Number(r.procured_qty || 0) > 0 || Number(r.total_amount || 0) > 0);
-    const loadedLines = (goodsRows.length > 0 ? goodsRows : rawRows).map((row) => ({
+    const goodsRows = rawRows.filter((r) => !isPaymentProcurementRow(r) && (Number(r.procured_qty || 0) > 0 || Number(r.total_amount || 0) > 0));
+    const loadedLines = goodsRows.map((row) => ({
       procure_id: row.id,
       item_name: row.item_name || "",
       procured_qty: String(row.procured_qty || "1"),
@@ -3672,15 +3853,15 @@ Thank you for your business!`;
       purchase_date: pDate,
       items: loadedLines.length > 0 ? loadedLines : [
         {
-          procure_id: p.id,
-          item_name: p.item_name || "",
+          procure_id: isPaymentProcurementRow(p) ? null : p.id,
+          item_name: isPaymentProcurementRow(p) ? "" : (p.item_name || ""),
           procured_qty: String(p.procured_qty || "1"),
           purchase_rate: String(p.purchase_rate || ""),
           selling_rate: String(p.selling_rate || ""),
           total: Number(p.total_amount || 0)
         }
       ],
-      item_name: loadedLines[0]?.item_name || p.item_name || "",
+      item_name: loadedLines[0]?.item_name || (isPaymentProcurementRow(p) ? "" : (p.item_name || "")),
       procured_qty: loadedLines[0]?.procured_qty || String(p.procured_qty || "1"),
       purchase_rate: loadedLines[0]?.purchase_rate || String(p.purchase_rate || ""),
       selling_rate: loadedLines[0]?.selling_rate || String(p.selling_rate || ""),
@@ -5163,21 +5344,21 @@ Thank you for your business!`;
       )}
 
       {/* MAIN CONTENT AREA - 100% FULL WIDTH */}
-      <main className="flex-1 p-3.5 sm:p-6 md:p-8 pb-24 md:pb-8 overflow-y-auto w-full">
+      <main className="flex-1 p-2 sm:p-3 lg:p-4 pb-20 md:pb-6 overflow-y-auto w-full">
 
         {/* VIEW 1: POS BILLING */}
         {activeTab === "sale" && (
-          <div className="max-w-5xl mx-auto space-y-5">
-            <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="max-w-5xl mx-auto space-y-2.5 sm:space-y-3">
+            <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-black text-lg text-slate-900 dark:text-slate-100 leading-tight">
+                    <h2 className="font-black text-base sm:text-lg text-slate-900 dark:text-slate-100 leading-tight">
                       {editingInvoiceId ? "Edit Sales Invoice" : "Create Sales Invoice"}
                     </h2>
                     {editingInvoiceId && (
                       <>
-                        <span className="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-mono font-black text-xs rounded-lg border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5 shadow-2xs">
+                        <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-mono font-black text-xs rounded-md border border-indigo-200 dark:border-indigo-800 flex items-center gap-1 shadow-2xs">
                           <span>📄</span>
                           {currentEditingInvoice?.invoice_number || `INV-${editingInvoiceId}`}
                         </span>
@@ -5189,23 +5370,23 @@ Thank you for your business!`;
                             alert(`Invoice number copied: ${invNo}`);
                           }}
                           title="Copy Invoice Number"
-                          className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[11px] font-bold cursor-pointer transition"
+                          className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[10px] font-bold cursor-pointer transition"
                         >
                           📋
                         </button>
-                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] rounded-full uppercase border border-amber-300 dark:border-amber-700">
+                        <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] rounded-md uppercase border border-amber-300 dark:border-amber-700">
                           Editing Mode
                         </span>
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">
                     {editingInvoiceId && currentEditingInvoice
                       ? `Invoice #${currentEditingInvoice.invoice_number || currentEditingInvoice.id} • Customer: ${currentEditingInvoice.customer_name || selectedCust?.name || "Customer"} • Adjust items and rates, then re-save`
                       : "Bills go to customer credit by default"}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   {editingInvoiceId ? (
                     <button
                       type="button"
@@ -5213,7 +5394,7 @@ Thank you for your business!`;
                         resetPOSBillingState();
                         setActiveTab("invoices");
                       }}
-                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer"
                     >
                       ← Cancel Edit & Back
                     </button>
@@ -5226,7 +5407,7 @@ Thank you for your business!`;
                         }
                         resetPOSBillingState();
                       }}
-                      className="px-3 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer border border-slate-200 dark:border-slate-700"
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer border border-slate-200 dark:border-slate-700"
                       title="Clear bill form and start fresh"
                     >
                       ✕ Clear Bill
@@ -5234,7 +5415,7 @@ Thank you for your business!`;
                   )}
                   <input
                     type="date"
-                    className="px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold"
+                    className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-xs font-semibold"
                     value={saleDate}
                     onChange={(e) => setSaleDate(e.target.value)}
                   />
@@ -5849,45 +6030,43 @@ Thank you for your business!`;
 
         {/* VIEW: SALES INVOICES DIRECTORY */}
         {activeTab === "invoices" && (
-          <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Sales Invoices Directory</h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Track, review, print, and collect on customer invoices</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Sales Invoices Directory</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Track, review, print, and collect on customer invoices</p>
               </div>
               <button
                 onClick={() => {
                   resetPOSBillingState();
                   setActiveTab("sale");
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
               >
-                <Icon name="plus" size={15} /> Create New Bill
+                <Icon name="plus" size={14} /> Create New Bill
               </button>
             </div>
 
-
-
             {/* Search & Universal Filters Toolbar */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+            <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute left-3 top-2.5 text-slate-400">
-                    <Icon name="search" size={15} />
+                  <span className="absolute left-2.5 top-2 text-slate-400">
+                    <Icon name="search" size={14} />
                   </span>
                   <input
                     type="text"
                     placeholder="Search by invoice #, customer name, date..."
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                    className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                     value={invoiceSearchQuery}
                     onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                   />
                 </div>
 
-                <div className="flex items-center gap-2 overflow-x-auto">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
                   {/* Date Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                     value={invoiceDateFilter}
                     onChange={(e) => setInvoiceDateFilter(e.target.value)}
                   >
@@ -5899,7 +6078,7 @@ Thank you for your business!`;
 
                   {/* Sort Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                     value={invoiceSort}
                     onChange={(e) => setInvoiceSort(e.target.value)}
                   >
@@ -5911,7 +6090,7 @@ Thank you for your business!`;
 
                   {/* Customer Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[160px]"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 max-w-[150px]"
                     value={invoiceCustomerFilter}
                     onChange={(e) => setInvoiceCustomerFilter(e.target.value)}
                   >
@@ -5929,7 +6108,7 @@ Thank you for your business!`;
                   </select>
 
                   {/* Status Pills */}
-                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-bold">
                     {[
                       { id: "all", label: "All" },
                       { id: "collected", label: "Collected" },
@@ -5939,8 +6118,8 @@ Thank you for your business!`;
                       <button
                         key={tab.id}
                         onClick={() => setInvoiceStatusFilter(tab.id)}
-                        className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition ${
-                          invoiceStatusFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        className={`px-2 py-1 rounded-md whitespace-nowrap transition text-xs ${
+                          invoiceStatusFilter === tab.id ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                         }`}
                       >
                         {tab.label}
@@ -6200,11 +6379,11 @@ Thank you for your business!`;
 
         {/* VIEW: PURCHASES & STOCK */}
         {(activeTab === "purchases" || activeTab === "procurement") && (
-          <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Purchases & Stock Inventory</h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage vendor procurements, batch inventory, and supplier dues</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Purchases & Stock Inventory</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Manage vendor procurements, batch inventory, and supplier dues</p>
               </div>
               <button
                 onClick={() => {
@@ -6226,34 +6405,32 @@ Thank you for your business!`;
                   });
                   setShowProcureModal(true);
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
               >
-                <Icon name="plus" size={15} /> Record Purchase & Stock
+                <Icon name="plus" size={14} /> Record Purchase & Stock
               </button>
             </div>
 
-
-
             {/* Search & Filter Toolbar */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+            <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute left-3 top-2.5 text-slate-400">
-                    <Icon name="search" size={15} />
+                  <span className="absolute left-2.5 top-2 text-slate-400">
+                    <Icon name="search" size={14} />
                   </span>
                   <input
                     type="text"
                     placeholder="Search by item name, supplier..."
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                    className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                     value={procureSearchQuery}
                     onChange={(e) => setProcureSearchQuery(e.target.value)}
                   />
                 </div>
 
-                <div className="flex items-center gap-2 overflow-x-auto">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
                   {/* Date Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                     value={procureDateFilter}
                     onChange={(e) => setProcureDateFilter(e.target.value)}
                   >
@@ -6265,7 +6442,7 @@ Thank you for your business!`;
 
                   {/* Sort Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                     value={procureSort}
                     onChange={(e) => setProcureSort(e.target.value)}
                   >
@@ -6277,7 +6454,7 @@ Thank you for your business!`;
 
                   {/* Supplier Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 max-w-[150px]"
                     value={procureSupplierFilter}
                     onChange={(e) => setProcureSupplierFilter(e.target.value)}
                   >
@@ -6288,7 +6465,7 @@ Thank you for your business!`;
                   </select>
 
                   {/* Stock Pills (Scenario 5: Skip/Hide Settled) */}
-                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-bold">
                     {[
                       { id: "all", label: "All" },
                       { id: "in_stock", label: "In Stock" },
@@ -6298,7 +6475,7 @@ Thank you for your business!`;
                       <button
                         key={tab.id}
                         onClick={() => setProcureStockFilter(tab.id)}
-                        className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition ${
+                        className={`px-2 py-1 rounded-md whitespace-nowrap transition text-xs ${
                           procureStockFilter === tab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
                         }`}
                       >
@@ -6511,13 +6688,13 @@ Thank you for your business!`;
 
         {/* VIEW: PAYMENTS & COLLECTIONS */}
         {activeTab === "payments_collections" && (
-          <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Payments & Collections</h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage customer due collections, supplier purchase payments, and loan repayments</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Payments & Collections</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Manage customer due collections, supplier purchase payments, and loan repayments</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {paymentsSubTab === "collections" && (
                   <button
                     type="button"
@@ -6534,9 +6711,9 @@ Thank you for your business!`;
                       });
                       setShowCollectModal(true);
                     }}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                   >
-                    <Icon name="handcoins" size={15} /> Collect Customer Due
+                    <Icon name="handcoins" size={14} /> Collect Customer Due
                   </button>
                 )}
                 {paymentsSubTab === "supplier_payments" && (
@@ -6556,9 +6733,9 @@ Thank you for your business!`;
                       });
                       setShowPayPurchaseModal(true);
                     }}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                   >
-                    <Icon name="wallet" size={15} /> Pay Supplier Bill
+                    <Icon name="wallet" size={14} /> Pay Supplier Bill
                   </button>
                 )}
                 {paymentsSubTab === "loan_repayments" && (
@@ -6576,36 +6753,36 @@ Thank you for your business!`;
                       });
                       setShowLoanPaymentModal(true);
                     }}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                   >
-                    <Icon name="rupee" size={15} /> Record Loan Payment
+                    <Icon name="rupee" size={14} /> Record Loan Payment
                   </button>
                 )}
               </div>
             </div>
 
             {/* Sub-Tab Navigation */}
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold w-full sm:w-auto self-start">
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold w-full sm:w-auto self-start">
               <button
                 onClick={() => { setPaymentsSubTab("collections"); setPaymentsSearchQuery(""); }}
-                className={`px-4 py-2 rounded-xl transition ${
-                  paymentsSubTab === "collections" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  paymentsSubTab === "collections" ? "bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
                 📥 Customer Collections ({allCollectionsList.length})
               </button>
               <button
                 onClick={() => { setPaymentsSubTab("supplier_payments"); setPaymentsSearchQuery(""); }}
-                className={`px-4 py-2 rounded-xl transition ${
-                  paymentsSubTab === "supplier_payments" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  paymentsSubTab === "supplier_payments" ? "bg-white dark:bg-slate-700 text-indigo-700 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
                 📤 Supplier Payments ({procurements.filter((p) => Number(p.p1_amount || 0) > 0).length})
               </button>
               <button
                 onClick={() => { setPaymentsSubTab("loan_repayments"); setPaymentsSearchQuery(""); }}
-                className={`px-4 py-2 rounded-xl transition ${
-                  paymentsSubTab === "loan_repayments" ? "bg-white text-purple-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                className={`px-3 py-1.5 rounded-lg transition ${
+                  paymentsSubTab === "loan_repayments" ? "bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                 }`}
               >
                 🏦 Loan Repayments ({loanTransactions.length})
@@ -6614,26 +6791,26 @@ Thank you for your business!`;
 
             {/* SUB-VIEW 1: CUSTOMER COLLECTIONS */}
             {paymentsSubTab === "collections" && (
-              <div className="space-y-4">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-                  <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+              <div className="space-y-2.5 sm:space-y-3">
+                <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                  <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                     <div className="relative flex-1">
-                      <span className="absolute left-3 top-2.5 text-slate-400">
-                        <Icon name="search" size={15} />
+                      <span className="absolute left-2.5 top-2 text-slate-400">
+                        <Icon name="search" size={14} />
                       </span>
                       <input
                         type="text"
                         placeholder="Search receipt #, customer name, notes..."
-                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                        className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                         value={paymentsSearchQuery}
                         onChange={(e) => setPaymentsSearchQuery(e.target.value)}
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 overflow-x-auto">
+                    <div className="flex items-center gap-1.5 overflow-x-auto">
                       {/* Date Filter */}
                       <select
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                         value={paymentsDateFilter}
                         onChange={(e) => setPaymentsDateFilter(e.target.value)}
                       >
@@ -6645,7 +6822,7 @@ Thank you for your business!`;
 
                       {/* Partner Filter */}
                       <select
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500 max-w-[150px]"
+                        className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 max-w-[150px]"
                         value={paymentsPartnerFilter}
                         onChange={(e) => setPaymentsPartnerFilter(e.target.value)}
                       >
@@ -6657,7 +6834,7 @@ Thank you for your business!`;
 
                       {/* Payment Mode */}
                       <select
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                         value={paymentsModeFilter}
                         onChange={(e) => setPaymentsModeFilter(e.target.value)}
                       >
@@ -6668,7 +6845,7 @@ Thank you for your business!`;
 
                       {/* Sort Filter */}
                       <select
-                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                        className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                         value={paymentsSort}
                         onChange={(e) => setPaymentsSort(e.target.value)}
                       >
@@ -6694,8 +6871,9 @@ Thank you for your business!`;
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receipt #", "రసీదు #")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Customer", "కస్టమర్")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Invoice Ref", "ఇన్‌వాయిస్ రెఫరెన్స్")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Amount", "మొత్తం")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Balance Before Collection", "వసూలుకు ముందు బకాయి")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid Amount", "చెల్లించిన మొత్తం")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Balance After Collection", "వసూలు తర్వాత బకాయి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Mode", "చెల్లింపు పద్ధతి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}</th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
@@ -6704,7 +6882,7 @@ Thank you for your business!`;
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                               {pagedCollections.length === 0 ? (
                                 <tr>
-                                  <td colSpan={8} className="p-8 text-center text-slate-400">
+                                  <td colSpan={9} className="p-8 text-center text-slate-400">
                                     No customer collections recorded yet.
                                   </td>
                                 </tr>
@@ -6713,7 +6891,6 @@ Thank you for your business!`;
                             const cust = customers.find((cu) => cu.id === c.customer_id);
                             const receiver = partners.find((p) => p.id === c.receiver_id);
                             const inv = invoices.find((i) => i.id === c.invoice_id);
-                            const adjustedInvs = getAdjustedInvoicesForCollection(c);
 
                             return (
                               <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
@@ -6733,45 +6910,14 @@ Thank you for your business!`;
                                 <td className="p-3 font-bold text-slate-900 dark:text-white">
                                   {cust?.name || c.customer_name || "Customer"}
                                 </td>
-                                <td className="p-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400">
-                                  {adjustedInvs.length > 0 ? (
-                                    <div className="flex flex-wrap items-center gap-1">
-                                      {adjustedInvs.map((invItem, idx) => (
-                                        <span key={invItem.id || idx} className="inline-flex items-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const targetInv = invItem.raw || invoices.find((i) => i.id == invItem.id);
-                                              if (targetInv) setSelectedViewInvoice(targetInv);
-                                            }}
-                                            className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                                            title="Click to view/print invoice"
-                                          >
-                                            {invItem.invoice_number}
-                                            {invItem.amount ? ` (${money(invItem.amount)})` : ""}
-                                          </button>
-                                          {idx < adjustedInvs.length - 1 && <span className="text-slate-400 mr-1">,</span>}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : c.invoice_id ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const targetInv = c.rawInvoice || invoices.find((i) => i.id == c.invoice_id);
-                                        if (targetInv) setSelectedViewInvoice(targetInv);
-                                      }}
-                                      className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                                      title="View / Print Invoice Receipt"
-                                    >
-                                      {inv ? (inv.invoice_number || `INV-${inv.id}`) : (c.reference_no || `INV-${c.invoice_id}`)}
-                                    </button>
-                                  ) : (
-                                    <span className="text-slate-400">-</span>
-                                  )}
+                                <td className="p-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                  {money(c.balanceBefore !== undefined ? c.balanceBefore : 0)}
                                 </td>
-                                <td className="p-3 text-right font-black text-emerald-700">
+                                <td className="p-3 text-right font-mono font-black text-emerald-700 dark:text-emerald-400">
                                   {money(c.amount)}
+                                </td>
+                                <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                  {money(c.balanceAfter !== undefined ? c.balanceAfter : 0)}
                                 </td>
                                 <td className="p-3 text-center">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
@@ -7238,13 +7384,13 @@ Thank you for your business!`;
 
         {/* VIEW 2: BUSINESS SNAPSHOT */}
         {activeTab === "summary" && (
-          <div className="space-y-6">
+          <div className="space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Business Financial Snapshot</h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Real-time ledger across partners, loans, and inventory</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Business Financial Snapshot</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Real-time ledger across partners, loans, and inventory</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   disabled={loading}
                   onClick={async () => {
@@ -7252,49 +7398,49 @@ Thank you for your business!`;
                     setShowRefreshToast(true);
                     setTimeout(() => setShowRefreshToast(false), 3000);
                   }}
-                  className="self-start sm:self-auto px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+                  className="self-start sm:self-auto px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition"
                 >
-                  <Icon name="history" size={14} className={loading ? "animate-spin text-indigo-600" : ""} />
+                  <Icon name="history" size={13} className={loading ? "animate-spin text-indigo-600" : ""} />
                   {loading ? "Refreshing..." : "Refresh Data"}
                 </button>
                 {showRefreshToast && (
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                     ✓ Data Refreshed Just Now
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-5">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales Invoiced</span>
-                <h3 className="text-2xl font-black text-slate-900 mt-2 tracking-tight">{money(businessSummary.totalSales)}</h3>
-                <span className="text-[11px] font-semibold text-slate-400 mt-1 block">Cumulative gross sales</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs relative overflow-hidden">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales Invoiced</span>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{money(businessSummary.totalSales)}</h3>
+                <span className="text-[10px] font-semibold text-slate-400 mt-0.5 block">Cumulative gross sales</span>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
-                <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider block">Customer Dues (కస్టమర్ బ్యాలెన్స్)</span>
-                <h3 className="text-2xl font-black text-rose-600 mt-2 tracking-tight">{money(businessSummary.totalCustomerDues)}</h3>
-                <span className="text-[11px] font-semibold text-rose-400 mt-1 block">Pending market receivables</span>
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs relative overflow-hidden">
+                <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block">Customer Dues (కస్టమర్ బ్యాలెన్స్)</span>
+                <h3 className="text-lg sm:text-xl font-black text-rose-600 mt-1 tracking-tight">{money(businessSummary.totalCustomerDues)}</h3>
+                <span className="text-[10px] font-semibold text-rose-400 mt-0.5 block">Pending market receivables</span>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
-                <span className="text-[11px] font-bold text-amber-500 uppercase tracking-wider block">Debts & Purchase Dues (అప్పులు)</span>
-                <h3 className="text-2xl font-black text-amber-600 mt-2 tracking-tight">
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs relative overflow-hidden">
+                <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider block">Debts & Purchase Dues (అప్పులు)</span>
+                <h3 className="text-lg sm:text-xl font-black text-amber-600 mt-1 tracking-tight">
                   {money(businessSummary.totalLoansPayable + businessSummary.totalPurchaseDues)}
                 </h3>
-                <span className="text-[11px] font-semibold text-amber-400 mt-1 block">External Loans + Supplier Payables</span>
+                <span className="text-[10px] font-semibold text-amber-400 mt-0.5 block">External Loans + Supplier Payables</span>
               </div>
 
-              <div className="bg-emerald-600 p-5 rounded-2xl text-white shadow-lg shadow-emerald-600/20 relative overflow-hidden">
+              <div className="bg-emerald-600 p-3 sm:p-3.5 rounded-xl text-white shadow-md shadow-emerald-600/15 relative overflow-hidden">
                 <div className="flex justify-between items-start">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-100 block">Net Business Profit</span>
-                  <span className="text-[10px] bg-emerald-700/80 px-2 py-0.5 rounded-md font-semibold text-emerald-100">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-100 block">Net Business Profit</span>
+                  <span className="text-[10px] bg-emerald-700/80 px-1.5 py-0.5 rounded font-semibold text-emerald-100">
                     Gross: {money(businessSummary.grossProfit)}
                   </span>
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-black text-white mt-2 tracking-tight">{money(businessSummary.netProfit)}</h3>
-                <span className="text-[11px] font-bold text-emerald-200 mt-1 block">Gross Profit - Shop Expenses</span>
+                <h3 className="text-lg sm:text-xl font-black text-white mt-1 tracking-tight">{money(businessSummary.netProfit)}</h3>
+                <span className="text-[10px] font-bold text-emerald-200 mt-0.5 block">Gross Profit - Shop Expenses</span>
               </div>
             </div>
 
@@ -8051,30 +8197,30 @@ Thank you for your business!`;
           };
 
           return (
-            <div className="space-y-5">
+            <div className="space-y-2.5 sm:space-y-3">
               {/* TOP HEADER */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <Icon name="chart" size={24} className="text-indigo-600" />
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight flex items-center gap-1.5">
+                    <Icon name="chart" size={18} className="text-indigo-600" />
                     Comprehensive Analysis & Reports
                   </h2>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                     Real-time analytical intelligence, aging ledgers, visual metrics, and periodic P&L
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={handleExportAnalysisCSV}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                   >
-                    <Icon name="download" size={14} /> Export CSV
+                    <Icon name="download" size={13} /> Export CSV
                   </button>
                   <button
                     type="button"
                     onClick={() => setAnalysisSubTab("export_print")}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                   >
                     <span>🖨️</span> Print Report
                   </button>
@@ -8082,25 +8228,25 @@ Thank you for your business!`;
               </div>
 
               {/* FILTER TOOLBAR (MATCHING PAYMENTS & COLLECTIONS IN IMAGE 1) */}
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-                <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+              <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+                <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3 top-2.5 text-slate-400">
-                      <Icon name="search" size={15} />
+                    <span className="absolute left-2.5 top-2 text-slate-400">
+                      <Icon name="search" size={14} />
                     </span>
                     <input
                       type="text"
                       placeholder="Search analysis records (customers, items, suppliers, receipts)..."
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                      className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                       value={analysisSearchQuery}
                       onChange={(e) => setAnalysisSearchQuery(e.target.value)}
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {/* Period Filter Dropdown */}
                     <select
-                      className="px-3.5 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
+                      className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
                       value={analysisPeriod}
                       onChange={(e) => setAnalysisPeriod(e.target.value)}
                     >
@@ -9269,15 +9415,15 @@ Thank you for your business!`;
 
         {/* VIEW 3: HISTORY & AUDIT LEDGER */}
         {activeTab === "history_audit" && (
-          <div className="space-y-5">
-            <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Transaction History & Audit Ledger</h2>
-                  <p className="text-xs text-slate-500">Drill into any sales or purchase bill to inspect line items and payment settlements.</p>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">Transaction History & Audit Ledger</h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Drill into any sales or purchase bill to inspect line items and payment settlements.</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto">
+                <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-bold w-full sm:w-auto">
                   {[
                     { id: "all", label: "All Transactions" },
                     { id: "sale", label: "Sales" },
@@ -9290,8 +9436,8 @@ Thank you for your business!`;
                     <button
                       key={filterTab.id}
                       onClick={() => setAuditFilterType(filterTab.id)}
-                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
-                        auditFilterType === filterTab.id ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                      className={`px-2.5 py-1 rounded-md whitespace-nowrap transition text-xs ${
+                        auditFilterType === filterTab.id ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                       }`}
                     >
                       {filterTab.label}
@@ -9301,13 +9447,13 @@ Thank you for your business!`;
               </div>
 
               <div className="relative">
-                <span className="absolute left-3 top-3 text-slate-400">
-                  <Icon name="search" size={16} />
+                <span className="absolute left-2.5 top-2 text-slate-400">
+                  <Icon name="search" size={14} />
                 </span>
                 <input
                   type="text"
                   placeholder="Search invoice number, customer, supplier name..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white"
+                  className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100"
                   value={auditSearchQuery}
                   onChange={(e) => setAuditSearchQuery(e.target.value)}
                 />
@@ -9396,58 +9542,58 @@ Thank you for your business!`;
 
         {/* VIEW 4: MASTER MANAGEMENT HUB */}
         {activeTab === "masters" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 pb-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 sm:space-y-3">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">Master Creation Hub</h2>
-                <p className="text-xs text-slate-500">Configure entities, catalogue prices, and financial accounts</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Master Creation Hub</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">Configure entities, catalogue prices, and financial accounts</p>
               </div>
 
-              <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold w-full lg:w-auto">
+              <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold w-full lg:w-auto">
                 <button
                   onClick={() => { setMastersSubTab("customers"); setMasterSearchQuery(""); }}
-                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
-                    mastersSubTab === "customers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg transition text-xs ${
+                    mastersSubTab === "customers" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   Customers ({customers.length})
                 </button>
                 <button
                   onClick={() => { setMastersSubTab("suppliers"); setMasterSearchQuery(""); }}
-                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
-                    mastersSubTab === "suppliers" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg transition text-xs ${
+                    mastersSubTab === "suppliers" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   Suppliers ({suppliers.length})
                 </button>
                 <button
                   onClick={() => { setMastersSubTab("items"); setMasterSearchQuery(""); }}
-                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
-                    mastersSubTab === "items" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg transition text-xs ${
+                    mastersSubTab === "items" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   Items ({uniqueItemSuggestions.length})
                 </button>
                 <button
                   onClick={() => { setMastersSubTab("lenders"); setMasterSearchQuery(""); }}
-                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
-                    mastersSubTab === "lenders" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg transition text-xs ${
+                    mastersSubTab === "lenders" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   Lenders ({lenders.length})
                 </button>
                 <button
                   onClick={() => { setMastersSubTab("partners"); setMasterSearchQuery(""); }}
-                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
-                    mastersSubTab === "partners" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg transition text-xs ${
+                    mastersSubTab === "partners" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   Partners ({partners.length})
                 </button>
                 <button
                   onClick={() => { setMastersSubTab("categories"); setMasterSearchQuery(""); }}
-                  className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl transition ${
-                    mastersSubTab === "categories" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  className={`flex-1 lg:flex-none px-3 py-1.5 rounded-lg transition text-xs ${
+                    mastersSubTab === "categories" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   Categories ({expenseCategories.length})
@@ -9456,15 +9602,15 @@ Thank you for your business!`;
             </div>
 
             {/* In-Screen Filter Bar */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
               <div className="relative w-full sm:max-w-md">
-                <span className="absolute left-3.5 top-3 text-slate-400">
-                  <Icon name="search" size={15} />
+                <span className="absolute left-2.5 top-2 text-slate-400">
+                  <Icon name="search" size={14} />
                 </span>
                 <input
                   type="text"
                   placeholder={`Search ${mastersSubTab}...`}
-                  className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500"
+                  className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100"
                   value={masterSearchQuery}
                   onChange={(e) => setMasterSearchQuery(e.target.value)}
                 />
@@ -9472,7 +9618,7 @@ Thank you for your business!`;
 
               {/* Master Sort */}
               <select
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:border-indigo-500"
+                className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
                 value={masterSort}
                 onChange={(e) => setMasterSort(e.target.value)}
               >
@@ -9484,7 +9630,7 @@ Thank you for your business!`;
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <button
                     onClick={() => { setEditingCustId(null); setCustForm({ name: "", mobile: "", old_due: "" }); setShowCustModal(true); }}
-                    className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm"
+                    className="flex-1 sm:flex-none px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-2xs"
                   >
                     <Icon name="plus" size={14} /> Add Customer
                   </button>
@@ -10071,13 +10217,13 @@ Thank you for your business!`;
 
         {/* VIEW 8: BUSINESS LOANS & LENDERS */}
         {activeTab === "lenders" && (
-          <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 sm:space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">Business Borrowings & Loans (వ్యాపార రుణాలు / అప్పులు)</h2>
-                <p className="text-xs text-slate-500">Track loans taken for business operations and record repayment installments.</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Business Borrowings & Loans (వ్యాపార రుణాలు / అప్పులు)</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Track loans taken for business operations and record repayment installments.</p>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex gap-1.5 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -10085,7 +10231,7 @@ Thank you for your business!`;
                     setLenderForm({ name: "", mobile: "", initial_loan: "" });
                     setShowLenderModal(true);
                   }}
-                  className="flex-1 sm:flex-none px-3.5 py-2 border border-slate-200 hover:bg-slate-50 font-bold text-xs rounded-xl"
+                  className="flex-1 sm:flex-none px-3 py-1.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs rounded-lg text-slate-700 dark:text-slate-200"
                 >
                   + Add Loan Source
                 </button>
@@ -10103,19 +10249,19 @@ Thank you for your business!`;
                     });
                     setShowLoanPaymentModal(true);
                   }}
-                  className="flex-1 sm:flex-none px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
+                  className="flex-1 sm:flex-none px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-2xs"
                 >
-                  <Icon name="rupee" size={14} /> Pay Installment / Due
+                  <Icon name="rupee" size={13} /> Pay Installment / Due
                 </button>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 flex justify-between items-center">
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex justify-between items-center">
               <div>
-                <span className="text-[11px] font-bold uppercase text-amber-800 tracking-wider block">Total Outstanding Loan Liability</span>
-                <span className="text-xl font-black text-amber-900 mt-0.5 block">{money(businessSummary.totalLoansPayable)}</span>
+                <span className="text-[10px] font-bold uppercase text-amber-800 dark:text-amber-300 tracking-wider block">Total Outstanding Loan Liability</span>
+                <span className="text-lg font-black text-amber-900 dark:text-amber-200 mt-0.5 block">{money(businessSummary.totalLoansPayable)}</span>
               </div>
-              <span className="text-xs font-semibold text-amber-700">Payable to outside lenders</span>
+              <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Payable to outside lenders</span>
             </div>
 
             <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-2xl shadow-xs">
@@ -10311,17 +10457,17 @@ Thank you for your business!`;
 
         {/* VIEW 9: EXPENSES (POINT 8: ERP GRID TABLE MATCHING IMAGE 1) */}
         {activeTab === "expenses" && (
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white">Expenses & Cash Outflow</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Record shop costs and manage master categories</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">Expenses & Cash Outflow</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Record shop costs and manage master categories</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setShowCategoryModal(true)}
-                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-lg"
                 >
                   Manage Categories
                 </button>
@@ -10341,7 +10487,7 @@ Thank you for your business!`;
                     });
                     setShowExpenseModal(true);
                   }}
-                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   + Add Expense
                 </button>
@@ -10349,13 +10495,13 @@ Thank you for your business!`;
             </div>
 
             {/* Expenses Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-0.5">
               <input
                 type="text"
                 placeholder="Search expense description..."
                 value={expenseSearchQuery}
                 onChange={(e) => setExpenseSearchQuery(e.target.value)}
-                className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-white"
+                className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-white"
               />
               <select
                 value={expenseCategoryFilter}
@@ -10546,24 +10692,24 @@ Thank you for your business!`;
           }, 0);
 
           return (
-            <div className="space-y-6">
-              <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-6">
+            <div className="space-y-2.5 sm:space-y-3">
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                 {/* Header matching user requirement */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
                   <div>
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
                       {t("B Reddy Statement (Excel Sheet Format)", "బి రెడ్డి స్టేట్‌మెంట్ (ఎక్సెల్ షీట్ ఫార్మాట్)")}
                     </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                       {t("Complete balance sheet. Zero stock batches and settled zero balances are excluded.", "పూర్తి బ్యాలెన్స్ షీట్. జీరో స్టాక్ మరియు సెటిల్ అయినవి మినహాయించబడ్డాయి.")}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className={`px-4 py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center gap-2 shadow cursor-pointer`}
+                    className={`px-3 py-1.5 ${curTheme.primary} font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-2xs cursor-pointer`}
                   >
-                    <Icon name="download" size={15} /> {t("Download / Print PDF", "డౌన్‌లోడ్ / ప్రింట్ PDF")}
+                    <Icon name="download" size={14} /> {t("Download / Print PDF", "డౌన్‌లోడ్ / ప్రింట్ PDF")}
                   </button>
                 </div>
 
@@ -11223,27 +11369,27 @@ Thank you for your business!`;
           const finalLedgerRows = ledgerSortOrder === "desc" ? [...displayLedgerRows].reverse() : displayLedgerRows;
 
           return (
-            <div className="space-y-6">
+            <div className="space-y-2.5 sm:space-y-3">
               {/* Header */}
-              <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 no-print">
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 no-print">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <Icon name="layers" size={20} /> {t("Ledger Statement", "ఖాతా లెడ్జర్ స్టేట్‌మెంట్")}
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5 leading-tight">
+                    <Icon name="layers" size={18} /> {t("Ledger Statement", "ఖాతా లెడ్జర్ స్టేట్‌మెంట్")}
                   </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                     {t("Complete transaction history, running ledger, invoices, and payments", "పూర్తి లావాదేవీల రికార్డు, రన్నింగ్ బ్యాలెన్స్, బిల్లులు మరియు పేమెంట్లు")}
                   </p>
                 </div>
                 {/* Segmented Party Toggle */}
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <div className="inline-flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                     <button
                       type="button"
                       onClick={() => {
                         setWhatsappType("customer");
                         if (customers.length > 0) setWhatsappSelectedId(customers[0].id);
                       }}
-                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-md font-bold text-xs transition cursor-pointer ${
                         isCustomer ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                       }`}
                     >
@@ -11255,7 +11401,7 @@ Thank you for your business!`;
                         setWhatsappType("supplier");
                         if (suppliers.length > 0) setWhatsappSelectedId(suppliers[0].id);
                       }}
-                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-md font-bold text-xs transition cursor-pointer ${
                         !isCustomer ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                       }`}
                     >
@@ -11265,22 +11411,22 @@ Thank you for your business!`;
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className={`px-3.5 py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center gap-1.5 shadow cursor-pointer`}
+                    className={`px-3 py-1.5 ${curTheme.primary} font-bold text-xs rounded-lg flex items-center gap-1 shadow-2xs cursor-pointer`}
                   >
-                    <Icon name="download" size={14} /> Print Statement
+                    <Icon name="download" size={13} /> Print Statement
                   </button>
                 </div>
               </div>
 
               {/* Selector Bar */}
-              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-3 no-print">
+              <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-2 no-print">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                   {isCustomer ? "Select Customer Account:" : "Select Supplier Account:"}
                 </label>
                 <select
                   value={whatsappSelectedId || (currentParty?.id || "")}
                   onChange={(e) => setWhatsappSelectedId(e.target.value)}
-                  className="w-full sm:max-w-md p-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                  className="w-full sm:max-w-md p-1.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold outline-none"
                 >
                   {isCustomer
                     ? customers.map((c) => (
@@ -11735,14 +11881,14 @@ Thank you for your business!`;
           const pagedPartners = partnerAccounts.slice((safePartnerPage - 1) * 10, safePartnerPage * 10);
 
           return (
-            <div className="space-y-6">
+            <div className="space-y-2.5 sm:space-y-3">
               {/* Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight flex items-center gap-1.5">
                     <span className="text-indigo-600">🤝</span> Partner Capital Accounts
                   </h2>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                     Track liquid physical cash, UPI holdings, and capital investments tied to active partners
                   </p>
                 </div>
@@ -11753,34 +11899,34 @@ Thank you for your business!`;
                     setPartnerForm({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner" });
                     setShowPartnerModal(true);
                   }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                 >
-                  <Icon name="plus" size={15} /> Add Partner Account
+                  <Icon name="plus" size={14} /> Add Partner Account
                 </button>
               </div>
 
               {/* Metric Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Partner Capital</span>
-                  <b className="text-xl font-black text-indigo-600 mt-1 block">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Partner Capital</span>
+                  <b className="text-base sm:text-lg font-black text-indigo-600 dark:text-indigo-400 mt-0.5 block">
                     {money(totalNetCapital)}
                   </b>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">Combined physical cash & UPI</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Combined physical cash & UPI</span>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Physical Cash in Hand</span>
-                  <b className="text-xl font-black text-emerald-600 mt-1 block">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Physical Cash in Hand</span>
+                  <b className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block">
                     {money(totalNetCash)}
                   </b>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">Liquid drawer / shop cash</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Liquid drawer / shop cash</span>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI / Bank in Hand</span>
-                  <b className="text-xl font-black text-sky-600 mt-1 block">
+                <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">UPI / Bank in Hand</span>
+                  <b className="text-base sm:text-lg font-black text-sky-600 dark:text-sky-400 mt-0.5 block">
                     {money(totalNetUpi)}
                   </b>
-                  <span className="text-[11px] text-slate-400 mt-0.5 block">Liquid digital / QR balances</span>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Liquid digital / QR balances</span>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Active Partners</span>
@@ -11944,40 +12090,40 @@ Thank you for your business!`;
         {/* VIEW 13: SYSTEM SETTINGS MODULE (LANGUAGE, LIVE THEME PREVIEW, GOOGLE AUTHENTICATOR 2FA, BACKUP) */}
         {activeTab === "settings" && (() => {
           return (
-            <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="space-y-2.5 sm:space-y-3 max-w-4xl mx-auto">
               {/* Header */}
-              <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="text-xl">⚙️</span> {t("System Settings & Customization", "సిస్టమ్ సెట్టింగ్స్ & కాన్ఫిగరేషన్")}
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5 leading-tight">
+                  <span className="text-lg">⚙️</span> {t("System Settings & Customization", "సిస్టమ్ సెట్టింగ్స్ & కాన్ఫిగరేషన్")}
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                   {t("Configure language, color themes, display modes, Google Authenticator security, and database backup.", "భాష, రంగులు, లైట్/డార్క్ మోడ్, సెక్యూరిటీ మరియు బ్యాకప్ సెట్టింగ్స్")}
                 </p>
               </div>
 
               {/* Settings Sub-Tab Navigation (Point 3) */}
-              <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto self-start">
+              <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto self-start">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("general")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     settingsSubTab === "general"
-                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
-                  <Icon name="settings" size={15} /> General Settings
+                  <Icon name="settings" size={14} /> General Settings
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("app_config")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                     settingsSubTab === "app_config"
-                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
-                  <Icon name="file" size={15} /> Application Configuration
+                  <Icon name="file" size={14} /> Application Configuration
                 </button>
               </div>
 
@@ -14168,8 +14314,8 @@ Thank you for your business!`;
           partyName = cust?.name || selectedReceiptDetail.customer_name || "Customer";
           partyMobile = cust?.mobile || "-";
           const currentBal = Number(cust?.old_due || 0);
-          oldBalance = currentBal + amountVal;
-          newBalance = currentBal;
+          oldBalance = selectedReceiptDetail.balanceBefore !== undefined ? selectedReceiptDetail.balanceBefore : (currentBal + amountVal);
+          newBalance = selectedReceiptDetail.balanceAfter !== undefined ? selectedReceiptDetail.balanceAfter : currentBal;
 
           const rawAdj = getAdjustedInvoicesForCollection(selectedReceiptDetail);
           if (rawAdj.length > 0) {
@@ -14178,6 +14324,8 @@ Thank you for your business!`;
               const invAdj = Number(item.amount || 0);
               return {
                 ref: item.invoice_number,
+                invoiceId: item.id,
+                rawInvoice: item.raw || invoices.find((i) => i.id == item.id),
                 date: (item.raw?.invoice_date || item.raw?.created_at || txDate).slice(0, 10),
                 item: (item.raw?.items || []).map((it) => it.item_name).join(", ") || "Sales Bill",
                 totalAmount: invTot,
@@ -14306,7 +14454,27 @@ Thank you for your business!`;
                         {adjustedBills.map((b, bIdx) => (
                           <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                             <td className="p-2 border border-sky-200 dark:border-slate-700 font-bold text-indigo-600 dark:text-indigo-400">
-                              {b.ref}
+                              {b.isOpeningBalance || !b.ref ? (
+                                <span>{b.ref || "Opening Due"}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const targetInv = b.rawInvoice || invoices.find((i) => String(i.id) === String(b.invoiceId) || (i.invoice_number || `INV-${i.id}`) === b.ref);
+                                    if (targetInv) {
+                                      setSelectedReceiptDetail(null);
+                                      handleEditInvoice(targetInv);
+                                    } else {
+                                      alert("Could not load invoice for editing.");
+                                    }
+                                  }}
+                                  className="hover:underline font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer flex items-center gap-1 text-left"
+                                  title="Click to open this invoice in POS Edit mode"
+                                >
+                                  <span>{b.ref}</span>
+                                  <Icon name="edit" size={11} />
+                                </button>
+                              )}
                             </td>
                             <td className="p-2 border border-sky-200 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                               {b.date}
@@ -14633,11 +14801,10 @@ Thank you for your business!`;
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {(() => {
-                      const itemsList = selectedViewProcure.rawRows && selectedViewProcure.rawRows.length > 0
-                        ? selectedViewProcure.rawRows
-                        : (selectedViewProcure.items && selectedViewProcure.items.length > 0
-                            ? selectedViewProcure.items
-                            : [selectedViewProcure]);
+                      const candidateList = selectedViewProcure.items && selectedViewProcure.items.length > 0
+                        ? selectedViewProcure.items
+                        : (selectedViewProcure.rawRows || [selectedViewProcure]);
+                      const itemsList = candidateList.filter((it) => !isPaymentProcurementRow(it));
                       return itemsList.map((it, idx) => {
                         const q = Number(it.procured_qty || 0);
                         const r = Number(it.purchase_rate || 0);
