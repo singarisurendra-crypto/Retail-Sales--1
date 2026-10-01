@@ -438,10 +438,94 @@ export default function App() {
   const [savingCollection, setSavingCollection] = useState(false);
 
   // Sorting States
-  const [invoiceSort, setInvoiceSort] = useState("date_desc");
-  const [procureSort, setProcureSort] = useState("date_desc");
-  const [paymentsSort, setPaymentsSort] = useState("date_desc");
-  const [masterSort, setMasterSort] = useState("name_asc");
+  // Universal Column-Click Sorting System
+  const getDateTimeVal = (r, dateField = "date") => {
+    const dVal = r[dateField] || r.date || r.invoice_date || r.purchase_date || r.expense_date || r.collection_date || r.created_at;
+    const cVal = r.created_at;
+    if (dVal && String(dVal).length > 10) {
+      const t = new Date(dVal).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (cVal) {
+      const t = new Date(cVal).getTime();
+      if (!isNaN(t)) {
+        if (dVal && String(cVal).slice(0, 10) === String(dVal).slice(0, 10)) return t;
+        if (dVal) {
+          const timePart = String(cVal).slice(10);
+          const combined = new Date(`${String(dVal).slice(0, 10)}${timePart}`).getTime();
+          if (!isNaN(combined)) return combined;
+        }
+        return t;
+      }
+    }
+    if (dVal) {
+      const t = new Date(dVal).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return 0;
+  };
+
+  const [invoiceSortCol, setInvoiceSortCol] = useState("date");
+  const [invoiceSortDir, setInvoiceSortDir] = useState("desc");
+
+  const [procureSortCol, setProcureSortCol] = useState("date");
+  const [procureSortDir, setProcureSortDir] = useState("desc");
+
+  const [collectSortCol, setCollectSortCol] = useState("date");
+  const [collectSortDir, setCollectSortDir] = useState("desc");
+
+  const [supPaySortCol, setSupPaySortCol] = useState("date");
+  const [supPaySortDir, setSupPaySortDir] = useState("desc");
+
+  const [loanRepaySortCol, setLoanRepaySortCol] = useState("date");
+  const [loanRepaySortDir, setLoanRepaySortDir] = useState("desc");
+
+  const [masterCustSortCol, setMasterCustSortCol] = useState("name");
+  const [masterCustSortDir, setMasterCustSortDir] = useState("asc");
+
+  const [masterSupSortCol, setMasterSupSortCol] = useState("name");
+  const [masterSupSortDir, setMasterSupSortDir] = useState("asc");
+
+  const [masterItemSortCol, setMasterItemSortCol] = useState("name");
+  const [masterItemSortDir, setMasterItemSortDir] = useState("asc");
+
+  const [masterLenderSortCol, setMasterLenderSortCol] = useState("name");
+  const [masterLenderSortDir, setMasterLenderSortDir] = useState("asc");
+
+  const [masterPartnerSortCol, setMasterPartnerSortCol] = useState("name");
+  const [masterPartnerSortDir, setMasterPartnerSortDir] = useState("asc");
+
+  const [expenseSortCol, setExpenseSortCol] = useState("date");
+  const [expenseSortDir, setExpenseSortDir] = useState("desc");
+
+  const [auditSortCol, setAuditSortCol] = useState("date");
+  const [auditSortDir, setAuditSortDir] = useState("desc");
+
+  const [analysisSupSortCol, setAnalysisSupSortCol] = useState("total");
+  const [analysisSupSortDir, setAnalysisSupSortDir] = useState("desc");
+
+  const [analysisCustSortCol, setAnalysisCustSortCol] = useState("due");
+  const [analysisCustSortDir, setAnalysisCustSortDir] = useState("desc");
+
+  const [analysisPaySortCol, setAnalysisPaySortCol] = useState("due");
+  const [analysisPaySortDir, setAnalysisPaySortDir] = useState("desc");
+
+  const [analysisStockSortCol, setAnalysisStockSortCol] = useState("name");
+  const [analysisStockSortDir, setAnalysisStockSortDir] = useState("asc");
+
+  const toggleSort = (col, currentActiveCol, setActiveCol, currentDir, setDir) => {
+    if (currentActiveCol === col) {
+      setDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setActiveCol(col);
+      setDir("asc"); // First click -> Ascending
+    }
+  };
+
+  const renderSortIndicator = (col, activeCol, dir) => {
+    if (col !== activeCol) return null;
+    return <span className="ml-1 inline-block font-bold">{dir === "asc" ? "↑" : "↓"}</span>;
+  };
 
   // Pagination States (ERP Numeric Grid Style matching Image 1)
   const [invoicePage, setInvoicePage] = useState(1);
@@ -1530,8 +1614,26 @@ export default function App() {
           e.notes?.toLowerCase().includes(q)
       );
     }
-    return list;
-  }, [expenses, expenseCategoryFilter, expensePartnerFilter, expenseDateFilter, expenseSearchQuery]);
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (expenseSortCol === "id") {
+        cmp = Number(a.id || 0) - Number(b.id || 0);
+      } else if (expenseSortCol === "date") {
+        const aT = getDateTimeVal(a, "expense_date");
+        const bT = getDateTimeVal(b, "expense_date");
+        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (expenseSortCol === "category") {
+        cmp = (a.category_name || "").localeCompare(b.category_name || "");
+      } else if (expenseSortCol === "title") {
+        cmp = (a.title || "").localeCompare(b.title || "");
+      } else if (expenseSortCol === "amount") {
+        cmp = Number(a.amount || 0) - Number(b.amount || 0);
+      }
+      return expenseSortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [expenses, expenseCategoryFilter, expensePartnerFilter, expenseDateFilter, expenseSearchQuery, expenseSortCol, expenseSortDir]);
 
   const combinedAuditTransactions = useMemo(() => {
     const invList = invoices.map((i) => ({
@@ -1643,9 +1745,30 @@ export default function App() {
       };
     });
 
-    let combined = [...invList, ...procList, ...colList, ...supPayList, ...loanTxList, ...expList].sort(
-      (a, b) => new Date(b.date || b.rawTimestamp) - new Date(a.date || a.rawTimestamp)
-    );
+    let combined = [...invList, ...procList, ...colList, ...supPayList, ...loanTxList, ...expList];
+    combined.sort((a, b) => {
+      let cmp = 0;
+      if (auditSortCol === "id") {
+        cmp = (a.docNumber || "").localeCompare(b.docNumber || "");
+      } else if (auditSortCol === "type") {
+        cmp = (a.txType || "").localeCompare(b.txType || "");
+      } else if (auditSortCol === "date") {
+        const aT = getDateTimeVal(a, "date");
+        const bT = getDateTimeVal(b, "date");
+        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (auditSortCol === "party") {
+        cmp = (a.partyName || "").localeCompare(b.partyName || "");
+      } else if (auditSortCol === "total") {
+        cmp = Number(a.totalAmount || 0) - Number(b.totalAmount || 0);
+      } else if (auditSortCol === "paid") {
+        cmp = Number(a.paidAmount || 0) - Number(b.paidAmount || 0);
+      } else if (auditSortCol === "due") {
+        cmp = Number(a.balanceDue || 0) - Number(b.balanceDue || 0);
+      } else if (auditSortCol === "status") {
+        cmp = (a.status || "").localeCompare(b.status || "");
+      }
+      return auditSortDir === "asc" ? cmp : -cmp;
+    });
 
     if (auditFilterType !== "all") {
       combined = combined.filter((tx) => tx.txType === auditFilterType);
@@ -1853,21 +1976,37 @@ export default function App() {
     }
 
     const sorted = [...list];
-    if (invoiceSort === "date_desc") {
-      sorted.sort((a, b) => new Date(b.invoice_date || b.created_at) - new Date(a.invoice_date || a.created_at) || (Number(b.id || 0) - Number(a.id || 0)));
-    } else if (invoiceSort === "date_asc") {
-      sorted.sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || (Number(a.id || 0) - Number(b.id || 0)));
-    } else if (invoiceSort === "amount_desc") {
-      sorted.sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0));
-    } else if (invoiceSort === "due_desc") {
-      sorted.sort((a, b) => {
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (invoiceSortCol === "id") {
+        cmp = (a.invoice_number || "").localeCompare(b.invoice_number || "") || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (invoiceSortCol === "date") {
+        const aT = getDateTimeVal(a, "invoice_date");
+        const bT = getDateTimeVal(b, "invoice_date");
+        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (invoiceSortCol === "customer") {
+        cmp = (a.customer_name || "").localeCompare(b.customer_name || "");
+      } else if (invoiceSortCol === "items") {
+        const aCnt = Array.isArray(a.items) ? a.items.length : 0;
+        const bCnt = Array.isArray(b.items) ? b.items.length : 0;
+        cmp = aCnt - bCnt;
+      } else if (invoiceSortCol === "total") {
+        cmp = Number(a.total_amount || 0) - Number(b.total_amount || 0);
+      } else if (invoiceSortCol === "paid") {
+        const aPaid = invoiceAllocationsMap.get(String(a.id))?.totalPaid ?? Number(a.upfront_paid || 0);
+        const bPaid = invoiceAllocationsMap.get(String(b.id))?.totalPaid ?? Number(b.upfront_paid || 0);
+        cmp = aPaid - bPaid;
+      } else if (invoiceSortCol === "due") {
         const aDue = invoiceAllocationsMap.get(String(a.id))?.balanceDue ?? Number(a.balance_due || 0);
         const bDue = invoiceAllocationsMap.get(String(b.id))?.balanceDue ?? Number(b.balance_due || 0);
-        return bDue - aDue;
-      });
-    }
+        cmp = aDue - bDue;
+      } else if (invoiceSortCol === "status") {
+        cmp = (a.status || "").localeCompare(b.status || "");
+      }
+      return invoiceSortDir === "asc" ? cmp : -cmp;
+    });
     return sorted;
-  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSort, invoiceAllocationsMap]);
+  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSortCol, invoiceSortDir, invoiceAllocationsMap]);
 
   const purchaseOrdersGrouped = useMemo(() => {
     const map = new Map();
@@ -1964,17 +2103,33 @@ export default function App() {
     }
 
     const sorted = [...list];
-    if (procureSort === "date_desc") {
-      sorted.sort((a, b) => new Date(b.purchase_date || b.created_at) - new Date(a.purchase_date || a.created_at));
-    } else if (procureSort === "date_asc") {
-      sorted.sort((a, b) => new Date(a.purchase_date || a.created_at) - new Date(b.purchase_date || b.created_at));
-    } else if (procureSort === "stock_desc") {
-      sorted.sort((a, b) => Number(b.remaining_qty || 0) - Number(a.remaining_qty || 0));
-    } else if (procureSort === "valuation_desc") {
-      sorted.sort((a, b) => Number(b.total_amount || 0) - Number(a.total_amount || 0));
-    }
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (procureSortCol === "id") {
+        cmp = (a.purchaseNum || "").localeCompare(b.purchaseNum || "") || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (procureSortCol === "date") {
+        const aT = getDateTimeVal(a, "purchase_date");
+        const bT = getDateTimeVal(b, "purchase_date");
+        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (procureSortCol === "supplier") {
+        cmp = (a.supplier_name || "").localeCompare(b.supplier_name || "");
+      } else if (procureSortCol === "stock") {
+        cmp = Number(a.remaining_qty || 0) - Number(b.remaining_qty || 0);
+      } else if (procureSortCol === "total") {
+        cmp = Number(a.total_amount || 0) - Number(b.total_amount || 0);
+      } else if (procureSortCol === "paid") {
+        const aPaid = Number(a.paid_amount !== undefined ? a.paid_amount : (a.p1_amount || 0));
+        const bPaid = Number(b.paid_amount !== undefined ? b.paid_amount : (b.p1_amount || 0));
+        cmp = aPaid - bPaid;
+      } else if (procureSortCol === "due") {
+        const aDue = Math.max(0, Number(a.total_amount || 0) - Number(a.paid_amount !== undefined ? a.paid_amount : (a.p1_amount || 0)));
+        const bDue = Math.max(0, Number(b.total_amount || 0) - Number(b.paid_amount !== undefined ? b.paid_amount : (b.p1_amount || 0)));
+        cmp = aDue - bDue;
+      }
+      return procureSortDir === "asc" ? cmp : -cmp;
+    });
     return sorted;
-  }, [purchaseOrdersGrouped, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery, procureSort]);
+  }, [purchaseOrdersGrouped, procureStockFilter, procureSupplierFilter, procureDateFilter, procureSearchQuery, procureSortCol, procureSortDir]);
 
   const allCollectionsList = useMemo(() => {
     // Strictly genuine collection records from collections table (excluding auto-generated session advance adjustments)
@@ -2092,17 +2247,27 @@ export default function App() {
     }
 
     const sorted = [...list];
-    if (paymentsSort === "date_desc") {
-      sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    } else if (paymentsSort === "date_asc") {
-      sorted.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-    } else if (paymentsSort === "amount_desc") {
-      sorted.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0));
-    } else if (paymentsSort === "amount_asc") {
-      sorted.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0));
-    }
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (collectSortCol === "id") {
+        cmp = (a.reference_no || "").localeCompare(b.reference_no || "") || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (collectSortCol === "date") {
+        const aT = getDateTimeVal(a, "collection_date");
+        const bT = getDateTimeVal(b, "collection_date");
+        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (collectSortCol === "customer") {
+        const aCust = customers.find((c) => c.id == a.customer_id)?.name || a.customer_name || "";
+        const bCust = customers.find((c) => c.id == b.customer_id)?.name || b.customer_name || "";
+        cmp = aCust.localeCompare(bCust);
+      } else if (collectSortCol === "mode") {
+        cmp = (a.payment_mode || "").localeCompare(b.payment_mode || "");
+      } else if (collectSortCol === "amount") {
+        cmp = Number(a.amount || 0) - Number(b.amount || 0);
+      }
+      return collectSortDir === "asc" ? cmp : -cmp;
+    });
     return sorted;
-  }, [allCollectionsList, customers, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery, paymentsSort]);
+  }, [allCollectionsList, customers, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery, collectSortCol, collectSortDir]);
 
   const filteredSupplierPayments = useMemo(() => {
     // Include all procurements where an actual payment disbursement was made (p1_amount > 0)
@@ -2126,9 +2291,32 @@ export default function App() {
         (p.bill_no && p.bill_no.toLowerCase().includes(q))
       );
     }
-    // Sort newest disbursements first
-    return [...list].sort((a, b) => new Date(b.purchase_date || b.created_at) - new Date(a.purchase_date || a.created_at) || Number(b.id || 0) - Number(a.id || 0));
-  }, [procurements, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery]);
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (supPaySortCol === "id") {
+        cmp = (a.reference_no || `PAY-${a.id}`).localeCompare(b.reference_no || `PAY-${b.id}`);
+      } else if (supPaySortCol === "date") {
+        const aT = getDateTimeVal(a, "purchase_date");
+        const bT = getDateTimeVal(b, "purchase_date");
+        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      } else if (supPaySortCol === "supplier") {
+        cmp = (a.supplier_name || "").localeCompare(b.supplier_name || "");
+      } else if (supPaySortCol === "item") {
+        cmp = (a.item_name || "").localeCompare(b.item_name || "");
+      } else if (supPaySortCol === "total") {
+        cmp = Number(a.total_amount || 0) - Number(b.total_amount || 0);
+      } else if (supPaySortCol === "paid") {
+        cmp = Number(a.p1_amount || 0) - Number(b.p1_amount || 0);
+      } else if (supPaySortCol === "due") {
+        const aDue = Math.max(0, Number(a.total_amount || 0) - Number(a.p1_amount || 0));
+        const bDue = Math.max(0, Number(b.total_amount || 0) - Number(b.p1_amount || 0));
+        cmp = aDue - bDue;
+      }
+      return supPaySortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [procurements, paymentsPartnerFilter, paymentsModeFilter, paymentsDateFilter, paymentsSearchQuery, supPaySortCol, supPaySortDir]);
 
   // Numbering Sequence Generator (Point 3)
   const generateNextSeqNumber = (moduleKey, specificDate = null) => {
@@ -2373,31 +2561,32 @@ export default function App() {
       return alert("Select items with valid quantities");
     }
 
-    // Scenario #1: Pre-flight stock availability check
+    // Scenario #1: Pre-flight stock availability check (combining duplicate items across all invoice lines)
     const oldInvForStock = editingInvoiceId ? invoices.find((i) => i.id === editingInvoiceId) : null;
+    const cartQtyByProcure = new Map();
     for (const line of cart) {
       if (!line.procure_id) continue;
       const pid = Number(line.procure_id);
+      cartQtyByProcure.set(pid, (cartQtyByProcure.get(pid) || 0) + Number(line.qty || 0));
+    }
+
+    for (const [pid, reqQty] of cartQtyByProcure.entries()) {
       const batch = procurements.find((p) => p.id === pid);
       let availableStock = Number(batch ? batch.remaining_qty : 0);
 
       // In edit mode, restore stock quantity already allocated to this invoice from that batch
       if (editingInvoiceId && oldInvForStock && Array.isArray(oldInvForStock.items)) {
-        const oldLine = oldInvForStock.items.find((it) => Number(it.procure_id) === pid);
-        if (oldLine) {
-          availableStock += Number(oldLine.qty || 0);
+        for (const oldLine of oldInvForStock.items) {
+          if (Number(oldLine.procure_id) === pid) {
+            availableStock += Number(oldLine.qty || 0);
+          }
         }
       }
 
-      const reqQty = Number(line.qty || 0);
       if (reqQty > availableStock) {
         const shortage = reqQty - availableStock;
         return alert(
-          `Insufficient stock for ${line.item_name || "item"}.\n\n` +
-          `Available stock: ${availableStock}.\n` +
-          `Required quantity: ${reqQty}.\n` +
-          `Shortage: ${shortage}.\n\n` +
-          `Please reduce the quantity or select a different item.`
+          `Insufficient stock for this item. Available quantity: ${availableStock}, Required quantity: ${reqQty}, Shortage: ${shortage}. Please reduce the quantity or select a different item.`
         );
       }
     }
@@ -2518,13 +2707,13 @@ export default function App() {
           }
         }
       } else {
-        // Decrement inventory for newly created invoice
-        for (const line of cart) {
-          const { data: dbBatch } = await db.from("procurements").select("id, remaining_qty").eq("id", Number(line.procure_id)).maybeSingle();
-          const currentRem = Number(dbBatch ? dbBatch.remaining_qty : (procurements.find((p) => p.id == line.procure_id)?.remaining_qty || 0));
-          const nextRem = Math.max(0, currentRem - Number(line.qty || 0));
-          await db.from("procurements").update({ remaining_qty: nextRem }).eq("id", Number(line.procure_id));
-          setProcurements((prev) => prev.map((p) => p.id == line.procure_id ? { ...p, remaining_qty: nextRem } : p));
+        // Decrement inventory for newly created invoice (aggregated by procure_id to prevent negative stock and race conditions)
+        for (const [pid, totalQty] of cartQtyByProcure.entries()) {
+          const { data: dbBatch } = await db.from("procurements").select("id, remaining_qty").eq("id", pid).maybeSingle();
+          const currentRem = Number(dbBatch ? dbBatch.remaining_qty : (procurements.find((p) => p.id === pid)?.remaining_qty || 0));
+          const nextRem = Math.max(0, currentRem - totalQty);
+          await db.from("procurements").update({ remaining_qty: nextRem }).eq("id", pid);
+          setProcurements((prev) => prev.map((p) => p.id === pid ? { ...p, remaining_qty: nextRem } : p));
         }
       }
 
@@ -4363,7 +4552,7 @@ Thank you for your business!`;
     }
   };
 
-  // Filtered Masters Collections
+  // Filtered Masters Collections with Column Sorting
   const filteredCustomers = useMemo(() => {
     let list = customers;
     if (masterSearchQuery.trim()) {
@@ -4371,13 +4560,19 @@ Thank you for your business!`;
       list = list.filter((c) => c.name?.toLowerCase().includes(q) || c.mobile?.includes(q));
     }
     const sorted = [...list];
-    if (masterSort === "name_asc") {
-      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    } else if (masterSort === "due_desc") {
-      sorted.sort((a, b) => Number(b.old_due || 0) - Number(a.old_due || 0));
-    }
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (masterCustSortCol === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "");
+      } else if (masterCustSortCol === "mobile") {
+        cmp = (a.mobile || "").localeCompare(b.mobile || "");
+      } else if (masterCustSortCol === "due") {
+        cmp = Number(a.old_due || 0) - Number(b.old_due || 0);
+      }
+      return masterCustSortDir === "asc" ? cmp : -cmp;
+    });
     return sorted;
-  }, [customers, masterSearchQuery, masterSort]);
+  }, [customers, masterSearchQuery, masterCustSortCol, masterCustSortDir]);
 
   const filteredSuppliers = useMemo(() => {
     let list = suppliers;
@@ -4386,25 +4581,63 @@ Thank you for your business!`;
       list = list.filter((s) => s.name?.toLowerCase().includes(q) || s.mobile?.includes(q));
     }
     const sorted = [...list];
-    if (masterSort === "name_asc") {
-      sorted.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    } else if (masterSort === "due_desc") {
-      sorted.sort((a, b) => Number(b.old_due || 0) - Number(a.old_due || 0));
-    }
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (masterSupSortCol === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "");
+      } else if (masterSupSortCol === "mobile") {
+        cmp = (a.mobile || "").localeCompare(b.mobile || "");
+      } else if (masterSupSortCol === "due") {
+        cmp = Number(a.old_due || 0) - Number(b.old_due || 0);
+      }
+      return masterSupSortDir === "asc" ? cmp : -cmp;
+    });
     return sorted;
-  }, [suppliers, masterSearchQuery, masterSort]);
+  }, [suppliers, masterSearchQuery, masterSupSortCol, masterSupSortDir]);
 
   const filteredItems = useMemo(() => {
-    if (!masterSearchQuery) return uniqueItemSuggestions;
-    const q = masterSearchQuery.toLowerCase();
-    return uniqueItemSuggestions.filter((i) => i.name?.toLowerCase().includes(q));
-  }, [uniqueItemSuggestions, masterSearchQuery]);
+    let list = uniqueItemSuggestions;
+    if (masterSearchQuery) {
+      const q = masterSearchQuery.toLowerCase();
+      list = list.filter((i) => i.name?.toLowerCase().includes(q));
+    }
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (masterItemSortCol === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "");
+      } else if (masterItemSortCol === "stock") {
+        cmp = Number(a.remaining_qty || 0) - Number(b.remaining_qty || 0);
+      } else if (masterItemSortCol === "rate") {
+        cmp = Number(a.selling_rate || 0) - Number(b.selling_rate || 0);
+      }
+      return masterItemSortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [uniqueItemSuggestions, masterSearchQuery, masterItemSortCol, masterItemSortDir]);
 
   const filteredLenders = useMemo(() => {
-    if (!masterSearchQuery) return lenders;
-    const q = masterSearchQuery.toLowerCase();
-    return lenders.filter((l) => l.name?.toLowerCase().includes(q) || l.mobile?.includes(q));
-  }, [lenders, masterSearchQuery]);
+    let list = lenders;
+    if (masterSearchQuery) {
+      const q = masterSearchQuery.toLowerCase();
+      list = list.filter((l) => l.name?.toLowerCase().includes(q) || l.mobile?.includes(q));
+    }
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      if (masterLenderSortCol === "name") {
+        cmp = (a.name || "").localeCompare(b.name || "");
+      } else if (masterLenderSortCol === "mobile") {
+        cmp = (a.mobile || "").localeCompare(b.mobile || "");
+      } else if (masterLenderSortCol === "borrowed") {
+        cmp = Number(a.total_borrowed || 0) - Number(b.total_borrowed || 0);
+      } else if (masterLenderSortCol === "due") {
+        cmp = Number(a.pending_due !== undefined ? a.pending_due : (Number(a.total_borrowed || 0) - Number(a.total_repaid || 0))) - Number(b.pending_due !== undefined ? b.pending_due : (Number(b.total_borrowed || 0) - Number(b.total_repaid || 0)));
+      }
+      return masterLenderSortDir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }, [lenders, masterSearchQuery, masterLenderSortCol, masterLenderSortDir]);
 
   // LOGIN GATE SCREEN
   const handleExportAllData = () => {
@@ -6076,17 +6309,7 @@ Thank you for your business!`;
                     <option value="this_month">This Month</option>
                   </select>
 
-                  {/* Sort Filter */}
-                  <select
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
-                    value={invoiceSort}
-                    onChange={(e) => setInvoiceSort(e.target.value)}
-                  >
-                    <option value="date_desc">↕️ Sort: Newest First</option>
-                    <option value="date_asc">↕️ Sort: Oldest First</option>
-                    <option value="amount_desc">↕️ Sort: Amount High-Low</option>
-                    <option value="due_desc">↕️ Sort: Due High-Low</option>
-                  </select>
+
 
                   {/* Customer Filter */}
                   <select
@@ -6143,14 +6366,30 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-300 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Invoice #", "ఇన్‌వాయిస్ #")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Date", "తేదీ")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Customer", "కస్టమర్")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700">{t("Items Summary", "వస్తువుల వివరాలు")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Total", "మొత్తం")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Paid", "చెల్లించినది")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{t("Balance Due", "బకాయి")}</th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{t("Status", "స్థితి")}</th>
+                            <th onClick={() => toggleSort("id", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Invoice #", "ఇన్‌వాయిస్ #")}{renderSortIndicator("id", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("date", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Date", "తేదీ")}{renderSortIndicator("date", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("customer", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Customer", "కస్టమర్")}{renderSortIndicator("customer", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("items", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Items Summary", "వస్తువుల వివరాలు")}{renderSortIndicator("items", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("total", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Total", "మొత్తం")}{renderSortIndicator("total", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("paid", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Paid", "చెల్లించినది")}{renderSortIndicator("paid", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("due", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Balance Due", "బకాయి")}{renderSortIndicator("due", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("status", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Status", "స్థితి")}{renderSortIndicator("status", invoiceSortCol, invoiceSortDir)}
+                            </th>
                             <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
@@ -6440,17 +6679,7 @@ Thank you for your business!`;
                     <option value="this_month">This Month</option>
                   </select>
 
-                  {/* Sort Filter */}
-                  <select
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
-                    value={procureSort}
-                    onChange={(e) => setProcureSort(e.target.value)}
-                  >
-                    <option value="date_desc">↕️ Sort: Newest First</option>
-                    <option value="date_asc">↕️ Sort: Oldest First</option>
-                    <option value="stock_desc">↕️ Sort: Stock High-Low</option>
-                    <option value="valuation_desc">↕️ Sort: Valuation High-Low</option>
-                  </select>
+
 
                   {/* Supplier Filter */}
                   <select
@@ -6498,14 +6727,30 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Purchase #", "కొనుగోలు #")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Supplier", "సరఫరాదారు")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Items Summary", "వస్తువుల వివరాలు")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Stock (Left / Total)", "స్టాక్ (మిగిలినది / మొత్తం)")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid", "చెల్లించినది")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Due", "బకాయి")}</th>
+                            <th onClick={() => toggleSort("id", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Purchase #", "కొనుగోలు #")}{renderSortIndicator("id", procureSortCol, procureSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("date", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Date", "తేదీ")}{renderSortIndicator("date", procureSortCol, procureSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("supplier", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Supplier", "సరఫరాదారు")}{renderSortIndicator("supplier", procureSortCol, procureSortDir)}
+                            </th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">
+                              {t("Items Summary", "వస్తువుల వివరాలు")}
+                            </th>
+                            <th onClick={() => toggleSort("stock", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Stock (Left / Total)", "స్టాక్ (మిగిలినది / మొత్తం)")}{renderSortIndicator("stock", procureSortCol, procureSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("total", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Total Bill", "మొత్తం బిల్లు")}{renderSortIndicator("total", procureSortCol, procureSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("paid", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Paid", "చెల్లించినది")}{renderSortIndicator("paid", procureSortCol, procureSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("due", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Due", "బకాయి")}{renderSortIndicator("due", procureSortCol, procureSortDir)}
+                            </th>
                             <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
@@ -6843,17 +7088,7 @@ Thank you for your business!`;
                         <option value="UPI">📱 UPI</option>
                       </select>
 
-                      {/* Sort Filter */}
-                      <select
-                        className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
-                        value={paymentsSort}
-                        onChange={(e) => setPaymentsSort(e.target.value)}
-                      >
-                        <option value="date_desc">📅 Latest Date</option>
-                        <option value="date_asc">📅 Oldest Date</option>
-                        <option value="amount_desc">💰 Highest Amount</option>
-                        <option value="amount_asc">💰 Lowest Amount</option>
-                      </select>
+
                     </div>
                   </div>
 
@@ -6868,14 +7103,30 @@ Thank you for your business!`;
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receipt #", "రసీదు #")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Customer", "కస్టమర్")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Balance Before Collection", "వసూలుకు ముందు బకాయి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid Amount", "చెల్లించిన మొత్తం")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Balance After Collection", "వసూలు తర్వాత బకాయి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Mode", "చెల్లింపు పద్ధతి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}</th>
+                                <th onClick={() => toggleSort("id", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Receipt #", "రసీదు #")}{renderSortIndicator("id", collectSortCol, collectSortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("date", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Date", "తేదీ")}{renderSortIndicator("date", collectSortCol, collectSortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("customer", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Customer", "కస్టమర్")}{renderSortIndicator("customer", collectSortCol, collectSortDir)}
+                                </th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">
+                                  {t("Balance Before Collection", "వసూలుకు ముందు బకాయి")}
+                                </th>
+                                <th onClick={() => toggleSort("amount", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Paid Amount", "చెల్లించిన మొత్తం")}{renderSortIndicator("amount", collectSortCol, collectSortDir)}
+                                </th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">
+                                  {t("Balance After Collection", "వసూలు తర్వాత బకాయి")}
+                                </th>
+                                <th onClick={() => toggleSort("mode", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Mode", "చెల్లింపు పద్ధతి")}{renderSortIndicator("mode", collectSortCol, collectSortDir)}
+                                </th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">
+                                  {t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}
+                                </th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
@@ -7133,15 +7384,33 @@ Thank you for your business!`;
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Payment ID / Ref", "చెల్లింపు ID / రెఫరెన్స్")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Supplier Name", "సరఫరాదారు పేరు")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Item Procured", "కొనుగోలు చేసిన వస్తువు")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total Bill", "మొత్తం బిల్లు")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Amount Paid", "చెల్లించిన మొత్తం")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Remaining Due", "మిగిలిన బకాయి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Payment Mode", "చెల్లింపు పద్ధతి")}</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Funding Partner", "చెల్లించిన భాగస్వామి")}</th>
+                                <th onClick={() => toggleSort("id", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Payment ID / Ref", "చెల్లింపు ID / రెఫరెన్స్")}{renderSortIndicator("id", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("date", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Date", "తేదీ")}{renderSortIndicator("date", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("supplier", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Supplier Name", "సరఫరాదారు పేరు")}{renderSortIndicator("supplier", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("item", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Item Procured", "కొనుగోలు చేసిన వస్తువు")}{renderSortIndicator("item", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("total", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Total Bill", "మొత్తం బిల్లు")}{renderSortIndicator("total", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("paid", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Amount Paid", "చెల్లించిన మొత్తం")}{renderSortIndicator("paid", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("due", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  {t("Remaining Due", "మిగిలిన బకాయి")}{renderSortIndicator("due", supPaySortCol, supPaySortDir)}
+                                </th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">
+                                  {t("Payment Mode", "చెల్లింపు పద్ధతి")}
+                                </th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">
+                                  {t("Funding Partner", "చెల్లించిన భాగస్వామి")}
+                                </th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
@@ -7304,22 +7573,51 @@ Thank you for your business!`;
                   </div>
 
                   {(() => {
-                    const totalLoanPages = Math.max(1, Math.ceil(loanTransactions.length / 10));
+                    const sortedLoanTx = [...loanTransactions].sort((a, b) => {
+                      let cmp = 0;
+                      if (loanRepaySortCol === "id") {
+                        cmp = Number(a.id || 0) - Number(b.id || 0);
+                      } else if (loanRepaySortCol === "date") {
+                        const aT = getDateTimeVal(a, "tx_date");
+                        const bT = getDateTimeVal(b, "tx_date");
+                        cmp = aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+                      } else if (loanRepaySortCol === "lender") {
+                        const aL = lenders.find((l) => l.id == a.borrower_id)?.name || "";
+                        const bL = lenders.find((l) => l.id == b.borrower_id)?.name || "";
+                        cmp = aL.localeCompare(bL);
+                      } else if (loanRepaySortCol === "type") {
+                        cmp = (a.tx_type || "").localeCompare(b.tx_type || "");
+                      } else if (loanRepaySortCol === "amount") {
+                        cmp = Number(a.amount || 0) - Number(b.amount || 0);
+                      }
+                      return loanRepaySortDir === "asc" ? cmp : -cmp;
+                    });
+                    const totalLoanPages = Math.max(1, Math.ceil(sortedLoanTx.length / 10));
                     const safeLoanPage = Math.min(loanPayPage, totalLoanPages);
-                    const pagedLoanTx = loanTransactions.slice((safeLoanPage - 1) * 10, safeLoanPage * 10);
+                    const pagedLoanTx = sortedLoanTx.slice((safeLoanPage - 1) * 10, safeLoanPage * 10);
                     return (
                       <div className="space-y-2">
-                        {renderPagination(safeLoanPage, loanTransactions.length, 10, setLoanPayPage)}
+                        {renderPagination(safeLoanPage, sortedLoanTx.length, 10, setLoanPayPage)}
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
                           <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Repayment ID / Ref</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Date</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Lender / Source</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Type</th>
+                                <th onClick={() => toggleSort("id", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  Repayment ID / Ref{renderSortIndicator("id", loanRepaySortCol, loanRepaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("date", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  Date{renderSortIndicator("date", loanRepaySortCol, loanRepaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("lender", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  Lender / Source{renderSortIndicator("lender", loanRepaySortCol, loanRepaySortDir)}
+                                </th>
+                                <th onClick={() => toggleSort("type", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  Type{renderSortIndicator("type", loanRepaySortCol, loanRepaySortDir)}
+                                </th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Partner & Mode</th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Amount (₹)</th>
+                                <th onClick={() => toggleSort("amount", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                  Amount (₹){renderSortIndicator("amount", loanRepaySortCol, loanRepaySortDir)}
+                                </th>
                                 <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Notes / Ref</th>
                               </tr>
                             </thead>
@@ -7516,8 +7814,7 @@ Thank you for your business!`;
                       <table className="w-full border-collapse font-mono text-xs">
                         <thead>
                           <tr className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold uppercase text-[11px] tracking-wider text-left">
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-12">#</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Partner / Stakeholder</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Partner</th>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 text-right">Opening Cash</th>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 text-right">Opening UPI</th>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300">
@@ -7536,7 +7833,7 @@ Thank you for your business!`;
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
                           {partnerAccounts.length === 0 ? (
                             <tr>
-                              <td colSpan={10} className="p-8 text-center text-slate-400 font-sans">
+                              <td colSpan={8} className="p-8 text-center text-slate-400 font-sans">
                                 No partner accounts configured.
                               </td>
                             </tr>
@@ -7548,21 +7845,8 @@ Thank you for your business!`;
 
                               return (
                                 <tr key={p.id} className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition">
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center text-slate-400 font-mono text-[11px]">
-                                    PTR-{String(p.id).padStart(2, "0")}
-                                  </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800">
-                                    <div className="flex items-center gap-2.5">
-                                      <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                                        {p.name.charAt(0)}
-                                      </div>
-                                      <div>
-                                        <div className="font-bold text-slate-900 dark:text-slate-100 text-sm font-sans">{p.name}</div>
-                                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                          {p.role || "Operating Partner"}
-                                        </span>
-                                      </div>
-                                    </div>
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 text-sm font-sans">
+                                    {p.name}
                                   </td>
                                   <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400">
                                     {money(p.initCash || 0)}
@@ -7611,7 +7895,7 @@ Thank you for your business!`;
                         </tbody>
                         <tfoot>
                           <tr className="bg-[#d5e7f7] dark:bg-slate-800/90 font-bold text-slate-900 dark:text-white border-t-2 border-sky-300 dark:border-slate-600">
-                            <td colSpan={2} className="p-3 border border-sky-200 dark:border-slate-700 text-right uppercase tracking-wider text-[11px] font-black">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right uppercase tracking-wider text-[11px] font-black">
                               Consolidated Partner Liquidity
                             </td>
                             <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300">
@@ -8439,16 +8723,34 @@ Thank you for your business!`;
                         <table className="w-full text-left text-xs border-collapse font-mono">
                           <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                              <th className="p-2.5">Supplier Name</th>
-                              <th className="p-2.5 text-center">Orders Count</th>
-                              <th className="p-2.5 text-right">Total Invoiced (₹)</th>
-                              <th className="p-2.5 text-right">Amount Paid (₹)</th>
-                              <th className="p-2.5 text-right">Balance Due (₹)</th>
+                              <th onClick={() => toggleSort("name", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Supplier Name{renderSortIndicator("name", analysisSupSortCol, analysisSupSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("count", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Orders Count{renderSortIndicator("count", analysisSupSortCol, analysisSupSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("total", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Total Invoiced (₹){renderSortIndicator("total", analysisSupSortCol, analysisSupSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("paid", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Amount Paid (₹){renderSortIndicator("paid", analysisSupSortCol, analysisSupSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("due", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Balance Due (₹){renderSortIndicator("due", analysisSupSortCol, analysisSupSortDir)}
+                              </th>
                               <th className="p-2.5 text-right">Spend Share</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {purchasesBySupplier.map((sup, idx) => {
+                            {[...purchasesBySupplier].sort((a, b) => {
+                              let cmp = 0;
+                              if (analysisSupSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
+                              else if (analysisSupSortCol === "count") cmp = Number(a.count || 0) - Number(b.count || 0);
+                              else if (analysisSupSortCol === "total") cmp = Number(a.total || 0) - Number(b.total || 0);
+                              else if (analysisSupSortCol === "paid") cmp = Number(a.paid || 0) - Number(b.paid || 0);
+                              else if (analysisSupSortCol === "due") cmp = Number(a.due || 0) - Number(b.due || 0);
+                              return analysisSupSortDir === "asc" ? cmp : -cmp;
+                            }).map((sup, idx) => {
                               const share = totalPurchasesSpend > 0 ? ((sup.total / totalPurchasesSpend) * 100).toFixed(1) : 0;
                               return (
                                 <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
@@ -8574,17 +8876,35 @@ Thank you for your business!`;
                         <table className="w-full text-left text-xs border-collapse font-mono">
                           <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                              <th className="p-2.5">Customer Name</th>
-                              <th className="p-2.5">Mobile</th>
-                              <th className="p-2.5 text-right">Outstanding (₹)</th>
-                              <th className="p-2.5">Oldest Bill Date</th>
-                              <th className="p-2.5 text-center">Days Outstanding</th>
+                              <th onClick={() => toggleSort("name", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Customer Name{renderSortIndicator("name", analysisCustSortCol, analysisCustSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("mobile", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Mobile{renderSortIndicator("mobile", analysisCustSortCol, analysisCustSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("due", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Outstanding (₹){renderSortIndicator("due", analysisCustSortCol, analysisCustSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("date", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Oldest Bill Date{renderSortIndicator("date", analysisCustSortCol, analysisCustSortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("days", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Days Outstanding{renderSortIndicator("days", analysisCustSortCol, analysisCustSortDir)}
+                              </th>
                               <th className="p-2.5 text-center">Aging Bracket</th>
                               <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-24">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                            {debtorsList.map((d) => (
+                            {[...debtorsList].sort((a, b) => {
+                              let cmp = 0;
+                              if (analysisCustSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
+                              else if (analysisCustSortCol === "mobile") cmp = (a.mobile || "").localeCompare(b.mobile || "");
+                              else if (analysisCustSortCol === "due") cmp = Number(a.due || 0) - Number(b.due || 0);
+                              else if (analysisCustSortCol === "date") cmp = (a.oldestDate || "").localeCompare(b.oldestDate || "");
+                              else if (analysisCustSortCol === "days") cmp = Number(a.days || 0) - Number(b.days || 0);
+                              return analysisCustSortDir === "asc" ? cmp : -cmp;
+                            }).map((d) => (
                               <tr key={d.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
                                 <td className="p-2.5 font-bold text-slate-900 dark:text-white">{d.name}</td>
                                 <td className="p-2.5 text-slate-500">{d.mobile || "--"}</td>
@@ -8676,16 +8996,31 @@ Thank you for your business!`;
                         <table className="w-full text-left text-xs border-collapse font-mono">
                           <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                              <th className="p-2.5">Supplier Name</th>
-                              <th className="p-2.5">Mobile</th>
-                              <th className="p-2.5 text-right">Outstanding (₹)</th>
-                              <th className="p-2.5">Last Purchase Date</th>
+                              <th onClick={() => toggleSort("name", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Supplier Name{renderSortIndicator("name", analysisPaySortCol, analysisPaySortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("mobile", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Mobile{renderSortIndicator("mobile", analysisPaySortCol, analysisPaySortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("due", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Outstanding (₹){renderSortIndicator("due", analysisPaySortCol, analysisPaySortDir)}
+                              </th>
+                              <th onClick={() => toggleSort("date", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                Last Purchase Date{renderSortIndicator("date", analysisPaySortCol, analysisPaySortDir)}
+                              </th>
                               <th className="p-2.5 text-center">Aging Bracket</th>
                               <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-28">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                            {payablesList.map((s) => (
+                            {[...payablesList].sort((a, b) => {
+                              let cmp = 0;
+                              if (analysisPaySortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
+                              else if (analysisPaySortCol === "mobile") cmp = (a.mobile || "").localeCompare(b.mobile || "");
+                              else if (analysisPaySortCol === "due") cmp = Number(a.due || 0) - Number(b.due || 0);
+                              else if (analysisPaySortCol === "date") cmp = (a.lastDate || "").localeCompare(b.lastDate || "");
+                              return analysisPaySortDir === "asc" ? cmp : -cmp;
+                            }).map((s) => (
                               <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
                                 <td className="p-2.5 font-bold text-slate-900 dark:text-white">{s.name}</td>
                                 <td className="p-2.5 text-slate-500">{s.mobile ? formatSupplierMobile(s.mobile) : "--"}</td>
@@ -8744,18 +9079,42 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5">Item Name</th>
-                            <th className="p-2.5">Category / Unit</th>
-                            <th className="p-2.5 text-center">Total Procured</th>
-                            <th className="p-2.5 text-center">Total Sold</th>
-                            <th className="p-2.5 text-center">Available Stock</th>
-                            <th className="p-2.5 text-right">Avg Cost (₹)</th>
-                            <th className="p-2.5 text-right">Stock Valuation (₹)</th>
+                            <th onClick={() => toggleSort("name", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Item Name{renderSortIndicator("name", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("category", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Category / Unit{renderSortIndicator("category", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("procured", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Total Procured{renderSortIndicator("procured", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("sold", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Total Sold{renderSortIndicator("sold", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("stock", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Available Stock{renderSortIndicator("stock", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("avgCost", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Avg Cost (₹){renderSortIndicator("avgCost", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("valuation", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              Stock Valuation (₹){renderSortIndicator("valuation", analysisStockSortCol, analysisStockSortDir)}
+                            </th>
                             <th className="p-2.5 text-center">Reorder Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                          {stockInventoryList.map((item, idx) => (
+                          {[...stockInventoryList].sort((a, b) => {
+                            let cmp = 0;
+                            if (analysisStockSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
+                            else if (analysisStockSortCol === "category") cmp = (a.category || "").localeCompare(b.category || "");
+                            else if (analysisStockSortCol === "procured") cmp = Number(a.procured || 0) - Number(b.procured || 0);
+                            else if (analysisStockSortCol === "sold") cmp = Number(a.sold || 0) - Number(b.sold || 0);
+                            else if (analysisStockSortCol === "stock") cmp = Number(a.stock || 0) - Number(b.stock || 0);
+                            else if (analysisStockSortCol === "avgCost") cmp = Number(a.avgCost || 0) - Number(b.avgCost || 0);
+                            else if (analysisStockSortCol === "valuation") cmp = Number(a.valuation || 0) - Number(b.valuation || 0);
+                            return analysisStockSortDir === "asc" ? cmp : -cmp;
+                          }).map((item, idx) => (
                             <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
                               <td className="p-2.5 font-bold text-slate-900 dark:text-white">{item.name}</td>
                               <td className="p-2.5 text-slate-500">{item.category || "General"} ({item.unit || "Units"})</td>
@@ -9470,14 +9829,30 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Doc #", "పత్రం సంఖ్య")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Type", "రకం")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Date", "తేదీ")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">{t("Party", "వ్యక్తి / సంస్థ")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Total (₹)", "మొత్తం (₹)")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Paid (₹)", "చెల్లించినది (₹)")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">{t("Balance Due", "బకాయి")}</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">{t("Status", "స్థితి")}</th>
+                            <th onClick={() => toggleSort("id", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Doc #", "పత్రం సంఖ్య")}{renderSortIndicator("id", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("type", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Type", "రకం")}{renderSortIndicator("type", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("date", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Date", "తేదీ")}{renderSortIndicator("date", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("party", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Party", "వ్యక్తి / సంస్థ")}{renderSortIndicator("party", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("total", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Total (₹)", "మొత్తం (₹)")}{renderSortIndicator("total", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("paid", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Paid (₹)", "చెల్లించినది (₹)")}{renderSortIndicator("paid", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("due", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Balance Due", "బకాయి")}{renderSortIndicator("due", auditSortCol, auditSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("status", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Status", "స్థితి")}{renderSortIndicator("status", auditSortCol, auditSortDir)}
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -9616,15 +9991,7 @@ Thank you for your business!`;
                 />
               </div>
 
-              {/* Master Sort */}
-              <select
-                className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
-                value={masterSort}
-                onChange={(e) => setMasterSort(e.target.value)}
-              >
-                <option value="name_asc">↕️ Sort: Name (A-Z)</option>
-                <option value="due_desc">↕️ Sort: Balance Due (High-Low)</option>
-              </select>
+
 
               {mastersSubTab === "customers" && (
                 <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -9691,11 +10058,17 @@ Thank you for your business!`;
                 <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700">Customer Name</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">Mobile</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
+                      <th onClick={() => toggleSort("name", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Customer Name{renderSortIndicator("name", masterCustSortCol, masterCustSortDir)}
+                      </th>
+                      <th onClick={() => toggleSort("mobile", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Mobile{renderSortIndicator("mobile", masterCustSortCol, masterCustSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32 text-center">Status</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Balance (₹)</th>
+                      <th onClick={() => toggleSort("due", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Balance (₹){renderSortIndicator("due", masterCustSortCol, masterCustSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
                     </tr>
                   </thead>
@@ -9791,11 +10164,17 @@ Thank you for your business!`;
                 <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700">Supplier / Vendor</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">Mobile</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
+                      <th onClick={() => toggleSort("name", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Supplier / Vendor{renderSortIndicator("name", masterSupSortCol, masterSupSortDir)}
+                      </th>
+                      <th onClick={() => toggleSort("mobile", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Mobile{renderSortIndicator("mobile", masterSupSortCol, masterSupSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-40 text-center">Allow in Sale</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Payable Due (₹)</th>
+                      <th onClick={() => toggleSort("due", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Payable Due (₹){renderSortIndicator("due", masterSupSortCol, masterSupSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
                     </tr>
                   </thead>
@@ -9901,11 +10280,17 @@ Thank you for your business!`;
                 <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700">Item Master Name</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Item Stock</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
+                      <th onClick={() => toggleSort("name", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Item Master Name{renderSortIndicator("name", masterItemSortCol, masterItemSortDir)}
+                      </th>
+                      <th onClick={() => toggleSort("stock", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Item Stock{renderSortIndicator("stock", masterItemSortCol, masterItemSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Purchase Cost Rate (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Selling Rate (₹)</th>
+                      <th onClick={() => toggleSort("rate", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Selling Rate (₹){renderSortIndicator("rate", masterItemSortCol, masterItemSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Markup Margin (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
                     </tr>
@@ -9997,12 +10382,20 @@ Thank you for your business!`;
                 <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700">Lender / Source Name</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">Mobile</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Total Borrowed (₹)</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
+                      <th onClick={() => toggleSort("name", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Lender / Source Name{renderSortIndicator("name", masterLenderSortCol, masterLenderSortDir)}
+                      </th>
+                      <th onClick={() => toggleSort("mobile", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Mobile{renderSortIndicator("mobile", masterLenderSortCol, masterLenderSortDir)}
+                      </th>
+                      <th onClick={() => toggleSort("borrowed", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Total Borrowed (₹){renderSortIndicator("borrowed", masterLenderSortCol, masterLenderSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Total Repaid (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Pending Due (₹)</th>
+                      <th onClick={() => toggleSort("due", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Pending Due (₹){renderSortIndicator("due", masterLenderSortCol, masterLenderSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
                     </tr>
                   </thead>
@@ -10082,8 +10475,10 @@ Thank you for your business!`;
                 <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700">Partner Name</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
+                      <th onClick={() => toggleSort("name", masterPartnerSortCol, setMasterPartnerSortCol, masterPartnerSortDir, setMasterPartnerSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                        Partner Name{renderSortIndicator("name", masterPartnerSortCol, masterPartnerSortDir)}
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Opening Cash (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Opening UPI (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-40">Total Capital (₹)</th>
@@ -10098,7 +10493,11 @@ Thank you for your business!`;
                         </td>
                       </tr>
                     ) : (
-                      partners.map((p, idx) => {
+                      [...partners].sort((a, b) => {
+                        let cmp = 0;
+                        if (masterPartnerSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
+                        return masterPartnerSortDir === "asc" ? cmp : -cmp;
+                      }).map((p, idx) => {
                         const totCap = Number(p.opening_cash || 0) + Number(p.opening_upi || 0);
                         return (
                           <tr
@@ -10541,12 +10940,22 @@ Thank you for your business!`;
                 <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                   <tr>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">{t("S.No", "క్ర.సం.")}</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">{t("Expense ID", "ఖర్చు ID")}</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-28">{t("Date", "తేదీ")}</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-36">{t("Category", "వర్గం")}</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700">{t("Title / Description", "శీర్షిక / వివరణ")}</th>
+                    <th onClick={() => toggleSort("id", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      {t("Expense ID", "ఖర్చు ID")}{renderSortIndicator("id", expenseSortCol, expenseSortDir)}
+                    </th>
+                    <th onClick={() => toggleSort("date", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      {t("Date", "తేదీ")}{renderSortIndicator("date", expenseSortCol, expenseSortDir)}
+                    </th>
+                    <th onClick={() => toggleSort("category", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      {t("Category", "వర్గం")}{renderSortIndicator("category", expenseSortCol, expenseSortDir)}
+                    </th>
+                    <th onClick={() => toggleSort("title", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      {t("Title / Description", "శీర్షిక / వివరణ")}{renderSortIndicator("title", expenseSortCol, expenseSortDir)}
+                    </th>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44">{t("Paid By (Partner & Mode)", "చెల్లించిన భాగస్వామి & విధానం")}</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">{t("Amount (₹)", "మొత్తం (₹)")}</th>
+                    <th onClick={() => toggleSort("amount", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      {t("Amount (₹)", "మొత్తం (₹)")}{renderSortIndicator("amount", expenseSortCol, expenseSortDir)}
+                    </th>
                     <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">{t("Actions", "చర్యలు")}</th>
                   </tr>
                 </thead>
