@@ -3491,7 +3491,9 @@ Thank you for your business!`;
 
   const handleEditProcurement = (p) => {
     setEditingProcureId(p.id);
-    const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : new Date().toISOString().split("T")[0]);
+    const existingDbRow = procurements.find((x) => x.id === p.id) || p;
+    const rawDate = existingDbRow.purchase_date || p.purchase_date || (existingDbRow.created_at ? existingDbRow.created_at.slice(0, 10) : (p.created_at ? p.created_at.slice(0, 10) : ""));
+    const pDate = rawDate ? (typeof rawDate === "string" ? rawDate.slice(0, 10) : new Date(rawDate).toISOString().split("T")[0]) : new Date().toISOString().split("T")[0];
     const dtStr = pDate.replace(/-/g, "").slice(2);
     const defaultOrderRef = dtStr ? `PUR-${dtStr}-${String(p.id).padStart(4, "0")}` : `PUR-${p.id}`;
     const orderRef = (typeof p.receiver_2_mode === "string" && p.receiver_2_mode.startsWith("PUR-"))
@@ -3622,7 +3624,20 @@ Thank you for your business!`;
 
     setSavingProcure(true);
     try {
-      const poDate = procureForm.purchase_date || new Date().toISOString().split("T")[0];
+      // Retrieve and strictly preserve original purchase date if editing an existing PO
+      const existingDbOrderRows = editingProcureId
+        ? procurements.filter((p) => (editingOrderRef && p.receiver_2_mode === editingOrderRef) || p.id === editingProcureId)
+        : [];
+      const originalDbRow = editingProcureId
+        ? (existingDbOrderRows.find((p) => p.purchase_date) || procurements.find((p) => p.id === editingProcureId))
+        : null;
+      const originalPoDate = originalDbRow?.purchase_date
+        || (originalDbRow?.created_at ? originalDbRow.created_at.slice(0, 10) : "");
+
+      const poDate = editingProcureId && originalPoDate
+        ? originalPoDate.slice(0, 10)
+        : (procureForm.purchase_date ? procureForm.purchase_date.slice(0, 10) : new Date().toISOString().split("T")[0]);
+
       const dtStr = poDate.replace(/-/g, "").slice(2);
       const targetOrderNumber = editingProcureId
         ? (editingOrderRef || `PUR-${dtStr}-${String(editingProcureId).padStart(4, "0")}`)
@@ -13070,18 +13085,39 @@ Thank you for your business!`;
                 {/* Purchase Date */}
                 <div className="sm:col-span-1 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 flex flex-col justify-between">
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
-                      Purchase Date *
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                        Purchase Date *
+                      </label>
+                      {editingProcureId && (
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <span>🔒</span> Original Date Locked
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="date"
                       required
-                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                      readOnly={Boolean(editingProcureId)}
+                      disabled={Boolean(editingProcureId)}
+                      className={`w-full p-2.5 rounded-xl text-xs font-bold border transition ${
+                        editingProcureId
+                          ? "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-90"
+                          : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                      }`}
                       value={procureForm.purchase_date || new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setProcureForm({ ...procureForm, purchase_date: e.target.value })}
+                      onChange={(e) => {
+                        if (!editingProcureId) {
+                          setProcureForm({ ...procureForm, purchase_date: e.target.value });
+                        }
+                      }}
                     />
                   </div>
-                  <p className="text-[10px] text-slate-400 leading-tight">Order / Inward date for batch tracking</p>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    {editingProcureId
+                      ? "Original Purchase Order Date is preserved and locked"
+                      : "Order / Inward date for batch tracking"}
+                  </p>
                 </div>
               </div>
 
