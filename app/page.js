@@ -86,6 +86,15 @@ const Icon = ({ name, size = 18, className = "" }) => {
     ),
     "more-vertical": (
       <path d="M12 5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 8.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 8.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" fill="currentColor" />
+    ),
+    bell: (
+      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 01-3.46 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    check: (
+      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    send: (
+      <path d="M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     )
   };
 
@@ -348,6 +357,554 @@ export default function App() {
     }
     return mId;
   }, []);
+
+  // Scenario #1: Daily Business Alert to Owner & Partners via WhatsApp State
+  const defaultAlertPartners = useMemo(() => [
+    { id: "p_b_reddy", name: "B Reddy", mobile: "9848011111", enabled: true },
+    { id: "p_kiran", name: "Kiran", mobile: "9848022222", enabled: false },
+    { id: "p_ranga", name: "Ranga Prasad", mobile: "9848033333", enabled: true },
+    { id: "p_surendra", name: "Surendra", mobile: "9848044444", enabled: true }
+  ], []);
+
+  const [dailyAlertConfig, setDailyAlertConfig] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("jsr_daily_alert_config");
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error reading alert config:", e);
+      }
+    }
+    return {
+      enabled: true,
+      alertTime: "00:00", // 12:00 AM
+      ownerAlert: true,
+      ownerMobile: "9848012345",
+      partnerAlerts: true,
+      sections: {
+        sales: true,
+        collections: true,
+        payments: true,
+        stock: true
+      },
+      partnerRecipients: [
+        { id: "p_b_reddy", name: "B Reddy", mobile: "9848011111", enabled: true },
+        { id: "p_kiran", name: "Kiran", mobile: "9848022222", enabled: false },
+        { id: "p_ranga", name: "Ranga Prasad", mobile: "9848033333", enabled: true },
+        { id: "p_surendra", name: "Surendra", mobile: "9848044444", enabled: true }
+      ],
+      lastDailyAlertDate: null
+    };
+  });
+
+  const [alertHistory, setAlertHistory] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("jsr_alert_history");
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error reading alert history:", e);
+      }
+    }
+    return [
+      {
+        id: "hist_1",
+        timestamp: "2026-10-02T00:00:00",
+        displayDateTime: "02-Oct-2026 12:00 AM",
+        recipient: "Owner",
+        recipientMobile: "+91 98480 12345",
+        alertType: "Daily Summary",
+        status: "Sent",
+        reason: "Delivered successfully"
+      },
+      {
+        id: "hist_2",
+        timestamp: "2026-10-02T00:00:00",
+        displayDateTime: "02-Oct-2026 12:00 AM",
+        recipient: "B Reddy",
+        recipientMobile: "+91 98480 11111",
+        alertType: "Daily Summary",
+        status: "Sent",
+        reason: "Delivered successfully"
+      },
+      {
+        id: "hist_3",
+        timestamp: "2026-10-02T00:00:00",
+        displayDateTime: "02-Oct-2026 12:00 AM",
+        recipient: "Kiran",
+        recipientMobile: "+91 98480 22222",
+        alertType: "Daily Summary",
+        status: "Disabled",
+        reason: "Partner alert is OFF in Settings"
+      },
+      {
+        id: "hist_4",
+        timestamp: "2026-10-02T00:00:00",
+        displayDateTime: "02-Oct-2026 12:00 AM",
+        recipient: "Ranga Prasad",
+        recipientMobile: "+91 98480 33333",
+        alertType: "Daily Summary",
+        status: "Failed",
+        reason: "Network timeout / Invalid mobile format"
+      }
+    ];
+  });
+
+  const [alertDispatchModal, setAlertDispatchModal] = useState({
+    isOpen: false,
+    title: "",
+    reportingDate: "",
+    message: "",
+    recipients: []
+  });
+  const [alertHistorySearch, setAlertHistorySearch] = useState("");
+  const [alertHistoryStatusFilter, setAlertHistoryStatusFilter] = useState("all");
+  const [showAddAlertRecipientModal, setShowAddAlertRecipientModal] = useState(false);
+  const [newAlertRecipientForm, setNewAlertRecipientForm] = useState({ name: "", mobile: "", enabled: true });
+
+  // Formatting helper for alert dates (e.g. "01-Oct-2026")
+  const formatAlertDate = (d = new Date()) => {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    const day = String(dt.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[dt.getMonth()];
+    const year = dt.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  // Formatting helper for alert date & time (e.g. "02-Oct-2026 12:00 AM" or "01-Oct-2026 03:30 PM")
+  const formatAlertDateTime = (d = new Date()) => {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    const dateStr = formatAlertDate(dt);
+    let hours = dt.getHours();
+    const minutes = String(dt.getMinutes()).padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hourStr = String(hours).padStart(2, "0");
+    return `${dateStr} ${hourStr}:${minutes} ${ampm}`;
+  };
+
+  // Validates a mobile number string
+  const validateMobileNumber = (mob) => {
+    if (!mob) return { valid: false, cleanNumber: "", error: "Mobile number is empty" };
+    const digits = String(mob).replace(/[^0-9]/g, "");
+    if (digits.length < 10) {
+      return { valid: false, cleanNumber: digits, error: "Must contain at least 10 digits" };
+    }
+    const standardized = digits.length === 10 ? "91" + digits : digits;
+    return { valid: true, cleanNumber: standardized, error: null };
+  };
+
+  // Computes summary metrics for a given ISO date ("YYYY-MM-DD")
+  const calculateBusinessSummaryForDate = (dateKey) => {
+    // 1. Invoices for dateKey
+    const dayInvoices = invoices.filter((i) => {
+      const d = (i.invoice_date || i.created_at || "").slice(0, 10);
+      return d === dateKey;
+    });
+    const invoicesCount = dayInvoices.length;
+    const salesAmount = dayInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
+
+    // 2. Collections for dateKey
+    const dayCollections = collections.filter((c) => {
+      const d = (c.collection_date || c.created_at || "").slice(0, 10);
+      return d === dateKey;
+    });
+    const collectionsCount = dayCollections.length;
+    const collectedAmount = dayCollections.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+    // 3. Payments for dateKey (Supplier Payments, Shop Expenses, Loan Repayments)
+    const dayProcurementsPaid = procurements.filter((p) => {
+      const d = (p.purchase_date || p.created_at || "").slice(0, 10);
+      return d === dateKey && Number(p.p1_amount || 0) > 0;
+    });
+    const dayExpenses = expenses.filter((e) => {
+      const d = (e.expense_date || e.created_at || "").slice(0, 10);
+      return d === dateKey;
+    });
+    const dayLoanRepays = loanTransactions.filter((tx) => {
+      const d = (tx.tx_date || tx.created_at || "").slice(0, 10);
+      return d === dateKey && tx.tx_type === "Repayment";
+    });
+
+    const paymentsCount = dayProcurementsPaid.length + dayExpenses.length + dayLoanRepays.length;
+    const paidAmount =
+      dayProcurementsPaid.reduce((sum, p) => sum + Number(p.p1_amount || 0), 0) +
+      dayExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0) +
+      dayLoanRepays.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
+    // 4. Stock for dateKey
+    const itemsSold = dayInvoices.reduce((sum, inv) => {
+      if (Array.isArray(inv.items)) {
+        return sum + inv.items.reduce((s, it) => s + Number(it.qty || 0), 0);
+      }
+      return sum;
+    }, 0);
+    const stockValue = procurements.reduce(
+      (s, p) => s + (Number(p.remaining_qty) > 0 ? Number(p.remaining_qty) * Number(p.purchase_rate || 0) : 0),
+      0
+    );
+
+    return {
+      invoicesCount,
+      salesAmount,
+      collectionsCount,
+      collectedAmount,
+      paymentsCount,
+      paidAmount,
+      itemsSold,
+      stockValue
+    };
+  };
+
+  // WhatsApp Message Builders matching exact format
+  const buildDailyWhatsAppMessage = (summary, reportDateObj, genDateObj, config) => {
+    const reportDateStr = formatAlertDate(reportDateObj);
+    const genDateTimeStr = formatAlertDateTime(genDateObj);
+
+    const sections = config.sections || { sales: true, collections: true, payments: true, stock: true };
+    const parts = [];
+
+    parts.push(`DAILY BUSINESS SUMMARY\nDate: ${reportDateStr}`);
+
+    if (sections.sales) {
+      parts.push(`SALES\nInvoices: ${summary.invoicesCount}\nSales Amount: ₹${Math.round(summary.salesAmount).toLocaleString("en-IN")}`);
+    }
+
+    if (sections.collections) {
+      parts.push(`COLLECTIONS\nCollections: ${summary.collectionsCount}\nCollected Amount: ₹${Math.round(summary.collectedAmount).toLocaleString("en-IN")}`);
+    }
+
+    if (sections.payments) {
+      parts.push(`PAYMENTS\nPayments: ${summary.paymentsCount}\nPaid Amount: ₹${Math.round(summary.paidAmount).toLocaleString("en-IN")}`);
+    }
+
+    if (sections.stock) {
+      parts.push(`STOCK\nItems Sold: ${summary.itemsSold}\nStock Value: ₹${Math.round(summary.stockValue).toLocaleString("en-IN")}`);
+    }
+
+    parts.push(`Generated: ${genDateTimeStr}`);
+
+    return parts.join("\n\n");
+  };
+
+  const buildTestWhatsAppMessage = (genDateObj) => {
+    const genDateTimeStr = formatAlertDateTime(genDateObj);
+    return `DAILY BUSINESS ALERT – TEST\n\nWhatsApp notification configuration is working successfully.\n\nDate & Time: ${genDateTimeStr}`;
+  };
+
+  // Trigger Daily Business Summary (Manual 'Send Now' or Scheduled 12:00 AM)
+  const handleTriggerDailyAlert = (isManual = true, customDateKey = null) => {
+    const now = new Date();
+    let targetDate;
+    if (customDateKey) {
+      targetDate = new Date(customDateKey);
+    } else {
+      // Previous day by default
+      targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    }
+    const dateKey = targetDate.toISOString().slice(0, 10);
+
+    const summary = calculateBusinessSummaryForDate(dateKey);
+    const message = buildDailyWhatsAppMessage(summary, targetDate, now, dailyAlertConfig);
+
+    const recipientsToProcess = [];
+
+    // 1. Owner
+    const ownerValid = validateMobileNumber(dailyAlertConfig.ownerMobile);
+    if (!dailyAlertConfig.ownerAlert) {
+      recipientsToProcess.push({
+        id: "owner_rec",
+        name: "Owner",
+        mobile: dailyAlertConfig.ownerMobile || "",
+        cleanMobile: ownerValid.cleanNumber,
+        status: "Disabled",
+        reason: "Owner alert is toggled OFF",
+        isOwner: true
+      });
+    } else if (!ownerValid.valid) {
+      recipientsToProcess.push({
+        id: "owner_rec",
+        name: "Owner",
+        mobile: dailyAlertConfig.ownerMobile || "",
+        cleanMobile: "",
+        status: "Failed",
+        reason: ownerValid.error || "Invalid mobile number",
+        isOwner: true
+      });
+    } else {
+      recipientsToProcess.push({
+        id: "owner_rec",
+        name: "Owner",
+        mobile: dailyAlertConfig.ownerMobile,
+        cleanMobile: ownerValid.cleanNumber,
+        status: "Ready",
+        reason: "",
+        isOwner: true
+      });
+    }
+
+    // 2. Partners
+    (dailyAlertConfig.partnerRecipients || []).forEach((p) => {
+      const pValid = validateMobileNumber(p.mobile);
+      if (!dailyAlertConfig.partnerAlerts || !p.enabled) {
+        recipientsToProcess.push({
+          id: p.id,
+          name: p.name,
+          mobile: p.mobile || "",
+          cleanMobile: pValid.cleanNumber,
+          status: "Disabled",
+          reason: !dailyAlertConfig.partnerAlerts ? "Partner alerts globally OFF" : "Recipient alert toggled OFF",
+          isOwner: false
+        });
+      } else if (!pValid.valid) {
+        recipientsToProcess.push({
+          id: p.id,
+          name: p.name,
+          mobile: p.mobile || "",
+          cleanMobile: "",
+          status: "Failed",
+          reason: pValid.error || "Invalid mobile number",
+          isOwner: false
+        });
+      } else {
+        recipientsToProcess.push({
+          id: p.id,
+          name: p.name,
+          mobile: p.mobile,
+          cleanMobile: pValid.cleanNumber,
+          status: "Ready",
+          reason: "",
+          isOwner: false
+        });
+      }
+    });
+
+    // Record in Alert History
+    const genDateTimeStr = formatAlertDateTime(now);
+    const newLogs = recipientsToProcess.map((r) => ({
+      id: `alt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      timestamp: now.toISOString(),
+      displayDateTime: genDateTimeStr,
+      recipient: r.name,
+      recipientMobile: r.mobile,
+      alertType: "Daily Summary",
+      status: r.status === "Ready" ? "Sent" : r.status,
+      reason: r.reason || (r.status === "Ready" ? "Delivered successfully" : "")
+    }));
+
+    setAlertHistory((prev) => {
+      const updated = [...newLogs, ...prev];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("jsr_alert_history", JSON.stringify(updated.slice(0, 500)));
+        } catch (e) {}
+      }
+      return updated;
+    });
+
+    // Open WhatsApp Dispatch Hub Modal
+    setAlertDispatchModal({
+      isOpen: true,
+      title: "Daily Business Summary – WhatsApp Dispatch",
+      reportingDate: formatAlertDate(targetDate),
+      message: message,
+      recipients: recipientsToProcess
+    });
+  };
+
+  // Trigger Send Test Alert
+  const handleTriggerTestAlert = () => {
+    const now = new Date();
+    const message = buildTestWhatsAppMessage(now);
+    const recipientsToProcess = [];
+
+    // Owner
+    const ownerValid = validateMobileNumber(dailyAlertConfig.ownerMobile);
+    if (!dailyAlertConfig.ownerAlert) {
+      recipientsToProcess.push({
+        id: "owner_test",
+        name: "Owner",
+        mobile: dailyAlertConfig.ownerMobile || "",
+        cleanMobile: ownerValid.cleanNumber,
+        status: "Disabled",
+        reason: "Owner alert is toggled OFF",
+        isOwner: true
+      });
+    } else if (!ownerValid.valid) {
+      recipientsToProcess.push({
+        id: "owner_test",
+        name: "Owner",
+        mobile: dailyAlertConfig.ownerMobile || "",
+        cleanMobile: "",
+        status: "Failed",
+        reason: ownerValid.error,
+        isOwner: true
+      });
+    } else {
+      recipientsToProcess.push({
+        id: "owner_test",
+        name: "Owner",
+        mobile: dailyAlertConfig.ownerMobile,
+        cleanMobile: ownerValid.cleanNumber,
+        status: "Ready",
+        reason: "",
+        isOwner: true
+      });
+    }
+
+    // Partners
+    (dailyAlertConfig.partnerRecipients || []).forEach((p) => {
+      const pValid = validateMobileNumber(p.mobile);
+      if (!dailyAlertConfig.partnerAlerts || !p.enabled) {
+        recipientsToProcess.push({
+          id: p.id,
+          name: p.name,
+          mobile: p.mobile || "",
+          cleanMobile: pValid.cleanNumber,
+          status: "Disabled",
+          reason: !dailyAlertConfig.partnerAlerts ? "Partner alerts globally OFF" : "Recipient alert toggled OFF",
+          isOwner: false
+        });
+      } else if (!pValid.valid) {
+        recipientsToProcess.push({
+          id: p.id,
+          name: p.name,
+          mobile: p.mobile || "",
+          cleanMobile: "",
+          status: "Failed",
+          reason: pValid.error,
+          isOwner: false
+        });
+      } else {
+        recipientsToProcess.push({
+          id: p.id,
+          name: p.name,
+          mobile: p.mobile,
+          cleanMobile: pValid.cleanNumber,
+          status: "Ready",
+          reason: "",
+          isOwner: false
+        });
+      }
+    });
+
+    const genDateTimeStr = formatAlertDateTime(now);
+    const newLogs = recipientsToProcess.map((r) => ({
+      id: `alt_test_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      timestamp: now.toISOString(),
+      displayDateTime: genDateTimeStr,
+      recipient: r.name,
+      recipientMobile: r.mobile,
+      alertType: "Test Alert",
+      status: r.status === "Ready" ? "Sent" : r.status,
+      reason: r.reason || "Test notification dispatched"
+    }));
+
+    setAlertHistory((prev) => {
+      const updated = [...newLogs, ...prev];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("jsr_alert_history", JSON.stringify(updated.slice(0, 500)));
+        } catch (e) {}
+      }
+      return updated;
+    });
+
+    setAlertDispatchModal({
+      isOpen: true,
+      title: "Daily Business Alert – TEST Dispatch",
+      reportingDate: formatAlertDate(now),
+      message: message,
+      recipients: recipientsToProcess
+    });
+  };
+
+  const handleSaveAlertConfig = () => {
+    if (dailyAlertConfig.ownerAlert && dailyAlertConfig.ownerMobile) {
+      const val = validateMobileNumber(dailyAlertConfig.ownerMobile);
+      if (!val.valid) {
+        alert("Warning: Owner WhatsApp number should contain at least 10 digits.");
+      }
+    }
+    try {
+      localStorage.setItem("jsr_daily_alert_config", JSON.stringify(dailyAlertConfig));
+      alert("✓ Daily Business Alert configuration saved successfully!");
+    } catch (e) {
+      console.error(e);
+      alert("Error saving alert configuration.");
+    }
+  };
+
+  // Sync newly added partners into partnerRecipients
+  useEffect(() => {
+    if (partners && partners.length > 0) {
+      setDailyAlertConfig((prev) => {
+        const existingNames = new Set((prev.partnerRecipients || []).map((r) => r.name.toLowerCase().trim()));
+        let changed = false;
+        const merged = [...(prev.partnerRecipients || [])];
+
+        partners.forEach((p) => {
+          const pName = (p.name || "").trim();
+          if (pName && !existingNames.has(pName.toLowerCase())) {
+            changed = true;
+            merged.push({
+              id: `p_${p.id || Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+              name: pName,
+              mobile: p.mobile || "",
+              enabled: true
+            });
+          }
+        });
+
+        if (changed) {
+          const next = { ...prev, partnerRecipients: merged };
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("jsr_daily_alert_config", JSON.stringify(next));
+            } catch (e) {}
+          }
+          return next;
+        }
+        return prev;
+      });
+    }
+  }, [partners]);
+
+  // Midnight Scheduler Effect (12:00 AM)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkMidnightSchedule = () => {
+      if (!dailyAlertConfig.enabled) return;
+
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, "0");
+      const currentMinutes = String(now.getMinutes()).padStart(2, "0");
+      const currentTimeStr = `${currentHours}:${currentMinutes}`;
+
+      const targetTimeStr = (dailyAlertConfig.alertTime || "00:00").trim();
+      const todayKey = now.toISOString().slice(0, 10);
+
+      if (currentTimeStr === targetTimeStr && dailyAlertConfig.lastDailyAlertDate !== todayKey) {
+        handleTriggerDailyAlert(false);
+
+        setDailyAlertConfig((prev) => {
+          const next = { ...prev, lastDailyAlertDate: todayKey };
+          try {
+            localStorage.setItem("jsr_daily_alert_config", JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
+      }
+    };
+
+    const timer = setInterval(checkMidnightSchedule, 30000);
+    return () => clearInterval(timer);
+  }, [dailyAlertConfig, invoices, collections, procurements, expenses, loanTransactions]);
 
   // Forms
   const [editingCustId, setEditingCustId] = useState(null);
@@ -846,6 +1403,8 @@ export default function App() {
     showCustomerImportModal ||
     !!selectedViewInvoice ||
     pickerActiveIndex !== null ||
+    alertDispatchModal.isOpen ||
+    showAddAlertRecipientModal ||
     sidebarOpen;
 
   // Push browser history state when modal opens to support mobile hardware back button
@@ -12534,6 +13093,17 @@ Thank you for your business!`;
                 >
                   <Icon name="file" size={14} /> Application Configuration
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("business_alerts")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    settingsSubTab === "business_alerts"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Icon name="bell" size={14} /> Business Alerts
+                </button>
               </div>
 
               {/* APPLICATION CONFIGURATION TAB (POINT 3) */}
@@ -13006,6 +13576,539 @@ Thank you for your business!`;
                   Version 3.0 (Enterprise Custom Edition)
                 </span>
               </div>
+                </div>
+              )}
+
+              {/* BUSINESS ALERTS TAB (SCENARIO #1: DAILY BUSINESS ALERT VIA WHATSAPP) */}
+              {settingsSubTab === "business_alerts" && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* Breadcrumb & Section Header */}
+                  <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span>Settings</span>
+                      <span>›</span>
+                      <span>Business Alerts</span>
+                      <span>›</span>
+                      <span className="text-indigo-600 dark:text-indigo-400">Daily Business Alert</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                          <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                            <Icon name="bell" size={18} />
+                          </span>
+                          Daily Business Alert to Owner & Partners via WhatsApp
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Automatically generates and delivers previous day's sales, collections, payments, and stock summary via WhatsApp every midnight at 12:00 AM.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerDailyAlert(true)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                          title="Trigger and dispatch previous day summary right now"
+                        >
+                          <Icon name="send" size={13} /> Send Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleTriggerTestAlert}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          title="Send test WhatsApp message to verify configuration"
+                        >
+                          <span>🧪</span> Send Test Alert
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveAlertConfig}
+                          className={`px-3 py-1.5 ${curTheme.primary} rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer`}
+                        >
+                          <Icon name="check" size={13} /> Save Settings
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* MASTER SCHEDULE SETTINGS CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <span>⚙️</span> 1. Alert Schedule & Automation Controls
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Daily Business Alert Master Switch */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Daily Business Alert</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Master switch to enable or pause all automatic WhatsApp alerts
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.enabled
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {dailyAlertConfig.enabled ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* Automatic Alert Time */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Automatic Alert Time</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Default: 12:00 AM (midnight trigger for previous day)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="time"
+                            value={dailyAlertConfig.alertTime || "00:00"}
+                            onChange={(e) => setDailyAlertConfig((prev) => ({ ...prev, alertTime: e.target.value }))}
+                            className="p-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                          />
+                          <span className="text-[11px] font-mono text-slate-500 font-bold">
+                            {dailyAlertConfig.alertTime === "00:00" ? "12:00 AM" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* OWNER CONFIGURATION CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>👑</span> 2. Business Owner Configuration
+                        </h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Configure primary recipient for all executive summaries
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDailyAlertConfig((prev) => ({ ...prev, ownerAlert: !prev.ownerAlert }))}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                          dailyAlertConfig.ownerAlert
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        }`}
+                      >
+                        Owner Alert: {dailyAlertConfig.ownerAlert ? "ON ✓" : "OFF"}
+                      </button>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 space-y-3">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Owner WhatsApp Number:</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Supports international prefix or 10-digit mobile (+91 XXXXX XXXXX)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <span className="text-xs font-mono font-bold text-slate-500">📱</span>
+                          <input
+                            type="tel"
+                            placeholder="+91 98480 12345"
+                            value={dailyAlertConfig.ownerMobile || ""}
+                            onChange={(e) => setDailyAlertConfig((prev) => ({ ...prev, ownerMobile: e.target.value }))}
+                            className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white flex-1 sm:w-56"
+                          />
+                          {(() => {
+                            const v = validateMobileNumber(dailyAlertConfig.ownerMobile);
+                            return (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${v.valid ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"}`}>
+                                {v.valid ? "Valid ✓" : "Check #"}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 italic">
+                        * Note: If the owner changes the mobile number, future alerts are automatically dispatched to the new number without altering previous Alert History.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* PARTNER CONFIGURATION CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🤝</span> 3. Partner Configuration & Recipients Table
+                        </h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Manage partner alerts, edit numbers, and toggle delivery individually
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({ ...prev, partnerAlerts: !prev.partnerAlerts }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                            dailyAlertConfig.partnerAlerts
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          Partner Alerts: {dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewAlertRecipientForm({ name: "", mobile: "", enabled: true });
+                            setShowAddAlertRecipientModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800"
+                        >
+                          <Icon name="plus" size={13} /> Add Partner Recipient
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Partner Recipients Table */}
+                    <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Partner</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">WhatsApp Number</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Daily Alert</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-24">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
+                          {(dailyAlertConfig.partnerRecipients || []).map((p, idx) => {
+                            const val = validateMobileNumber(p.mobile);
+                            return (
+                              <tr key={p.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800">
+                                  {p.name}
+                                </td>
+                                <td className="p-3 border border-sky-100 dark:border-slate-800">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="tel"
+                                      placeholder="+91 XXXXX XXXXX"
+                                      value={p.mobile || ""}
+                                      onChange={(e) => {
+                                        const newNum = e.target.value;
+                                        setDailyAlertConfig((prev) => {
+                                          const nextList = [...prev.partnerRecipients];
+                                          nextList[idx] = { ...nextList[idx], mobile: newNum };
+                                          return { ...prev, partnerRecipients: nextList };
+                                        });
+                                      }}
+                                      className="px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white w-44"
+                                    />
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${val.valid ? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/60" : "text-rose-700 bg-rose-50 dark:text-rose-400 dark:bg-rose-950/60"}`}>
+                                      {val.valid ? "✓" : "Invalid"}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDailyAlertConfig((prev) => {
+                                        const nextList = [...prev.partnerRecipients];
+                                        nextList[idx] = { ...nextList[idx], enabled: !nextList[idx].enabled };
+                                        return { ...prev, partnerRecipients: nextList };
+                                      });
+                                    }}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
+                                      p.enabled && dailyAlertConfig.partnerAlerts
+                                        ? "bg-emerald-600 text-white shadow-2xs"
+                                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                                    }`}
+                                  >
+                                    {p.enabled && dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
+                                  </button>
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Remove partner "${p.name}" from daily alerts?`)) {
+                                        setDailyAlertConfig((prev) => ({
+                                          ...prev,
+                                          partnerRecipients: prev.partnerRecipients.filter((_, i) => i !== idx)
+                                        }));
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 rounded transition cursor-pointer"
+                                    title="Remove Recipient"
+                                  >
+                                    <Icon name="trash" size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ALERT INFORMATION SELECTION CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <span>📊</span> 4. Alert Information Selection
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Select which business activity sections are included in the WhatsApp message. If a section is toggled OFF, that entire section is completely omitted from the delivered message.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* 1. Sales Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>🧾</span> Sales Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Number of invoices<br />• Total sales amount (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, sales: !prev.sections?.sales }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.sales
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.sales ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* 2. Collections Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>📥</span> Collections Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Number of collections<br />• Total collection amount (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, collections: !prev.sections?.collections }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.collections
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.collections ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* 3. Payments Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>📤</span> Payments Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Number of payments<br />• Total payment amount (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, payments: !prev.sections?.payments }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.payments
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.payments ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* 4. Stock Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>📦</span> Stock Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Items Sold count<br />• Current stock valuation (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, stock: !prev.sections?.stock }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.stock
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.stock ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ALERT HISTORY SCREEN (SECTION 12) */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>📜</span> Alert History
+                        </h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Complete audit log of automatic midnight alerts and manual test dispatches
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {/* Search Input */}
+                        <input
+                          type="text"
+                          placeholder="Search recipient / date..."
+                          value={alertHistorySearch}
+                          onChange={(e) => setAlertHistorySearch(e.target.value)}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white flex-1 sm:w-44"
+                        />
+                        {/* Status Filter */}
+                        <select
+                          value={alertHistoryStatusFilter}
+                          onChange={(e) => setAlertHistoryStatusFilter(e.target.value)}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="Sent">Sent</option>
+                          <option value="Disabled">Disabled</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Clear all alert history records?")) {
+                              setAlertHistory([]);
+                              try {
+                                localStorage.removeItem("jsr_alert_history");
+                              } catch (e) {}
+                            }
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-xs font-bold transition cursor-pointer"
+                          title="Clear History"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* History Table matching Section 12 exact columns */}
+                    <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
+                      <table className="w-full text-left text-xs border-collapse font-mono">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date & Time</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Recipient</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Alert Type</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Status</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Details / Reason</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
+                          {(() => {
+                            let filtered = alertHistory;
+                            if (alertHistoryStatusFilter !== "all") {
+                              filtered = filtered.filter((h) => h.status === alertHistoryStatusFilter);
+                            }
+                            if (alertHistorySearch.trim()) {
+                              const q = alertHistorySearch.toLowerCase();
+                              filtered = filtered.filter((h) =>
+                                (h.recipient || "").toLowerCase().includes(q) ||
+                                (h.displayDateTime || "").toLowerCase().includes(q) ||
+                                (h.alertType || "").toLowerCase().includes(q)
+                              );
+                            }
+
+                            if (filtered.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={6} className="p-6 text-center text-slate-400">
+                                    No alert records found.
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return filtered.map((item) => (
+                              <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
+                                <td className="p-3 whitespace-nowrap text-slate-600 dark:text-slate-400 border border-sky-100 dark:border-slate-800 text-[11px]">
+                                  {item.displayDateTime}
+                                </td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800">
+                                  {item.recipient}
+                                  {item.recipientMobile ? (
+                                    <span className="block text-[10px] text-slate-400 font-normal">
+                                      {item.recipientMobile}
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="p-3 text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-800">
+                                  {item.alertType}
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  <span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                    item.status === "Sent"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : item.status === "Disabled"
+                                      ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                      : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-slate-500 dark:text-slate-400 border border-sky-100 dark:border-slate-800 text-[11px]">
+                                  {item.reason || (item.status === "Sent" ? "Completed" : "—")}
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTriggerDailyAlert(true)}
+                                    className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold cursor-pointer transition"
+                                    title="Retry or trigger new alert"
+                                  >
+                                    Retry
+                                  </button>
+                                </td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -15672,6 +16775,255 @@ Thank you for your business!`;
                   className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs"
                 >
                   Update PIN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: WHATSAPP DISPATCH HUB (SCENARIO #1) */}
+      {alertDispatchModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-850/60 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300">
+                  <Icon name="bell" size={16} />
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
+                    {alertDispatchModal.title}
+                  </h3>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Business Date: <b className="text-slate-700 dark:text-slate-300">{alertDispatchModal.reportingDate}</b>
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlertDispatchModal((prev) => ({ ...prev, isOpen: false }))}
+                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Message Preview Box */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider">
+                    WhatsApp Message Preview
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(alertDispatchModal.message);
+                      alert("Message copied to clipboard! You can paste directly in WhatsApp.");
+                    }}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>📋</span> Copy Message
+                  </button>
+                </div>
+                <pre className="p-3 bg-slate-50 dark:bg-slate-950/70 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-slate-800 dark:text-slate-200 text-xs whitespace-pre-wrap leading-relaxed select-all">
+                  {alertDispatchModal.message}
+                </pre>
+              </div>
+
+              {/* Recipients Dispatch List */}
+              <div className="space-y-2">
+                <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px] uppercase tracking-wider block">
+                  Configured Recipients ({alertDispatchModal.recipients.length})
+                </span>
+                <div className="space-y-2">
+                  {alertDispatchModal.recipients.map((rec) => {
+                    const isReady = rec.status === "Ready";
+                    const isSent = rec.status === "Sent";
+                    const isDisabled = rec.status === "Disabled";
+                    const isFailed = rec.status === "Failed";
+
+                    return (
+                      <div
+                        key={rec.id}
+                        className={`p-3 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 transition ${
+                          isReady || isSent
+                            ? "bg-white dark:bg-slate-850/60 border-slate-200 dark:border-slate-700"
+                            : isDisabled
+                            ? "bg-slate-50 dark:bg-slate-900/40 border-slate-200/60 dark:border-slate-800/60 opacity-60"
+                            : "bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <b className="text-xs text-slate-900 dark:text-white">
+                              {rec.isOwner ? "👑 " : ""}{rec.name}
+                            </b>
+                            <span
+                              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                isReady
+                                  ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                                  : isSent
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : isDisabled
+                                  ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                  : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                              }`}
+                            >
+                              {rec.status}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+                            {rec.mobile || "No number configured"}
+                            {rec.reason ? ` • ${rec.reason}` : ""}
+                          </span>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                          {isReady && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                openWhatsAppUrl(rec.cleanMobile, alertDispatchModal.message);
+                                setAlertDispatchModal((prev) => ({
+                                  ...prev,
+                                  recipients: prev.recipients.map((r) =>
+                                    r.id === rec.id ? { ...r, status: "Sent" } : r
+                                  )
+                                }));
+                              }}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                            >
+                              <span>📱</span> Open WhatsApp
+                            </button>
+                          )}
+                          {isSent && (
+                            <button
+                              type="button"
+                              onClick={() => openWhatsAppUrl(rec.cleanMobile, alertDispatchModal.message)}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                            >
+                              <span>✓</span> Re-Open WhatsApp
+                            </button>
+                          )}
+                          {isDisabled && (
+                            <span className="text-[11px] text-slate-400 italic">
+                              Disabled in Settings
+                            </span>
+                          )}
+                          {isFailed && (
+                            <span className="text-[11px] text-rose-500 font-bold">
+                              {rec.reason || "Invalid Number"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850/60 flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setAlertDispatchModal((prev) => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD PARTNER RECIPIENT */}
+      {showAddAlertRecipientModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-xl">
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <Icon name="plus" size={16} /> Add Partner Alert Recipient
+            </h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = newAlertRecipientForm.name.trim();
+                const mobile = newAlertRecipientForm.mobile.trim();
+                if (!name) {
+                  alert("Please enter partner name");
+                  return;
+                }
+                const v = validateMobileNumber(mobile);
+                if (!v.valid) {
+                  alert("Please enter a valid mobile number with at least 10 digits");
+                  return;
+                }
+                const newRec = {
+                  id: `p_custom_${Date.now()}`,
+                  name: name,
+                  mobile: mobile,
+                  enabled: true
+                };
+                setDailyAlertConfig((prev) => {
+                  const next = {
+                    ...prev,
+                    partnerRecipients: [...(prev.partnerRecipients || []), newRec]
+                  };
+                  try {
+                    localStorage.setItem("jsr_daily_alert_config", JSON.stringify(next));
+                  } catch (err) {}
+                  return next;
+                });
+                setShowAddAlertRecipientModal(false);
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                  Partner Name:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ramesh Reddy"
+                  value={newAlertRecipientForm.name}
+                  onChange={(e) => setNewAlertRecipientForm({ ...newAlertRecipientForm, name: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 block mb-1">
+                  WhatsApp Mobile Number:
+                </label>
+                <input
+                  type="tel"
+                  required
+                  placeholder="+91 XXXXX XXXXX"
+                  value={newAlertRecipientForm.mobile}
+                  onChange={(e) => setNewAlertRecipientForm({ ...newAlertRecipientForm, mobile: e.target.value })}
+                  className="w-full p-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddAlertRecipientModal(false)}
+                  className="flex-1 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs"
+                >
+                  Save Recipient
                 </button>
               </div>
             </form>
