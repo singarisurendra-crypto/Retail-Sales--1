@@ -136,12 +136,26 @@ table td {
     max-width: 100% !important;
   }
 
+  /* Reset outer card containers and scrolling wrappers inside #printable-ledger during print */
+  #printable-ledger,
+  #printable-ledger > div,
+  #printable-ledger .overflow-x-auto {
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
   #printable-ledger table {
     width: 100% !important;
     max-width: 100% !important;
     table-layout: fixed !important;
     border-collapse: collapse !important;
-    font-size: 8.5pt !important;
+    font-size: 8pt !important;
+    line-height: 1.25 !important;
   }
 
   #printable-ledger thead {
@@ -154,20 +168,30 @@ table td {
 
   #printable-ledger tr {
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   #printable-ledger th,
   #printable-ledger td {
     padding: 4px 6px !important;
-    border: 1px solid #64748b !important;
+    border: 1px solid #475569 !important;
     color: #000000 !important;
     background-color: transparent !important;
-    word-break: break-word !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    vertical-align: middle !important;
   }
 
   #printable-ledger th {
     background-color: #f1f5f9 !important;
     font-weight: 700 !important;
+    font-size: 7.5pt !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  #printable-ledger td {
+    font-size: 8pt !important;
   }
 
   /* Remove backgrounds/shadows for crisp ink-saving prints */
