@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const waToken = process.env.WHATSAPP_API_TOKEN;
-  const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const waToken = process.env.WHATSAPP_API_TOKEN || "EABAMPOndUj8BSqjB0UZBbWeZChZBRyv46QxXS6otXvY5GTiOYR6hzs9Ed5G2WhCbVgLZCS2zCXLeCXUi82Abc4E4tsYTnF6Ws4kd3DxLo0XCL3gWwssNb5dJw99T4yPcBpMZC3v58mmlW1jxz2K4nlmO2lZAGq1AlYiPZAKsfyJlc2wzk0apVJcNuK5pszWYFXD1gZDZD";
+  const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1300895136448574";
 
   if (!waToken || !waPhoneId) {
     return NextResponse.json({
