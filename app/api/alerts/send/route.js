@@ -35,8 +35,8 @@ export async function POST(req) {
     const { recipients = [], message = "", alertType = "Daily Summary", displayDateTime = "" } = body;
 
     const results = [];
-    const waToken = process.env.WHATSAPP_API_TOKEN;
-    const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const waToken = process.env.WHATSAPP_API_TOKEN || "EABAMPOndUj8BSqjB0UZBbWeZChZBRyv46QxXS6otXvY5GTiOYR6hzs9Ed5G2WhCbVgLZCS2zCXLeCXUi82Abc4E4tsYTnF6Ws4kd3DxLo0XCL3gWwssNb5dJw99T4yPcBpMZC3v58mmlW1jxz2K4nlmO2lZAGq1AlYiPZAKsfyJlc2wzk0apVJcNuK5pszWYFXD1gZDZD";
+    const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "1300895136448574";
     const isCloudApiConfigured = !!(waToken && waPhoneId);
 
     for (const rec of recipients) {
@@ -130,7 +130,9 @@ export async function POST(req) {
             const errMsg = err.message || "Rejected by WhatsApp service";
             let diagnosticReason = `Failed (Code ${code}): ${errMsg}`;
 
-            if (code === 131047) {
+            if (code === 131030) {
+              diagnosticReason = `Failed (Code 131030): Recipient phone number is not in Meta's allowed test recipient list. Please add this number under "Recipient" -> "Manage phone number list" in Meta Developer Portal.`;
+            } else if (code === 131047) {
               diagnosticReason = `Failed (Code 131047): 24-hour customer window is closed. Recipient must message your WhatsApp business number first or an approved template must be used.`;
             } else if (code === 131026) {
               diagnosticReason = `Failed (Code 131026): Message undeliverable. Recipient number is not registered on WhatsApp.`;
