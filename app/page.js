@@ -372,10 +372,10 @@ export default function App() {
 
   // Scenario #11: Daily Business Alert to Owner & Partners via WhatsApp State
   const defaultAlertPartners = useMemo(() => [
+    { id: "p_surendra", name: "Surendra", mobile: "9177795875", enabled: true },
     { id: "p_b_reddy", name: "B Reddy", mobile: "", enabled: true },
     { id: "p_kiran", name: "Kiran", mobile: "", enabled: false },
-    { id: "p_ranga", name: "Ranga Prasad", mobile: "", enabled: true },
-    { id: "p_surendra", name: "Surendra", mobile: "", enabled: true }
+    { id: "p_ranga", name: "Ranga Prasad", mobile: "", enabled: true }
   ], []);
 
   const [dailyAlertConfig, setDailyAlertConfig] = useState(() => {
@@ -391,7 +391,7 @@ export default function App() {
       enabled: true,
       alertTime: "00:00", // 12:00 AM
       ownerAlert: true,
-      ownerMobile: "",
+      ownerMobile: "9177795875",
       partnerAlerts: true,
       sections: {
         sales: true,
