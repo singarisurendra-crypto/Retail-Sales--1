@@ -477,6 +477,9 @@ export default function App() {
   const [alertHistoryStatusFilter, setAlertHistoryStatusFilter] = useState("all");
   const [showAddAlertRecipientModal, setShowAddAlertRecipientModal] = useState(false);
   const [newAlertRecipientForm, setNewAlertRecipientForm] = useState({ name: "", mobile: "", enabled: true });
+  const [showConnectionDiagModal, setShowConnectionDiagModal] = useState(false);
+  const [connectionDiagData, setConnectionDiagData] = useState(null);
+  const [connectionDiagLoading, setConnectionDiagLoading] = useState(false);
 
   // Formatting helper for alert dates (e.g. "01-Oct-2026")
   const formatAlertDate = (d = new Date()) => {
@@ -512,6 +515,16 @@ export default function App() {
     }
     const standardized = digits.length === 10 ? "91" + digits : digits;
     return { valid: true, cleanNumber: standardized, error: null };
+  };
+
+  const openWhatsAppUrl = (cleanMobile, message) => {
+    if (!cleanMobile) return;
+    const digits = String(cleanMobile).replace(/[^0-9]/g, "");
+    const standardized = digits.length === 10 ? "91" + digits : digits;
+    const url = `https://wa.me/${standardized}?text=${encodeURIComponent(message || "")}`;
+    if (typeof window !== "undefined") {
+      window.open(url, "_blank");
+    }
   };
 
   // Computes summary metrics for a given ISO date ("YYYY-MM-DD")
@@ -1001,6 +1014,148 @@ export default function App() {
         reportingDate: formatAlertDate(now),
         message: message,
         recipients: recipientsToProcess
+      });
+    }
+  };
+
+  const handleTestWhatsAppConnection = async () => {
+    setShowConnectionDiagModal(true);
+    setConnectionDiagLoading(true);
+    setConnectionDiagData(null);
+    try {
+      const res = await fetch("/api/alerts/test-connection");
+      const data = await res.json();
+      setConnectionDiagData(data);
+    } catch (err) {
+      setConnectionDiagData({
+        configured: false,
+        error: true,
+        message: "Failed to connect to diagnostic service: " + (err?.message || String(err))
+      });
+    } finally {
+      setConnectionDiagLoading(false);
+    }
+  };
+
+  const handleRetrySingleAlert = async (historyItem) => {
+    if (!historyItem) return;
+    const recipientName = historyItem.recipient || historyItem.name || historyItem.recipientName || "Recipient";
+    const rawMobile = historyItem.recipientMobile || historyItem.mobile || "";
+
+    if (!rawMobile || !rawMobile.trim()) {
+      alert(`Cannot retry: No mobile number configured for ${recipientName}. Please update the recipient's WhatsApp number in Settings first.`);
+      return;
+    }
+
+    const val = validateMobileNumber(rawMobile);
+    if (!val.valid) {
+      alert(`Cannot retry: Invalid mobile number "${rawMobile}" for ${recipientName} (${val.error}).`);
+      return;
+    }
+
+    const now = new Date();
+    const genDateTimeStr = formatAlertDateTime(now);
+
+    let message;
+    if (historyItem.alertType === "Test Alert") {
+      message = buildTestWhatsAppMessage(now);
+    } else {
+      const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      const dateKey = targetDate.toISOString().slice(0, 10);
+      const summary = calculateBusinessSummaryForDate(dateKey);
+      message = buildDailyWhatsAppMessage(summary, targetDate, now, dailyAlertConfig);
+    }
+
+    // Optimistically update in-place without duplicating records
+    setAlertHistory((prev) => {
+      const updated = prev.map((h) =>
+        h.id === historyItem.id
+          ? {
+              ...h,
+              status: "Sending...",
+              apiResponse: "Retrying dispatch to WhatsApp API gateway..."
+            }
+          : h
+      );
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+
+    try {
+      const res = await fetch("/api/alerts/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipients: [
+            {
+              id: historyItem.recipientId || historyItem.id,
+              recipient: recipientName,
+              name: recipientName,
+              mobile: rawMobile,
+              cleanMobile: val.cleanNumber,
+              status: "Ready",
+              reason: "",
+              enabled: true
+            }
+          ],
+          message: message,
+          alertType: historyItem.alertType || "Daily Summary",
+          displayDateTime: genDateTimeStr
+        })
+      });
+
+      const data = await res.json();
+      const sendResult = (data?.results && data.results[0]) || {};
+      const newStatus = sendResult.status || (res.ok ? "Accepted" : "Failed");
+      const newApiResponse = sendResult.apiResponse || (res.ok ? "Accepted by WhatsApp API Gateway" : (data.error || "Gateway dispatch failed"));
+      const newMessageId = sendResult.messageId || historyItem.messageId || "—";
+
+      setAlertHistory((prev) => {
+        const updated = prev.map((h) =>
+          h.id === historyItem.id
+            ? {
+                ...h,
+                displayDateTime: genDateTimeStr,
+                recipientMobile: rawMobile,
+                status: newStatus,
+                messageId: newMessageId,
+                apiResponse: newApiResponse
+              }
+            : h
+        );
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
+
+      if (sendResult.fallbackToWeb || newStatus === "Ready") {
+        openWhatsAppUrl(val.cleanNumber, message);
+      }
+    } catch (err) {
+      console.error("Retry alert error:", err);
+      setAlertHistory((prev) => {
+        const updated = prev.map((h) =>
+          h.id === historyItem.id
+            ? {
+                ...h,
+                status: "Failed",
+                apiResponse: "Network/Server error: " + (err?.message || String(err))
+              }
+            : h
+        );
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
       });
     }
   };
@@ -13830,6 +13985,14 @@ Thank you for your business!`;
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
+                          onClick={handleTestWhatsAppConnection}
+                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          title="Test Meta WhatsApp Cloud API credentials & webhook connectivity"
+                        >
+                          <span>🔍</span> Test Connection
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleTriggerDailyAlert(true)}
                           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                           title="Trigger and dispatch previous day summary right now"
@@ -14313,18 +14476,38 @@ Thank you for your business!`;
                                 </td>
                                 <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                                    item.status === "Sent"
+                                    item.status === "Delivered" || item.status === "Read"
                                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : item.status === "Sent"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : item.status === "Accepted"
+                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
                                       : item.status === "Dispatched (Web)"
                                       ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
                                       : item.status === "Ready" || item.status === "Pending"
                                       ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                      : item.status === "Sending..."
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
                                       : item.status === "Disabled"
                                       ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                       : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
                                   }`}>
                                     <span>
-                                      {item.status === "Sent" ? "✓" : item.status === "Dispatched (Web)" ? "📱" : item.status === "Ready" || item.status === "Pending" ? "⏳" : item.status === "Disabled" ? "⊘" : "✕"}
+                                      {item.status === "Delivered" || item.status === "Read"
+                                        ? "✓✓"
+                                        : item.status === "Sent"
+                                        ? "✓"
+                                        : item.status === "Accepted"
+                                        ? "📡"
+                                        : item.status === "Dispatched (Web)"
+                                        ? "📱"
+                                        : item.status === "Ready" || item.status === "Pending"
+                                        ? "⏳"
+                                        : item.status === "Sending..."
+                                        ? "🔄"
+                                        : item.status === "Disabled"
+                                        ? "⊘"
+                                        : "✕"}
                                     </span>
                                     {item.status}
                                   </span>
@@ -14338,11 +14521,11 @@ Thank you for your business!`;
                                 <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
                                   <button
                                     type="button"
-                                    onClick={() => handleTriggerDailyAlert(true)}
-                                    className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded text-[11px] font-bold cursor-pointer transition"
-                                    title="Retry or trigger new alert"
+                                    onClick={() => handleRetrySingleAlert(item)}
+                                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg text-[11px] font-bold cursor-pointer transition flex items-center gap-1 mx-auto"
+                                    title={`Retry sending alert specifically to ${item.recipient || item.name || 'this recipient'}`}
                                   >
-                                    Retry
+                                    <span>🔄</span> Retry
                                   </button>
                                 </td>
                               </tr>
@@ -17206,6 +17389,142 @@ Thank you for your business!`;
               <button
                 type="button"
                 onClick={() => setAlertDispatchModal((prev) => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONNECTION DIAGNOSTICS (SCENARIO #1) */}
+      {showConnectionDiagModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-850/60 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 text-base">
+                  🔍
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white leading-tight">
+                    WhatsApp Gateway & Webhook Diagnostics
+                  </h3>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Real-time connection verification and delivery status pipeline
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConnectionDiagModal(false)}
+                className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+              {connectionDiagLoading ? (
+                <div className="py-8 flex flex-col items-center justify-center gap-3 text-slate-500">
+                  <div className="w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="font-semibold text-xs">Testing Meta WhatsApp Cloud API credentials & webhook endpoint...</p>
+                </div>
+              ) : connectionDiagData ? (
+                <div className="space-y-4">
+                  {/* Mode Banner */}
+                  <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
+                    connectionDiagData.configured && !connectionDiagData.error
+                      ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                      : connectionDiagData.error
+                      ? "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200"
+                      : "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                  }`}>
+                    <span className="text-xl">
+                      {connectionDiagData.configured && !connectionDiagData.error ? "✓" : connectionDiagData.error ? "✕" : "ℹ"}
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-xs uppercase tracking-wider mb-0.5">
+                        {connectionDiagData.mode || (connectionDiagData.configured ? "Meta Cloud API Active" : "WhatsApp Web Client Mode")}
+                      </h4>
+                      <p className="text-[11px] leading-relaxed opacity-90">
+                        {connectionDiagData.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Configured Details */}
+                  {connectionDiagData.configured && !connectionDiagData.error && (
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                      <div className="flex justify-between items-center py-1 border-b border-slate-200 dark:border-slate-700">
+                        <span className="text-slate-500">Verified Business Name:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{connectionDiagData.verifiedName || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-slate-200 dark:border-slate-700">
+                        <span className="text-slate-500">Display Phone Number:</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-100">{connectionDiagData.displayPhoneNumber || "—"}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-slate-200 dark:border-slate-700">
+                        <span className="text-slate-500">Quality Rating:</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          {connectionDiagData.qualityRating || "GREEN"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-1">
+                        <span className="text-slate-500">Webhook Status Listener:</span>
+                        <span className="font-mono text-[10px] text-sky-600 dark:text-sky-400">/api/alerts/webhook</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Troubleshooting / Instructions */}
+                  {connectionDiagData.instructions && (
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-[11px] text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                        Setup Guidance:
+                      </h5>
+                      <ul className="space-y-1 text-[11px] text-slate-600 dark:text-slate-400">
+                        {connectionDiagData.instructions.map((inst, i) => (
+                          <li key={i} className="leading-relaxed bg-slate-50 dark:bg-slate-850 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+                            {inst}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {connectionDiagData.troubleshooting && (
+                    <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-xl border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300 text-[11px]">
+                      <b>Troubleshooting:</b> {connectionDiagData.troubleshooting}
+                    </div>
+                  )}
+
+                  {/* 24-Hour Rule & Honest Status Notice */}
+                  <div className="p-3 bg-sky-50/50 dark:bg-sky-950/20 rounded-xl border border-sky-100 dark:border-sky-900/40 text-slate-600 dark:text-slate-400 text-[11px] space-y-1">
+                    <b className="text-sky-800 dark:text-sky-300 block">💡 Meta WhatsApp 24-Hour Customer Window Rule:</b>
+                    <p className="leading-relaxed">
+                      WhatsApp Cloud API allows free-form daily summary messages only if the recipient has sent a message to your business number within the last 24 hours. Outside 24 hours, Meta will reject free-form messages with error code <code className="bg-sky-100 dark:bg-sky-900 px-1 rounded font-mono">131047</code>. To ensure delivery, have recipients message your business number or use approved message templates in Meta Business Manager.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850/60 flex justify-between items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleTestWhatsAppConnection}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1"
+              >
+                <span>🔄</span> Re-Test
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowConnectionDiagModal(false)}
                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Close
