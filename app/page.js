@@ -115,6 +115,18 @@ const money = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
+// Invariant Helper: Pitfall #4 (Strict 2-decimal intermediate rounding)
+const round2 = (n) => Number(Number(n || 0).toFixed(2));
+
+// Invariant Helper: Pitfall #7 (High-concurrency microsecond doc ID generation)
+const generateDocId = (prefix = "DOC") => {
+  const d = new Date();
+  const pad = (v, l = 2) => String(v).padStart(l, "0");
+  const ts = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}${pad(d.getUTCMilliseconds(), 3)}000`;
+  const rnd = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${ts}-${rnd}`;
+};
+
 const formatSupplierMobile = (mobile) => {
   if (!mobile) return "";
   return mobile.replace(/#vendor/gi, "").trim();
@@ -6960,13 +6972,13 @@ Thank you for your business!`;
             <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
               <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-2 text-slate-400">
+                  <span className="absolute left-3 top-2 text-slate-400">
                     <Icon name="search" size={14} />
                   </span>
                   <input
                     type="text"
                     placeholder="Search by invoice #, customer name, date..."
-                    className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                    className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                     value={invoiceSearchQuery}
                     onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                   />
@@ -7330,13 +7342,13 @@ Thank you for your business!`;
             <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
               <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute left-2.5 top-2 text-slate-400">
+                  <span className="absolute left-3 top-2 text-slate-400">
                     <Icon name="search" size={14} />
                   </span>
                   <input
                     type="text"
                     placeholder="Search by item name, supplier..."
-                    className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                    className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                     value={procureSearchQuery}
                     onChange={(e) => setProcureSearchQuery(e.target.value)}
                   />
@@ -7716,13 +7728,13 @@ Thank you for your business!`;
                 <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
                   <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                     <div className="relative flex-1">
-                      <span className="absolute left-2.5 top-2 text-slate-400">
+                      <span className="absolute left-3 top-2 text-slate-400">
                         <Icon name="search" size={14} />
                       </span>
                       <input
                         type="text"
                         placeholder="Search receipt #, customer name, notes..."
-                        className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                        className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                         value={paymentsSearchQuery}
                         onChange={(e) => setPaymentsSearchQuery(e.target.value)}
                       />
@@ -9191,13 +9203,13 @@ Thank you for your business!`;
               <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
                 <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-2 text-slate-400">
+                    <span className="absolute left-3 top-2 text-slate-400">
                       <Icon name="search" size={14} />
                     </span>
                     <input
                       type="text"
                       placeholder="Search analysis records (customers, items, suppliers, receipts)..."
-                      className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                      className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                       value={analysisSearchQuery}
                       onChange={(e) => setAnalysisSearchQuery(e.target.value)}
                     />
@@ -10482,13 +10494,13 @@ Thank you for your business!`;
               </div>
 
               <div className="relative">
-                <span className="absolute left-2.5 top-2 text-slate-400">
+                <span className="absolute left-3 top-2 text-slate-400">
                   <Icon name="search" size={14} />
                 </span>
                 <input
                   type="text"
                   placeholder="Search invoice number, customer, supplier name..."
-                  className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100"
                   value={auditSearchQuery}
                   onChange={(e) => setAuditSearchQuery(e.target.value)}
                 />
@@ -10655,13 +10667,13 @@ Thank you for your business!`;
             {/* In-Screen Filter Bar */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
               <div className="relative w-full sm:max-w-md">
-                <span className="absolute left-2.5 top-2 text-slate-400">
+                <span className="absolute left-3 top-2 text-slate-400">
                   <Icon name="search" size={14} />
                 </span>
                 <input
                   type="text"
                   placeholder={`Search ${mastersSubTab}...`}
-                  className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100"
                   value={masterSearchQuery}
                   onChange={(e) => setMasterSearchQuery(e.target.value)}
                 />
@@ -14226,7 +14238,7 @@ Thank you for your business!`;
                                   {item.recipientMobile || item.mobile || "—"}
                                 </td>
                                 <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  <span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                                     item.status === "Sent"
                                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                                       : item.status === "Dispatched (Web)"
@@ -14237,6 +14249,9 @@ Thank you for your business!`;
                                       ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                       : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
                                   }`}>
+                                    <span>
+                                      {item.status === "Sent" ? "✓" : item.status === "Dispatched (Web)" ? "📱" : item.status === "Ready" || item.status === "Pending" ? "⏳" : item.status === "Disabled" ? "⊘" : "✕"}
+                                    </span>
                                     {item.status}
                                   </span>
                                 </td>
@@ -16606,7 +16621,7 @@ Thank you for your business!`;
                 type="text"
                 autoFocus
                 placeholder="Search items by name or supplier..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
+                className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-indigo-500 transition"
                 value={stockSearchQuery}
                 onChange={(e) => setStockSearchQuery(e.target.value)}
               />
@@ -17017,7 +17032,7 @@ Thank you for your business!`;
                               {rec.isOwner ? "👑 " : ""}{rec.name}
                             </b>
                             <span
-                              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
                                 isReady
                                   ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
                                   : rec.status === "Sent"
@@ -17029,6 +17044,9 @@ Thank you for your business!`;
                                   : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
                               }`}
                             >
+                              <span>
+                                {isReady ? "⏳" : rec.status === "Sent" ? "✓" : rec.status === "Dispatched (Web)" ? "📱" : isDisabled ? "⊘" : "✕"}
+                              </span>
                               {rec.status}
                             </span>
                           </div>
