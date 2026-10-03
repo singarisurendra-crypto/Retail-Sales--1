@@ -97,6 +97,45 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                 "history": history
             })
 
+        # 3a. WhatsApp Webhook Verification
+        elif path == "/api/alerts/webhook":
+            mode = query.get("hub.mode", [""])[0]
+            token = query.get("hub.verify_token", [""])[0]
+            challenge = query.get("hub.challenge", [""])[0]
+            expected = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN") or "jsr_retail_verify_token"
+            if mode == "subscribe" and token == expected:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(challenge.encode("utf-8"))
+                return
+            return self._send_json(403, {"error": "Invalid verify token"})
+
+        # 3b. WhatsApp Diagnostics & Test Connection
+        elif path == "/api/alerts/test-connection":
+            wa_token = os.getenv("WHATSAPP_API_TOKEN")
+            wa_phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+            if not wa_token or not wa_phone_id:
+                return self._send_json(200, {
+                    "configured": False,
+                    "mode": "WhatsApp Web Client (wa.me)",
+                    "message": "Meta Cloud API credentials are not set in environment variables. Application runs in WhatsApp Web mode."
+                })
+            try:
+                meta_url = f"https://graph.facebook.com/v20.0/{wa_phone_id}?fields=verified_name,display_phone_number,quality_rating"
+                req = urllib.request.Request(meta_url, headers={"Authorization": f"Bearer {wa_token}"})
+                with urllib.request.urlopen(req, timeout=10) as res:
+                    m_data = json.loads(res.read().decode())
+                    return self._send_json(200, {
+                        "configured": True,
+                        "verifiedName": m_data.get("verified_name", "Verified Business"),
+                        "displayPhoneNumber": m_data.get("display_phone_number", wa_phone_id),
+                        "qualityRating": m_data.get("quality_rating", "GREEN"),
+                        "message": "WhatsApp Cloud API connection is active and authenticated!"
+                    })
+            except Exception as ex:
+                return self._send_json(400, {"configured": False, "error": True, "message": str(ex)})
+
         # 4. Scenario #12 Running Ledger Statement Generator
         elif path == "/api/reports/ledger":
             party_type = query.get("party_type", ["Customer"])[0]
@@ -315,6 +354,38 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
         elif path == "/api/alerts/history/clear":
             db.clear_alert_history()
             return self._send_json(200, {"success": True, "message": "Alert history cleared"})
+
+        # 4. WhatsApp Webhook Status Callbacks
+        elif path == "/api/alerts/webhook":
+            entries = body.get("entry", [])
+            for entry in entries:
+                changes = entry.get("changes", [])
+                for change in changes:
+                    statuses = change.get("value", {}).get("statuses", [])
+                    for st in statuses:
+                        msg_id = st.get("id")
+                        raw_status = (st.get("status") or "").lower()
+                        mapped = "Sent"
+                        reason = "Dispatched by carrier"
+                        if raw_status == "delivered":
+                            mapped = "Delivered"
+                            reason = "Delivered to recipient handset"
+                        elif raw_status == "read":
+                            mapped = "Read"
+                            reason = "Read by recipient"
+                        elif raw_status == "failed":
+                            mapped = "Failed"
+                            errs = st.get("errors", [])
+                            if errs:
+                                code = errs[0].get("code")
+                                if code == 131047:
+                                    reason = "Failed (Code 131047): 24-hour customer window is closed. Recipient must message your WhatsApp business number first or an approved template must be used."
+                                else:
+                                    reason = f"Failed (Code {code}): {errs[0].get('message', 'Rejected')}"
+                            else:
+                                reason = "Failed: Rejected by WhatsApp service"
+                        db.update_alert_history_status(msg_id, mapped, reason)
+            return self._send_json(200, {"success": True})
 
         else:
             return self._send_json(404, {"error": "Not Found", "path": path})
