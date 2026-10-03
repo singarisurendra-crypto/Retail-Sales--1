@@ -185,13 +185,16 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                 log_id = f"alt_{int(datetime.datetime.now().timestamp()*1000)}_{os.urandom(2).hex()}"
                 mobile = str(rec.get("mobile", "")).strip()
                 clean_mobile = rec.get("cleanMobile") or "".join([c for c in mobile if c.isdigit()])
+                rec_name = rec.get("name") or rec.get("recipient") or "Recipient"
 
                 if rec.get("status") == "Disabled" or not rec.get("enabled", True):
                     results.append({
                         "id": log_id,
                         "recipientId": rec.get("id"),
-                        "recipient": rec.get("name", "Recipient"),
+                        "recipient": rec_name,
+                        "name": rec_name,
                         "recipientMobile": mobile,
+                        "mobile": mobile,
                         "alertType": alert_type,
                         "status": "Disabled",
                         "messageId": "—",
@@ -204,8 +207,10 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                     results.append({
                         "id": log_id,
                         "recipientId": rec.get("id"),
-                        "recipient": rec.get("name", "Recipient"),
+                        "recipient": rec_name,
+                        "name": rec_name,
                         "recipientMobile": mobile,
+                        "mobile": mobile,
                         "alertType": alert_type,
                         "status": "Failed",
                         "messageId": "—",
@@ -237,8 +242,10 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                             results.append({
                                 "id": log_id,
                                 "recipientId": rec.get("id"),
-                                "recipient": rec.get("name"),
+                                "recipient": rec_name,
+                                "name": rec_name,
                                 "recipientMobile": mobile,
+                                "mobile": mobile,
                                 "alertType": alert_type,
                                 "status": "Sent",
                                 "messageId": msg_id,
@@ -254,8 +261,10 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                         results.append({
                             "id": log_id,
                             "recipientId": rec.get("id"),
-                            "recipient": rec.get("name"),
+                            "recipient": rec_name,
+                            "name": rec_name,
                             "recipientMobile": mobile,
+                            "mobile": mobile,
                             "alertType": alert_type,
                             "status": "Failed",
                             "messageId": "—",
@@ -266,8 +275,10 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                         results.append({
                             "id": log_id,
                             "recipientId": rec.get("id"),
-                            "recipient": rec.get("name"),
+                            "recipient": rec_name,
+                            "name": rec_name,
                             "recipientMobile": mobile,
+                            "mobile": mobile,
                             "alertType": alert_type,
                             "status": "Failed",
                             "messageId": "—",
@@ -280,8 +291,10 @@ class JSRRequestHandler(BaseHTTPRequestHandler):
                     results.append({
                         "id": log_id,
                         "recipientId": rec.get("id"),
-                        "recipient": rec.get("name"),
+                        "recipient": rec_name,
+                        "name": rec_name,
                         "recipientMobile": mobile,
+                        "mobile": mobile,
                         "alertType": alert_type,
                         "status": "Ready",
                         "messageId": f"WA-WEB-{generate_doc_id('REF')[:15]}",
