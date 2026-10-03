@@ -408,7 +408,16 @@ export default function App() {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("jsr_alert_history");
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return parsed.map((h) => ({
+              ...h,
+              recipient: h.recipient || h.name || "Recipient",
+              recipientMobile: h.recipientMobile || h.mobile || ""
+            }));
+          }
+        }
       } catch (e) {
         console.error("Error reading alert history:", e);
       }
@@ -436,10 +445,15 @@ export default function App() {
           });
         }
         if (Array.isArray(data?.history) && data.history.length > 0) {
-          setAlertHistory(data.history);
+          const normalized = data.history.map((h) => ({
+            ...h,
+            recipient: h.recipient || h.name || "Recipient",
+            recipientMobile: h.recipientMobile || h.mobile || ""
+          }));
+          setAlertHistory(normalized);
           if (typeof window !== "undefined") {
             try {
-              localStorage.setItem("jsr_alert_history", JSON.stringify(data.history.slice(0, 500)));
+              localStorage.setItem("jsr_alert_history", JSON.stringify(normalized.slice(0, 500)));
             } catch (e) {}
           }
         }
@@ -620,6 +634,7 @@ export default function App() {
     if (!dailyAlertConfig.ownerAlert) {
       recipientsToProcess.push({
         id: "owner_rec",
+        recipient: "Owner",
         name: "Owner",
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: ownerValid.cleanNumber,
@@ -628,9 +643,22 @@ export default function App() {
         isOwner: true,
         enabled: false
       });
+    } else if (!dailyAlertConfig.ownerMobile || !dailyAlertConfig.ownerMobile.trim()) {
+      recipientsToProcess.push({
+        id: "owner_rec",
+        recipient: "Owner",
+        name: "Owner",
+        mobile: "",
+        cleanMobile: "",
+        status: "Disabled",
+        reason: "No WhatsApp number configured",
+        isOwner: true,
+        enabled: false
+      });
     } else if (!ownerValid.valid) {
       recipientsToProcess.push({
         id: "owner_rec",
+        recipient: "Owner",
         name: "Owner",
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: "",
@@ -642,6 +670,7 @@ export default function App() {
     } else {
       recipientsToProcess.push({
         id: "owner_rec",
+        recipient: "Owner",
         name: "Owner",
         mobile: dailyAlertConfig.ownerMobile,
         cleanMobile: ownerValid.cleanNumber,
@@ -658,6 +687,7 @@ export default function App() {
       if (!dailyAlertConfig.partnerAlerts || !p.enabled) {
         recipientsToProcess.push({
           id: p.id,
+          recipient: p.name,
           name: p.name,
           mobile: p.mobile || "",
           cleanMobile: pValid.cleanNumber,
@@ -666,9 +696,22 @@ export default function App() {
           isOwner: false,
           enabled: false
         });
+      } else if (!p.mobile || !p.mobile.trim()) {
+        recipientsToProcess.push({
+          id: p.id,
+          recipient: p.name,
+          name: p.name,
+          mobile: "",
+          cleanMobile: "",
+          status: "Disabled",
+          reason: "No WhatsApp number configured",
+          isOwner: false,
+          enabled: false
+        });
       } else if (!pValid.valid) {
         recipientsToProcess.push({
           id: p.id,
+          recipient: p.name,
           name: p.name,
           mobile: p.mobile || "",
           cleanMobile: "",
@@ -680,6 +723,7 @@ export default function App() {
       } else {
         recipientsToProcess.push({
           id: p.id,
+          recipient: p.name,
           name: p.name,
           mobile: p.mobile,
           cleanMobile: pValid.cleanNumber,
@@ -783,6 +827,7 @@ export default function App() {
     if (!dailyAlertConfig.ownerAlert) {
       recipientsToProcess.push({
         id: "owner_test",
+        recipient: "Owner",
         name: "Owner",
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: ownerValid.cleanNumber,
@@ -791,9 +836,22 @@ export default function App() {
         isOwner: true,
         enabled: false
       });
+    } else if (!dailyAlertConfig.ownerMobile || !dailyAlertConfig.ownerMobile.trim()) {
+      recipientsToProcess.push({
+        id: "owner_test",
+        recipient: "Owner",
+        name: "Owner",
+        mobile: "",
+        cleanMobile: "",
+        status: "Disabled",
+        reason: "No WhatsApp number configured",
+        isOwner: true,
+        enabled: false
+      });
     } else if (!ownerValid.valid) {
       recipientsToProcess.push({
         id: "owner_test",
+        recipient: "Owner",
         name: "Owner",
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: "",
@@ -805,6 +863,7 @@ export default function App() {
     } else {
       recipientsToProcess.push({
         id: "owner_test",
+        recipient: "Owner",
         name: "Owner",
         mobile: dailyAlertConfig.ownerMobile,
         cleanMobile: ownerValid.cleanNumber,
@@ -821,6 +880,7 @@ export default function App() {
       if (!dailyAlertConfig.partnerAlerts || !p.enabled) {
         recipientsToProcess.push({
           id: p.id,
+          recipient: p.name,
           name: p.name,
           mobile: p.mobile || "",
           cleanMobile: pValid.cleanNumber,
@@ -829,9 +889,22 @@ export default function App() {
           isOwner: false,
           enabled: false
         });
+      } else if (!p.mobile || !p.mobile.trim()) {
+        recipientsToProcess.push({
+          id: p.id,
+          recipient: p.name,
+          name: p.name,
+          mobile: "",
+          cleanMobile: "",
+          status: "Disabled",
+          reason: "No WhatsApp number configured",
+          isOwner: false,
+          enabled: false
+        });
       } else if (!pValid.valid) {
         recipientsToProcess.push({
           id: p.id,
+          recipient: p.name,
           name: p.name,
           mobile: p.mobile || "",
           cleanMobile: "",
@@ -843,6 +916,7 @@ export default function App() {
       } else {
         recipientsToProcess.push({
           id: p.id,
+          recipient: p.name,
           name: p.name,
           mobile: p.mobile,
           cleanMobile: pValid.cleanNumber,
@@ -974,7 +1048,7 @@ export default function App() {
               id: `p_${p.id || Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
               name: pName,
               mobile: p.mobile || "",
-              enabled: true
+              enabled: Boolean(p.mobile && p.mobile.trim().length >= 10)
             });
           }
         });
@@ -14208,9 +14282,9 @@ Thank you for your business!`;
                             if (alertHistorySearch.trim()) {
                               const q = alertHistorySearch.toLowerCase();
                               filtered = filtered.filter((h) =>
-                                (h.recipient || "").toLowerCase().includes(q) ||
+                                (h.recipient || h.name || "").toLowerCase().includes(q) ||
                                 (h.displayDateTime || "").toLowerCase().includes(q) ||
-                                (h.recipientMobile || "").toLowerCase().includes(q) ||
+                                (h.recipientMobile || h.mobile || "").toLowerCase().includes(q) ||
                                 (h.messageId || "").toLowerCase().includes(q) ||
                                 (h.apiResponse || "").toLowerCase().includes(q)
                               );
@@ -14232,7 +14306,7 @@ Thank you for your business!`;
                                   {item.displayDateTime}
                                 </td>
                                 <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  {item.recipient}
+                                  {item.recipient || item.name || item.recipientName || "Recipient"}
                                 </td>
                                 <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap text-[11px]">
                                   {item.recipientMobile || item.mobile || "—"}
