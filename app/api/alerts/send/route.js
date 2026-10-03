@@ -108,6 +108,7 @@ export async function POST(req) {
 
           if (fbRes.ok && fbData.messages && fbData.messages.length > 0) {
             const msgId = fbData.messages[0].id || `wamid.${Date.now()}`;
+            // Mark as Accepted by API Gateway; genuine handset delivery confirmation comes via webhook
             results.push({
               id: logId,
               recipientId: rec.id,
@@ -117,14 +118,26 @@ export async function POST(req) {
               mobile: recipientMobileStr,
               cleanMobile: formattedTo,
               alertType,
-              status: "Sent",
+              status: "Accepted",
               messageId: msgId,
-              apiResponse: "Accepted (Meta WhatsApp API)",
+              apiResponse: "Accepted by WhatsApp API Gateway (Awaiting handset delivery receipt via webhook)",
               timestamp: new Date().toISOString(),
               displayDateTime: displayDateTime || new Date().toLocaleString()
             });
           } else {
-            const errMsg = fbData.error?.message || "Invalid recipient / rejected by WhatsApp service";
+            const err = fbData.error || {};
+            const code = err.code || "";
+            const errMsg = err.message || "Rejected by WhatsApp service";
+            let diagnosticReason = `Failed (Code ${code}): ${errMsg}`;
+
+            if (code === 131047) {
+              diagnosticReason = `Failed (Code 131047): 24-hour customer window is closed. Recipient must message your WhatsApp business number first or an approved template must be used.`;
+            } else if (code === 131026) {
+              diagnosticReason = `Failed (Code 131026): Message undeliverable. Recipient number is not registered on WhatsApp.`;
+            } else if (code === 190) {
+              diagnosticReason = `Failed (Code 190): Meta WhatsApp API access token has expired. Regenerate token in Meta Business Manager.`;
+            }
+
             results.push({
               id: logId,
               recipientId: rec.id,
@@ -136,7 +149,7 @@ export async function POST(req) {
               alertType,
               status: "Failed",
               messageId: "—",
-              apiResponse: `Failed – ${errMsg}`,
+              apiResponse: diagnosticReason,
               timestamp: new Date().toISOString(),
               displayDateTime: displayDateTime || new Date().toLocaleString()
             });
@@ -160,7 +173,7 @@ export async function POST(req) {
         }
       } else {
         // 3. Fallback when Cloud API token is not yet configured:
-        // Truthful status: Awaiting manual confirmation via WhatsApp Web client
+        // Truthful status: Ready for manual dispatch via WhatsApp Web
         const webMsgId = `WA-WEB-${Date.now().toString(36).toUpperCase()}`;
         results.push({
           id: logId,
