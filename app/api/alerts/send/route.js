@@ -42,14 +42,18 @@ export async function POST(req) {
     for (const rec of recipients) {
       const logId = `alt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
       const cleanNumber = rec.cleanMobile || (rec.mobile ? String(rec.mobile).replace(/[^0-9]/g, "") : "");
+      const recipientName = rec.name || rec.recipient || "Recipient";
+      const recipientMobileStr = rec.mobile || rec.recipientMobile || "";
 
       // 1. If recipient is disabled or missing number
       if (rec.status === "Disabled" || !rec.enabled) {
         results.push({
           id: logId,
           recipientId: rec.id,
-          name: rec.name,
-          mobile: rec.mobile || "",
+          recipient: recipientName,
+          name: recipientName,
+          recipientMobile: recipientMobileStr,
+          mobile: recipientMobileStr,
           cleanMobile: cleanNumber,
           alertType,
           status: "Disabled",
@@ -65,8 +69,10 @@ export async function POST(req) {
         results.push({
           id: logId,
           recipientId: rec.id,
-          name: rec.name,
-          mobile: rec.mobile || "",
+          recipient: recipientName,
+          name: recipientName,
+          recipientMobile: recipientMobileStr,
+          mobile: recipientMobileStr,
           cleanMobile: cleanNumber,
           alertType,
           status: "Failed",
@@ -105,8 +111,10 @@ export async function POST(req) {
             results.push({
               id: logId,
               recipientId: rec.id,
-              name: rec.name,
-              mobile: rec.mobile,
+              recipient: recipientName,
+              name: recipientName,
+              recipientMobile: recipientMobileStr,
+              mobile: recipientMobileStr,
               cleanMobile: formattedTo,
               alertType,
               status: "Sent",
@@ -120,8 +128,10 @@ export async function POST(req) {
             results.push({
               id: logId,
               recipientId: rec.id,
-              name: rec.name,
-              mobile: rec.mobile,
+              recipient: recipientName,
+              name: recipientName,
+              recipientMobile: recipientMobileStr,
+              mobile: recipientMobileStr,
               cleanMobile: formattedTo,
               alertType,
               status: "Failed",
@@ -135,8 +145,10 @@ export async function POST(req) {
           results.push({
             id: logId,
             recipientId: rec.id,
-            name: rec.name,
-            mobile: rec.mobile,
+            recipient: recipientName,
+            name: recipientName,
+            recipientMobile: recipientMobileStr,
+            mobile: recipientMobileStr,
             cleanMobile: cleanNumber,
             alertType,
             status: "Failed",
@@ -153,8 +165,10 @@ export async function POST(req) {
         results.push({
           id: logId,
           recipientId: rec.id,
-          name: rec.name,
-          mobile: rec.mobile,
+          recipient: recipientName,
+          name: recipientName,
+          recipientMobile: recipientMobileStr,
+          mobile: recipientMobileStr,
           cleanMobile: cleanNumber.length === 10 ? `91${cleanNumber}` : cleanNumber,
           alertType,
           status: "Ready",
