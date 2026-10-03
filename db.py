@@ -420,6 +420,26 @@ class DatabaseEngine:
         cur.close()
         conn.close()
 
+    def update_alert_history_status(self, message_id, new_status, api_response=None):
+        """Updates status of a message upon webhook delivery receipt."""
+        conn = self.get_connection()
+        cur = self.get_cursor(conn)
+        if api_response:
+            cur.execute("""
+                UPDATE alert_history
+                SET status = ?, api_response = ?
+                WHERE message_id = ? OR id = ?;
+            """, (new_status, api_response, message_id, message_id))
+        else:
+            cur.execute("""
+                UPDATE alert_history
+                SET status = ?
+                WHERE message_id = ? OR id = ?;
+            """, (new_status, message_id, message_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+
     def clear_alert_history(self):
         """Clears all records in alert_history."""
         conn = self.get_connection()
