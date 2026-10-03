@@ -18,7 +18,7 @@ const getDefaultSettings = () => ({
   enabled: true,
   alertTime: "00:00",
   ownerAlert: true,
-  ownerMobile: "",
+  ownerMobile: "9177795875",
   partnerAlerts: true,
   sections: {
     sales: true,
@@ -26,7 +26,12 @@ const getDefaultSettings = () => ({
     payments: true,
     stock: true
   },
-  partnerRecipients: [],
+  partnerRecipients: [
+    { id: "p_surendra", name: "Surendra", mobile: "9177795875", enabled: true },
+    { id: "p_b_reddy", name: "B Reddy", mobile: "", enabled: true },
+    { id: "p_kiran", name: "Kiran", mobile: "", enabled: false },
+    { id: "p_ranga", name: "Ranga Prasad", mobile: "", enabled: true }
+  ],
   lastDailyAlertDate: null
 });
 
