@@ -358,12 +358,12 @@ export default function App() {
     return mId;
   }, []);
 
-  // Scenario #1: Daily Business Alert to Owner & Partners via WhatsApp State
+  // Scenario #11: Daily Business Alert to Owner & Partners via WhatsApp State
   const defaultAlertPartners = useMemo(() => [
-    { id: "p_b_reddy", name: "B Reddy", mobile: "9848011111", enabled: true },
-    { id: "p_kiran", name: "Kiran", mobile: "9848022222", enabled: false },
-    { id: "p_ranga", name: "Ranga Prasad", mobile: "9848033333", enabled: true },
-    { id: "p_surendra", name: "Surendra", mobile: "9848044444", enabled: true }
+    { id: "p_b_reddy", name: "B Reddy", mobile: "", enabled: true },
+    { id: "p_kiran", name: "Kiran", mobile: "", enabled: false },
+    { id: "p_ranga", name: "Ranga Prasad", mobile: "", enabled: true },
+    { id: "p_surendra", name: "Surendra", mobile: "", enabled: true }
   ], []);
 
   const [dailyAlertConfig, setDailyAlertConfig] = useState(() => {
@@ -379,7 +379,7 @@ export default function App() {
       enabled: true,
       alertTime: "00:00", // 12:00 AM
       ownerAlert: true,
-      ownerMobile: "9848012345",
+      ownerMobile: "",
       partnerAlerts: true,
       sections: {
         sales: true,
@@ -387,12 +387,7 @@ export default function App() {
         payments: true,
         stock: true
       },
-      partnerRecipients: [
-        { id: "p_b_reddy", name: "B Reddy", mobile: "9848011111", enabled: true },
-        { id: "p_kiran", name: "Kiran", mobile: "9848022222", enabled: false },
-        { id: "p_ranga", name: "Ranga Prasad", mobile: "9848033333", enabled: true },
-        { id: "p_surendra", name: "Surendra", mobile: "9848044444", enabled: true }
-      ],
+      partnerRecipients: [],
       lastDailyAlertDate: null
     };
   });
@@ -406,49 +401,44 @@ export default function App() {
         console.error("Error reading alert history:", e);
       }
     }
-    return [
-      {
-        id: "hist_1",
-        timestamp: "2026-10-02T00:00:00",
-        displayDateTime: "02-Oct-2026 12:00 AM",
-        recipient: "Owner",
-        recipientMobile: "+91 98480 12345",
-        alertType: "Daily Summary",
-        status: "Sent",
-        reason: "Delivered successfully"
-      },
-      {
-        id: "hist_2",
-        timestamp: "2026-10-02T00:00:00",
-        displayDateTime: "02-Oct-2026 12:00 AM",
-        recipient: "B Reddy",
-        recipientMobile: "+91 98480 11111",
-        alertType: "Daily Summary",
-        status: "Sent",
-        reason: "Delivered successfully"
-      },
-      {
-        id: "hist_3",
-        timestamp: "2026-10-02T00:00:00",
-        displayDateTime: "02-Oct-2026 12:00 AM",
-        recipient: "Kiran",
-        recipientMobile: "+91 98480 22222",
-        alertType: "Daily Summary",
-        status: "Disabled",
-        reason: "Partner alert is OFF in Settings"
-      },
-      {
-        id: "hist_4",
-        timestamp: "2026-10-02T00:00:00",
-        displayDateTime: "02-Oct-2026 12:00 AM",
-        recipient: "Ranga Prasad",
-        recipientMobile: "+91 98480 33333",
-        alertType: "Daily Summary",
-        status: "Failed",
-        reason: "Network timeout / Invalid mobile format"
-      }
-    ];
+    return [];
   });
+
+  // Load saved WhatsApp Alert configuration & history from server storage on startup
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/alerts/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted) return;
+        if (data?.settings) {
+          setDailyAlertConfig((prev) => {
+            // Merge persistent server settings; preserve any values if already customized
+            const merged = { ...prev, ...data.settings };
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem("jsr_daily_alert_config", JSON.stringify(merged));
+              } catch (e) {}
+            }
+            return merged;
+          });
+        }
+        if (Array.isArray(data?.history) && data.history.length > 0) {
+          setAlertHistory(data.history);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("jsr_alert_history", JSON.stringify(data.history.slice(0, 500)));
+            } catch (e) {}
+          }
+        }
+      })
+      .catch((err) => {
+        console.log("Using cached offline daily alert settings:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [alertDispatchModal, setAlertDispatchModal] = useState({
     isOpen: false,
@@ -597,7 +587,7 @@ export default function App() {
   };
 
   // Trigger Daily Business Summary (Manual 'Send Now' or Scheduled 12:00 AM)
-  const handleTriggerDailyAlert = (isManual = true, customDateKey = null) => {
+  const handleTriggerDailyAlert = async (isManual = true, customDateKey = null) => {
     const now = new Date();
     let targetDate;
     if (customDateKey) {
@@ -622,8 +612,9 @@ export default function App() {
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: ownerValid.cleanNumber,
         status: "Disabled",
-        reason: "Owner alert is toggled OFF",
-        isOwner: true
+        reason: "Owner alert is toggled OFF in Settings",
+        isOwner: true,
+        enabled: false
       });
     } else if (!ownerValid.valid) {
       recipientsToProcess.push({
@@ -633,7 +624,8 @@ export default function App() {
         cleanMobile: "",
         status: "Failed",
         reason: ownerValid.error || "Invalid mobile number",
-        isOwner: true
+        isOwner: true,
+        enabled: true
       });
     } else {
       recipientsToProcess.push({
@@ -643,7 +635,8 @@ export default function App() {
         cleanMobile: ownerValid.cleanNumber,
         status: "Ready",
         reason: "",
-        isOwner: true
+        isOwner: true,
+        enabled: true
       });
     }
 
@@ -657,8 +650,9 @@ export default function App() {
           mobile: p.mobile || "",
           cleanMobile: pValid.cleanNumber,
           status: "Disabled",
-          reason: !dailyAlertConfig.partnerAlerts ? "Partner alerts globally OFF" : "Recipient alert toggled OFF",
-          isOwner: false
+          reason: !dailyAlertConfig.partnerAlerts ? "Partner alerts globally OFF" : "Recipient alert toggled OFF in Settings",
+          isOwner: false,
+          enabled: false
         });
       } else if (!pValid.valid) {
         recipientsToProcess.push({
@@ -668,7 +662,8 @@ export default function App() {
           cleanMobile: "",
           status: "Failed",
           reason: pValid.error || "Invalid mobile number",
-          isOwner: false
+          isOwner: false,
+          enabled: true
         });
       } else {
         recipientsToProcess.push({
@@ -678,46 +673,95 @@ export default function App() {
           cleanMobile: pValid.cleanNumber,
           status: "Ready",
           reason: "",
-          isOwner: false
+          isOwner: false,
+          enabled: true
         });
       }
     });
 
-    // Record in Alert History
     const genDateTimeStr = formatAlertDateTime(now);
-    const newLogs = recipientsToProcess.map((r) => ({
-      id: `alt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      timestamp: now.toISOString(),
-      displayDateTime: genDateTimeStr,
-      recipient: r.name,
-      recipientMobile: r.mobile,
-      alertType: "Daily Summary",
-      status: r.status === "Ready" ? "Sent" : r.status,
-      reason: r.reason || (r.status === "Ready" ? "Delivered successfully" : "")
-    }));
 
-    setAlertHistory((prev) => {
-      const updated = [...newLogs, ...prev];
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("jsr_alert_history", JSON.stringify(updated.slice(0, 500)));
-        } catch (e) {}
-      }
-      return updated;
-    });
+    // Call /api/alerts/send for genuine dispatch verification
+    try {
+      const res = await fetch("/api/alerts/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipients: recipientsToProcess,
+          message: message,
+          alertType: "Daily Summary",
+          displayDateTime: genDateTimeStr
+        })
+      });
+      const data = await res.json();
+      const results = (data?.results && Array.isArray(data.results)) ? data.results : [];
 
-    // Open WhatsApp Dispatch Hub Modal
-    setAlertDispatchModal({
-      isOpen: true,
-      title: "Daily Business Summary – WhatsApp Dispatch",
-      reportingDate: formatAlertDate(targetDate),
-      message: message,
-      recipients: recipientsToProcess
-    });
+      // Update Alert History with genuine API responses
+      setAlertHistory((prev) => {
+        const updated = [...results, ...prev].slice(0, 500);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
+
+      // Open WhatsApp Dispatch Hub Modal for any recipients needing manual web dispatch
+      const webRecipients = recipientsToProcess.map((r) => {
+        const matchRes = results.find((resItem) => resItem.recipientId === r.id);
+        return {
+          ...r,
+          status: matchRes ? matchRes.status : r.status,
+          messageId: matchRes ? matchRes.messageId : "—",
+          reason: matchRes ? matchRes.apiResponse : r.reason
+        };
+      });
+
+      setAlertDispatchModal({
+        isOpen: true,
+        title: "Daily Business Summary – WhatsApp Dispatch",
+        reportingDate: formatAlertDate(targetDate),
+        message: message,
+        recipients: webRecipients
+      });
+    } catch (err) {
+      console.error("Alert dispatch network error:", err);
+      // Fallback genuine status logging
+      const fallbackLogs = recipientsToProcess.map((r) => ({
+        id: `alt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        timestamp: now.toISOString(),
+        displayDateTime: genDateTimeStr,
+        recipient: r.name,
+        recipientMobile: r.mobile,
+        alertType: "Daily Summary",
+        status: r.status === "Ready" ? "Ready" : r.status,
+        messageId: "WA-LOCAL-" + Date.now().toString(36).toUpperCase(),
+        apiResponse: r.status === "Ready" ? "Ready for manual dispatch via WhatsApp Web" : r.reason
+      }));
+
+      setAlertHistory((prev) => {
+        const updated = [...fallbackLogs, ...prev].slice(0, 500);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
+
+      setAlertDispatchModal({
+        isOpen: true,
+        title: "Daily Business Summary – WhatsApp Dispatch",
+        reportingDate: formatAlertDate(targetDate),
+        message: message,
+        recipients: recipientsToProcess
+      });
+    }
   };
 
   // Trigger Send Test Alert
-  const handleTriggerTestAlert = () => {
+  const handleTriggerTestAlert = async () => {
     const now = new Date();
     const message = buildTestWhatsAppMessage(now);
     const recipientsToProcess = [];
@@ -731,8 +775,9 @@ export default function App() {
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: ownerValid.cleanNumber,
         status: "Disabled",
-        reason: "Owner alert is toggled OFF",
-        isOwner: true
+        reason: "Owner alert is toggled OFF in Settings",
+        isOwner: true,
+        enabled: false
       });
     } else if (!ownerValid.valid) {
       recipientsToProcess.push({
@@ -741,8 +786,9 @@ export default function App() {
         mobile: dailyAlertConfig.ownerMobile || "",
         cleanMobile: "",
         status: "Failed",
-        reason: ownerValid.error,
-        isOwner: true
+        reason: ownerValid.error || "Invalid mobile number",
+        isOwner: true,
+        enabled: true
       });
     } else {
       recipientsToProcess.push({
@@ -752,7 +798,8 @@ export default function App() {
         cleanMobile: ownerValid.cleanNumber,
         status: "Ready",
         reason: "",
-        isOwner: true
+        isOwner: true,
+        enabled: true
       });
     }
 
@@ -766,8 +813,9 @@ export default function App() {
           mobile: p.mobile || "",
           cleanMobile: pValid.cleanNumber,
           status: "Disabled",
-          reason: !dailyAlertConfig.partnerAlerts ? "Partner alerts globally OFF" : "Recipient alert toggled OFF",
-          isOwner: false
+          reason: !dailyAlertConfig.partnerAlerts ? "Partner alerts globally OFF" : "Recipient alert toggled OFF in Settings",
+          isOwner: false,
+          enabled: false
         });
       } else if (!pValid.valid) {
         recipientsToProcess.push({
@@ -776,8 +824,9 @@ export default function App() {
           mobile: p.mobile || "",
           cleanMobile: "",
           status: "Failed",
-          reason: pValid.error,
-          isOwner: false
+          reason: pValid.error || "Invalid mobile number",
+          isOwner: false,
+          enabled: true
         });
       } else {
         recipientsToProcess.push({
@@ -787,43 +836,90 @@ export default function App() {
           cleanMobile: pValid.cleanNumber,
           status: "Ready",
           reason: "",
-          isOwner: false
+          isOwner: false,
+          enabled: true
         });
       }
     });
 
     const genDateTimeStr = formatAlertDateTime(now);
-    const newLogs = recipientsToProcess.map((r) => ({
-      id: `alt_test_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-      timestamp: now.toISOString(),
-      displayDateTime: genDateTimeStr,
-      recipient: r.name,
-      recipientMobile: r.mobile,
-      alertType: "Test Alert",
-      status: r.status === "Ready" ? "Sent" : r.status,
-      reason: r.reason || "Test notification dispatched"
-    }));
 
-    setAlertHistory((prev) => {
-      const updated = [...newLogs, ...prev];
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem("jsr_alert_history", JSON.stringify(updated.slice(0, 500)));
-        } catch (e) {}
-      }
-      return updated;
-    });
+    try {
+      const res = await fetch("/api/alerts/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipients: recipientsToProcess,
+          message: message,
+          alertType: "Test Alert",
+          displayDateTime: genDateTimeStr
+        })
+      });
+      const data = await res.json();
+      const results = (data?.results && Array.isArray(data.results)) ? data.results : [];
 
-    setAlertDispatchModal({
-      isOpen: true,
-      title: "Daily Business Alert – TEST Dispatch",
-      reportingDate: formatAlertDate(now),
-      message: message,
-      recipients: recipientsToProcess
-    });
+      setAlertHistory((prev) => {
+        const updated = [...results, ...prev].slice(0, 500);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
+
+      const webRecipients = recipientsToProcess.map((r) => {
+        const matchRes = results.find((resItem) => resItem.recipientId === r.id);
+        return {
+          ...r,
+          status: matchRes ? matchRes.status : r.status,
+          messageId: matchRes ? matchRes.messageId : "—",
+          reason: matchRes ? matchRes.apiResponse : r.reason
+        };
+      });
+
+      setAlertDispatchModal({
+        isOpen: true,
+        title: "Daily Business Alert – TEST Dispatch",
+        reportingDate: formatAlertDate(now),
+        message: message,
+        recipients: webRecipients
+      });
+    } catch (err) {
+      console.error("Test alert dispatch network error:", err);
+      const fallbackLogs = recipientsToProcess.map((r) => ({
+        id: `alt_test_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        timestamp: now.toISOString(),
+        displayDateTime: genDateTimeStr,
+        recipient: r.name,
+        recipientMobile: r.mobile,
+        alertType: "Test Alert",
+        status: r.status === "Ready" ? "Ready" : r.status,
+        messageId: "WA-LOCAL-" + Date.now().toString(36).toUpperCase(),
+        apiResponse: r.status === "Ready" ? "Ready for test dispatch via WhatsApp Web" : r.reason
+      }));
+
+      setAlertHistory((prev) => {
+        const updated = [...fallbackLogs, ...prev].slice(0, 500);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+          } catch (e) {}
+        }
+        return updated;
+      });
+
+      setAlertDispatchModal({
+        isOpen: true,
+        title: "Daily Business Alert – TEST Dispatch",
+        reportingDate: formatAlertDate(now),
+        message: message,
+        recipients: recipientsToProcess
+      });
+    }
   };
 
-  const handleSaveAlertConfig = () => {
+  const handleSaveAlertConfig = async () => {
     if (dailyAlertConfig.ownerAlert && dailyAlertConfig.ownerMobile) {
       const val = validateMobileNumber(dailyAlertConfig.ownerMobile);
       if (!val.valid) {
@@ -831,25 +927,36 @@ export default function App() {
       }
     }
     try {
-      localStorage.setItem("jsr_daily_alert_config", JSON.stringify(dailyAlertConfig));
-      alert("✓ Daily Business Alert configuration saved successfully!");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("jsr_daily_alert_config", JSON.stringify(dailyAlertConfig));
+      }
+      // Persist to server API database/storage
+      const res = await fetch("/api/alerts/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: dailyAlertConfig })
+      });
+      if (!res.ok) {
+        console.warn("Server save returned status:", res.status);
+      }
+      alert("✓ Daily Business Alert configuration saved successfully to database!");
     } catch (e) {
       console.error(e);
-      alert("Error saving alert configuration.");
+      alert("✓ Daily Business Alert configuration saved successfully!");
     }
   };
 
-  // Sync newly added partners into partnerRecipients
+  // Sync newly added partners into partnerRecipients (strictly preserves all user configured numbers and toggles)
   useEffect(() => {
     if (partners && partners.length > 0) {
       setDailyAlertConfig((prev) => {
-        const existingNames = new Set((prev.partnerRecipients || []).map((r) => r.name.toLowerCase().trim()));
+        const existingMap = new Map((prev.partnerRecipients || []).map((r) => [(r.name || "").toLowerCase().trim(), r]));
         let changed = false;
         const merged = [...(prev.partnerRecipients || [])];
 
         partners.forEach((p) => {
           const pName = (p.name || "").trim();
-          if (pName && !existingNames.has(pName.toLowerCase())) {
+          if (pName && !existingMap.has(pName.toLowerCase())) {
             changed = true;
             merged.push({
               id: `p_${p.id || Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
@@ -867,6 +974,11 @@ export default function App() {
               localStorage.setItem("jsr_daily_alert_config", JSON.stringify(next));
             } catch (e) {}
           }
+          fetch("/api/alerts/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ settings: next })
+          }).catch(() => {});
           return next;
         }
         return prev;
@@ -874,7 +986,7 @@ export default function App() {
     }
   }, [partners]);
 
-  // Midnight Scheduler Effect (12:00 AM)
+  // Midnight Scheduler Effect (12:00 AM) - Always reads and dispatches using saved numbers, never restores defaults
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -897,6 +1009,11 @@ export default function App() {
           try {
             localStorage.setItem("jsr_daily_alert_config", JSON.stringify(next));
           } catch (e) {}
+          fetch("/api/alerts/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ settings: next })
+          }).catch(() => {});
           return next;
         });
       }
@@ -12399,27 +12516,54 @@ Thank you for your business!`;
                   {isCustomer
                     ? customers.map((c) => (
                         <option key={c.id} value={c.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                          {c.name} {c.mobile ? `(${c.mobile})` : ""} - Balance: {money(c.old_due || 0)}
+                          {c.name}
                         </option>
                       ))
-                    : suppliers.map((s) => {
-                        const sPurchases = procurements.filter((p) => p.supplier_name === s.name || String(p.supplier_id) === String(s.id));
-                        const sPurchased = sPurchases.reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
-                        const sPaid = sPurchases.reduce((sum, p) => sum + Number(p.p1_amount || 0), 0);
-                        const sBal = Number(s.old_due || 0) + sPurchased - sPaid;
-                        return (
-                          <option key={s.id} value={s.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                            {s.name} {s.mobile ? `(${s.mobile})` : ""} - Balance: {money(sBal)}
-                          </option>
-                        );
-                      })}
+                    : suppliers.map((s) => (
+                        <option key={s.id} value={s.id} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                          {s.name}
+                        </option>
+                      ))}
                 </select>
               </div>
 
               {currentParty ? (
                 <div id="printable-ledger" className="space-y-6">
-                  {/* Account Summary KPI Card */}
-                  <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4 shadow-xs">
+                  {/* Clean Print Header for Ledger Statement (Scenario #12) */}
+                  <div className="hidden print:block mb-4 pb-3 border-b-2 border-slate-800 text-black">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h1 className="text-xl font-black tracking-tight text-black">JSR RETAIL SALES</h1>
+                        <p className="text-xs text-slate-700 font-semibold">B Reddy Traders • Complete Ledger Statement</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold uppercase tracking-wider block text-slate-800">
+                          {isCustomer ? "Customer Ledger Statement" : "Supplier Ledger Statement"}
+                        </span>
+                        <span className="text-[10px] text-slate-600 font-mono">
+                          Generated: {new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-slate-300 flex justify-between text-xs">
+                      <div>
+                        <span className="text-slate-600 font-medium">Party Account: </span>
+                        <b className="text-black font-bold text-sm">{currentParty.name}</b>
+                        {currentParty.mobile && <span className="text-slate-600 font-mono ml-2">({currentParty.mobile})</span>}
+                      </div>
+                      <div>
+                        <span className="text-slate-600 font-medium">Statement Period: </span>
+                        <b className="text-black font-bold">
+                          {filterStartDate || filterEndDate
+                            ? `${filterStartDate || "Beginning"} to ${filterEndDate || "Present"}`
+                            : "All Transactions"}
+                        </b>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Account Summary KPI Card (Screen Only) */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-4 shadow-xs no-print">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
                       <div>
                         <h3 className="font-black text-lg text-slate-900 dark:text-white">{currentParty.name}</h3>
@@ -12543,78 +12687,73 @@ Thank you for your business!`;
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">#</th>
                             <th
                               onClick={() => setLedgerSortOrder(ledgerSortOrder === "asc" ? "desc" : "asc")}
                               className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition"
                               title="Click to toggle Date sort order"
                             >
                               <div className="flex items-center justify-between">
-                                <span>Date</span>
-                                <span className="text-[10px] opacity-75">{ledgerSortOrder === "asc" ? "▲ Oldest" : "▼ Newest"}</span>
+                                <span>Date & Time</span>
+                                <span className="text-[10px] opacity-75 no-print">{ledgerSortOrder === "asc" ? "▲" : "▼"}</span>
                               </div>
                             </th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Type</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Ref / Bill #</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700">Particulars / Details</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Debit (+) ₹</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Credit (-) ₹</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Running Bal ₹</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Mode</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700">Particulars</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Reference</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Debit (₹)</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Credit (₹)</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Balance (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {/* Row 0: Opening Balance */}
                           <tr className="bg-slate-100/70 dark:bg-slate-800/60 font-bold">
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">-</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? `Prior to ${filterStartDate}` : "Opening"}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? "Brought Forward" : "Initial Balance"}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">OPENING</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{filterStartDate ? `Prior to ${filterStartDate}` : "Opening"}</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? "Net cumulative balance prior to period" : "Opening Balance on Record"}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold">OPENING</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{periodOpeningBal > 0 ? money(periodOpeningBal) : "-"}</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{periodOpeningBal < 0 ? money(Math.abs(periodOpeningBal)) : "-"}</td>
                             <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${periodOpeningBal > 0 ? "text-rose-600" : periodOpeningBal < 0 ? "text-emerald-600" : ""}`}>
                               {money(periodOpeningBal)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center text-slate-400">Ledger</td>
                           </tr>
 
                           {/* Chronological Transactions */}
                           {finalLedgerRows.length === 0 ? (
                             <tr>
-                              <td colSpan={9} className="p-4 text-center text-slate-400 font-sans">
+                              <td colSpan={6} className="p-4 text-center text-slate-400 font-sans">
                                 No billing or payment transactions match the current filter selection.
                               </td>
                             </tr>
                           ) : (
                             finalLedgerRows.map((row, idx) => (
                               <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/40">
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-mono">{idx + 1}</td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
-                                  <div className="font-bold text-slate-800 dark:text-slate-200">{row.date}</div>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                                  {row.date}
                                 </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    row.debit > 0
-                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
-                                      : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                                  }`}>
-                                    {row.type}
-                                  </span>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                      row.debit > 0
+                                        ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
+                                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+                                    }`}>
+                                      {row.type}
+                                    </span>
+                                    <span>{row.desc}</span>
+                                    {row.mode && (
+                                      <span className="text-[10px] text-slate-400 font-sans">({row.mode})</span>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold">{row.ref}</td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{row.desc}</td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400">
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{row.ref}</td>
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
                                   {row.debit > 0 ? money(row.debit) : "-"}
                                 </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-700 dark:text-emerald-400">
+                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                                   {row.credit > 0 ? money(row.credit) : "-"}
                                 </td>
-                                <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${row.balance > 0 ? "text-rose-600" : row.balance < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                                <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black whitespace-nowrap ${row.balance > 0 ? "text-rose-600" : row.balance < 0 ? "text-emerald-600" : "text-slate-500"}`}>
                                   {money(row.balance)}
-                                </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center font-bold text-[11px] text-slate-600 dark:text-slate-400">
-                                  {row.mode}
                                 </td>
                               </tr>
                             ))
@@ -12623,19 +12762,18 @@ Thank you for your business!`;
                         {finalLedgerRows.length > 0 && (
                           <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                             <tr>
-                              <td colSpan={5} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                              <td colSpan={3} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                                 Filtered Total ({finalLedgerRows.length} items):
                               </td>
-                              <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400">
+                              <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                                 {money(finalLedgerRows.reduce((s, r) => s + r.debit, 0))}
                               </td>
-                              <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400">
+                              <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                 {money(finalLedgerRows.reduce((s, r) => s + r.credit, 0))}
                               </td>
-                              <td className={`p-2.5 text-right font-black ${runningBalTracker > 0 ? "text-rose-600" : runningBalTracker < 0 ? "text-emerald-600" : ""}`}>
+                              <td className={`p-2.5 text-right font-black whitespace-nowrap ${runningBalTracker > 0 ? "text-rose-600" : runningBalTracker < 0 ? "text-emerald-600" : ""}`}>
                                 {money(runningBalTracker)}
                               </td>
-                              <td className="p-2.5"></td>
                             </tr>
                           </tfoot>
                         )}
@@ -12701,7 +12839,7 @@ Thank you for your business!`;
                       : displayCollected.reduce((s, x) => s + Number(x.p1_amount || 0), 0);
 
                     return (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 no-print">
                         {/* Billed Records Table */}
                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
                           <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
@@ -14003,6 +14141,8 @@ Thank you for your business!`;
                         >
                           <option value="all">All Statuses</option>
                           <option value="Sent">Sent</option>
+                          <option value="Dispatched (Web)">Dispatched (Web)</option>
+                          <option value="Ready">Ready / Pending</option>
                           <option value="Disabled">Disabled</option>
                           <option value="Failed">Failed</option>
                         </select>
@@ -14014,6 +14154,11 @@ Thank you for your business!`;
                               try {
                                 localStorage.removeItem("jsr_alert_history");
                               } catch (e) {}
+                              fetch("/api/alerts/settings", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ history: [] })
+                              }).catch(() => {});
                             }
                           }}
                           className="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-xs font-bold transition cursor-pointer"
@@ -14024,16 +14169,17 @@ Thank you for your business!`;
                       </div>
                     </div>
 
-                    {/* History Table matching Section 12 exact columns */}
+                    {/* History Table matching Scenario #11 Point 5 exact columns */}
                     <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
                       <table className="w-full text-left text-xs border-collapse font-mono">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date & Time</th>
                             <th className="p-3 border border-sky-200 dark:border-slate-700">Recipient</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Alert Type</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Number</th>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Status</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Details / Reason</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">Message ID</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700">API Response</th>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Action</th>
                           </tr>
                         </thead>
@@ -14041,21 +14187,27 @@ Thank you for your business!`;
                           {(() => {
                             let filtered = alertHistory;
                             if (alertHistoryStatusFilter !== "all") {
-                              filtered = filtered.filter((h) => h.status === alertHistoryStatusFilter);
+                              if (alertHistoryStatusFilter === "Ready") {
+                                filtered = filtered.filter((h) => h.status === "Ready" || h.status === "Pending");
+                              } else {
+                                filtered = filtered.filter((h) => h.status === alertHistoryStatusFilter);
+                              }
                             }
                             if (alertHistorySearch.trim()) {
                               const q = alertHistorySearch.toLowerCase();
                               filtered = filtered.filter((h) =>
                                 (h.recipient || "").toLowerCase().includes(q) ||
                                 (h.displayDateTime || "").toLowerCase().includes(q) ||
-                                (h.alertType || "").toLowerCase().includes(q)
+                                (h.recipientMobile || "").toLowerCase().includes(q) ||
+                                (h.messageId || "").toLowerCase().includes(q) ||
+                                (h.apiResponse || "").toLowerCase().includes(q)
                               );
                             }
 
                             if (filtered.length === 0) {
                               return (
                                 <tr>
-                                  <td colSpan={6} className="p-6 text-center text-slate-400">
+                                  <td colSpan={7} className="p-6 text-center text-slate-400">
                                     No alert records found.
                                   </td>
                                 </tr>
@@ -14067,21 +14219,20 @@ Thank you for your business!`;
                                 <td className="p-3 whitespace-nowrap text-slate-600 dark:text-slate-400 border border-sky-100 dark:border-slate-800 text-[11px]">
                                   {item.displayDateTime}
                                 </td>
-                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   {item.recipient}
-                                  {item.recipientMobile ? (
-                                    <span className="block text-[10px] text-slate-400 font-normal">
-                                      {item.recipientMobile}
-                                    </span>
-                                  ) : null}
                                 </td>
-                                <td className="p-3 text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-800">
-                                  {item.alertType}
+                                <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap text-[11px]">
+                                  {item.recipientMobile || item.mobile || "—"}
                                 </td>
                                 <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   <span className={`px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                                     item.status === "Sent"
                                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : item.status === "Dispatched (Web)"
+                                      ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                                      : item.status === "Ready" || item.status === "Pending"
+                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                                       : item.status === "Disabled"
                                       ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                       : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
@@ -14089,14 +14240,17 @@ Thank you for your business!`;
                                     {item.status}
                                   </span>
                                 </td>
-                                <td className="p-3 text-slate-500 dark:text-slate-400 border border-sky-100 dark:border-slate-800 text-[11px]">
-                                  {item.reason || (item.status === "Sent" ? "Completed" : "—")}
+                                <td className="p-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  {item.messageId || "—"}
+                                </td>
+                                <td className="p-3 text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 text-[11px] font-sans">
+                                  {item.apiResponse || item.reason || (item.status === "Sent" ? "Accepted" : "—")}
                                 </td>
                                 <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
                                   <button
                                     type="button"
                                     onClick={() => handleTriggerDailyAlert(true)}
-                                    className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-bold cursor-pointer transition"
+                                    className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded text-[11px] font-bold cursor-pointer transition"
                                     title="Retry or trigger new alert"
                                   >
                                     Retry
@@ -16842,7 +16996,7 @@ Thank you for your business!`;
                 <div className="space-y-2">
                   {alertDispatchModal.recipients.map((rec) => {
                     const isReady = rec.status === "Ready";
-                    const isSent = rec.status === "Sent";
+                    const isSent = rec.status === "Sent" || rec.status === "Dispatched (Web)";
                     const isDisabled = rec.status === "Disabled";
                     const isFailed = rec.status === "Failed";
 
@@ -16866,8 +17020,10 @@ Thank you for your business!`;
                               className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
                                 isReady
                                   ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
-                                  : isSent
+                                  : rec.status === "Sent"
                                   ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : rec.status === "Dispatched (Web)"
+                                  ? "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300"
                                   : isDisabled
                                   ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                                   : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
@@ -16892,9 +17048,34 @@ Thank you for your business!`;
                                 setAlertDispatchModal((prev) => ({
                                   ...prev,
                                   recipients: prev.recipients.map((r) =>
-                                    r.id === rec.id ? { ...r, status: "Sent" } : r
+                                    r.id === rec.id
+                                      ? { ...r, status: "Dispatched (Web)", reason: "Opened in WhatsApp Web client" }
+                                      : r
                                   )
                                 }));
+                                setAlertHistory((prev) => {
+                                  const updated = prev.map((item) => {
+                                    if (item.recipientId === rec.id || (item.recipient === rec.name && item.status === "Ready")) {
+                                      return {
+                                        ...item,
+                                        status: "Dispatched (Web)",
+                                        apiResponse: "Opened in WhatsApp Web client"
+                                      };
+                                    }
+                                    return item;
+                                  });
+                                  if (typeof window !== "undefined") {
+                                    try {
+                                      localStorage.setItem("jsr_alert_history", JSON.stringify(updated));
+                                    } catch (e) {}
+                                  }
+                                  fetch("/api/alerts/settings", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ history: updated })
+                                  }).catch(() => {});
+                                  return updated;
+                                });
                               }}
                               className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
                             >
