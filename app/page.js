@@ -12855,7 +12855,7 @@ Thank you for your business!`;
 
                   {/* 1. UNIFIED CHRONOLOGICAL RUNNING LEDGER TABLE (GRID LINES MATCHING IMAGE 4) */}
                   <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 no-print">
                       <h4 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
                         <span>📊</span> Complete Running Ledger Statement
                       </h4>
@@ -12926,11 +12926,19 @@ Thank you for your business!`;
 
                     <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                        <colgroup>
+                          <col style={{ width: "17%" }} />
+                          <col style={{ width: "35%" }} />
+                          <col style={{ width: "14%" }} />
+                          <col style={{ width: "11%" }} />
+                          <col style={{ width: "11%" }} />
+                          <col style={{ width: "12%" }} />
+                        </colgroup>
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
                             <th
                               onClick={() => setLedgerSortOrder(ledgerSortOrder === "asc" ? "desc" : "asc")}
-                              className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition"
+                              className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition"
                               title="Click to toggle Date sort order"
                             >
                               <div className="flex items-center justify-between">
@@ -12938,22 +12946,22 @@ Thank you for your business!`;
                                 <span className="text-[10px] opacity-75 no-print">{ledgerSortOrder === "asc" ? "▲" : "▼"}</span>
                               </div>
                             </th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700">Particulars</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32">Reference</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Debit (₹)</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-28">Credit (₹)</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Balance (₹)</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-left">Particulars</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-left">Reference</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right">Debit (₹)</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right">Credit (₹)</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right">Balance (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {/* Row 0: Opening Balance */}
-                          <tr className="bg-slate-100/70 dark:bg-slate-800/60 font-bold">
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{filterStartDate ? `Prior to ${filterStartDate}` : "Opening"}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700">{filterStartDate ? "Net cumulative balance prior to period" : "Opening Balance on Record"}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold">OPENING</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{periodOpeningBal > 0 ? money(periodOpeningBal) : "-"}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right">{periodOpeningBal < 0 ? money(Math.abs(periodOpeningBal)) : "-"}</td>
-                            <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${periodOpeningBal > 0 ? "text-rose-600" : periodOpeningBal < 0 ? "text-emerald-600" : ""}`}>
+                          <tr className="bg-slate-100/70 dark:bg-slate-800/60 font-bold print:bg-slate-100 print:text-black">
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap print:text-[8pt]">{filterStartDate ? `Prior to ${filterStartDate}` : "Opening"}</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 print:text-[8pt]">{filterStartDate ? "Net cumulative balance prior to period" : "Opening Balance on Record"}</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold print:text-[8pt]">OPENING</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right print:text-[8pt]">{periodOpeningBal > 0 ? money(periodOpeningBal) : "—"}</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right print:text-[8pt]">{periodOpeningBal < 0 ? money(Math.abs(periodOpeningBal)) : "—"}</td>
+                            <td className={`p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black print:text-black print:text-[8pt] ${periodOpeningBal > 0 ? "text-rose-600" : periodOpeningBal < 0 ? "text-emerald-600" : ""}`}>
                               {money(periodOpeningBal)}
                             </td>
                           </tr>
@@ -12968,32 +12976,32 @@ Thank you for your business!`;
                           ) : (
                             finalLedgerRows.map((row, idx) => (
                               <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/40">
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200">
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200 print:text-black print:font-semibold print:text-[8pt]">
                                   {row.date}
                                 </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 print:text-black">
+                                  <div className="flex items-center gap-1.5 flex-wrap print:inline print:space-x-1">
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                       row.debit > 0
                                         ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200"
                                         : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                                    }`}>
+                                    } print:bg-transparent print:p-0 print:text-black print:font-bold`}>
                                       {row.type}
                                     </span>
-                                    <span>{row.desc}</span>
+                                    <span className="print:text-black">{row.desc}</span>
                                     {row.mode && (
-                                      <span className="text-[10px] text-slate-400 font-sans">({row.mode})</span>
+                                      <span className="text-[10px] text-slate-400 font-sans print:text-slate-600">({row.mode})</span>
                                     )}
                                   </div>
                                 </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{row.ref}</td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
-                                  {row.debit > 0 ? money(row.debit) : "-"}
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap print:text-black print:text-[8pt]">{row.ref}</td>
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap print:text-black print:text-[8pt]">
+                                  {row.debit > 0 ? money(row.debit) : "—"}
                                 </td>
-                                <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                                  {row.credit > 0 ? money(row.credit) : "-"}
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap print:text-black print:text-[8pt]">
+                                  {row.credit > 0 ? money(row.credit) : "—"}
                                 </td>
-                                <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black whitespace-nowrap ${row.balance > 0 ? "text-rose-600" : row.balance < 0 ? "text-emerald-600" : "text-slate-500"}`}>
+                                <td className={`p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black whitespace-nowrap print:text-black print:text-[8pt] ${row.balance > 0 ? "text-rose-600" : row.balance < 0 ? "text-emerald-600" : "text-slate-500"}`}>
                                   {money(row.balance)}
                                 </td>
                               </tr>
@@ -13001,18 +13009,18 @@ Thank you for your business!`;
                           )}
                         </tbody>
                         {finalLedgerRows.length > 0 && (
-                          <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
+                          <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs print:bg-slate-100 print:text-black">
                             <tr>
-                              <td colSpan={3} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                              <td colSpan={3} className="p-2 sm:p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300 print:text-black print:text-[8pt]">
                                 Filtered Total ({finalLedgerRows.length} items):
                               </td>
-                              <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                              <td className="p-2 sm:p-2.5 text-right text-indigo-600 dark:text-indigo-400 whitespace-nowrap print:text-black print:text-[8pt]">
                                 {money(finalLedgerRows.reduce((s, r) => s + r.debit, 0))}
                               </td>
-                              <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                              <td className="p-2 sm:p-2.5 text-right text-emerald-600 dark:text-emerald-400 whitespace-nowrap print:text-black print:text-[8pt]">
                                 {money(finalLedgerRows.reduce((s, r) => s + r.credit, 0))}
                               </td>
-                              <td className={`p-2.5 text-right font-black whitespace-nowrap ${runningBalTracker > 0 ? "text-rose-600" : runningBalTracker < 0 ? "text-emerald-600" : ""}`}>
+                              <td className={`p-2 sm:p-2.5 text-right font-black whitespace-nowrap print:text-black print:text-[8pt] ${runningBalTracker > 0 ? "text-rose-600" : runningBalTracker < 0 ? "text-emerald-600" : ""}`}>
                                 {money(runningBalTracker)}
                               </td>
                             </tr>
