@@ -2785,32 +2785,9 @@ export default function App() {
 
         const allocatedCols = [...directCols];
 
-        // Apply FIFO allocation from customer on-account collection pool
-        if (balanceDue > 0 && colPool.length > 0) {
-          for (const c of colPool) {
-            if (balanceDue <= 0) break;
-            if (c.remainingAmt > 0) {
-              const allocAmt = Math.min(balanceDue, c.remainingAmt);
-              allocatedCols.push({
-                id: c.id,
-                date: c.date,
-                ref: c.ref,
-                partner_name: c.partner_name,
-                payment_mode: c.payment_mode,
-                amount: allocAmt,
-                isDirect: false,
-                isFIFO: true,
-                rawRow: c.rawRow || c
-              });
-              c.remainingAmt -= allocAmt;
-              totalPaid += allocAmt;
-              balanceDue = Math.max(0, balanceDue - allocAmt);
-            }
-          }
-        }
-
-        // Preserve status if invoice was marked Collected or Contra in DB (e.g. balance_due === 0)
-        if (inv.balance_due !== undefined && Number(inv.balance_due) <= 0 && billTotal > 0 && totalPaid === 0) {
+        // Pure Transaction Isolation: An invoice only reflects payments made directly on that invoice or recorded upfront
+        // Preserve status if invoice was explicitly marked Collected or Contra in DB (e.g. balance_due === 0)
+        if (inv.balance_due !== undefined && Number(inv.balance_due) <= 0 && billTotal > 0 && totalPaid === 0 && (inv.status === "Collected" || inv.payment_mode === "Contra Offset")) {
           totalPaid = billTotal;
           balanceDue = 0;
         } else if (inv.balance_due !== undefined && allocatedCols.length === 0 && upfrontPaid === 0) {
@@ -4039,24 +4016,6 @@ Thank you for your business!`;
               status: newBal <= 0 ? "Collected" : "Partial"
             }).eq("id", targetInv.id);
           }
-        } else {
-          // Scenario 1: Strict FIFO Waterfall Customer Collection (Oldest bills settled first)
-          let rem = amt;
-          const pendingInvoices = invoices
-            .filter((i) => String(i.customer_id) === String(collectForm.customer_id) && Number(i.balance_due || 0) > 0)
-            .sort((a, b) => new Date(a.invoice_date || a.created_at) - new Date(b.invoice_date || b.created_at) || a.id - b.id);
-
-          for (const inv of pendingInvoices) {
-            if (rem <= 0) break;
-            const due = Number(inv.balance_due || 0);
-            const alloc = Math.min(due, rem);
-            const newBal = due - alloc;
-            await db.from("invoices").update({
-              balance_due: newBal,
-              status: newBal <= 0 ? "Collected" : "Partial"
-            }).eq("id", inv.id);
-            rem -= alloc;
-          }
         }
 
         // Customer old_due update:
@@ -4064,12 +4023,6 @@ Thank you for your business!`;
           const { error: custErr } = await db.from("customers").update({ old_due: newDue }).eq("id", cust.id);
           if (custErr) throw custErr;
           setCustomers((prev) => prev.map((c) => c.id == cust.id ? { ...c, old_due: newDue } : c));
-
-          // Consistency safeguard:
-          // If customer has 0 due or advance, ensure any remaining customer invoices are marked Collected.
-          if (newDue <= 0) {
-            await db.from("invoices").update({ balance_due: 0, status: "Collected" }).eq("customer_id", cust.id).gt("balance_due", 0);
-          }
         }
 
         if (inserted && inserted.length > 0) {
