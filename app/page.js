@@ -231,6 +231,64 @@ export default function App() {
   const [loginError, setLoginError] = useState("");
   const [pendingUser, setPendingUser] = useState(null);
 
+  // Synchronized System Credentials State (Admin & Partner Security PINs)
+  const [globalAdminPin, setGlobalAdminPin] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("admin_pin") || "1234";
+    }
+    return "1234";
+  });
+  const [globalPartnerPins, setGlobalPartnerPins] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("partner_pins") || "{}");
+      } catch (e) {}
+    }
+    return {};
+  });
+
+  // User-Scoped Session Identifier Generator:
+  // Admin -> "admin" | Partner -> "partner:<id>"
+  const getUserAccountKey = useCallback((user) => {
+    if (!user) return null;
+    if (user.role === "admin" || user.name === "Administrator" || user.role_id === "role_admin") {
+      return "admin";
+    }
+    if (user.id) {
+      return `partner:${user.id}`;
+    }
+    return `partner:${(user.name || "").trim().toLowerCase()}`;
+  }, []);
+
+  // Centralized Cloud Credentials Persistence (Stored in borrowers metadata row without altering loans/UI)
+  const saveSystemCredentialsToCloud = async (newAdminPin, newPartnerPins) => {
+    try {
+      const storedAdmin = newAdminPin || (typeof window !== "undefined" ? localStorage.getItem("admin_pin") : null) || globalAdminPin || "1234";
+      const storedPartners = newPartnerPins || (typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {}) || globalPartnerPins;
+      const configPayload = {
+        admin_pin: storedAdmin,
+        partner_pins: storedPartners,
+        updated_at: Date.now()
+      };
+      const jsonStr = JSON.stringify(configPayload);
+
+      const { data } = await db.from("borrowers").select("id").eq("mobile", "SYSTEM_CONFIG_V1").limit(1);
+      if (data && data.length > 0) {
+        await db.from("borrowers").update({ name: jsonStr }).eq("id", data[0].id);
+      } else {
+        await db.from("borrowers").insert([{
+          name: jsonStr,
+          mobile: "SYSTEM_CONFIG_V1",
+          total_borrowed: 0,
+          total_repaid: 0,
+          balance_due: 0
+        }]);
+      }
+    } catch (err) {
+      console.warn("Could not sync credentials to cloud:", err);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mastersSubTab, setMastersSubTab] = useState("customers");
@@ -2381,7 +2439,28 @@ export default function App() {
       if (col.data) setCollections(col.data);
       if (exp.data) setExpenses(exp.data);
       if (cats.data) setExpenseCategories(cats.data);
-      if (b.data) setLenders(b.data);
+      if (b.data) {
+        const cfgRow = b.data.find((row) => row.mobile === "SYSTEM_CONFIG_V1");
+        const realLenders = b.data.filter((row) => row.mobile !== "SYSTEM_CONFIG_V1");
+        setLenders(realLenders);
+        if (cfgRow && cfgRow.name) {
+          try {
+            const parsedCfg = JSON.parse(cfgRow.name);
+            if (parsedCfg.admin_pin) {
+              setGlobalAdminPin(parsedCfg.admin_pin);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("admin_pin", parsedCfg.admin_pin);
+              }
+            }
+            if (parsedCfg.partner_pins) {
+              setGlobalPartnerPins(parsedCfg.partner_pins);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("partner_pins", JSON.stringify(parsedCfg.partner_pins));
+              }
+            }
+          } catch (e) {}
+        }
+      }
       if (bTx.data) setLoanTransactions(bTx.data);
       if (sup.data) {
         setSuppliers(sup.data);
@@ -4880,6 +4959,14 @@ Thank you for your business!`;
           storedPins[partnerForm.name] = partnerForm.pin;
           if (savedId) storedPins[String(savedId)] = partnerForm.pin;
           localStorage.setItem('partner_pins', JSON.stringify(storedPins));
+          setGlobalPartnerPins(storedPins);
+          saveSystemCredentialsToCloud(null, storedPins);
+          try {
+            const authChannel = db.channel("jsr_session_tracker");
+            authChannel.send({ type: "broadcast", event: "sync_credentials", payload: { partnerPins: storedPins } });
+            const bc = new BroadcastChannel("jsr_session_channel");
+            bc.postMessage({ type: "sync_credentials", partnerPins: storedPins });
+          } catch (e) {}
         }
         const nextImgs = { ...partnerImages };
         if (savedId) nextImgs[String(savedId)] = partnerForm.image || "";
@@ -5853,10 +5940,21 @@ Thank you for your business!`;
     const authChannel = db.channel("jsr_session_tracker");
 
     const onPingReceived = (payload) => {
-      if (currentUser && payload?.machineId && payload.machineId !== clientMachineId) {
+      if (!currentUser) return;
+      if (!payload?.machineId || payload.machineId === clientMachineId) return;
+
+      const myKey = getUserAccountKey(currentUser);
+      const incomingKey = payload.userKey;
+
+      // User-Scoped Active Session Validation:
+      // ONLY respond with pong if the incoming ping is for the EXACT SAME user account!
+      // If Admin is logged in, and Partner pings, Admin will NOT respond.
+      // If Partner A is logged in, and Partner B pings, Partner A will NOT respond.
+      if (myKey && incomingKey && myKey === incomingKey) {
         const reply = {
           type: "pong_active_session",
           machineId: clientMachineId,
+          userKey: myKey,
           userRole: currentUser.role,
           userName: currentUser.name
         };
@@ -5866,22 +5964,46 @@ Thank you for your business!`;
     };
 
     const onKickReceived = (payload) => {
-      if (currentUser && payload?.targetMachineId === clientMachineId) {
+      if (!currentUser) return;
+      if (payload?.targetMachineId === clientMachineId) {
+        const myKey = getUserAccountKey(currentUser);
+        // Only log out if this force_logoff was issued for this exact user account
+        if (payload.targetUserKey && payload.targetUserKey !== myKey) {
+          return;
+        }
         setCurrentUser(null);
         localStorage.removeItem("app_current_user");
         setSessionKickedNotice(true);
       }
     };
 
+    const onSyncCredentialsReceived = (payload) => {
+      if (!payload) return;
+      if (payload.adminPin) {
+        setGlobalAdminPin(payload.adminPin);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("admin_pin", payload.adminPin);
+        }
+      }
+      if (payload.partnerPins) {
+        setGlobalPartnerPins(payload.partnerPins);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("partner_pins", JSON.stringify(payload.partnerPins));
+        }
+      }
+    };
+
     authChannel
       .on("broadcast", { event: "ping_active_session" }, ({ payload }) => onPingReceived(payload))
       .on("broadcast", { event: "force_logoff_session" }, ({ payload }) => onKickReceived(payload))
+      .on("broadcast", { event: "sync_credentials" }, ({ payload }) => onSyncCredentialsReceived(payload))
       .subscribe();
 
     if (bc) {
       bc.onmessage = (event) => {
         if (event.data?.type === "ping_active_session") onPingReceived(event.data);
         if (event.data?.type === "force_logoff_session") onKickReceived(event.data);
+        if (event.data?.type === "sync_credentials") onSyncCredentialsReceived(event.data);
       };
     }
 
@@ -5889,7 +6011,7 @@ Thank you for your business!`;
       if (bc) bc.close();
       db.removeChannel(authChannel);
     };
-  }, [currentUser, clientMachineId]);
+  }, [currentUser, clientMachineId, getUserAccountKey]);
 
     if (!currentUser) {
     const handleLoginSubmit = (e) => {
@@ -5898,8 +6020,9 @@ Thank you for your business!`;
       setLoginError("");
 
       if (loginMode === "admin") {
-        const storedAdminPin = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
-        const isValidPin = loginPin === storedAdminPin || loginPin === "1234" || loginPin === "9876";
+        const storedAdminPin = (typeof window !== "undefined" ? localStorage.getItem("admin_pin") : null) || globalAdminPin || "1234";
+        // STRICT VALIDATION: Only the active saved Admin PIN is valid. No hardcoded '1234' or '9876' fallback bypasses!
+        const isValidPin = loginPin === storedAdminPin;
 
         if (isValidPin) {
           const userObj = { role: "admin", name: "Administrator" };
@@ -5927,7 +6050,7 @@ Thank you for your business!`;
         }
         const p = partners.find((pt) => String(pt.id) === String(loginPartnerId));
         const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
-        const expectedPin = storedPins[String(p?.id)] || storedPins[p?.name] || storedPins[p?.name?.trim()] || p?.pin || "0000";
+        const expectedPin = storedPins[String(p?.id)] || storedPins[p?.name] || storedPins[p?.name?.trim()] || globalPartnerPins[String(p?.id)] || globalPartnerPins[p?.name] || p?.pin || "0000";
         if (loginPin === expectedPin) {
           const userObj = { role: "partner", id: p?.id, name: p?.name || "Partner" };
           if (enableTwoFactor) {
@@ -5980,6 +6103,7 @@ Thank you for your business!`;
     };
 
     const performLoginWithSessionCheck = async (userObj) => {
+      const myKey = getUserAccountKey(userObj);
       const checkRemote = new Promise((resolve) => {
         let done = false;
         const timer = setTimeout(() => {
@@ -5988,7 +6112,9 @@ Thank you for your business!`;
 
         const authChannel = db.channel("jsr_session_tracker");
         authChannel.on("broadcast", { event: "pong_active_session" }, ({ payload }) => {
-          if (!done && payload?.machineId && payload.machineId !== clientMachineId) {
+          // USER-SCOPED ACTIVE SESSION CHECK:
+          // Match pong ONLY if it is from another machine AND for the EXACT SAME user account!
+          if (!done && payload?.machineId && payload.machineId !== clientMachineId && payload?.userKey === myKey) {
             done = true;
             clearTimeout(timer);
             resolve(payload);
@@ -5998,19 +6124,30 @@ Thank you for your business!`;
         authChannel.send({
           type: "broadcast",
           event: "ping_active_session",
-          payload: { machineId: clientMachineId, role: userObj.role }
+          payload: {
+            machineId: clientMachineId,
+            userKey: myKey,
+            role: userObj.role,
+            userName: userObj.name
+          }
         });
 
         try {
           const bc = new BroadcastChannel("jsr_session_channel");
           bc.onmessage = (e) => {
-            if (!done && e.data?.type === "pong_active_session" && e.data.machineId !== clientMachineId) {
+            if (!done && e.data?.type === "pong_active_session" && e.data.machineId !== clientMachineId && e.data?.userKey === myKey) {
               done = true;
               clearTimeout(timer);
               resolve(e.data);
             }
           };
-          bc.postMessage({ type: "ping_active_session", machineId: clientMachineId, role: userObj.role });
+          bc.postMessage({
+            type: "ping_active_session",
+            machineId: clientMachineId,
+            userKey: myKey,
+            role: userObj.role,
+            userName: userObj.name
+          });
         } catch (e) {}
       });
 
@@ -6018,7 +6155,8 @@ Thank you for your business!`;
       if (remoteSession) {
         setDuplicateLoginPrompt({
           userObj,
-          targetMachineId: remoteSession.machineId
+          targetMachineId: remoteSession.machineId,
+          targetUserKey: myKey
         });
         return;
       }
@@ -6072,16 +6210,20 @@ Thank you for your business!`;
                   type="button"
                   onClick={() => {
                     const authChannel = db.channel("jsr_session_tracker");
+                    const kickPayload = {
+                      targetMachineId: duplicateLoginPrompt.targetMachineId,
+                      targetUserKey: duplicateLoginPrompt.targetUserKey
+                    };
                     authChannel.send({
                       type: "broadcast",
                       event: "force_logoff_session",
-                      payload: { targetMachineId: duplicateLoginPrompt.targetMachineId }
+                      payload: kickPayload
                     });
                     try {
                       const bc = new BroadcastChannel("jsr_session_channel");
                       bc.postMessage({
                         type: "force_logoff_session",
-                        targetMachineId: duplicateLoginPrompt.targetMachineId
+                        ...kickPayload
                       });
                     } catch (e) {}
                     finalizeUserLogin(duplicateLoginPrompt.userObj);
@@ -18205,8 +18347,9 @@ Thank you for your business!`;
                 setChangePinForm((prev) => ({ ...prev, error: "", success: "" }));
 
                 if (changePinForm.targetType === "admin") {
-                  const currentStored = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
-                  if (changePinForm.oldPin !== currentStored && changePinForm.oldPin !== "1234") {
+                  const currentStored = (typeof window !== "undefined" ? localStorage.getItem("admin_pin") : null) || globalAdminPin || "1234";
+                  // STRICT VALIDATION: Current PIN must match active PIN exactly
+                  if (changePinForm.oldPin !== currentStored) {
                     return setChangePinForm((prev) => ({ ...prev, error: "Current Admin PIN is incorrect" }));
                   }
                   if (changePinForm.newPin.length < 4) {
@@ -18218,6 +18361,15 @@ Thank you for your business!`;
                   if (typeof window !== "undefined") {
                     localStorage.setItem("admin_pin", changePinForm.newPin);
                   }
+                  setGlobalAdminPin(changePinForm.newPin);
+                  saveSystemCredentialsToCloud(changePinForm.newPin, null);
+                  try {
+                    const authChannel = db.channel("jsr_session_tracker");
+                    authChannel.send({ type: "broadcast", event: "sync_credentials", payload: { adminPin: changePinForm.newPin } });
+                    const bc = new BroadcastChannel("jsr_session_channel");
+                    bc.postMessage({ type: "sync_credentials", adminPin: changePinForm.newPin });
+                  } catch (e) {}
+
                   setChangePinForm((prev) => ({ ...prev, oldPin: "", newPin: "", confirmPin: "", error: "", success: "Admin PIN updated successfully!" }));
                   setTimeout(() => setShowChangePinModal(false), 1200);
                 } else {
@@ -18232,13 +18384,24 @@ Thank you for your business!`;
                   if (changePinForm.newPin !== changePinForm.confirmPin) {
                     return setChangePinForm((prev) => ({ ...prev, error: "New PIN and Confirmation do not match" }));
                   }
+                  let updatedPins = {};
                   if (typeof window !== "undefined") {
                     const storedPins = JSON.parse(localStorage.getItem("partner_pins") || "{}");
                     storedPins[String(targetPartner.id)] = changePinForm.newPin;
                     storedPins[targetPartner.name] = changePinForm.newPin;
                     storedPins[targetPartner.name.trim()] = changePinForm.newPin;
                     localStorage.setItem("partner_pins", JSON.stringify(storedPins));
+                    updatedPins = storedPins;
                   }
+                  setGlobalPartnerPins(updatedPins);
+                  saveSystemCredentialsToCloud(null, updatedPins);
+                  try {
+                    const authChannel = db.channel("jsr_session_tracker");
+                    authChannel.send({ type: "broadcast", event: "sync_credentials", payload: { partnerPins: updatedPins } });
+                    const bc = new BroadcastChannel("jsr_session_channel");
+                    bc.postMessage({ type: "sync_credentials", partnerPins: updatedPins });
+                  } catch (e) {}
+
                   setPartners((prev) => prev.map((pt) => String(pt.id) === String(targetPartner.id) ? { ...pt, pin: changePinForm.newPin } : pt));
                   setChangePinForm((prev) => ({ ...prev, oldPin: "", newPin: "", confirmPin: "", error: "", success: `PIN for ${targetPartner.name} updated successfully!` }));
                   setTimeout(() => setShowChangePinModal(false), 1200);
