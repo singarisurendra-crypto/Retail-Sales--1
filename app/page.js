@@ -9033,7 +9033,7 @@ Thank you for your business!`;
           );
           const totalCollections = periodCollections.reduce((sum, c) => sum + Number(c.amount || 0), 0);
           const totalCustomerDues = customers.reduce((sum, c) => sum + Math.max(0, Number(c.old_due || 0)), 0);
-          const totalSupplierDues = suppliers.reduce((sum, s) => sum + Math.max(0, Number(s.old_due || 0)), 0);
+          // Note: totalSupplierDues is accurately computed from payablesList below (incorporating opening due + net purchase bill balances)
 
           let periodCogs = 0;
           periodInvoices.forEach((inv) => {
@@ -9180,16 +9180,56 @@ Thank you for your business!`;
             customerAgingBuckets[d.bucket] = (customerAgingBuckets[d.bucket] || 0) + d.due;
           });
 
-          // Supplier Aging Analysis
-          const payablesList = suppliers
-            .filter((s) => Number(s.old_due || 0) > 0)
-            .map((s) => {
-              const supProcs = procurements.filter((p) => String(p.supplier_id) === String(s.id) || p.supplier_name === s.name);
+          // Supplier Aging Analysis (Consolidates Master Suppliers + Direct Purchase Vendors)
+          const allSupplierNamesSet = new Set(
+            suppliers.map((s) => (s.name || "").trim()).filter(Boolean)
+          );
+          procurements.forEach((p) => {
+            const sName = (p.supplier_name || "").trim();
+            if (sName && sName.toLowerCase() !== "opening stock") {
+              allSupplierNamesSet.add(sName);
+            }
+          });
+
+          const payablesList = Array.from(allSupplierNamesSet)
+            .map((sName) => {
+              const supMaster = suppliers.find((s) => (s.name || "").trim().toLowerCase() === sName.toLowerCase());
+              const supId = supMaster ? supMaster.id : null;
+              const mobile = supMaster ? supMaster.mobile : "";
+              const oldDue = Number(supMaster?.old_due || 0);
+
+              const supProcs = procurements.filter(
+                (p) => (p.supplier_name || "").trim().toLowerCase() === sName.toLowerCase() || (supId && String(p.supplier_id) === String(supId))
+              );
+
+              const sPurchased = supProcs
+                .filter((p) => !isPaymentProcurementRow(p))
+                .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
+
+              const sPaid = supProcs.reduce((sum, p) => sum + Number(p.p1_amount || 0), 0);
+              const netDue = Math.max(0, oldDue + sPurchased - sPaid);
+
+              const unpaidBills = supProcs.filter(
+                (p) => !isPaymentProcurementRow(p) && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0
+              );
+
+              let oldestUnpaidDate = null;
+              unpaidBills.forEach((p) => {
+                const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : null);
+                if (pDate && (!oldestUnpaidDate || pDate < oldestUnpaidDate)) {
+                  oldestUnpaidDate = pDate;
+                }
+              });
+
               let lastDate = null;
               supProcs.forEach((p) => {
-                if (!lastDate || p.purchase_date > lastDate) lastDate = p.purchase_date;
+                const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : null);
+                if (pDate && (!lastDate || pDate > lastDate)) lastDate = pDate;
               });
-              const days = lastDate ? Math.max(0, Math.round((now - new Date(lastDate)) / (1000 * 60 * 60 * 24))) : 0;
+
+              const refDate = oldestUnpaidDate || lastDate;
+              const days = refDate ? Math.max(0, Math.round((now - new Date(refDate)) / (1000 * 60 * 60 * 24))) : 0;
+
               let bucket = "0-30 Days";
               let bucketBadge = "bg-emerald-50 text-emerald-700 border-emerald-200";
               if (days > 60) {
@@ -9199,14 +9239,28 @@ Thank you for your business!`;
                 bucket = "31-60 Days";
                 bucketBadge = "bg-amber-50 text-amber-700 border-amber-200";
               }
-              return { ...s, lastDate, days, bucket, bucketBadge, due: Number(s.old_due || 0) };
+
+              return {
+                id: supId || `sup_${sName.replace(/\s+/g, "_")}`,
+                name: sName,
+                mobile,
+                lastDate: refDate || "Opening Bal",
+                days,
+                bucket,
+                bucketBadge,
+                due: netDue,
+                unpaidBillsCount: unpaidBills.length
+              };
             })
+            .filter((s) => s.due > 0)
             .sort((a, b) => b.due - a.due);
 
           const supplierAgingBuckets = { "0-30 Days": 0, "31-60 Days": 0, "60+ Days": 0 };
           payablesList.forEach((p) => {
             supplierAgingBuckets[p.bucket] = (supplierAgingBuckets[p.bucket] || 0) + p.due;
           });
+
+          const totalSupplierDues = payablesList.reduce((sum, s) => sum + Number(s.due || 0), 0);
 
           // Stock Items Valuation Breakdown
           const stockInventoryList = (uniqueItemSuggestions.length > 0 ? uniqueItemSuggestions : masterItems)
@@ -9906,14 +9960,15 @@ Thank you for your business!`;
                                     type="button"
                                     onClick={() => {
                                       setIsBillLocked(false);
-                                      setPaySupplierMode("single");
+                                      setPaySupplierMode("multi");
+                                      setMultiSupplierId(String(s.id || s.name));
                                       setPayPurchaseForm({
                                         purchase_id: "",
                                         amount: String(s.due),
                                         partner_id: upfrontPartnerId || "",
                                         payment_mode: "Cash",
                                         reference_no: "",
-                                        notes: "Aging Settlement"
+                                        notes: `Aging Settlement - ${s.name}`
                                       });
                                       setShowPayPurchaseModal(true);
                                     }}
