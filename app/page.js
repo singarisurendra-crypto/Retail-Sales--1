@@ -311,6 +311,8 @@ export default function App() {
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [invoiceDateFilter, setInvoiceDateFilter] = useState("all");
   const [invoiceCustomerFilter, setInvoiceCustomerFilter] = useState("all");
+  const [invoiceSellerFilter, setInvoiceSellerFilter] = useState("all");
+  const [invoiceSortOption, setInvoiceSortOption] = useState("date_desc");
 
   const [procureSearchQuery, setProcureSearchQuery] = useState("");
   const [procureStockFilter, setProcureStockFilter] = useState("all");
@@ -1264,18 +1266,62 @@ export default function App() {
     return () => clearInterval(timer);
   }, [dailyAlertConfig, invoices, collections, procurements, expenses, loanTransactions]);
 
+  // System Configuration & Brand Name State
+  const [systemName, setSystemName] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("app_system_name") || "B Reddy Sales";
+    }
+    return "B Reddy Sales";
+  });
+  const [enablePanGstin, setEnablePanGstin] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("enable_pan_gstin") === "true";
+    }
+    return false;
+  });
+  const [customerTaxInfo, setCustomerTaxInfo] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("customer_tax_info") || "{}");
+      } catch (e) { return {}; }
+    }
+    return {};
+  });
+  const [supplierTaxInfo, setSupplierTaxInfo] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("supplier_tax_info") || "{}");
+      } catch (e) { return {}; }
+    }
+    return {};
+  });
+  const [partnerImages, setPartnerImages] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return JSON.parse(localStorage.getItem("partner_images") || "{}");
+      } catch (e) { return {}; }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.title = `${systemName} - Wholesale & Retail ERP`;
+    }
+  }, [systemName]);
+
   // Forms
   const [editingCustId, setEditingCustId] = useState(null);
-  const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "" });
+  const [custForm, setCustForm] = useState({ name: "", mobile: "", old_due: "", pan: "", gstin: "" });
 
   const [editingSupplierId, setEditingSupplierId] = useState(null);
-  const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "", is_dual: false });
+  const [supplierForm, setSupplierForm] = useState({ name: "", mobile: "", old_due: "", is_dual: false, pan: "", gstin: "" });
 
   const [editingItemId, setEditingItemId] = useState(null);
   const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "", opening_qty: "" });
 
   const [editingPartnerId, setEditingPartnerId] = useState(null);
-  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner" });
+  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner", image: "" });
 
   const [editingLenderId, setEditingLenderId] = useState(null);
   const [lenderForm, setLenderForm] = useState({ name: "", mobile: "", initial_loan: "" });
@@ -2865,6 +2911,12 @@ export default function App() {
         return String(i.customer_id) === String(invoiceCustomerFilter);
       });
     }
+    if (invoiceSellerFilter && invoiceSellerFilter !== "all") {
+      list = list.filter((i) => {
+        const seller = (i.sold_by || i.seller_name || i.partner_name || partners.find((p) => String(p.id) === String(i.upfront_receiver_id || i.partner_id || i.receiver_id))?.name || "Ranga Prasad").toLowerCase();
+        return seller.includes(invoiceSellerFilter.toLowerCase());
+      });
+    }
     if (invoiceDateFilter !== "all") {
       list = list.filter((i) => matchDateFilter(i.invoice_date || i.created_at, invoiceDateFilter));
     }
@@ -2879,6 +2931,20 @@ export default function App() {
 
     const sorted = [...list];
     sorted.sort((a, b) => {
+      if (invoiceSortOption === "total_desc") {
+        return Number(b.total_amount || 0) - Number(a.total_amount || 0);
+      }
+      if (invoiceSortOption === "total_asc") {
+        return Number(a.total_amount || 0) - Number(b.total_amount || 0);
+      }
+      if (invoiceSortOption === "inv_desc") {
+        return (b.invoice_number || "").localeCompare(a.invoice_number || "") || (Number(b.id || 0) - Number(a.id || 0));
+      }
+      if (invoiceSortOption === "date_asc") {
+        const aT = getDateTimeVal(a, "invoice_date");
+        const bT = getDateTimeVal(b, "invoice_date");
+        return aT - bT || (Number(a.id || 0) - Number(b.id || 0));
+      }
       let cmp = 0;
       if (invoiceSortCol === "id") {
         cmp = (a.invoice_number || "").localeCompare(b.invoice_number || "") || (Number(a.id || 0) - Number(b.id || 0));
@@ -2904,11 +2970,15 @@ export default function App() {
         cmp = aDue - bDue;
       } else if (invoiceSortCol === "status") {
         cmp = (a.status || "").localeCompare(b.status || "");
+      } else {
+        const aT = getDateTimeVal(a, "invoice_date");
+        const bT = getDateTimeVal(b, "invoice_date");
+        return bT - aT || (Number(b.id || 0) - Number(a.id || 0));
       }
       return invoiceSortDir === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSortCol, invoiceSortDir, invoiceAllocationsMap]);
+  }, [invoices, suppliers, partners, invoiceStatusFilter, invoiceCustomerFilter, invoiceSellerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSortOption, invoiceSortCol, invoiceSortDir, invoiceAllocationsMap]);
 
   const purchaseOrdersGrouped = useMemo(() => {
     const map = new Map();
@@ -4318,7 +4388,14 @@ Thank you for your business!`;
   // CUSTOMER HANDLERS
   const handleEditCustomer = (c) => {
     setEditingCustId(c.id);
-    setCustForm({ name: c.name || "", mobile: c.mobile || "", old_due: c.old_due || "" });
+    const tax = customerTaxInfo[c.id] || customerTaxInfo[c.name] || {};
+    setCustForm({
+      name: c.name || "",
+      mobile: c.mobile || "",
+      old_due: c.old_due || "",
+      pan: tax.pan || c.pan || "",
+      gstin: tax.gstin || c.gstin || ""
+    });
     setShowCustModal(true);
   };
 
@@ -4342,6 +4419,7 @@ Thank you for your business!`;
     if (!name) return alert("Enter customer name");
     const payload = { name: name, mobile: custForm.mobile.trim(), old_due: Number(custForm.old_due || 0) };
     try {
+      let savedId = editingCustId;
       if (editingCustId) {
         const { error } = await db.from("customers").update(payload).eq("id", editingCustId);
         if (error) throw error;
@@ -4350,13 +4428,27 @@ Thank you for your business!`;
         const { data, error } = await db.from("customers").insert([payload]).select();
         if (error) throw error;
         if (data && data.length > 0) {
+          savedId = data[0].id;
           setCustomers((prev) => [...prev, data[0]].sort((a, b) => (a.name || "").localeCompare(b.name || "")));
         }
         alert("Customer created successfully!");
       }
+      if (savedId) {
+        const panVal = (custForm.pan || "").toUpperCase().trim();
+        const gstinVal = (custForm.gstin || "").toUpperCase().trim();
+        setCustomerTaxInfo((prev) => {
+          const next = {
+            ...prev,
+            [savedId]: { pan: panVal, gstin: gstinVal },
+            [payload.name]: { pan: panVal, gstin: gstinVal }
+          };
+          if (typeof window !== "undefined") localStorage.setItem("customer_tax_info", JSON.stringify(next));
+          return next;
+        });
+      }
       setShowCustModal(false);
       setEditingCustId(null);
-      setCustForm({ name: "", mobile: "", old_due: "" });
+      setCustForm({ name: "", mobile: "", old_due: "", pan: "", gstin: "" });
       refreshData();
     } catch (err) {
       alert("Error saving customer: " + err.message);
@@ -4367,11 +4459,14 @@ Thank you for your business!`;
   const handleEditSupplier = (s) => {
     setEditingSupplierId(s.id);
     const isDual = (s.mobile && s.mobile.includes("#vendor")) || !!(dualSuppliers[s.id] || dualSuppliers[s.name]);
+    const tax = supplierTaxInfo[s.id] || supplierTaxInfo[s.name] || {};
     setSupplierForm({
       name: s.name || "",
       mobile: formatSupplierMobile(s.mobile),
       old_due: s.old_due || "",
-      is_dual: isDual
+      is_dual: isDual,
+      pan: tax.pan || s.pan || "",
+      gstin: tax.gstin || s.gstin || ""
     });
     setShowSupplierModal(true);
   };
@@ -4416,11 +4511,22 @@ Thank you for your business!`;
           if (typeof window !== "undefined") localStorage.setItem("dual_suppliers", JSON.stringify(next));
           return next;
         });
+        const panVal = (supplierForm.pan || "").toUpperCase().trim();
+        const gstinVal = (supplierForm.gstin || "").toUpperCase().trim();
+        setSupplierTaxInfo((prev) => {
+          const next = {
+            ...prev,
+            [savedId]: { pan: panVal, gstin: gstinVal },
+            [payload.name]: { pan: panVal, gstin: gstinVal }
+          };
+          if (typeof window !== "undefined") localStorage.setItem("supplier_tax_info", JSON.stringify(next));
+          return next;
+        });
       }
       setProcureForm((prev) => ({ ...prev, supplier_name: payload.name }));
       setShowSupplierModal(false);
       setEditingSupplierId(null);
-      setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
+      setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false, pan: "", gstin: "" });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -4608,16 +4714,48 @@ Thank you for your business!`;
     setShowChangePinModal(true);
   };
 
+  const handlePartnerImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      return alert("Photo must be under 2MB");
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 300;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+          else { w = Math.round((w * maxDim) / h); h = maxDim; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressed = canvas.toDataURL("image/jpeg", 0.85);
+        setPartnerForm((prev) => ({ ...prev, image: compressed }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleEditPartner = (p) => {
     setEditingPartnerId(p.id);
     const storedPins = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('partner_pins') || '{}') : {};
     const existingPin = storedPins[String(p.id)] || storedPins[p.name] || storedPins[p.name?.trim()] || p.pin || '0000';
+    const existingImg = partnerImages[p.id] || partnerImages[p.name] || p.image || "";
     setPartnerForm({
       name: p.name || '',
       opening_cash: String(p.opening_cash || ''),
       opening_upi: String(p.opening_upi || ''),
       pin: existingPin,
-      role: p.role || 'partner'
+      role: p.role || 'partner',
+      image: existingImg
     });
     setShowPartnerModal(true);
   };
@@ -4645,26 +4783,36 @@ Thank you for your business!`;
       opening_upi: Number(partnerForm.opening_upi || 0)
     };
     try {
+      let savedId = editingPartnerId;
       if (editingPartnerId) {
         await db.from('receivers').update(payload).eq('id', editingPartnerId);
         alert('Partner updated!');
       } else {
-        await db.from('receivers').insert([payload]);
+        const { data, error } = await db.from('receivers').insert([payload]).select();
+        if (error) throw error;
+        if (data && data[0]) savedId = data[0].id;
         alert('Partner added!');
       }
-      if (typeof window !== 'undefined' && partnerForm.pin) {
-        const storedPins = JSON.parse(localStorage.getItem('partner_pins') || '{}');
-        storedPins[partnerForm.name.trim()] = partnerForm.pin;
-        storedPins[partnerForm.name] = partnerForm.pin;
-        if (editingPartnerId) storedPins[String(editingPartnerId)] = partnerForm.pin;
-        localStorage.setItem('partner_pins', JSON.stringify(storedPins));
-        if (editingPartnerId) {
-          setPartners((prev) => prev.map((item) => item.id === editingPartnerId ? { ...item, pin: partnerForm.pin } : item));
+      if (typeof window !== 'undefined') {
+        if (partnerForm.pin) {
+          const storedPins = JSON.parse(localStorage.getItem('partner_pins') || '{}');
+          storedPins[partnerForm.name.trim()] = partnerForm.pin;
+          storedPins[partnerForm.name] = partnerForm.pin;
+          if (savedId) storedPins[String(savedId)] = partnerForm.pin;
+          localStorage.setItem('partner_pins', JSON.stringify(storedPins));
         }
+        const nextImgs = { ...partnerImages };
+        if (savedId) nextImgs[String(savedId)] = partnerForm.image || "";
+        nextImgs[partnerForm.name.trim()] = partnerForm.image || "";
+        setPartnerImages(nextImgs);
+        localStorage.setItem('partner_images', JSON.stringify(nextImgs));
+      }
+      if (savedId) {
+        setPartners((prev) => prev.map((item) => String(item.id) === String(savedId) ? { ...item, pin: partnerForm.pin, image: partnerForm.image } : item));
       }
       setShowPartnerModal(false);
       setEditingPartnerId(null);
-      setPartnerForm({ name: '', opening_cash: '', opening_upi: '', pin: '0000', role: 'partner' });
+      setPartnerForm({ name: '', opening_cash: '', opening_upi: '', pin: '0000', role: 'partner', image: '' });
       refreshData();
     } catch (err) {
       alert(err.message);
@@ -5855,7 +6003,7 @@ Thank you for your business!`;
             <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-2xl mx-auto shadow-lg shadow-indigo-500/30">
               B
             </div>
-            <h1 className="text-2xl font-black tracking-tight">B REDDY SALES</h1>
+            <h1 className="text-2xl font-black tracking-tight">{systemName.toUpperCase()}</h1>
             <p className="text-xs text-slate-400">Retail & Wholesale Billing ERP</p>
           </div>
 
@@ -6022,7 +6170,7 @@ Thank you for your business!`;
             </button>
             <div>
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-black text-white text-xs sm:text-sm md:text-base tracking-wide leading-tight">B REDDY SALES</h1>
+                <h1 className="font-black text-white text-xs sm:text-sm md:text-base tracking-wide leading-tight">{systemName.toUpperCase()}</h1>
                 <span className="hidden md:inline px-1.5 py-0.5 bg-slate-800 text-slate-400 text-[10px] font-semibold rounded">Wholesale & Retail</span>
               </div>
               <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold hidden sm:block">JSR Retail System</p>
@@ -6091,8 +6239,13 @@ Thank you for your business!`;
               className="relative flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 bg-slate-800 border border-slate-700 rounded-full hover:bg-slate-700 text-slate-200 transition text-xs font-bold cursor-pointer"
               title="Account Profile & Sign Out"
             >
-              <div className={`w-6 h-6 rounded-full ${curTheme.primary} text-white font-black text-[11px] flex items-center justify-center`}>
-                B
+              <div className={`w-6 h-6 rounded-full ${curTheme.primary} text-white font-black text-[11px] flex items-center justify-center overflow-hidden shrink-0`}>
+                {(() => {
+                  const curPartner = partners.find((p) => p.name === currentUser?.name || String(p.id) === String(currentUser?.id));
+                  const pImg = curPartner ? (partnerImages[curPartner.id] || partnerImages[curPartner.name] || curPartner.image) : "";
+                  if (pImg) return <img src={pImg} alt="Avatar" className="w-full h-full object-cover" />;
+                  return currentUser?.name ? currentUser.name.slice(0, 1).toUpperCase() : "B";
+                })()}
               </div>
               <span className="hidden md:inline max-w-[100px] truncate">
                 {currentUser?.name || "Admin"}
@@ -6262,7 +6415,7 @@ Thank you for your business!`;
                 B
               </div>
               <div>
-                <h2 className="font-black text-white text-sm tracking-wide leading-tight">B REDDY SALES</h2>
+                <h2 className="font-black text-white text-sm tracking-wide leading-tight">{systemName.toUpperCase()}</h2>
                 <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Wholesale & Retail ERP</p>
               </div>
             </div>
@@ -7158,63 +7311,155 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW: SALES INVOICES DIRECTORY */}
+        {/* VIEW: SALES INVOICES DIRECTORY (APPROVED TECHNO STACK DESIGN) */}
         {activeTab === "invoices" && (
-          <div className="space-y-2.5 sm:space-y-3">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="space-y-4">
+            {/* Header: Title, Subtitle, Refresh & New Sale */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Sales Invoices Directory</h2>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Track, review, print, and collect on customer invoices</p>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 flex items-center justify-center shadow-2xs">
+                    <Icon name="receipt" size={18} />
+                  </div>
+                  <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Past Orders & Invoices</h1>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Browse completed sales, inspect multi-batch cost breakdown, and review customer billing history.</p>
               </div>
-              <button
-                onClick={() => {
-                  resetPOSBillingState();
-                  setActiveTab("sale");
-                }}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
-              >
-                <Icon name="plus" size={14} /> Create New Bill
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    refreshData();
+                  }}
+                  className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                >
+                  <Icon name="rotate-ccw" size={14} /> Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetPOSBillingState();
+                    setActiveTab("sale");
+                  }}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                >
+                  <Icon name="shopping-cart" size={14} /> New Sale (POS)
+                </button>
+              </div>
             </div>
 
-            {/* Search & Universal Filters Toolbar */}
-            <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
+            {/* 4 High-Density Summary Cards (Mobbin-Grade UX) */}
+            {(() => {
+              const invSummaryList = filteredInvoices;
+              const totalOrdersCount = invSummaryList.length;
+              const grossSalesSum = invSummaryList.reduce((s, inv) => s + Number(inv.total_amount || 0), 0);
+              const totalCogsSum = invSummaryList.reduce((s, inv) => {
+                if (!Array.isArray(inv.items)) return s;
+                return s + inv.items.reduce((sum, item) => {
+                  const q = Number(item.qty || item.quantity || 0);
+                  const pr = Number(item.purchase_rate || 0);
+                  return sum + (q * pr);
+                }, 0);
+              }, 0);
+              const netProfitSum = grossSalesSum - totalCogsSum;
+              const avgMarginPct = grossSalesSum > 0 ? ((netProfitSum / grossSalesSum) * 100).toFixed(1) : "0.0";
+              const isProfitPositive = netProfitSum >= 0;
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* CARD 1: TOTAL ORDERS */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">TOTAL ORDERS</span>
+                      <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400">
+                        <Icon name="receipt" size={15} />
+                      </span>
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                      {totalOrdersCount}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Completed sales transactions
+                    </div>
+                  </div>
+
+                  {/* CARD 2: GROSS SALES */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">GROSS SALES</span>
+                      <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 font-bold text-xs">
+                        ₹
+                      </span>
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                      {money(grossSalesSum)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Total revenue collected
+                    </div>
+                  </div>
+
+                  {/* CARD 3: TOTAL COGS */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">TOTAL COGS</span>
+                      <span className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
+                        <Icon name="layers" size={15} />
+                      </span>
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                      {money(totalCogsSum)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Acquisition lot costs
+                    </div>
+                  </div>
+
+                  {/* CARD 4: NET PROFIT */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">NET PROFIT</span>
+                      <span className={`p-1.5 rounded-lg ${isProfitPositive ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400"}`}>
+                        <Icon name="trending-up" size={15} />
+                      </span>
+                    </div>
+                    <div className={`text-2xl font-black font-mono ${isProfitPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                      {isProfitPositive ? `+${money(netProfitSum)}` : `-${money(Math.abs(netProfitSum))}`}
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                      {avgMarginPct}% average margin
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Universal Filter Toolbar */}
+            <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
+              <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2">
+                {/* Search Input with pl-10 (standardized non-overlapping padding) */}
                 <div className="relative flex-1">
-                  <span className="absolute left-3 top-2 text-slate-400">
-                    <Icon name="search" size={14} />
+                  <span className="absolute left-3.5 top-2.5 text-slate-400 pointer-events-none">
+                    <Icon name="search" size={15} />
                   </span>
                   <input
                     type="text"
-                    placeholder="Search by invoice #, customer name, date..."
-                    className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
+                    placeholder="Search invoice #, customer, notes..."
+                    className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-sky-500 transition text-slate-900 dark:text-slate-100"
                     value={invoiceSearchQuery}
                     onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                   />
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto">
-                  {/* Date Filter */}
-                  <select
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
-                    value={invoiceDateFilter}
-                    onChange={(e) => setInvoiceDateFilter(e.target.value)}
-                  >
-                    <option value="all">📅 All Dates</option>
-                    <option value="today">Today</option>
-                    <option value="this_week">This Week</option>
-                    <option value="this_month">This Month</option>
-                  </select>
-
-
-
+                {/* Filter Dropdowns */}
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {/* Customer Filter */}
                   <select
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 max-w-[150px]"
+                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
                     value={invoiceCustomerFilter}
                     onChange={(e) => setInvoiceCustomerFilter(e.target.value)}
                   >
-                    <option value="all">👥 All Accounts</option>
+                    <option value="all">👥 All Customers ({customers.length})</option>
                     <optgroup label="Customers">
                       {customers.map((c) => (
                         <option key={c.id} value={`cust_${c.id}`}>{c.name}</option>
@@ -7227,8 +7472,44 @@ Thank you for your business!`;
                     </optgroup>
                   </select>
 
-                  {/* Status Pills */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-bold">
+                  {/* Seller / Partner Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
+                    value={invoiceSellerFilter}
+                    onChange={(e) => setInvoiceSellerFilter(e.target.value)}
+                  >
+                    <option value="all">👤 All Sellers ({partners.length})</option>
+                    {partners.map((p) => (
+                      <option key={p.id} value={String(p.name)}>{p.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Date Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
+                    value={invoiceDateFilter}
+                    onChange={(e) => setInvoiceDateFilter(e.target.value)}
+                  >
+                    <option value="all">📅 All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                  </select>
+
+                  {/* Sort Filter */}
+                  <select
+                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
+                    value={invoiceSortOption}
+                    onChange={(e) => setInvoiceSortOption(e.target.value)}
+                  >
+                    <option value="date_desc">⇅ Date & Time</option>
+                    <option value="total_desc">⇅ Amount (High to Low)</option>
+                    <option value="total_asc">⇅ Amount (Low to High)</option>
+                    <option value="inv_desc">⇅ Invoice #</option>
+                  </select>
+
+                  {/* Status Filter Pills */}
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold">
                     {[
                       { id: "all", label: "All" },
                       { id: "collected", label: "Collected" },
@@ -7237,9 +7518,10 @@ Thank you for your business!`;
                     ].map((tab) => (
                       <button
                         key={tab.id}
+                        type="button"
                         onClick={() => setInvoiceStatusFilter(tab.id)}
-                        className={`px-2 py-1 rounded-md whitespace-nowrap transition text-xs ${
-                          invoiceStatusFilter === tab.id ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                        className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition text-xs cursor-pointer ${
+                          invoiceStatusFilter === tab.id ? "bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-2xs font-black" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                         }`}
                       >
                         {tab.label}
@@ -7249,267 +7531,313 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              {/* Invoices List / Table with Pagination & ERP Grid Borders */}
-              {(() => {
-                const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / 10));
-                const safeInvoicePage = Math.min(invoicePage, totalInvoicePages);
-                const pagedInvoices = filteredInvoices.slice((safeInvoicePage - 1) * 10, safeInvoicePage * 10);
+              <div className="text-[11px] text-slate-500 font-semibold pt-1">
+                Showing <b className="text-slate-800 dark:text-slate-200">{filteredInvoices.length}</b> of <b className="text-slate-800 dark:text-slate-200">{invoices.length}</b> orders
+              </div>
+            </div>
 
-                return (
-                  <div className="space-y-3">
-                    {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
+            {/* Invoices List / Table with Pagination */}
+            {(() => {
+              const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / 10));
+              const safeInvoicePage = Math.min(invoicePage, totalInvoicePages);
+              const pagedInvoices = filteredInvoices.slice((safeInvoicePage - 1) * 10, safeInvoicePage * 10);
 
-                    <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
-                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-300 dark:border-slate-700">
+              return (
+                <div className="space-y-3">
+                  {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
+
+                  {/* DESKTOP TABLE VIEW */}
+                  <div className="hidden sm:block overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-2xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-[#f0f6fc] dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="p-3">INVOICE #</th>
+                          <th className="p-3">DATE & TIME</th>
+                          <th className="p-3">CUSTOMER</th>
+                          <th className="p-3">SOLD BY</th>
+                          <th className="p-3">ITEMS & UNITS</th>
+                          <th className="p-3 text-right">ORDER TOTAL</th>
+                          <th className="p-3 text-right">COGS</th>
+                          <th className="p-3 text-right">NET PROFIT</th>
+                          <th className="p-3 text-center">RECEIPT & BREAKDOWN</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {pagedInvoices.length === 0 ? (
                           <tr>
-                            <th onClick={() => toggleSort("id", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Invoice #", "ఇన్‌వాయిస్ #")}{renderSortIndicator("id", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("date", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Date", "తేదీ")}{renderSortIndicator("date", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("customer", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Customer", "కస్టమర్")}{renderSortIndicator("customer", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("items", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Items Summary", "వస్తువుల వివరాలు")}{renderSortIndicator("items", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("total", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Total", "మొత్తం")}{renderSortIndicator("total", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("paid", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Paid", "చెల్లించినది")}{renderSortIndicator("paid", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("due", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Balance Due", "బకాయి")}{renderSortIndicator("due", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("status", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
-                              {t("Status", "స్థితి")}{renderSortIndicator("status", invoiceSortCol, invoiceSortDir)}
-                            </th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
+                            <td colSpan={9} className="p-8 text-center text-slate-400">
+                              No invoices found matching your criteria.
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium">
-                          {pagedInvoices.length === 0 ? (
-                            <tr>
-                              <td colSpan={9} className="p-8 text-center text-slate-400">
-                                No invoices found matching your criteria.
-                              </td>
-                            </tr>
-                          ) : (
-                            pagedInvoices.map((inv) => {
-                              const invAlloc = invoiceAllocationsMap.get(String(inv.id));
-                              const paidAmount = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
-                              const dueAmount = invAlloc ? invAlloc.balanceDue : Number(inv.balance_due || 0);
-                              const isPaid = dueAmount <= 0;
-                              const isPartial = !isPaid && paidAmount > 0;
-                              const statusLabel = isPaid ? "Collected" : isPartial ? "Partial" : "Due";
-                              const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
-                              const firstItemName = Array.isArray(inv.items) && inv.items[0]?.item_name;
+                        ) : (
+                          pagedInvoices.map((inv) => {
+                            const itemsList = Array.isArray(inv.items) ? inv.items : [];
+                            const itemCount = itemsList.length;
+                            const unitsCount = itemsList.reduce((s, it) => s + Number(it.qty || it.quantity || 1), 0);
+                            const cogsVal = itemsList.reduce((s, it) => {
+                              const q = Number(it.qty || it.quantity || 0);
+                              const pr = Number(it.purchase_rate || 0);
+                              return s + (q * pr);
+                            }, 0);
+                            const totalAmt = Number(inv.total_amount || 0);
+                            const profitVal = totalAmt - cogsVal;
+                            const marginPct = totalAmt > 0 ? ((profitVal / totalAmt) * 100).toFixed(1) : "0.0";
+                            const isPos = profitVal >= 0;
 
-                              return (
-                                <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                            const sellerName = inv.sold_by || inv.seller_name || inv.partner_name || partners.find((p) => String(p.id) === String(inv.upfront_receiver_id || inv.partner_id || inv.receiver_id))?.name || "Ranga Prasad";
+                            const partnerObj = partners.find((p) => p.name === sellerName || String(p.id) === String(inv.upfront_receiver_id || inv.partner_id));
+                            const photo = partnerObj ? (partnerImages[partnerObj.id] || partnerImages[partnerObj.name] || partnerObj.image) : (partnerImages[sellerName] || "");
+
+                            const invAlloc = invoiceAllocationsMap.get(String(inv.id));
+                            const paidAmount = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
+                            const dueAmount = invAlloc ? invAlloc.balanceDue : Number(inv.balance_due || 0);
+                            const isPaid = dueAmount <= 0;
+
+                            return (
+                              <tr key={inv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                                {/* INVOICE # */}
+                                <td className="p-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditInvoice(inv)}
+                                    className="px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:bg-sky-100 font-bold font-mono text-xs inline-flex items-center gap-1.5 transition cursor-pointer"
+                                    title="Click to edit bill in POS"
+                                  >
+                                    <Icon name="edit" size={11} />
+                                    <span>{inv.invoice_number || `INV-${inv.id}`}</span>
+                                  </button>
+                                </td>
+
+                                {/* DATE & TIME */}
+                                <td className="p-3">
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                                      <span className="text-slate-400">📅</span>
+                                      <span>{inv.invoice_date || (inv.created_at ? inv.created_at.slice(0, 10) : "2026-09-13")}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                                      <span className="text-slate-400">🕒</span>
+                                      <span className="truncate max-w-[150px]">{inv.created_at || `${inv.invoice_date || "2026-09-13"}T15:05:59+00:00`}</span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* CUSTOMER */}
+                                <td className="p-3">
+                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                    <span className="text-sky-500">👥</span>
+                                    <span>{inv.customer_name}</span>
+                                    {!inv.customer_id && (
+                                      <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                        Contra
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* SOLD BY WITH PARTNER AVATAR PHOTO */}
+                                <td className="p-3">
+                                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                                    {photo ? (
+                                      <img
+                                        src={photo}
+                                        alt={sellerName}
+                                        className="w-5 h-5 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0"
+                                      />
+                                    ) : (
+                                      <span className="text-slate-400 shrink-0">
+                                        <Icon name="user" size={13} />
+                                      </span>
+                                    )}
+                                    <span>{sellerName}</span>
+                                  </div>
+                                </td>
+
+                                {/* ITEMS & UNITS */}
+                                <td className="p-3">
+                                  <div className="text-xs">
+                                    <div className="font-bold text-slate-800 dark:text-slate-200">
+                                      {itemCount} {itemCount === 1 ? "item" : "items"}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                      {unitsCount} {unitsCount === 1 ? "unit" : "units"}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* ORDER TOTAL */}
+                                <td className="p-3 text-right font-black text-slate-900 dark:text-white font-mono text-xs">
+                                  {money(inv.total_amount)}
+                                </td>
+
+                                {/* COGS */}
+                                <td className="p-3 text-right font-semibold text-slate-600 dark:text-slate-400 font-mono text-xs">
+                                  {money(cogsVal)}
+                                </td>
+
+                                {/* NET PROFIT */}
+                                <td className="p-3 text-right">
+                                  <div className="text-xs">
+                                    <div className={`font-black font-mono ${isPos ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                      {isPos ? `+${money(profitVal)}` : `-${money(Math.abs(profitVal))}`}
+                                    </div>
+                                    <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                      {marginPct}% margin
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* RECEIPT & BREAKDOWN / ACTIONS */}
+                                <td className="p-3 text-center">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedViewInvoice(inv)}
+                                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-slate-800 text-sky-600 dark:text-sky-400 font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                      title="View / Print Receipt"
+                                    >
+                                      <Icon name="receipt" size={12} />
+                                      <span>Receipt</span>
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => handleEditInvoice(inv)}
-                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
-                                      title="Click invoice ID to edit bill in POS"
+                                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                      title="Edit Invoice"
                                     >
-                                      {inv.invoice_number || `INV-${inv.id}`}
+                                      <Icon name="edit" size={12} />
+                                      <span>Edit</span>
                                     </button>
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 whitespace-nowrap">
-                                    {inv.invoice_date || inv.created_at?.slice(0, 10)}
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">
-                                    <div>
-                                      <span>{inv.customer_name}</span>
-                                      {!inv.customer_id && (
-                                        <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                                          Supplier Contra
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 text-[11px]">
-                                    {itemCount > 0 ? (
-                                      <span>
-                                        {firstItemName}
-                                        {itemCount > 1 && <span className="text-slate-400"> +{itemCount - 1} more</span>}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400">Standard Bill</span>
-                                    )}
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-slate-100">
-                                    {money(inv.total_amount)}
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold">
-                                    {money(paidAmount)}
-                                  </td>
-                                  <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmount > 0 ? "text-rose-600" : "text-slate-400"}`}>
-                                    {money(dueAmount)}
-                                  </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                      isPaid
-                                        ? "bg-emerald-100 text-emerald-800"
-                                        : isPartial
-                                        ? "bg-amber-100 text-amber-800"
-                                        : "bg-rose-100 text-rose-800"
-                                    }`}>
-                                      {statusLabel}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                                    <div className="hidden sm:flex items-center justify-center gap-1.5">
-                                      <button
-                                        type="button"
-                                        title="View / Print Invoice"
-                                        onClick={() => setSelectedViewInvoice(inv)}
-                                        className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
-                                      >
-                                        <Icon name="receipt" size={14} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        title="Share to WhatsApp"
-                                        onClick={() => handleShareWhatsApp(inv)}
-                                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer"
-                                      >
-                                        <Icon name="share" size={14} />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        title="Edit Invoice"
-                                        onClick={() => handleEditInvoice(inv)}
-                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
-                                      >
-                                        <Icon name="edit" size={14} />
-                                      </button>
-                                      {!isPaid && (
-                                        <button
-                                          type="button"
-                                          title="Collect Payment"
-                                          onClick={() => {
-                                            setEditingCollectionId(null);
-                                            setCollectForm({
-                                              customer_id: String(inv.customer_id),
-                                              invoice_id: String(inv.id),
-                                              amount: String(dueAmount),
-                                              payment_mode: "Cash",
-                                              receiver_id: upfrontPartnerId || "",
-                                              reference_no: "",
-                                              notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
-                                            });
-                                            setShowCollectModal(true);
-                                          }}
-                                          className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
-                                        >
-                                          <Icon name="handcoins" size={14} />
-                                        </button>
-                                      )}
-                                      {paidAmount === 0 && !isPaid && (
-                                        <button
-                                          type="button"
-                                          title="Delete Invoice"
-                                          onClick={() => handleDeleteInvoice(inv)}
-                                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition cursor-pointer"
-                                        >
-                                          <Icon name="trash" size={14} />
-                                        </button>
-                                      )}
-                                    </div>
-
-                                    {/* Mobile Kebab Dropdown Menu */}
-                                    <div className="relative inline-block text-left sm:hidden">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setOpenMobileActionId(openMobileActionId === `inv_${inv.id}` ? null : `inv_${inv.id}`);
-                                        }}
-                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                                        title="Actions"
-                                      >
-                                        <Icon name="more-vertical" size={15} />
-                                      </button>
-                                      {openMobileActionId === `inv_${inv.id}` && (
-                                        <>
-                                          <div className="fixed inset-0 z-40" onClick={() => setOpenMobileActionId(null)} />
-                                          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-left text-xs font-semibold">
-                                            <button
-                                              type="button"
-                                              onClick={() => { setOpenMobileActionId(null); setSelectedViewInvoice(inv); }}
-                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
-                                            >
-                                              <Icon name="receipt" size={14} /> View / Print
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => { setOpenMobileActionId(null); handleShareWhatsApp(inv); }}
-                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300"
-                                            >
-                                              <Icon name="share" size={14} /> WhatsApp
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => { setOpenMobileActionId(null); handleEditInvoice(inv); }}
-                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
-                                            >
-                                              <Icon name="edit" size={14} /> Edit Invoice
-                                            </button>
-                                            {!isPaid && (
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setOpenMobileActionId(null);
-                                                  setEditingCollectionId(null);
-                                                  setCollectForm({
-                                                    customer_id: String(inv.customer_id),
-                                                    invoice_id: String(inv.id),
-                                                    amount: String(dueAmount),
-                                                    payment_mode: "Cash",
-                                                    receiver_id: upfrontPartnerId || "",
-                                                    reference_no: "",
-                                                    notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
-                                                  });
-                                                  setShowCollectModal(true);
-                                                }}
-                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
-                                              >
-                                                <Icon name="handcoins" size={14} /> Collect Due
-                                              </button>
-                                            )}
-                                            {paidAmount === 0 && !isPaid && (
-                                              <button
-                                                type="button"
-                                                onClick={() => { setOpenMobileActionId(null); handleDeleteInvoice(inv); }}
-                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400"
-                                              >
-                                                <Icon name="trash" size={14} /> Delete Bill
-                                              </button>
-                                            )}
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteInvoice(inv)}
+                                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                      title="Delete Invoice"
+                                    >
+                                      <Icon name="trash" size={12} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
-                );
-              })()}
-            </div>
+
+                  {/* MOBILE STACKED CARDS VIEW (< 640px) */}
+                  <div className="block sm:hidden space-y-3">
+                    {pagedInvoices.length === 0 ? (
+                      <div className="p-8 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        No invoices found matching your criteria.
+                      </div>
+                    ) : (
+                      pagedInvoices.map((inv) => {
+                        const itemsList = Array.isArray(inv.items) ? inv.items : [];
+                        const itemCount = itemsList.length;
+                        const unitsCount = itemsList.reduce((s, it) => s + Number(it.qty || it.quantity || 1), 0);
+                        const cogsVal = itemsList.reduce((s, it) => {
+                          const q = Number(it.qty || it.quantity || 0);
+                          const pr = Number(it.purchase_rate || 0);
+                          return s + (q * pr);
+                        }, 0);
+                        const totalAmt = Number(inv.total_amount || 0);
+                        const profitVal = totalAmt - cogsVal;
+                        const marginPct = totalAmt > 0 ? ((profitVal / totalAmt) * 100).toFixed(1) : "0.0";
+                        const isPos = profitVal >= 0;
+
+                        const sellerName = inv.sold_by || inv.seller_name || inv.partner_name || partners.find((p) => String(p.id) === String(inv.upfront_receiver_id || inv.partner_id || inv.receiver_id))?.name || "Ranga Prasad";
+                        const partnerObj = partners.find((p) => p.name === sellerName || String(p.id) === String(inv.upfront_receiver_id || inv.partner_id));
+                        const photo = partnerObj ? (partnerImages[partnerObj.id] || partnerImages[partnerObj.name] || partnerObj.image) : (partnerImages[sellerName] || "");
+
+                        return (
+                          <div key={inv.id} className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                            <div className="flex justify-between items-start">
+                              <button
+                                type="button"
+                                onClick={() => handleEditInvoice(inv)}
+                                className="px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold font-mono text-xs inline-flex items-center gap-1.5"
+                              >
+                                <Icon name="edit" size={11} />
+                                <span>{inv.invoice_number || `INV-${inv.id}`}</span>
+                              </button>
+                              <span className="text-[11px] font-semibold text-slate-500">
+                                {inv.invoice_date || (inv.created_at ? inv.created_at.slice(0, 10) : "")}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center text-xs">
+                              <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                                <span className="text-sky-500">👥</span>
+                                <span>{inv.customer_name}</span>
+                              </div>
+                              <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-semibold">
+                                {photo ? (
+                                  <img src={photo} alt={sellerName} className="w-4 h-4 rounded-full object-cover" />
+                                ) : (
+                                  <Icon name="user" size={12} className="text-slate-400" />
+                                )}
+                                <span>{sellerName}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-center">
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total</span>
+                                <b className="text-xs text-slate-900 dark:text-white font-mono">{money(inv.total_amount)}</b>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block">COGS</span>
+                                <b className="text-xs text-slate-600 dark:text-slate-400 font-mono">{money(cogsVal)}</b>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Profit</span>
+                                <b className={`text-xs font-mono ${isPos ? "text-emerald-600" : "text-rose-600"}`}>
+                                  {isPos ? `+${money(profitVal)}` : `-${money(Math.abs(profitVal))}`}
+                                </b>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                              <span className="text-[11px] text-slate-500">
+                                {itemCount} items ({unitsCount} units) • {marginPct}% margin
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedViewInvoice(inv)}
+                                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-sky-600 font-bold text-xs"
+                                >
+                                  Receipt
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditInvoice(inv)}
+                                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInvoice(inv)}
+                                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-rose-600 font-bold text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -11018,6 +11346,11 @@ Thank you for your business!`;
                         Mobile{renderSortIndicator("mobile", masterCustSortCol, masterCustSortDir)}
                       </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32 text-center">Status</th>
+                      {enablePanGstin && (
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 font-sans text-center">
+                          PAN / GSTIN
+                        </th>
+                      )}
                       <th onClick={() => toggleSort("due", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
                         Balance (₹){renderSortIndicator("due", masterCustSortCol, masterCustSortDir)}
                       </th>
@@ -11027,7 +11360,7 @@ Thank you for your business!`;
                   <tbody>
                     {filteredCustomers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-6 text-center text-slate-400 font-sans">
+                        <td colSpan={enablePanGstin ? 7 : 6} className="p-6 text-center text-slate-400 font-sans">
                           No customers found matching search.
                         </td>
                       </tr>
@@ -11061,6 +11394,22 @@ Thank you for your business!`;
                                 {isAdv ? "Advance" : isSettled ? "Settled" : "Due"}
                               </span>
                             </td>
+                            {enablePanGstin && (
+                              <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                                {(() => {
+                                  const tax = customerTaxInfo[c.id] || customerTaxInfo[c.name] || {};
+                                  const pan = tax.pan || c.pan;
+                                  const gstin = tax.gstin || c.gstin;
+                                  if (!pan && !gstin) return <span className="text-slate-400">—</span>;
+                                  return (
+                                    <div className="space-y-0.5">
+                                      {pan && <div><span className="text-[9px] uppercase font-bold text-slate-400">PAN:</span> <span className="font-bold text-indigo-600 dark:text-indigo-400">{pan}</span></div>}
+                                      {gstin && <div><span className="text-[9px] uppercase font-bold text-slate-400">GST:</span> <span className="text-slate-700 dark:text-slate-300">{gstin}</span></div>}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            )}
                             <td
                               className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 isAdv ? "text-emerald-600" : isSettled ? "text-slate-500" : "text-rose-600"
@@ -11096,7 +11445,7 @@ Thank you for your business!`;
                   {filteredCustomers.length > 0 && (
                     <tfoot className="bg-slate-100 dark:bg-slate-800/80 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                       <tr>
-                        <td colSpan={4} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <td colSpan={enablePanGstin ? 5 : 4} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Customers ({filteredCustomers.length}):
                         </td>
                         <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400">
@@ -11124,6 +11473,11 @@ Thank you for your business!`;
                         Mobile{renderSortIndicator("mobile", masterSupSortCol, masterSupSortDir)}
                       </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-40 text-center">Allow in Sale</th>
+                      {enablePanGstin && (
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 font-sans text-center">
+                          PAN / GSTIN
+                        </th>
+                      )}
                       <th onClick={() => toggleSort("due", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
                         Payable Due (₹){renderSortIndicator("due", masterSupSortCol, masterSupSortDir)}
                       </th>
@@ -11133,7 +11487,7 @@ Thank you for your business!`;
                   <tbody>
                     {filteredSuppliers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-6 text-center text-slate-400 font-sans">
+                        <td colSpan={enablePanGstin ? 7 : 6} className="p-6 text-center text-slate-400 font-sans">
                           No suppliers found matching search.
                         </td>
                       </tr>
@@ -11170,6 +11524,22 @@ Thank you for your business!`;
                                 </span>
                               </label>
                             </td>
+                            {enablePanGstin && (
+                              <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                                {(() => {
+                                  const tax = supplierTaxInfo[s.id] || supplierTaxInfo[s.name] || {};
+                                  const pan = tax.pan || s.pan;
+                                  const gstin = tax.gstin || s.gstin;
+                                  if (!pan && !gstin) return <span className="text-slate-400">—</span>;
+                                  return (
+                                    <div className="space-y-0.5">
+                                      {pan && <div><span className="text-[9px] uppercase font-bold text-slate-400">PAN:</span> <span className="font-bold text-indigo-600 dark:text-indigo-400">{pan}</span></div>}
+                                      {gstin && <div><span className="text-[9px] uppercase font-bold text-slate-400">GST:</span> <span className="text-slate-700 dark:text-slate-300">{gstin}</span></div>}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            )}
                             <td
                               className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 netPayable < 0 ? "text-emerald-600" : netPayable === 0 ? "text-slate-500" : "text-amber-600"
@@ -11205,7 +11575,7 @@ Thank you for your business!`;
                   {filteredSuppliers.length > 0 && (
                     <tfoot className="bg-slate-100 dark:bg-slate-800/80 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-xs">
                       <tr>
-                        <td colSpan={4} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <td colSpan={enablePanGstin ? 5 : 4} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Suppliers ({filteredSuppliers.length}):
                         </td>
                         <td className="p-2.5 text-right font-black text-amber-600 dark:text-amber-400">
@@ -11458,7 +11828,29 @@ Thank you for your business!`;
                           >
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
-                              {p.name}
+                              <div className="flex items-center gap-2.5">
+                                {(() => {
+                                  const img = partnerImages[p.id] || partnerImages[p.name] || p.image;
+                                  if (img) {
+                                    return (
+                                      <img
+                                        src={img}
+                                        alt={p.name}
+                                        className="w-8 h-8 rounded-full object-cover border border-indigo-200 dark:border-indigo-800 shadow-2xs shrink-0"
+                                      />
+                                    );
+                                  }
+                                  return (
+                                    <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold flex items-center justify-center text-xs shrink-0">
+                                      {p.name ? p.name.slice(0, 2).toUpperCase() : "🤝"}
+                                    </div>
+                                  );
+                                })()}
+                                <div>
+                                  <div>{p.name}</div>
+                                  <div className="text-[10px] text-slate-400 font-normal">Partner</div>
+                                </div>
+                              </div>
                             </td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 dark:text-emerald-400">
                               {money(p.opening_cash)}
@@ -13539,6 +13931,83 @@ Thank you for your business!`;
               {/* APPLICATION CONFIGURATION TAB (POINT 3) */}
               {settingsSubTab === "app_config" && (
                 <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* SYSTEM NAME & BRAND CONFIGURATION */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <Icon name="briefcase" size={16} /> Application & System Business Name
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Configure the business / system name displayed across header branding, browser titles, invoice bills, WhatsApp receipts, and reports.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("app_system_name", systemName);
+                          }
+                          alert(`System Name saved successfully as "${systemName}"!`);
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Save System Name
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          System / Business Display Name:
+                        </label>
+                        <input
+                          type="text"
+                          value={systemName}
+                          onChange={(e) => setSystemName(e.target.value)}
+                          placeholder="e.g. B Reddy Sales"
+                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Live Display Preview</div>
+                        <div className="font-black text-indigo-600 dark:text-indigo-400 text-base">{systemName.toUpperCase()}</div>
+                        <div className="text-[11px] text-slate-500">{systemName} - Wholesale & Retail ERP</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PAN & GSTIN SYSTEM-WIDE TOGGLE */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <Icon name="shield" size={16} /> PAN & GSTIN Compliance Requirement
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Enable or disable PAN and GSTIN fields system-wide for Customers and Suppliers. When enabled, tax fields are captured in forms and displayed across Masters.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !enablePanGstin;
+                          setEnablePanGstin(next);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("enable_pan_gstin", String(next));
+                          }
+                          alert(`PAN & GSTIN requirement is now ${next ? "ENABLED" : "DISABLED"} system-wide.`);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                          enablePanGstin
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <span>{enablePanGstin ? "✓" : "✕"}</span>
+                        <span>{enablePanGstin ? "Requirement Enabled" : "Requirement Disabled"}</span>
+                      </button>
+                    </div>
+                  </div>
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                       <div>
@@ -13675,6 +14144,84 @@ Thank you for your business!`;
               {/* GENERAL SETTINGS CONTAINER */}
               {settingsSubTab === "general" && (
                 <div className="space-y-6">
+
+                  {/* SECTION 0: SYSTEM NAME & BRAND CONFIGURATION */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <Icon name="briefcase" size={16} /> Application & System Business Name
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Configure the business / system name displayed across header branding, browser titles, invoice bills, WhatsApp receipts, and reports.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("app_system_name", systemName);
+                          }
+                          alert(`System Name saved successfully as "${systemName}"!`);
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Save System Name
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          System / Business Display Name:
+                        </label>
+                        <input
+                          type="text"
+                          value={systemName}
+                          onChange={(e) => setSystemName(e.target.value)}
+                          placeholder="e.g. B Reddy Sales"
+                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Live Display Preview</div>
+                        <div className="font-black text-indigo-600 dark:text-indigo-400 text-base">{systemName.toUpperCase()}</div>
+                        <div className="text-[11px] text-slate-500">{systemName} - Wholesale & Retail ERP</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 0B: PAN & GSTIN SYSTEM-WIDE TOGGLE */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <Icon name="shield" size={16} /> PAN & GSTIN Compliance Requirement
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Enable or disable PAN and GSTIN fields system-wide for Customers and Suppliers. When enabled, tax fields are captured in forms and displayed across Masters.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !enablePanGstin;
+                          setEnablePanGstin(next);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("enable_pan_gstin", String(next));
+                          }
+                          alert(`PAN & GSTIN requirement is now ${next ? "ENABLED" : "DISABLED"} system-wide.`);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                          enablePanGstin
+                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        <span>{enablePanGstin ? "✓" : "✕"}</span>
+                        <span>{enablePanGstin ? "Requirement Enabled" : "Requirement Disabled"}</span>
+                      </button>
+                    </div>
+                  </div>
 
               {/* SECTION 1: LANGUAGE SELECTION (POINT 1 & 5) */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
@@ -15809,32 +16356,62 @@ Thank you for your business!`;
       {showCustModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
             <form onSubmit={saveCustomer} className="space-y-3">
               <input
                 type="text"
                 required
                 placeholder="Customer Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={custForm.name}
                 onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
               />
               <input
                 type="tel"
                 placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={custForm.mobile}
                 onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
               />
               <input
                 type="number"
                 placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={custForm.old_due}
                 onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
               />
+              {enablePanGstin && (
+                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      PAN No.
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      placeholder="ABCDE1234F"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={custForm.pan || ""}
+                      onChange={(e) => setCustForm({ ...custForm, pan: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      placeholder="37ABCDE1234F1Z5"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={custForm.gstin || ""}
+                      onChange={(e) => setCustForm({ ...custForm, gstin: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
               </div>
             </form>
@@ -15846,31 +16423,61 @@ Thank you for your business!`;
       {showSupplierModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
             <form onSubmit={saveSupplier} className="space-y-3">
               <input
                 type="text"
                 required
                 placeholder="Supplier / Firm Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={supplierForm.name}
                 onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
               />
               <input
                 type="tel"
                 placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={supplierForm.mobile}
                 onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
               />
               <input
                 type="number"
                 placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={supplierForm.old_due}
                 onChange={(e) => setSupplierForm({ ...supplierForm, old_due: e.target.value })}
               />
-              <label className="flex items-center gap-2 p-2 bg-indigo-50/60 rounded-xl border border-indigo-100 cursor-pointer text-xs font-semibold text-indigo-900">
+              {enablePanGstin && (
+                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      PAN No.
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      placeholder="ABCDE1234F"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={supplierForm.pan || ""}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, pan: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      placeholder="37ABCDE1234F1Z5"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={supplierForm.gstin || ""}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                </div>
+              )}
+              <label className="flex items-center gap-2 p-2 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-xl border border-indigo-100 dark:border-indigo-900 cursor-pointer text-xs font-semibold text-indigo-900 dark:text-indigo-200">
                 <input
                   type="checkbox"
                   checked={!!supplierForm.is_dual}
@@ -15880,7 +16487,7 @@ Thank you for your business!`;
                 <span>Allow in Sale Invoice (Supplier is also a Customer)</span>
               </label>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Supplier</button>
               </div>
             </form>
@@ -15892,13 +16499,56 @@ Thank you for your business!`;
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingPartnerId ? "Edit Partner" : "Add Partner"}</h3>
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingPartnerId ? "Edit Partner" : "Add Partner"}</h3>
             <form onSubmit={savePartner} className="space-y-3">
+              {/* Partner Avatar / Photo Upload */}
+              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div className="relative shrink-0">
+                  {partnerForm.image ? (
+                    <img
+                      src={partnerForm.image}
+                      alt="Partner Photo"
+                      className="w-14 h-14 rounded-full object-cover border-2 border-indigo-500 shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-2 border-dashed border-indigo-300 dark:border-indigo-700 flex items-center justify-center font-black text-lg">
+                      {partnerForm.name ? partnerForm.name.slice(0, 2).toUpperCase() : "🤝"}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Partner Photo
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <label className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1 transition">
+                      <Icon name="upload" size={12} />
+                      <span>{partnerForm.image ? "Change" : "Upload"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handlePartnerImageUpload}
+                      />
+                    </label>
+                    {partnerForm.image && (
+                      <button
+                        type="button"
+                        onClick={() => setPartnerForm((prev) => ({ ...prev, image: "" }))}
+                        className="px-2 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold transition"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <input
                 type="text"
                 required
                 placeholder="Partner Name"
-                className="w-full p-2.5 border rounded-xl text-sm"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={partnerForm.name}
                 onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
               />
@@ -15906,25 +16556,25 @@ Thank you for your business!`;
                 <input
                   type="number"
                   placeholder="Opening Cash (₹)"
-                  className="p-2.5 border rounded-xl text-xs"
+                  className="p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                   value={partnerForm.opening_cash}
                   onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
                 />
                 <input
                   type="number"
                   placeholder="Opening UPI (₹)"
-                  className="p-2.5 border rounded-xl text-xs"
+                  className="p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                   value={partnerForm.opening_upi}
                   onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                     System Role
                   </label>
                   <select
-                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                     value={partnerForm.role || "partner"}
                     onChange={(e) => setPartnerForm({ ...partnerForm, role: e.target.value })}
                   >
@@ -15940,14 +16590,14 @@ Thank you for your business!`;
                     type="password"
                     maxLength={8}
                     placeholder="PIN: 0000"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-center tracking-widest"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-center tracking-widest bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                     value={partnerForm.pin}
                     onChange={(e) => setPartnerForm({ ...partnerForm, pin: e.target.value })}
                   />
                 </div>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="button" onClick={() => setShowPartnerModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
                 <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Partner</button>
               </div>
             </form>
