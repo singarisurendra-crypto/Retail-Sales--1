@@ -311,8 +311,6 @@ export default function App() {
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("all");
   const [invoiceDateFilter, setInvoiceDateFilter] = useState("all");
   const [invoiceCustomerFilter, setInvoiceCustomerFilter] = useState("all");
-  const [invoiceSellerFilter, setInvoiceSellerFilter] = useState("all");
-  const [invoiceSortOption, setInvoiceSortOption] = useState("date_desc");
 
   const [procureSearchQuery, setProcureSearchQuery] = useState("");
   const [procureStockFilter, setProcureStockFilter] = useState("all");
@@ -1304,6 +1302,105 @@ export default function App() {
     return {};
   });
 
+  // ==============================================================================
+  // RBAC: SYSTEM MODULES MATRIX & ROLES CONFIGURATION
+  // ==============================================================================
+  const SYSTEM_MODULES = [
+    { id: "sale", label: "POS Billing", icon: "rupee", desc: "Fast retail billing, cart checkout, discounts" },
+    { id: "invoices", label: "Invoice & Receipts", icon: "filetext", desc: "Past orders, invoice prints, payments" },
+    { id: "purchases", label: "Purchase & Stock", icon: "package", desc: "Vendor procurements, inventory batch lots" },
+    { id: "payments_collections", label: "Payment & Collections", icon: "receipt", desc: "Customer receipts, supplier settlements" },
+    { id: "summary", label: "Dashboard", icon: "dashboard", desc: "KPIs, revenue snapshot, expense breakdown" },
+    { id: "analysis", label: "Business Analysis", icon: "chart", desc: "P&L, partner balances, dues aging" },
+    { id: "masters", label: "Masters Hub", icon: "layers", desc: "Customers, Suppliers, Items, Categories" },
+    { id: "reports", label: "Reports & Statements", icon: "filetext", desc: "Daybook, Ledger PDF, Excel statements" },
+    { id: "settings", label: "System Settings", icon: "settings", desc: "Configuration, Roles, 2FA, Branding" }
+  ];
+
+  const defaultRoles = [
+    {
+      id: "role_admin",
+      name: "System Admin",
+      isSystem: true,
+      modules: ["sale", "invoices", "purchases", "payments_collections", "summary", "analysis", "masters", "reports", "settings"],
+      description: "Full unrestricted access to all modules and configurations."
+    },
+    {
+      id: "role_partner",
+      name: "Standard Partner",
+      isSystem: false,
+      modules: ["sale", "invoices", "purchases", "payments_collections", "summary", "analysis", "masters", "reports"],
+      description: "Access to day-to-day operations, sales, procurement, and reports."
+    },
+    {
+      id: "role_cashier",
+      name: "Sales Cashier",
+      isSystem: false,
+      modules: ["sale", "invoices", "payments_collections"],
+      description: "Restricted to POS checkout, invoice printing, and collecting dues."
+    },
+    {
+      id: "role_store_mgr",
+      name: "Store & Inventory Manager",
+      isSystem: false,
+      modules: ["sale", "invoices", "purchases", "payments_collections", "masters"],
+      description: "Operational access including stock procurement and master catalogues."
+    }
+  ];
+
+  const [systemRoles, setSystemRoles] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("app_system_roles");
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return defaultRoles;
+  });
+
+  const [partnerRoles, setPartnerRoles] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("partner_roles");
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {};
+  });
+
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRoleId, setEditingRoleId] = useState(null);
+  const [roleForm, setRoleForm] = useState({
+    name: "",
+    description: "",
+    modules: ["sale", "invoices"]
+  });
+
+  const hasModuleAccess = (moduleKey) => {
+    // 1. Universal Admin access: always true
+    if (currentUser?.role === "admin" || currentUser?.name === "Administrator" || currentUser?.role_id === "role_admin") {
+      return true;
+    }
+    // 2. Map secondary tabs to canonical module keys:
+    const tabMap = {
+      procurement: "purchases",
+      ledger: "analysis",
+      history_audit: "analysis",
+      lenders: "analysis",
+      expenses: "analysis",
+      partners: "masters",
+    };
+    const effectiveKey = tabMap[moduleKey] || moduleKey;
+
+    // 3. Partner lookup:
+    const curPartner = partners.find((p) => p.name === currentUser?.name || String(p.id) === String(currentUser?.id));
+    const roleId = partnerRoles[curPartner?.id] || partnerRoles[curPartner?.name] || curPartner?.role_id || "role_partner";
+    const roleObj = systemRoles.find((r) => r.id === roleId);
+    if (!roleObj) return true; // fallback
+    return Array.isArray(roleObj.modules) && roleObj.modules.includes(effectiveKey);
+  };
+
+
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.title = `${systemName} - Wholesale & Retail ERP`;
@@ -1321,7 +1418,7 @@ export default function App() {
   const [itemForm, setItemForm] = useState({ name: "", purchase_rate: "", selling_rate: "", opening_qty: "" });
 
   const [editingPartnerId, setEditingPartnerId] = useState(null);
-  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner", image: "" });
+  const [partnerForm, setPartnerForm] = useState({ name: "", opening_cash: "", opening_upi: "", pin: "0000", role: "partner", role_id: "role_partner", image: "" });
 
   const [editingLenderId, setEditingLenderId] = useState(null);
   const [lenderForm, setLenderForm] = useState({ name: "", mobile: "", initial_loan: "" });
@@ -1778,6 +1875,11 @@ export default function App() {
   };
 
   const navigateTab = (targetTab) => {
+    // RBAC Security Guard: Check module permissions
+    if (!hasModuleAccess(targetTab)) {
+      alert(`Access Restricted: Your assigned role does not have permission to access the "${targetTab}" module.\n\nPlease contact your System Administrator to update your role permissions.`);
+      return;
+    }
     // If leaving POS Billing, reset POS billing state completely so it never lingers dirty or in edit mode
     if (activeTab === "sale" && targetTab !== "sale") {
       resetPOSBillingState();
@@ -2911,12 +3013,6 @@ export default function App() {
         return String(i.customer_id) === String(invoiceCustomerFilter);
       });
     }
-    if (invoiceSellerFilter && invoiceSellerFilter !== "all") {
-      list = list.filter((i) => {
-        const seller = (i.sold_by || i.seller_name || i.partner_name || partners.find((p) => String(p.id) === String(i.upfront_receiver_id || i.partner_id || i.receiver_id))?.name || "Ranga Prasad").toLowerCase();
-        return seller.includes(invoiceSellerFilter.toLowerCase());
-      });
-    }
     if (invoiceDateFilter !== "all") {
       list = list.filter((i) => matchDateFilter(i.invoice_date || i.created_at, invoiceDateFilter));
     }
@@ -2931,20 +3027,6 @@ export default function App() {
 
     const sorted = [...list];
     sorted.sort((a, b) => {
-      if (invoiceSortOption === "total_desc") {
-        return Number(b.total_amount || 0) - Number(a.total_amount || 0);
-      }
-      if (invoiceSortOption === "total_asc") {
-        return Number(a.total_amount || 0) - Number(b.total_amount || 0);
-      }
-      if (invoiceSortOption === "inv_desc") {
-        return (b.invoice_number || "").localeCompare(a.invoice_number || "") || (Number(b.id || 0) - Number(a.id || 0));
-      }
-      if (invoiceSortOption === "date_asc") {
-        const aT = getDateTimeVal(a, "invoice_date");
-        const bT = getDateTimeVal(b, "invoice_date");
-        return aT - bT || (Number(a.id || 0) - Number(b.id || 0));
-      }
       let cmp = 0;
       if (invoiceSortCol === "id") {
         cmp = (a.invoice_number || "").localeCompare(b.invoice_number || "") || (Number(a.id || 0) - Number(b.id || 0));
@@ -2970,15 +3052,11 @@ export default function App() {
         cmp = aDue - bDue;
       } else if (invoiceSortCol === "status") {
         cmp = (a.status || "").localeCompare(b.status || "");
-      } else {
-        const aT = getDateTimeVal(a, "invoice_date");
-        const bT = getDateTimeVal(b, "invoice_date");
-        return bT - aT || (Number(b.id || 0) - Number(a.id || 0));
       }
       return invoiceSortDir === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [invoices, suppliers, partners, invoiceStatusFilter, invoiceCustomerFilter, invoiceSellerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSortOption, invoiceSortCol, invoiceSortDir, invoiceAllocationsMap]);
+  }, [invoices, suppliers, invoiceStatusFilter, invoiceCustomerFilter, invoiceDateFilter, invoiceSearchQuery, invoiceSortCol, invoiceSortDir, invoiceAllocationsMap]);
 
   const purchaseOrdersGrouped = useMemo(() => {
     const map = new Map();
@@ -4749,12 +4827,14 @@ Thank you for your business!`;
     const storedPins = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('partner_pins') || '{}') : {};
     const existingPin = storedPins[String(p.id)] || storedPins[p.name] || storedPins[p.name?.trim()] || p.pin || '0000';
     const existingImg = partnerImages[p.id] || partnerImages[p.name] || p.image || "";
+    const existingRole = partnerRoles[p.id] || partnerRoles[p.name] || p.role_id || "role_partner";
     setPartnerForm({
       name: p.name || '',
       opening_cash: String(p.opening_cash || ''),
       opening_upi: String(p.opening_upi || ''),
       pin: existingPin,
       role: p.role || 'partner',
+      role_id: existingRole,
       image: existingImg
     });
     setShowPartnerModal(true);
@@ -4806,6 +4886,12 @@ Thank you for your business!`;
         nextImgs[partnerForm.name.trim()] = partnerForm.image || "";
         setPartnerImages(nextImgs);
         localStorage.setItem('partner_images', JSON.stringify(nextImgs));
+
+        const nextRoles = { ...partnerRoles };
+        if (savedId) nextRoles[String(savedId)] = partnerForm.role_id || "role_partner";
+        nextRoles[partnerForm.name.trim()] = partnerForm.role_id || "role_partner";
+        setPartnerRoles(nextRoles);
+        localStorage.setItem('partner_roles', JSON.stringify(nextRoles));
       }
       if (savedId) {
         setPartners((prev) => prev.map((item) => String(item.id) === String(savedId) ? { ...item, pin: partnerForm.pin, image: partnerForm.image } : item));
@@ -5873,6 +5959,24 @@ Thank you for your business!`;
       if (typeof window !== "undefined") {
         localStorage.setItem("app_current_user", JSON.stringify(userObj));
       }
+      // Ensure default landing is POS Billing ("sale") if permitted, or first allowed module
+      if (userObj?.role === "admin" || userObj?.name === "Administrator") {
+        setActiveTab("sale");
+      } else {
+        const curPartner = partners.find((p) => p.name === userObj?.name || String(p.id) === String(userObj?.id));
+        const storedRoles = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_roles") || "{}") : {};
+        const roleId = storedRoles[curPartner?.id] || storedRoles[curPartner?.name] || curPartner?.role_id || "role_partner";
+        const allRoles = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("app_system_roles") || "null") || defaultRoles : defaultRoles;
+        const roleObj = allRoles.find((r) => r.id === roleId);
+        const allowed = roleObj?.modules || ["sale", "invoices"];
+        if (allowed.includes("sale")) {
+          setActiveTab("sale");
+        } else if (allowed.length > 0) {
+          setActiveTab(allowed[0]);
+        } else {
+          setActiveTab("sale");
+        }
+      }
     };
 
     const performLoginWithSessionCheck = async (userObj) => {
@@ -6288,116 +6392,132 @@ Thank you for your business!`;
           <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
 
           {/* 2. Dashboard */}
-          <button
-            type="button"
-            onClick={() => navigateTab("summary")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "summary"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="dashboard" size={15} />
-            <span>{t("Dashboard", "డ్యాష్‌బోర్డ్")}</span>
-          </button>
+          {hasModuleAccess("summary") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("summary")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "summary"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="dashboard" size={15} />
+              <span>{t("Dashboard", "డ్యాష్‌బోర్డ్")}</span>
+            </button>
+          )}
 
           {/* 3. POS */}
-          <button
-            type="button"
-            onClick={() => navigateTab("sale")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "sale"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="rupee" size={15} />
-            <span>{t("POS", "పీఓఎస్")}</span>
-          </button>
+          {hasModuleAccess("sale") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("sale")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "sale"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="rupee" size={15} />
+              <span>{t("POS", "పీఓఎస్")}</span>
+            </button>
+          )}
 
           {/* 4. Invoice & Receipts */}
-          <button
-            type="button"
-            onClick={() => navigateTab("invoices")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "invoices"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="filetext" size={15} />
-            <span>{t("Invoice & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}</span>
-          </button>
+          {hasModuleAccess("invoices") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("invoices")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "invoices"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="filetext" size={15} />
+              <span>{t("Invoice & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}</span>
+            </button>
+          )}
 
           {/* 5. Purchase & Stock */}
-          <button
-            type="button"
-            onClick={() => navigateTab("purchases")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "purchases" || activeTab === "procurement"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="package" size={15} />
-            <span>{t("Purchase & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
-          </button>
+          {hasModuleAccess("purchases") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("purchases")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "purchases" || activeTab === "procurement"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="package" size={15} />
+              <span>{t("Purchase & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
+            </button>
+          )}
 
           {/* 6. Payment & Collections */}
-          <button
-            type="button"
-            onClick={() => navigateTab("payments_collections")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "payments_collections"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="receipt" size={15} />
-            <span>{t("Payment & Collections", "చెల్లింపులు & వసూళ్లు")}</span>
-          </button>
+          {hasModuleAccess("payments_collections") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("payments_collections")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "payments_collections"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="receipt" size={15} />
+              <span>{t("Payment & Collections", "చెల్లింపులు & వసూళ్లు")}</span>
+            </button>
+          )}
 
           {/* 7. Analysis */}
-          <button
-            type="button"
-            onClick={() => navigateTab("analysis")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "analysis"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="chart" size={15} />
-            <span>{t("Analysis", "విశ్లేషణ")}</span>
-          </button>
+          {hasModuleAccess("analysis") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("analysis")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "analysis"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="chart" size={15} />
+              <span>{t("Analysis", "విశ్లేషణ")}</span>
+            </button>
+          )}
 
           {/* 8. Masters */}
-          <button
-            type="button"
-            onClick={() => navigateTab("masters")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "masters"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="layers" size={15} />
-            <span>{t("Masters", "మాస్టర్స్")}</span>
-          </button>
+          {hasModuleAccess("masters") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("masters")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "masters"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="layers" size={15} />
+              <span>{t("Masters", "మాస్టర్స్")}</span>
+            </button>
+          )}
 
           {/* 9. Reports */}
-          <button
-            type="button"
-            onClick={() => navigateTab("reports")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              activeTab === "reports"
-                ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            <Icon name="filetext" size={15} />
-            <span>{t("Reports", "నివేదికలు")}</span>
-          </button>
+          {hasModuleAccess("reports") && (
+            <button
+              type="button"
+              onClick={() => navigateTab("reports")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                activeTab === "reports"
+                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              <Icon name="filetext" size={15} />
+              <span>{t("Reports", "నివేదికలు")}</span>
+            </button>
+          )}
         </nav>
       </header>
 
@@ -6430,171 +6550,213 @@ Thank you for your business!`;
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block px-1">Quick Actions</span>
-            <button
-              onClick={() => {
-                setEditingCollectionId(null);
-                setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
-                setShowCollectModal(true);
-                setSidebarOpen(false);
-              }}
-              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer transition"
-            >
-              <Icon name="rupee" size={15} /> {t("Collect Customer Due", "కస్టమర్ బకాయి వసూలు")}
-            </button>
-            <button
-              onClick={() => {
-                setEditingPaymentId(null);
-                setIsBillLocked(false);
-                setPaySupplierMode("single");
-                setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
-                setShowPayPurchaseModal(true);
-                setSidebarOpen(false);
-              }}
-              className={`w-full py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer transition`}
-            >
-              <Icon name="wallet" size={15} /> {t("Pay Purchase Bill", "సరుకు కొనుగోలు బిల్లు చెల్లించండి")}
-            </button>
-          </div>
+          {(hasModuleAccess("payments_collections") || hasModuleAccess("purchases")) && (
+            <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block px-1">Quick Actions</span>
+              {hasModuleAccess("payments_collections") && (
+                <button
+                  onClick={() => {
+                    setEditingCollectionId(null);
+                    setCollectForm({ customer_id: "", invoice_id: "", amount: "", payment_mode: "Cash", receiver_id: upfrontPartnerId, reference_no: "", notes: "" });
+                    setShowCollectModal(true);
+                    setSidebarOpen(false);
+                  }}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer transition"
+                >
+                  <Icon name="rupee" size={15} /> {t("Collect Customer Due", "కస్టమర్ బకాయి వసూలు")}
+                </button>
+              )}
+              {(hasModuleAccess("payments_collections") || hasModuleAccess("purchases")) && (
+                <button
+                  onClick={() => {
+                    setEditingPaymentId(null);
+                    setIsBillLocked(false);
+                    setPaySupplierMode("single");
+                    setPayPurchaseForm({ purchase_id: "", amount: "", partner_id: upfrontPartnerId, payment_mode: "Cash", reference_no: "", notes: "" });
+                    setShowPayPurchaseModal(true);
+                    setSidebarOpen(false);
+                  }}
+                  className={`w-full py-2 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow cursor-pointer transition`}
+                >
+                  <Icon name="wallet" size={15} /> {t("Pay Purchase Bill", "సరుకు కొనుగోలు బిల్లు చెల్లించండి")}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Navigation Items */}
           <nav className="p-3 space-y-4">
-            <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Sales & Billing", "అమ్మకాలు & బిల్లింగ్")}</span>
-              <div className="space-y-1">
-                <button
-                  onClick={() => navigateTab("sale")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "sale" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="rupee" size={16} /> {t("POS Billing", "పీఓఎస్ బిల్లింగ్")}
-                </button>
-                <button
-                  onClick={() => navigateTab("invoices")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "invoices" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="filetext" size={16} /> {t("Invoices & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}
-                </button>
+            {(hasModuleAccess("sale") || hasModuleAccess("invoices")) && (
+              <div>
+                <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Sales & Billing", "అమ్మకాలు & బిల్లింగ్")}</span>
+                <div className="space-y-1">
+                  {hasModuleAccess("sale") && (
+                    <button
+                      onClick={() => navigateTab("sale")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "sale" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="rupee" size={16} /> {t("POS Billing", "పీఓఎస్ బిల్లింగ్")}
+                    </button>
+                  )}
+                  {hasModuleAccess("invoices") && (
+                    <button
+                      onClick={() => navigateTab("invoices")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "invoices" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="filetext" size={16} /> {t("Invoices & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Purchases & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
-              <div className="space-y-1">
-                <button
-                  onClick={() => navigateTab("purchases")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "purchases" || activeTab === "procurement" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="package" size={16} /> {t("Purchases & Stock Inventory", "కొనుగోళ్లు & స్టాక్")}
-                </button>
-                <button
-                  onClick={() => navigateTab("payments_collections")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "payments_collections" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="receipt" size={16} /> {t("Payments & Collections", "చెల్లింపులు & వసూళ్లు")}
-                </button>
+            {(hasModuleAccess("purchases") || hasModuleAccess("payments_collections")) && (
+              <div>
+                <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Purchases & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
+                <div className="space-y-1">
+                  {hasModuleAccess("purchases") && (
+                    <button
+                      onClick={() => navigateTab("purchases")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "purchases" || activeTab === "procurement" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="package" size={16} /> {t("Purchases & Stock Inventory", "కొనుగోళ్లు & స్టాక్")}
+                    </button>
+                  )}
+                  {hasModuleAccess("payments_collections") && (
+                    <button
+                      onClick={() => navigateTab("payments_collections")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "payments_collections" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="receipt" size={16} /> {t("Payments & Collections", "చెల్లింపులు & వసూళ్లు")}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Financials & Accounts", "ఆర్థిక లావాదేవీలు & ఖాతాలు")}</span>
-              <div className="space-y-1">
-                <button
-                  onClick={() => navigateTab("summary")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "summary" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="dashboard" size={16} /> {t("Business Snapshot (Dashboard)", "వ్యాపార సమాచారం")}
-                </button>
-                <button
-                  onClick={() => navigateTab("ledger")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "ledger" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="layers" size={16} /> {t("Ledger Statement", "ఖాతా వివరాల నివేదిక")}
-                </button>
-                <button
-                  onClick={() => navigateTab("history_audit")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="history" size={16} /> {t("Transaction Audit Ledger", "లావాదేవీల ఆడిట్ లెడ్జర్")}
-                </button>
-                <button
-                  onClick={() => navigateTab("lenders")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="handcoins" size={16} /> {t("Business Loans", "వ్యాపార రుణాలు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("expenses")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="creditcard" size={16} /> {t("Shop Expenses & Outflow", "షాపు ఖర్చులు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("analysis")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "analysis" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="chart" size={16} /> {t("Analysis & Insights", "విశ్లేషణ & నివేదికలు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("reports")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="filetext" size={16} /> {t("B Reddy Excel Sheet (PDF)", "బి రెడ్డి ఎక్సెల్ షీట్ (PDF)")}
-                </button>
+            {(hasModuleAccess("summary") || hasModuleAccess("analysis") || hasModuleAccess("reports")) && (
+              <div>
+                <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Financials & Accounts", "ఆర్థిక లావాదేవీలు & ఖాతాలు")}</span>
+                <div className="space-y-1">
+                  {hasModuleAccess("summary") && (
+                    <button
+                      onClick={() => navigateTab("summary")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "summary" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="dashboard" size={16} /> {t("Business Snapshot (Dashboard)", "వ్యాపార సమాచారం")}
+                    </button>
+                  )}
+                  {(hasModuleAccess("analysis") || hasModuleAccess("reports")) && (
+                    <button
+                      onClick={() => navigateTab("ledger")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "ledger" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="layers" size={16} /> {t("Ledger Statement", "ఖాతా వివరాల నివేదిక")}
+                    </button>
+                  )}
+                  {(hasModuleAccess("analysis") || hasModuleAccess("reports")) && (
+                    <button
+                      onClick={() => navigateTab("history_audit")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "history_audit" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="history" size={16} /> {t("Transaction Audit Ledger", "లావాదేవీల ఆడిట్ లెడ్జర్")}
+                    </button>
+                  )}
+                  {(hasModuleAccess("analysis") || hasModuleAccess("summary")) && (
+                    <button
+                      onClick={() => navigateTab("lenders")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "lenders" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="handcoins" size={16} /> {t("Business Loans", "వ్యాపార రుణాలు")}
+                    </button>
+                  )}
+                  {(hasModuleAccess("analysis") || hasModuleAccess("summary")) && (
+                    <button
+                      onClick={() => navigateTab("expenses")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "expenses" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="creditcard" size={16} /> {t("Shop Expenses & Outflow", "షాపు ఖర్చులు")}
+                    </button>
+                  )}
+                  {hasModuleAccess("analysis") && (
+                    <button
+                      onClick={() => navigateTab("analysis")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "analysis" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="chart" size={16} /> {t("Analysis & Insights", "విశ్లేషణ & నివేదికలు")}
+                    </button>
+                  )}
+                  {hasModuleAccess("reports") && (
+                    <button
+                      onClick={() => navigateTab("reports")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "reports" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="filetext" size={16} /> {t("B Reddy Excel Sheet (PDF)", "బి రెడ్డి ఎక్సెల్ షీట్ (PDF)")}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Administration", "నిర్వహణ")}</span>
-              <div className="space-y-1">
-                <button
-                  onClick={() => navigateTab("masters")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "masters" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="layers" size={16} /> {t("Master Management", "మాస్టర్ డేటా నిర్వహణ")}
-                </button>
-                <button
-                  onClick={() => navigateTab("partners")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "partners" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <Icon name="wallet" size={16} /> {t("Partner Capital Accounts", "భాగస్వాముల మూలధన ఖాతాలు")}
-                </button>
-                <button
-                  onClick={() => navigateTab("settings")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    activeTab === "settings" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
-                  }`}
-                >
-                  <span className="text-sm">⚙️</span> {t("System Settings", "సిస్టమ్ సెట్టింగులు")}
-                </button>
+            {(hasModuleAccess("masters") || hasModuleAccess("settings")) && (
+              <div>
+                <span className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{t("Administration", "నిర్వహణ")}</span>
+                <div className="space-y-1">
+                  {hasModuleAccess("masters") && (
+                    <button
+                      onClick={() => navigateTab("masters")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "masters" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="layers" size={16} /> {t("Master Management", "మాస్టర్ డేటా నిర్వహణ")}
+                    </button>
+                  )}
+                  {hasModuleAccess("masters") && (
+                    <button
+                      onClick={() => navigateTab("partners")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "partners" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <Icon name="wallet" size={16} /> {t("Partner Capital Accounts", "భాగస్వాముల మూలధన ఖాతాలు")}
+                    </button>
+                  )}
+                  {hasModuleAccess("settings") && (
+                    <button
+                      onClick={() => navigateTab("settings")}
+                      className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeTab === "settings" ? curTheme.activeNav : "hover:bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <span className="text-sm">⚙️</span> {t("System Settings", "సిస్టమ్ సెట్టింగులు")}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </nav>
         </div>
 
@@ -6629,8 +6791,38 @@ Thank you for your business!`;
       {/* MAIN CONTENT AREA - 100% FULL WIDTH */}
       <main className="flex-1 p-2 sm:p-3 lg:p-4 pb-20 md:pb-6 overflow-y-auto w-full">
 
+        {/* ACCESS DENIED FALLBACK */}
+        {!hasModuleAccess(activeTab) && (
+          <div className="max-w-md mx-auto my-16 p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center text-3xl shadow-xs">
+              🛡️
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Access Restricted</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Your assigned role does not have permission to access the <span className="font-bold text-rose-600 dark:text-rose-400 uppercase">"{activeTab}"</span> module.
+              </p>
+            </div>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Please contact your System Administrator to adjust your role privileges under Settings &rarr; Roles & Manage Modules.
+            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const allowed = SYSTEM_MODULES.find(m => hasModuleAccess(m.id))?.id || "sale";
+                  setActiveTab(allowed);
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+              >
+                Go to Allowed Screen
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* VIEW 1: POS BILLING */}
-        {activeTab === "sale" && (
+        {hasModuleAccess("sale") && activeTab === "sale" && (
           <div className="max-w-5xl mx-auto space-y-2.5 sm:space-y-3">
             <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
@@ -7311,155 +7503,63 @@ Thank you for your business!`;
           </div>
         )}
 
-        {/* VIEW: SALES INVOICES DIRECTORY (APPROVED TECHNO STACK DESIGN) */}
-        {activeTab === "invoices" && (
-          <div className="space-y-4">
-            {/* Header: Title, Subtitle, Refresh & New Sale */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        {/* VIEW: SALES INVOICES DIRECTORY */}
+        {hasModuleAccess("invoices") && activeTab === "invoices" && (
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 flex items-center justify-center shadow-2xs">
-                    <Icon name="receipt" size={18} />
-                  </div>
-                  <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Past Orders & Invoices</h1>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Browse completed sales, inspect multi-batch cost breakdown, and review customer billing history.</p>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight">Sales Invoices Directory</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">Track, review, print, and collect on customer invoices</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    refreshData();
-                  }}
-                  className="px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                >
-                  <Icon name="rotate-ccw" size={14} /> Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetPOSBillingState();
-                    setActiveTab("sale");
-                  }}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                >
-                  <Icon name="shopping-cart" size={14} /> New Sale (POS)
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  resetPOSBillingState();
+                  setActiveTab("sale");
+                }}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition"
+              >
+                <Icon name="plus" size={14} /> Create New Bill
+              </button>
             </div>
 
-            {/* 4 High-Density Summary Cards (Mobbin-Grade UX) */}
-            {(() => {
-              const invSummaryList = filteredInvoices;
-              const totalOrdersCount = invSummaryList.length;
-              const grossSalesSum = invSummaryList.reduce((s, inv) => s + Number(inv.total_amount || 0), 0);
-              const totalCogsSum = invSummaryList.reduce((s, inv) => {
-                if (!Array.isArray(inv.items)) return s;
-                return s + inv.items.reduce((sum, item) => {
-                  const q = Number(item.qty || item.quantity || 0);
-                  const pr = Number(item.purchase_rate || 0);
-                  return sum + (q * pr);
-                }, 0);
-              }, 0);
-              const netProfitSum = grossSalesSum - totalCogsSum;
-              const avgMarginPct = grossSalesSum > 0 ? ((netProfitSum / grossSalesSum) * 100).toFixed(1) : "0.0";
-              const isProfitPositive = netProfitSum >= 0;
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {/* CARD 1: TOTAL ORDERS */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">TOTAL ORDERS</span>
-                      <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400">
-                        <Icon name="receipt" size={15} />
-                      </span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-                      {totalOrdersCount}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Completed sales transactions
-                    </div>
-                  </div>
-
-                  {/* CARD 2: GROSS SALES */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">GROSS SALES</span>
-                      <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 font-bold text-xs">
-                        ₹
-                      </span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-                      {money(grossSalesSum)}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Total revenue collected
-                    </div>
-                  </div>
-
-                  {/* CARD 3: TOTAL COGS */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">TOTAL COGS</span>
-                      <span className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-                        <Icon name="layers" size={15} />
-                      </span>
-                    </div>
-                    <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-                      {money(totalCogsSum)}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Acquisition lot costs
-                    </div>
-                  </div>
-
-                  {/* CARD 4: NET PROFIT */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">NET PROFIT</span>
-                      <span className={`p-1.5 rounded-lg ${isProfitPositive ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400"}`}>
-                        <Icon name="trending-up" size={15} />
-                      </span>
-                    </div>
-                    <div className={`text-2xl font-black font-mono ${isProfitPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                      {isProfitPositive ? `+${money(netProfitSum)}` : `-${money(Math.abs(netProfitSum))}`}
-                    </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-                      {avgMarginPct}% average margin
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Universal Filter Toolbar */}
-            <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2">
-              <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-2">
-                {/* Search Input with pl-10 (standardized non-overlapping padding) */}
+            {/* Search & Universal Filters Toolbar */}
+            <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
+              <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute left-3.5 top-2.5 text-slate-400 pointer-events-none">
-                    <Icon name="search" size={15} />
+                  <span className="absolute left-3 top-2 text-slate-400">
+                    <Icon name="search" size={14} />
                   </span>
                   <input
                     type="text"
-                    placeholder="Search invoice #, customer, notes..."
-                    className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-sky-500 transition text-slate-900 dark:text-slate-100"
+                    placeholder="Search by invoice #, customer name, date..."
+                    className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
                     value={invoiceSearchQuery}
                     onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                   />
                 </div>
 
-                {/* Filter Dropdowns */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {/* Date Filter */}
+                  <select
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500"
+                    value={invoiceDateFilter}
+                    onChange={(e) => setInvoiceDateFilter(e.target.value)}
+                  >
+                    <option value="all">📅 All Dates</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                  </select>
+
+
+
                   {/* Customer Filter */}
                   <select
-                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 max-w-[150px]"
                     value={invoiceCustomerFilter}
                     onChange={(e) => setInvoiceCustomerFilter(e.target.value)}
                   >
-                    <option value="all">👥 All Customers ({customers.length})</option>
+                    <option value="all">👥 All Accounts</option>
                     <optgroup label="Customers">
                       {customers.map((c) => (
                         <option key={c.id} value={`cust_${c.id}`}>{c.name}</option>
@@ -7472,44 +7572,8 @@ Thank you for your business!`;
                     </optgroup>
                   </select>
 
-                  {/* Seller / Partner Filter */}
-                  <select
-                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-                    value={invoiceSellerFilter}
-                    onChange={(e) => setInvoiceSellerFilter(e.target.value)}
-                  >
-                    <option value="all">👤 All Sellers ({partners.length})</option>
-                    {partners.map((p) => (
-                      <option key={p.id} value={String(p.name)}>{p.name}</option>
-                    ))}
-                  </select>
-
-                  {/* Date Filter */}
-                  <select
-                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-                    value={invoiceDateFilter}
-                    onChange={(e) => setInvoiceDateFilter(e.target.value)}
-                  >
-                    <option value="all">📅 All Dates</option>
-                    <option value="today">Today</option>
-                    <option value="this_week">This Week</option>
-                    <option value="this_month">This Month</option>
-                  </select>
-
-                  {/* Sort Filter */}
-                  <select
-                    className="px-3 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-sky-500 cursor-pointer"
-                    value={invoiceSortOption}
-                    onChange={(e) => setInvoiceSortOption(e.target.value)}
-                  >
-                    <option value="date_desc">⇅ Date & Time</option>
-                    <option value="total_desc">⇅ Amount (High to Low)</option>
-                    <option value="total_asc">⇅ Amount (Low to High)</option>
-                    <option value="inv_desc">⇅ Invoice #</option>
-                  </select>
-
-                  {/* Status Filter Pills */}
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold">
+                  {/* Status Pills */}
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-bold">
                     {[
                       { id: "all", label: "All" },
                       { id: "collected", label: "Collected" },
@@ -7518,10 +7582,9 @@ Thank you for your business!`;
                     ].map((tab) => (
                       <button
                         key={tab.id}
-                        type="button"
                         onClick={() => setInvoiceStatusFilter(tab.id)}
-                        className={`px-2.5 py-1.5 rounded-lg whitespace-nowrap transition text-xs cursor-pointer ${
-                          invoiceStatusFilter === tab.id ? "bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-400 shadow-2xs font-black" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                        className={`px-2 py-1 rounded-md whitespace-nowrap transition text-xs ${
+                          invoiceStatusFilter === tab.id ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-2xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
                         }`}
                       >
                         {tab.label}
@@ -7531,318 +7594,272 @@ Thank you for your business!`;
                 </div>
               </div>
 
-              <div className="text-[11px] text-slate-500 font-semibold pt-1">
-                Showing <b className="text-slate-800 dark:text-slate-200">{filteredInvoices.length}</b> of <b className="text-slate-800 dark:text-slate-200">{invoices.length}</b> orders
-              </div>
-            </div>
+              {/* Invoices List / Table with Pagination & ERP Grid Borders */}
+              {(() => {
+                const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / 10));
+                const safeInvoicePage = Math.min(invoicePage, totalInvoicePages);
+                const pagedInvoices = filteredInvoices.slice((safeInvoicePage - 1) * 10, safeInvoicePage * 10);
 
-            {/* Invoices List / Table with Pagination */}
-            {(() => {
-              const totalInvoicePages = Math.max(1, Math.ceil(filteredInvoices.length / 10));
-              const safeInvoicePage = Math.min(invoicePage, totalInvoicePages);
-              const pagedInvoices = filteredInvoices.slice((safeInvoicePage - 1) * 10, safeInvoicePage * 10);
+                return (
+                  <div className="space-y-3">
+                    {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
 
-              return (
-                <div className="space-y-3">
-                  {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
-
-                  {/* DESKTOP TABLE VIEW */}
-                  <div className="hidden sm:block overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-2xs">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-[#f0f6fc] dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
-                        <tr>
-                          <th className="p-3">INVOICE #</th>
-                          <th className="p-3">DATE & TIME</th>
-                          <th className="p-3">CUSTOMER</th>
-                          <th className="p-3">SOLD BY</th>
-                          <th className="p-3">ITEMS & UNITS</th>
-                          <th className="p-3 text-right">ORDER TOTAL</th>
-                          <th className="p-3 text-right">COGS</th>
-                          <th className="p-3 text-right">NET PROFIT</th>
-                          <th className="p-3 text-center">RECEIPT & BREAKDOWN</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {pagedInvoices.length === 0 ? (
+                    <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
+                      <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-300 dark:border-slate-700">
                           <tr>
-                            <td colSpan={9} className="p-8 text-center text-slate-400">
-                              No invoices found matching your criteria.
-                            </td>
+                            <th onClick={() => toggleSort("id", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Invoice #", "ఇన్‌వాయిస్ #")}{renderSortIndicator("id", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("date", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Date", "తేదీ")}{renderSortIndicator("date", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("customer", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Customer", "కస్టమర్")}{renderSortIndicator("customer", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("items", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Items Summary", "వస్తువుల వివరాలు")}{renderSortIndicator("items", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("total", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Total", "మొత్తం")}{renderSortIndicator("total", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("paid", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Paid", "చెల్లించినది")}{renderSortIndicator("paid", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("due", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Balance Due", "బకాయి")}{renderSortIndicator("due", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th onClick={() => toggleSort("status", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              {t("Status", "స్థితి")}{renderSortIndicator("status", invoiceSortCol, invoiceSortDir)}
+                            </th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
                           </tr>
-                        ) : (
-                          pagedInvoices.map((inv) => {
-                            const itemsList = Array.isArray(inv.items) ? inv.items : [];
-                            const itemCount = itemsList.length;
-                            const unitsCount = itemsList.reduce((s, it) => s + Number(it.qty || it.quantity || 1), 0);
-                            const cogsVal = itemsList.reduce((s, it) => {
-                              const q = Number(it.qty || it.quantity || 0);
-                              const pr = Number(it.purchase_rate || 0);
-                              return s + (q * pr);
-                            }, 0);
-                            const totalAmt = Number(inv.total_amount || 0);
-                            const profitVal = totalAmt - cogsVal;
-                            const marginPct = totalAmt > 0 ? ((profitVal / totalAmt) * 100).toFixed(1) : "0.0";
-                            const isPos = profitVal >= 0;
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {pagedInvoices.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="p-8 text-center text-slate-400">
+                                No invoices found matching your criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            pagedInvoices.map((inv) => {
+                              const invAlloc = invoiceAllocationsMap.get(String(inv.id));
+                              const paidAmount = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
+                              const dueAmount = invAlloc ? invAlloc.balanceDue : Number(inv.balance_due || 0);
+                              const isPaid = dueAmount <= 0;
+                              const isPartial = !isPaid && paidAmount > 0;
+                              const statusLabel = isPaid ? "Collected" : isPartial ? "Partial" : "Due";
+                              const itemCount = Array.isArray(inv.items) ? inv.items.length : 0;
+                              const firstItemName = Array.isArray(inv.items) && inv.items[0]?.item_name;
 
-                            const sellerName = inv.sold_by || inv.seller_name || inv.partner_name || partners.find((p) => String(p.id) === String(inv.upfront_receiver_id || inv.partner_id || inv.receiver_id))?.name || "Ranga Prasad";
-                            const partnerObj = partners.find((p) => p.name === sellerName || String(p.id) === String(inv.upfront_receiver_id || inv.partner_id));
-                            const photo = partnerObj ? (partnerImages[partnerObj.id] || partnerImages[partnerObj.name] || partnerObj.image) : (partnerImages[sellerName] || "");
-
-                            const invAlloc = invoiceAllocationsMap.get(String(inv.id));
-                            const paidAmount = invAlloc ? invAlloc.totalPaid : Number(inv.upfront_paid || 0);
-                            const dueAmount = invAlloc ? invAlloc.balanceDue : Number(inv.balance_due || 0);
-                            const isPaid = dueAmount <= 0;
-
-                            return (
-                              <tr key={inv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                                {/* INVOICE # */}
-                                <td className="p-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditInvoice(inv)}
-                                    className="px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 hover:bg-sky-100 font-bold font-mono text-xs inline-flex items-center gap-1.5 transition cursor-pointer"
-                                    title="Click to edit bill in POS"
-                                  >
-                                    <Icon name="edit" size={11} />
-                                    <span>{inv.invoice_number || `INV-${inv.id}`}</span>
-                                  </button>
-                                </td>
-
-                                {/* DATE & TIME */}
-                                <td className="p-3">
-                                  <div className="space-y-0.5">
-                                    <div className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-200 text-xs">
-                                      <span className="text-slate-400">📅</span>
-                                      <span>{inv.invoice_date || (inv.created_at ? inv.created_at.slice(0, 10) : "2026-09-13")}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
-                                      <span className="text-slate-400">🕒</span>
-                                      <span className="truncate max-w-[150px]">{inv.created_at || `${inv.invoice_date || "2026-09-13"}T15:05:59+00:00`}</span>
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* CUSTOMER */}
-                                <td className="p-3">
-                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100 text-xs">
-                                    <span className="text-sky-500">👥</span>
-                                    <span>{inv.customer_name}</span>
-                                    {!inv.customer_id && (
-                                      <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                                        Contra
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-
-                                {/* SOLD BY WITH PARTNER AVATAR PHOTO */}
-                                <td className="p-3">
-                                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                                    {photo ? (
-                                      <img
-                                        src={photo}
-                                        alt={sellerName}
-                                        className="w-5 h-5 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0"
-                                      />
-                                    ) : (
-                                      <span className="text-slate-400 shrink-0">
-                                        <Icon name="user" size={13} />
-                                      </span>
-                                    )}
-                                    <span>{sellerName}</span>
-                                  </div>
-                                </td>
-
-                                {/* ITEMS & UNITS */}
-                                <td className="p-3">
-                                  <div className="text-xs">
-                                    <div className="font-bold text-slate-800 dark:text-slate-200">
-                                      {itemCount} {itemCount === 1 ? "item" : "items"}
-                                    </div>
-                                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                      {unitsCount} {unitsCount === 1 ? "unit" : "units"}
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* ORDER TOTAL */}
-                                <td className="p-3 text-right font-black text-slate-900 dark:text-white font-mono text-xs">
-                                  {money(inv.total_amount)}
-                                </td>
-
-                                {/* COGS */}
-                                <td className="p-3 text-right font-semibold text-slate-600 dark:text-slate-400 font-mono text-xs">
-                                  {money(cogsVal)}
-                                </td>
-
-                                {/* NET PROFIT */}
-                                <td className="p-3 text-right">
-                                  <div className="text-xs">
-                                    <div className={`font-black font-mono ${isPos ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                                      {isPos ? `+${money(profitVal)}` : `-${money(Math.abs(profitVal))}`}
-                                    </div>
-                                    <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                                      {marginPct}% margin
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* RECEIPT & BREAKDOWN / ACTIONS */}
-                                <td className="p-3 text-center">
-                                  <div className="inline-flex items-center gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedViewInvoice(inv)}
-                                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-sky-50 dark:hover:bg-slate-800 text-sky-600 dark:text-sky-400 font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                      title="View / Print Receipt"
-                                    >
-                                      <Icon name="receipt" size={12} />
-                                      <span>Receipt</span>
-                                    </button>
+                              return (
+                                <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700">
                                     <button
                                       type="button"
                                       onClick={() => handleEditInvoice(inv)}
-                                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                      title="Edit Invoice"
+                                      className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                                      title="Click invoice ID to edit bill in POS"
                                     >
-                                      <Icon name="edit" size={12} />
-                                      <span>Edit</span>
+                                      {inv.invoice_number || `INV-${inv.id}`}
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteInvoice(inv)}
-                                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                      title="Delete Invoice"
-                                    >
-                                      <Icon name="trash" size={12} />
-                                      <span>Delete</span>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 whitespace-nowrap">
+                                    {inv.invoice_date || inv.created_at?.slice(0, 10)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">
+                                    <div>
+                                      <span>{inv.customer_name}</span>
+                                      {!inv.customer_id && (
+                                        <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                          Supplier Contra
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 text-[11px]">
+                                    {itemCount > 0 ? (
+                                      <span>
+                                        {firstItemName}
+                                        {itemCount > 1 && <span className="text-slate-400"> +{itemCount - 1} more</span>}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">Standard Bill</span>
+                                    )}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-slate-100">
+                                    {money(inv.total_amount)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold">
+                                    {money(paidAmount)}
+                                  </td>
+                                  <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmount > 0 ? "text-rose-600" : "text-slate-400"}`}>
+                                    {money(dueAmount)}
+                                  </td>
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                      isPaid
+                                        ? "bg-emerald-100 text-emerald-800"
+                                        : isPartial
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-rose-100 text-rose-800"
+                                    }`}>
+                                      {statusLabel}
+                                    </span>
+                                  </td>
+                                  <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                    <div className="hidden sm:flex items-center justify-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        title="View / Print Invoice"
+                                        onClick={() => setSelectedViewInvoice(inv)}
+                                        className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                                      >
+                                        <Icon name="receipt" size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Share to WhatsApp"
+                                        onClick={() => handleShareWhatsApp(inv)}
+                                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition cursor-pointer"
+                                      >
+                                        <Icon name="share" size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Edit Invoice"
+                                        onClick={() => handleEditInvoice(inv)}
+                                        className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
+                                      >
+                                        <Icon name="edit" size={14} />
+                                      </button>
+                                      {!isPaid && (
+                                        <button
+                                          type="button"
+                                          title="Collect Payment"
+                                          onClick={() => {
+                                            setEditingCollectionId(null);
+                                            setCollectForm({
+                                              customer_id: String(inv.customer_id),
+                                              invoice_id: String(inv.id),
+                                              amount: String(dueAmount),
+                                              payment_mode: "Cash",
+                                              receiver_id: upfrontPartnerId || "",
+                                              reference_no: "",
+                                              notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
+                                            });
+                                            setShowCollectModal(true);
+                                          }}
+                                          className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
+                                        >
+                                          <Icon name="handcoins" size={14} />
+                                        </button>
+                                      )}
+                                      {paidAmount === 0 && !isPaid && (
+                                        <button
+                                          type="button"
+                                          title="Delete Invoice"
+                                          onClick={() => handleDeleteInvoice(inv)}
+                                          className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition cursor-pointer"
+                                        >
+                                          <Icon name="trash" size={14} />
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {/* Mobile Kebab Dropdown Menu */}
+                                    <div className="relative inline-block text-left sm:hidden">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setOpenMobileActionId(openMobileActionId === `inv_${inv.id}` ? null : `inv_${inv.id}`);
+                                        }}
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                        title="Actions"
+                                      >
+                                        <Icon name="more-vertical" size={15} />
+                                      </button>
+                                      {openMobileActionId === `inv_${inv.id}` && (
+                                        <>
+                                          <div className="fixed inset-0 z-40" onClick={() => setOpenMobileActionId(null)} />
+                                          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl py-1 z-50 text-left text-xs font-semibold">
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); setSelectedViewInvoice(inv); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300"
+                                            >
+                                              <Icon name="receipt" size={14} /> View / Print
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); handleShareWhatsApp(inv); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300"
+                                            >
+                                              <Icon name="share" size={14} /> WhatsApp
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => { setOpenMobileActionId(null); handleEditInvoice(inv); }}
+                                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                            >
+                                              <Icon name="edit" size={14} /> Edit Invoice
+                                            </button>
+                                            {!isPaid && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOpenMobileActionId(null);
+                                                  setEditingCollectionId(null);
+                                                  setCollectForm({
+                                                    customer_id: String(inv.customer_id),
+                                                    invoice_id: String(inv.id),
+                                                    amount: String(dueAmount),
+                                                    payment_mode: "Cash",
+                                                    receiver_id: upfrontPartnerId || "",
+                                                    reference_no: "",
+                                                    notes: `Payment for ${inv.invoice_number || "INV-" + inv.id}`
+                                                  });
+                                                  setShowCollectModal(true);
+                                                }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300"
+                                              >
+                                                <Icon name="handcoins" size={14} /> Collect Due
+                                              </button>
+                                            )}
+                                            {paidAmount === 0 && !isPaid && (
+                                              <button
+                                                type="button"
+                                                onClick={() => { setOpenMobileActionId(null); handleDeleteInvoice(inv); }}
+                                                className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400"
+                                              >
+                                                <Icon name="trash" size={14} /> Delete Bill
+                                              </button>
+                                            )}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
                   </div>
-
-                  {/* MOBILE STACKED CARDS VIEW (< 640px) */}
-                  <div className="block sm:hidden space-y-3">
-                    {pagedInvoices.length === 0 ? (
-                      <div className="p-8 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
-                        No invoices found matching your criteria.
-                      </div>
-                    ) : (
-                      pagedInvoices.map((inv) => {
-                        const itemsList = Array.isArray(inv.items) ? inv.items : [];
-                        const itemCount = itemsList.length;
-                        const unitsCount = itemsList.reduce((s, it) => s + Number(it.qty || it.quantity || 1), 0);
-                        const cogsVal = itemsList.reduce((s, it) => {
-                          const q = Number(it.qty || it.quantity || 0);
-                          const pr = Number(it.purchase_rate || 0);
-                          return s + (q * pr);
-                        }, 0);
-                        const totalAmt = Number(inv.total_amount || 0);
-                        const profitVal = totalAmt - cogsVal;
-                        const marginPct = totalAmt > 0 ? ((profitVal / totalAmt) * 100).toFixed(1) : "0.0";
-                        const isPos = profitVal >= 0;
-
-                        const sellerName = inv.sold_by || inv.seller_name || inv.partner_name || partners.find((p) => String(p.id) === String(inv.upfront_receiver_id || inv.partner_id || inv.receiver_id))?.name || "Ranga Prasad";
-                        const partnerObj = partners.find((p) => p.name === sellerName || String(p.id) === String(inv.upfront_receiver_id || inv.partner_id));
-                        const photo = partnerObj ? (partnerImages[partnerObj.id] || partnerImages[partnerObj.name] || partnerObj.image) : (partnerImages[sellerName] || "");
-
-                        return (
-                          <div key={inv.id} className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
-                            <div className="flex justify-between items-start">
-                              <button
-                                type="button"
-                                onClick={() => handleEditInvoice(inv)}
-                                className="px-2.5 py-1 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300 font-bold font-mono text-xs inline-flex items-center gap-1.5"
-                              >
-                                <Icon name="edit" size={11} />
-                                <span>{inv.invoice_number || `INV-${inv.id}`}</span>
-                              </button>
-                              <span className="text-[11px] font-semibold text-slate-500">
-                                {inv.invoice_date || (inv.created_at ? inv.created_at.slice(0, 10) : "")}
-                              </span>
-                            </div>
-
-                            <div className="flex justify-between items-center text-xs">
-                              <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                                <span className="text-sky-500">👥</span>
-                                <span>{inv.customer_name}</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-semibold">
-                                {photo ? (
-                                  <img src={photo} alt={sellerName} className="w-4 h-4 rounded-full object-cover" />
-                                ) : (
-                                  <Icon name="user" size={12} className="text-slate-400" />
-                                )}
-                                <span>{sellerName}</span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-center">
-                              <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total</span>
-                                <b className="text-xs text-slate-900 dark:text-white font-mono">{money(inv.total_amount)}</b>
-                              </div>
-                              <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block">COGS</span>
-                                <b className="text-xs text-slate-600 dark:text-slate-400 font-mono">{money(cogsVal)}</b>
-                              </div>
-                              <div>
-                                <span className="text-[10px] uppercase font-bold text-slate-400 block">Profit</span>
-                                <b className={`text-xs font-mono ${isPos ? "text-emerald-600" : "text-rose-600"}`}>
-                                  {isPos ? `+${money(profitVal)}` : `-${money(Math.abs(profitVal))}`}
-                                </b>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
-                              <span className="text-[11px] text-slate-500">
-                                {itemCount} items ({unitsCount} units) • {marginPct}% margin
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedViewInvoice(inv)}
-                                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-sky-600 font-bold text-xs"
-                                >
-                                  Receipt
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditInvoice(inv)}
-                                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteInvoice(inv)}
-                                  className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-rose-600 font-bold text-xs"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-
-                  {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
-                </div>
-              );
-            })()}
+                );
+              })()}
+            </div>
           </div>
         )}
 
         {/* VIEW: PURCHASES & STOCK */}
-        {(activeTab === "purchases" || activeTab === "procurement") && (
+        {hasModuleAccess("purchases") && (activeTab === "purchases" || activeTab === "procurement") && (
           <div className="space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
@@ -8157,7 +8174,7 @@ Thank you for your business!`;
         )}
 
         {/* VIEW: PAYMENTS & COLLECTIONS */}
-        {activeTab === "payments_collections" && (
+        {hasModuleAccess("payments_collections") && activeTab === "payments_collections" && (
           <div className="space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
@@ -8906,7 +8923,7 @@ Thank you for your business!`;
         )}
 
         {/* VIEW 2: BUSINESS SNAPSHOT */}
-        {activeTab === "summary" && (
+        {hasModuleAccess("summary") && activeTab === "summary" && (
           <div className="space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
@@ -9252,7 +9269,7 @@ Thank you for your business!`;
 
 
         {/* VIEW: COMPREHENSIVE ANALYSIS & REPORTS */}
-        {activeTab === "analysis" && (() => {
+        {hasModuleAccess("analysis") && activeTab === "analysis" && (() => {
           // 1. DATE BOUNDARIES & FILTERING
           const now = new Date();
           const todayStr = toISODate(now) || now.toISOString().slice(0, 10);
@@ -11053,7 +11070,7 @@ Thank you for your business!`;
 
 
         {/* VIEW 3: HISTORY & AUDIT LEDGER */}
-        {activeTab === "history_audit" && (
+        {hasModuleAccess("analysis") && activeTab === "history_audit" && (
           <div className="space-y-2.5 sm:space-y-3">
             <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -11196,7 +11213,7 @@ Thank you for your business!`;
         )}
 
         {/* VIEW 4: MASTER MANAGEMENT HUB */}
-        {activeTab === "masters" && (
+        {hasModuleAccess("masters") && activeTab === "masters" && (
           <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 sm:space-y-3">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
               <div>
@@ -11848,7 +11865,11 @@ Thank you for your business!`;
                                 })()}
                                 <div>
                                   <div>{p.name}</div>
-                                  <div className="text-[10px] text-slate-400 font-normal">Partner</div>
+                                  <div className="mt-0.5">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                      {systemRoles.find((r) => r.id === (partnerRoles[p.id] || partnerRoles[p.name] || p.role_id))?.name || "Standard Partner"}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -11967,7 +11988,7 @@ Thank you for your business!`;
         )}
 
         {/* VIEW 8: BUSINESS LOANS & LENDERS */}
-        {activeTab === "lenders" && (
+        {hasModuleAccess("analysis") && activeTab === "lenders" && (
           <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
               <div>
@@ -12207,7 +12228,7 @@ Thank you for your business!`;
         )}
 
         {/* VIEW 9: EXPENSES (POINT 8: ERP GRID TABLE MATCHING IMAGE 1) */}
-        {activeTab === "expenses" && (
+        {hasModuleAccess("analysis") && activeTab === "expenses" && (
           <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5 sm:space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
@@ -12427,7 +12448,7 @@ Thank you for your business!`;
         )}
 
         {/* VIEW 10: B REDDY EXCEL STATEMENT (EXACT MATCH TO IMAGE 1, NO EXTRA CARDS OR TOOLBAR) */}
-        {activeTab === "reports" && (() => {
+        {hasModuleAccess("reports") && activeTab === "reports" && (() => {
           // Filtered Stock (Qty > 0)
           const stockList = procurements.filter((p) => {
             const qty = Number(p.remaining_qty ?? p.available_quantity ?? p.quantity ?? 0);
@@ -12865,7 +12886,7 @@ Thank you for your business!`;
         })()}
 
         {/* VIEW 12: LEDGER STATEMENT MODULE (POINTS 3 & 8, GRID TABLE MATCHING IMAGE 4, NO WHATSAPP CARD) */}
-        {activeTab === "ledger" && (() => {
+        {hasModuleAccess("analysis") && activeTab === "ledger" && (() => {
           const isCustomer = whatsappType === "customer";
           const currentParty = isCustomer
             ? customers.find((c) => String(c.id) === String(whatsappSelectedId)) || customers[0]
@@ -13663,7 +13684,7 @@ Thank you for your business!`;
         })()}
 
         {/* VIEW 11: PARTNER CAPITAL ACCOUNTS */}
-        {activeTab === "partners" && (() => {
+        {hasModuleAccess("masters") && activeTab === "partners" && (() => {
           const totalNetCapital = partnerAccounts.reduce((s, p) => s + (p.netCash || 0) + (p.netUpi || 0), 0);
           const totalNetCash = partnerAccounts.reduce((s, p) => s + (p.netCash || 0), 0);
           const totalNetUpi = partnerAccounts.reduce((s, p) => s + (p.netUpi || 0), 0);
@@ -13878,7 +13899,7 @@ Thank you for your business!`;
         })()}
 
         {/* VIEW 13: SYSTEM SETTINGS MODULE (LANGUAGE, LIVE THEME PREVIEW, GOOGLE AUTHENTICATOR 2FA, BACKUP) */}
-        {activeTab === "settings" && (() => {
+        {hasModuleAccess("settings") && activeTab === "settings" && (() => {
           return (
             <div className="space-y-2.5 sm:space-y-3 max-w-4xl mx-auto">
               {/* Header */}
@@ -13925,6 +13946,17 @@ Thank you for your business!`;
                   }`}
                 >
                   <Icon name="bell" size={14} /> Business Alerts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("roles")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    settingsSubTab === "roles"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Icon name="shield" size={14} /> Roles & Manage Modules
                 </button>
               </div>
 
@@ -14557,6 +14589,136 @@ Thank you for your business!`;
               )}
 
               {/* BUSINESS ALERTS TAB (SCENARIO #1: DAILY BUSINESS ALERT VIA WHATSAPP) */}
+              {/* VIEW: ROLES & MANAGE MODULES (RBAC) */}
+              {settingsSubTab === "roles" && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <Icon name="shield" size={16} /> Roles & Manage Modules (Role-Based Access Control)
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Create custom partner roles and configure module permissions. Partners will only view and access assigned screens.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRoleId(null);
+                          setRoleForm({
+                            name: "",
+                            description: "",
+                            modules: ["sale", "invoices"]
+                          });
+                          setShowRoleModal(true);
+                        }}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      >
+                        <Icon name="plus" size={14} /> Create New Role
+                      </button>
+                    </div>
+
+                    {/* Roles ERP Grid Table */}
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-[#f0f6fc] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-3 w-12 text-center">S.No</th>
+                            <th className="p-3 w-48">Role Name</th>
+                            <th className="p-3 w-56">Description</th>
+                            <th className="p-3">Allowed Module Access ({SYSTEM_MODULES.length})</th>
+                            <th className="p-3 w-28 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                          {systemRoles.map((r, idx) => {
+                            const isAdminRole = r.id === "role_admin";
+                            return (
+                              <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                <td className="p-3 text-center text-slate-400">{idx + 1}</td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-white">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{isAdminRole ? "👑" : "🛡️"}</span>
+                                    <span>{r.name}</span>
+                                    {isAdminRole && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                        System
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-3 text-slate-500 dark:text-slate-400 text-xs">
+                                  {r.description || "—"}
+                                </td>
+                                <td className="p-3">
+                                  <div className="flex flex-wrap gap-1">
+                                    {isAdminRole ? (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-200">
+                                        Full Universal Access (All {SYSTEM_MODULES.length} Modules)
+                                      </span>
+                                    ) : (
+                                      (r.modules || []).map((mId) => {
+                                        const modInfo = SYSTEM_MODULES.find((m) => m.id === mId);
+                                        return (
+                                          <span key={mId} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                                            <Icon name={modInfo?.icon || "check"} size={10} />
+                                            <span>{modInfo?.label || mId}</span>
+                                          </span>
+                                        );
+                                      })
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-3 text-center">
+                                  {!isAdminRole ? (
+                                    <div className="inline-flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingRoleId(r.id);
+                                          setRoleForm({
+                                            name: r.name,
+                                            description: r.description || "",
+                                            modules: [...(r.modules || [])]
+                                          });
+                                          setShowRoleModal(true);
+                                        }}
+                                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer"
+                                      >
+                                        Edit
+                                      </button>
+                                      {!r.isSystem && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!confirm(`Delete role "${r.name}"? Partners with this role will fall back to Standard Partner.`)) return;
+                                            setSystemRoles((prev) => {
+                                              const next = prev.filter((item) => item.id !== r.id);
+                                              if (typeof window !== "undefined") localStorage.setItem("app_system_roles", JSON.stringify(next));
+                                              return next;
+                                            });
+                                          }}
+                                          className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 font-bold text-xs transition cursor-pointer"
+                                        >
+                                          Delete
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-bold">Unrestricted</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {settingsSubTab === "business_alerts" && (
                 <div className="space-y-6 animate-in fade-in duration-150">
                   {/* Breadcrumb & Section Header */}
@@ -16495,6 +16657,166 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* MODAL: ADD / EDIT ROLE (RBAC) */}
+      {showRoleModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {editingRoleId ? "Edit Role Permissions" : "Create New Role"}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Define role name and select the exact modules accessible by partners assigned this role.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Role Name:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sales Cashier, Store Manager, Accountant"
+                  value={roleForm.name}
+                  onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Description:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Can access POS billing and customer receipts only"
+                  value={roleForm.description}
+                  onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                />
+              </div>
+
+              {/* Module Selection Grid */}
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Module Access Permissions: ({roleForm.modules.length} selected)
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRoleForm({ ...roleForm, modules: SYSTEM_MODULES.map((m) => m.id) })}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoleForm({ ...roleForm, modules: ["sale"] })}
+                      className="text-xs font-bold text-slate-400 hover:underline cursor-pointer"
+                    >
+                      Reset Minimum
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {SYSTEM_MODULES.map((mod) => {
+                    const isChecked = roleForm.modules.includes(mod.id);
+                    return (
+                      <label
+                        key={mod.id}
+                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition ${
+                          isChecked
+                            ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700"
+                            : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-75"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const next = isChecked
+                              ? roleForm.modules.filter((m) => m !== mod.id)
+                              : [...roleForm.modules, mod.id];
+                            setRoleForm({ ...roleForm, modules: next });
+                          }}
+                          className="mt-0.5 rounded text-indigo-600 cursor-pointer"
+                        />
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
+                            <Icon name={mod.icon} size={14} className={isChecked ? "text-indigo-600" : "text-slate-400"} />
+                            <span>{mod.label}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                            {mod.desc}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(false)}
+                className="flex-1 py-2.5 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!roleForm.name.trim()) return alert("Enter role name");
+                  if (roleForm.modules.length === 0) return alert("Select at least one module for this role");
+                  const newRoleId = editingRoleId || `role_${Date.now()}`;
+                  const updatedRole = {
+                    id: newRoleId,
+                    name: roleForm.name.trim(),
+                    description: roleForm.description.trim(),
+                    modules: roleForm.modules,
+                    isSystem: false
+                  };
+                  setSystemRoles((prev) => {
+                    const existingIdx = prev.findIndex((r) => r.id === newRoleId);
+                    let next;
+                    if (existingIdx >= 0) {
+                      next = [...prev];
+                      next[existingIdx] = updatedRole;
+                    } else {
+                      next = [...prev, updatedRole];
+                    }
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("app_system_roles", JSON.stringify(next));
+                    }
+                    return next;
+                  });
+                  setShowRoleModal(false);
+                  alert(`Role "${updatedRole.name}" saved successfully with ${updatedRole.modules.length} module permissions!`);
+                }}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
+              >
+                Save Role Permissions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: ADD / EDIT PARTNER */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
@@ -16567,6 +16889,23 @@ Thank you for your business!`;
                   value={partnerForm.opening_upi}
                   onChange={(e) => setPartnerForm({ ...partnerForm, opening_upi: e.target.value })}
                 />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Assigned Role (Module Access)
+                </label>
+                <select
+                  value={partnerForm.role_id || "role_partner"}
+                  onChange={(e) => setPartnerForm({ ...partnerForm, role_id: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 font-bold"
+                >
+                  {systemRoles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.modules?.length || 0} modules)
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
                 <div>
@@ -16843,16 +17182,18 @@ Thank you for your business!`;
 
             {/* Quick Actions */}
             <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowProfileMenu(false);
-                  setActiveTab("settings");
-                }}
-                className="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition text-left cursor-pointer"
-              >
-                <span>⚙️</span> System Settings
-              </button>
+              {hasModuleAccess("settings") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    navigateTab("settings");
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition text-left cursor-pointer"
+                >
+                  <span>⚙️</span> System Settings
+                </button>
+              )}
               {currentUser?.role === "admin" && (
                 <button
                   type="button"
@@ -18426,49 +18767,57 @@ Thank you for your business!`;
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 px-2 py-1.5 flex justify-around items-center text-slate-400 no-print">
-        <button
-          type="button"
-          onClick={() => navigateTab("sale")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            activeTab === "sale" ? "text-indigo-400 font-bold" : "hover:text-white"
-          }`}
-        >
-          <Icon name="cart" size={20} />
-          <span className="text-[10px]">{t("Billing", "బిల్లింగ్")}</span>
-        </button>
+        {hasModuleAccess("sale") && (
+          <button
+            type="button"
+            onClick={() => navigateTab("sale")}
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeTab === "sale" ? "text-indigo-400 font-bold" : "hover:text-white"
+            }`}
+          >
+            <Icon name="cart" size={20} />
+            <span className="text-[10px]">{t("Billing", "బిల్లింగ్")}</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => navigateTab("invoices")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            activeTab === "invoices" ? "text-indigo-400 font-bold" : "hover:text-white"
-          }`}
-        >
-          <Icon name="receipt" size={20} />
-          <span className="text-[10px]">{t("Invoices", "ఇన్‌వాయిస్‌లు")}</span>
-        </button>
+        {hasModuleAccess("invoices") && (
+          <button
+            type="button"
+            onClick={() => navigateTab("invoices")}
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeTab === "invoices" ? "text-indigo-400 font-bold" : "hover:text-white"
+            }`}
+          >
+            <Icon name="receipt" size={20} />
+            <span className="text-[10px]">{t("Invoices", "ఇన్‌వాయిస్‌లు")}</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => navigateTab("procurement")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            activeTab === "procurement" ? "text-indigo-400 font-bold" : "hover:text-white"
-          }`}
-        >
-          <Icon name="package" size={20} />
-          <span className="text-[10px]">{t("Stock", "స్టాక్")}</span>
-        </button>
+        {hasModuleAccess("purchases") && (
+          <button
+            type="button"
+            onClick={() => navigateTab("procurement")}
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeTab === "procurement" ? "text-indigo-400 font-bold" : "hover:text-white"
+            }`}
+          >
+            <Icon name="package" size={20} />
+            <span className="text-[10px]">{t("Stock", "స్టాక్")}</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => navigateTab("payments_collections")}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
-            activeTab === "payments_collections" ? "text-indigo-400 font-bold" : "hover:text-white"
-          }`}
-        >
-          <Icon name="handcoins" size={20} />
-          <span className="text-[10px]">{t("Payments", "చెల్లింపులు")}</span>
-        </button>
+        {hasModuleAccess("payments_collections") && (
+          <button
+            type="button"
+            onClick={() => navigateTab("payments_collections")}
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+              activeTab === "payments_collections" ? "text-indigo-400 font-bold" : "hover:text-white"
+            }`}
+          >
+            <Icon name="handcoins" size={20} />
+            <span className="text-[10px]">{t("Payments", "చెల్లింపులు")}</span>
+          </button>
+        )}
 
         <button
           type="button"
