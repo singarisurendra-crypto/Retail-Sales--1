@@ -12935,11 +12935,11 @@ Thank you for your business!`;
                     <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
                       <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <colgroup>
-                          <col style={{ width: "17%" }} />
-                          <col style={{ width: "35%" }} />
-                          <col style={{ width: "14%" }} />
-                          <col style={{ width: "11%" }} />
-                          <col style={{ width: "11%" }} />
+                          <col style={{ width: "15%" }} />
+                          <col style={{ width: "33%" }} />
+                          <col style={{ width: "16%" }} />
+                          <col style={{ width: "12%" }} />
+                          <col style={{ width: "12%" }} />
                           <col style={{ width: "12%" }} />
                         </colgroup>
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
@@ -13002,7 +13002,7 @@ Thank you for your business!`;
                                     )}
                                   </div>
                                 </td>
-                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap print:text-black print:text-[8pt]">{row.ref}</td>
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold break-all sm:break-words [overflow-wrap:anywhere] print:text-black print:text-[8pt]">{row.ref}</td>
                                 <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap print:text-black print:text-[8pt]">
                                   {row.debit > 0 ? money(row.debit) : "—"}
                                 </td>
