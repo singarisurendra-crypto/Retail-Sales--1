@@ -1345,7 +1345,15 @@ export default function App() {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
-  const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "", confirmPin: "", error: "", success: "" });
+  const [changePinForm, setChangePinForm] = useState({
+    targetType: "admin",
+    partnerId: "",
+    oldPin: "",
+    newPin: "",
+    confirmPin: "",
+    error: "",
+    success: ""
+  });
 
   // Duplicate save prevention locks
   const [savingLender, setSavingLender] = useState(false);
@@ -4587,14 +4595,28 @@ Thank you for your business!`;
   };
 
   // PARTNER HANDLERS
+  const openPartnerPinModal = (p) => {
+    setChangePinForm({
+      targetType: "partner",
+      partnerId: String(p.id),
+      oldPin: "",
+      newPin: "",
+      confirmPin: "",
+      error: "",
+      success: ""
+    });
+    setShowChangePinModal(true);
+  };
+
   const handleEditPartner = (p) => {
     setEditingPartnerId(p.id);
     const storedPins = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('partner_pins') || '{}') : {};
+    const existingPin = storedPins[String(p.id)] || storedPins[p.name] || storedPins[p.name?.trim()] || p.pin || '0000';
     setPartnerForm({
       name: p.name || '',
       opening_cash: String(p.opening_cash || ''),
       opening_upi: String(p.opening_upi || ''),
-      pin: p.pin || storedPins[p.name] || '0000',
+      pin: existingPin,
       role: p.role || 'partner'
     });
     setShowPartnerModal(true);
@@ -4633,7 +4655,12 @@ Thank you for your business!`;
       if (typeof window !== 'undefined' && partnerForm.pin) {
         const storedPins = JSON.parse(localStorage.getItem('partner_pins') || '{}');
         storedPins[partnerForm.name.trim()] = partnerForm.pin;
+        storedPins[partnerForm.name] = partnerForm.pin;
+        if (editingPartnerId) storedPins[String(editingPartnerId)] = partnerForm.pin;
         localStorage.setItem('partner_pins', JSON.stringify(storedPins));
+        if (editingPartnerId) {
+          setPartners((prev) => prev.map((item) => item.id === editingPartnerId ? { ...item, pin: partnerForm.pin } : item));
+        }
       }
       setShowPartnerModal(false);
       setEditingPartnerId(null);
@@ -5666,8 +5693,8 @@ Thank you for your business!`;
         }
         const p = partners.find((pt) => String(pt.id) === String(loginPartnerId));
         const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
-        const expectedPin = p?.pin || storedPins[p?.name] || "0000";
-        if (loginPin === expectedPin || loginPin === "0000") {
+        const expectedPin = storedPins[String(p?.id)] || storedPins[p?.name] || storedPins[p?.name?.trim()] || p?.pin || "0000";
+        if (loginPin === expectedPin) {
           const userObj = { role: "partner", id: p?.id, name: p?.name || "Partner" };
           if (enableTwoFactor) {
             setPendingUser(userObj);
@@ -11407,7 +11434,7 @@ Thank you for your business!`;
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Opening Cash (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Opening UPI (₹)</th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-40">Total Capital (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-36">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -11450,6 +11477,14 @@ Thank you for your business!`;
                                   className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded font-bold text-xs"
                                 >
                                   Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openPartnerPinModal(p)}
+                                  className="px-2 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-700 dark:text-amber-300 rounded font-bold text-xs flex items-center gap-1 cursor-pointer transition"
+                                  title={`Change PIN for ${p.name}`}
+                                >
+                                  <span>🔑</span> PIN
                                 </button>
                                 {!isPartnerInUse(p) && (
                                   <button
@@ -16173,7 +16208,16 @@ Thank you for your business!`;
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    setShowPinModal(true);
+                    setChangePinForm({
+                      targetType: "admin",
+                      partnerId: partners[0]?.id ? String(partners[0].id) : "",
+                      oldPin: "",
+                      newPin: "",
+                      confirmPin: "",
+                      error: "",
+                      success: ""
+                    });
+                    setShowChangePinModal(true);
                   }}
                   className="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 transition text-left cursor-pointer"
                 >
@@ -17118,14 +17162,49 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MODAL: CHANGE ADMIN SECURITY PIN */}
+      {/* MODAL: CHANGE SECURITY PIN HUB (ADMIN & PARTNER) */}
       {showChangePinModal && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center pb-2 border-b">
-              <h3 className="font-black text-base text-slate-900">Change Admin PIN</h3>
-              <button type="button" onClick={() => setShowChangePinModal(false)} className="text-slate-400">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔑</span>
+                <h3 className="font-black text-base text-slate-900 dark:text-white">Security PIN Hub</h3>
+              </div>
+              <button type="button" onClick={() => setShowChangePinModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                 <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            {/* Target Switcher: Admin vs Partner */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-1">
+              <button
+                type="button"
+                onClick={() => setChangePinForm((prev) => ({ ...prev, targetType: "admin", error: "", success: "" }))}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  changePinForm.targetType === "admin"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <span>👑</span> Admin PIN
+              </button>
+              <button
+                type="button"
+                onClick={() => setChangePinForm((prev) => ({
+                  ...prev,
+                  targetType: "partner",
+                  partnerId: prev.partnerId || (partners[0]?.id ? String(partners[0].id) : ""),
+                  error: "",
+                  success: ""
+                }))}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  changePinForm.targetType === "partner"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <span>🤝</span> Partner PIN
               </button>
             </div>
 
@@ -17133,41 +17212,89 @@ Thank you for your business!`;
               onSubmit={(e) => {
                 e.preventDefault();
                 setChangePinForm((prev) => ({ ...prev, error: "", success: "" }));
-                const currentStored = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
 
-                if (changePinForm.oldPin !== currentStored && changePinForm.oldPin !== "1234") {
-                  return setChangePinForm((prev) => ({ ...prev, error: "Current Admin PIN is incorrect" }));
+                if (changePinForm.targetType === "admin") {
+                  const currentStored = typeof window !== "undefined" ? localStorage.getItem("admin_pin") || "1234" : "1234";
+                  if (changePinForm.oldPin !== currentStored && changePinForm.oldPin !== "1234") {
+                    return setChangePinForm((prev) => ({ ...prev, error: "Current Admin PIN is incorrect" }));
+                  }
+                  if (changePinForm.newPin.length < 4) {
+                    return setChangePinForm((prev) => ({ ...prev, error: "New PIN must be at least 4 digits" }));
+                  }
+                  if (changePinForm.newPin !== changePinForm.confirmPin) {
+                    return setChangePinForm((prev) => ({ ...prev, error: "New PIN and Confirmation do not match" }));
+                  }
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("admin_pin", changePinForm.newPin);
+                  }
+                  setChangePinForm((prev) => ({ ...prev, oldPin: "", newPin: "", confirmPin: "", error: "", success: "Admin PIN updated successfully!" }));
+                  setTimeout(() => setShowChangePinModal(false), 1200);
+                } else {
+                  const targetId = changePinForm.partnerId || (partners[0]?.id ? String(partners[0].id) : "");
+                  const targetPartner = partners.find((pt) => String(pt.id) === String(targetId));
+                  if (!targetPartner) {
+                    return setChangePinForm((prev) => ({ ...prev, error: "Please select a partner" }));
+                  }
+                  if (changePinForm.newPin.length < 4) {
+                    return setChangePinForm((prev) => ({ ...prev, error: "New PIN must be at least 4 digits" }));
+                  }
+                  if (changePinForm.newPin !== changePinForm.confirmPin) {
+                    return setChangePinForm((prev) => ({ ...prev, error: "New PIN and Confirmation do not match" }));
+                  }
+                  if (typeof window !== "undefined") {
+                    const storedPins = JSON.parse(localStorage.getItem("partner_pins") || "{}");
+                    storedPins[String(targetPartner.id)] = changePinForm.newPin;
+                    storedPins[targetPartner.name] = changePinForm.newPin;
+                    storedPins[targetPartner.name.trim()] = changePinForm.newPin;
+                    localStorage.setItem("partner_pins", JSON.stringify(storedPins));
+                  }
+                  setPartners((prev) => prev.map((pt) => String(pt.id) === String(targetPartner.id) ? { ...pt, pin: changePinForm.newPin } : pt));
+                  setChangePinForm((prev) => ({ ...prev, oldPin: "", newPin: "", confirmPin: "", error: "", success: `PIN for ${targetPartner.name} updated successfully!` }));
+                  setTimeout(() => setShowChangePinModal(false), 1200);
                 }
-                if (changePinForm.newPin.length < 4) {
-                  return setChangePinForm((prev) => ({ ...prev, error: "New PIN must be at least 4 digits" }));
-                }
-                if (changePinForm.newPin !== changePinForm.confirmPin) {
-                  return setChangePinForm((prev) => ({ ...prev, error: "New PIN and Confirmation do not match" }));
-                }
-
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("admin_pin", changePinForm.newPin);
-                }
-                setChangePinForm({ oldPin: "", newPin: "", confirmPin: "", error: "", success: "Admin PIN updated successfully!" });
-                setTimeout(() => setShowChangePinModal(false), 1200);
               }}
               className="space-y-3"
             >
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Current PIN</label>
-                <input
-                  type="password"
-                  required
-                  maxLength={8}
-                  value={changePinForm.oldPin}
-                  onChange={(e) => setChangePinForm({ ...changePinForm, oldPin: e.target.value })}
-                  placeholder="Enter current PIN"
-                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                />
-              </div>
+              {/* If Partner Target: Show Partner Selector */}
+              {changePinForm.targetType === "partner" && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                    Select Partner
+                  </label>
+                  <select
+                    value={changePinForm.partnerId || (partners[0]?.id ? String(partners[0].id) : "")}
+                    onChange={(e) => setChangePinForm((prev) => ({ ...prev, partnerId: e.target.value, error: "", success: "" }))}
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 outline-none focus:border-indigo-500"
+                  >
+                    {partners.map((pt) => (
+                      <option key={pt.id} value={String(pt.id)}>
+                        {pt.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Current PIN only required when changing Admin PIN */}
+              {changePinForm.targetType === "admin" && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">Current Admin PIN</label>
+                  <input
+                    type="password"
+                    required
+                    maxLength={8}
+                    value={changePinForm.oldPin}
+                    onChange={(e) => setChangePinForm({ ...changePinForm, oldPin: e.target.value })}
+                    placeholder="Enter current Admin PIN"
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">New PIN</label>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">
+                  {changePinForm.targetType === "admin" ? "New Admin PIN" : "New Partner PIN"}
+                </label>
                 <input
                   type="password"
                   required
@@ -17175,12 +17302,14 @@ Thank you for your business!`;
                   value={changePinForm.newPin}
                   onChange={(e) => setChangePinForm({ ...changePinForm, newPin: e.target.value })}
                   placeholder="Enter new 4+ digit PIN"
-                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 outline-none focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Confirm New PIN</label>
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase block mb-1">
+                  Confirm New PIN
+                </label>
                 <input
                   type="password"
                   required
@@ -17188,18 +17317,24 @@ Thank you for your business!`;
                   value={changePinForm.confirmPin}
                   onChange={(e) => setChangePinForm({ ...changePinForm, confirmPin: e.target.value })}
                   placeholder="Re-enter new PIN"
-                  className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 outline-none focus:border-indigo-500"
                 />
               </div>
 
+              {changePinForm.targetType === "partner" && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                  💡 Administrator override: You can set or reset any partner's login PIN directly.
+                </p>
+              )}
+
               {changePinForm.error && (
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg text-xs font-semibold text-center">
+                <div className="p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-lg text-xs font-semibold text-center">
                   {changePinForm.error}
                 </div>
               )}
 
               {changePinForm.success && (
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-semibold text-center">
+                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 rounded-lg text-xs font-semibold text-center">
                   {changePinForm.success}
                 </div>
               )}
@@ -17208,13 +17343,13 @@ Thank you for your business!`;
                 <button
                   type="button"
                   onClick={() => setShowChangePinModal(false)}
-                  className="flex-1 py-2 border rounded-xl text-xs font-bold"
+                  className="flex-1 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs"
+                  className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs"
                 >
                   Update PIN
                 </button>
