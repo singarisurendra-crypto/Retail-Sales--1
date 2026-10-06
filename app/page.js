@@ -2149,13 +2149,13 @@ export default function App() {
         </div>
 
         <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-lg">
-          <table className="w-full text-left text-xs border-collapse font-mono">
+          <table className="min-w-[550px] w-full text-left text-xs border-collapse font-mono">
             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
               <tr>
                 <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Timestamp", "తేదీ & సమయం")}</th>
                 <th className="p-2 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">{t("Action", "చర్య")}</th>
                 <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Operator / Partner", "ఆపరేటర్ / భాగస్వామి")}</th>
-                <th className="p-2 border border-sky-200 dark:border-slate-700">{t("Change Details", "మార్పుల వివరాలు")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Change Details", "మార్పుల వివరాలు")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
@@ -2181,7 +2181,7 @@ export default function App() {
                     <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap text-[11px]">
                       {log.operator}
                     </td>
-                    <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-sans">
+                    <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-sans whitespace-nowrap">
                       {log.details}
                     </td>
                   </tr>
@@ -2227,7 +2227,7 @@ export default function App() {
         </div>
 
         <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
-          <table className="w-full text-left text-xs border-collapse font-mono">
+          <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
               <tr>
                 <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Timestamp", "తేదీ & సమయం")}</th>
@@ -2235,7 +2235,7 @@ export default function App() {
                 <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Type", "రకం")}</th>
                 <th className="p-2 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">{t("Action", "చర్య")}</th>
                 <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Operator / Partner", "ఆపరేటర్ / భాగస్వామి")}</th>
-                <th className="p-2 border border-sky-200 dark:border-slate-700">{t("Change Details", "మార్పుల వివరాలు")}</th>
+                <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">{t("Change Details", "మార్పుల వివరాలు")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -2274,7 +2274,7 @@ export default function App() {
                       <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 whitespace-nowrap text-[11px]">
                         {log.operator}
                       </td>
-                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-sans">
+                      <td className="p-2 border border-sky-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-sans whitespace-nowrap">
                         {log.details}
                       </td>
                     </tr>
@@ -7349,15 +7349,15 @@ Thank you for your business!`;
                         </div>
 
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
-                          <table className="w-full text-left text-[11px] border-collapse font-mono">
+                          <table className="min-w-[650px] w-full text-left text-[11px] border-collapse font-mono">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Date</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Ref</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Partner</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Mode</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right">Amount (₹)</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Actions</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Ref</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Partner</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Mode</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -7379,7 +7379,7 @@ Thank you for your business!`;
                                   return (
                                     <tr key={c.id || cIdx} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{dt}</td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold whitespace-nowrap">
                                         {c.ref || c.reference_no || `REC-${c.id}`}
                                         {isAdvance ? (
                                           <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-sans font-bold">
@@ -7401,18 +7401,18 @@ Thank you for your business!`;
                                           </span>
                                         )}
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{pName}</td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold whitespace-nowrap">
                                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${
                                           isAdvance ? "bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 font-black" : ""
                                         }`}>
                                           {c.payment_mode || c.mode || "Cash"}
                                         </span>
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                         {money(c.amount)}
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center whitespace-nowrap">
                                         <div className="flex items-center justify-center gap-1">
                                           <button
                                             type="button"
@@ -7747,34 +7747,34 @@ Thank you for your business!`;
                     {renderPagination(safeInvoicePage, filteredInvoices.length, 10, setInvoicePage)}
 
                     <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                      <table className="min-w-[950px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-300 dark:border-slate-700">
                           <tr>
-                            <th onClick={() => toggleSort("id", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("id", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Invoice #", "ఇన్‌వాయిస్ #")}{renderSortIndicator("id", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("date", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("date", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Date", "తేదీ")}{renderSortIndicator("date", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("customer", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("customer", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Customer", "కస్టమర్")}{renderSortIndicator("customer", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("items", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("items", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Items Summary", "వస్తువుల వివరాలు")}{renderSortIndicator("items", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("total", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("total", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Total", "మొత్తం")}{renderSortIndicator("total", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("paid", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("paid", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Paid", "చెల్లించినది")}{renderSortIndicator("paid", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("due", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("due", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Balance Due", "బకాయి")}{renderSortIndicator("due", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("status", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("status", invoiceSortCol, setInvoiceSortCol, invoiceSortDir, setInvoiceSortDir)} className="p-2.5 border border-slate-300 dark:border-slate-700 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Status", "స్థితి")}{renderSortIndicator("status", invoiceSortCol, invoiceSortDir)}
                             </th>
-                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
+                            <th className="p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28 whitespace-nowrap">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-medium">
@@ -7797,7 +7797,7 @@ Thank you for your business!`;
 
                               return (
                                 <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                                     <button
                                       type="button"
                                       onClick={() => handleEditInvoice(inv)}
@@ -7810,7 +7810,7 @@ Thank you for your business!`;
                                   <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                                     {inv.invoice_date || inv.created_at?.slice(0, 10)}
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                     <div>
                                       <span>{inv.customer_name}</span>
                                       {!inv.customer_id && (
@@ -7820,7 +7820,7 @@ Thank you for your business!`;
                                       )}
                                     </div>
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 text-[11px]">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-500 text-[11px] whitespace-nowrap">
                                     {itemCount > 0 ? (
                                       <span>
                                         {firstItemName}
@@ -7830,16 +7830,16 @@ Thank you for your business!`;
                                       <span className="text-slate-400">Standard Bill</span>
                                     )}
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-slate-100">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-slate-100 whitespace-nowrap">
                                     {money(inv.total_amount)}
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold whitespace-nowrap">
                                     {money(paidAmount)}
                                   </td>
-                                  <td className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmount > 0 ? "text-rose-600" : "text-slate-400"}`}>
+                                  <td className={`whitespace-nowrap p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmount > 0 ? "text-rose-600" : "text-slate-400"}`}>
                                     {money(dueAmount)}
                                   </td>
-                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                                  <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                       isPaid
                                         ? "bg-emerald-100 text-emerald-800"
@@ -7850,7 +7850,7 @@ Thank you for your business!`;
                                       {statusLabel}
                                     </span>
                                   </td>
-                                  <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                  <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
                                     <div className="hidden sm:flex items-center justify-center gap-1.5">
                                       <button
                                         type="button"
@@ -8108,34 +8108,34 @@ Thank you for your business!`;
                   <div className="space-y-2">
                     {renderPagination(safeProcPage, filteredProcurements.length, 10, setProcurePage)}
                     <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                      <table className="min-w-[950px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th onClick={() => toggleSort("id", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("id", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Purchase #", "కొనుగోలు #")}{renderSortIndicator("id", procureSortCol, procureSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("date", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("date", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Date", "తేదీ")}{renderSortIndicator("date", procureSortCol, procureSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("supplier", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("supplier", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Supplier", "సరఫరాదారు")}{renderSortIndicator("supplier", procureSortCol, procureSortDir)}
                             </th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">
                               {t("Items Summary", "వస్తువుల వివరాలు")}
                             </th>
-                            <th onClick={() => toggleSort("stock", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("stock", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Stock (Left / Total)", "స్టాక్ (మిగిలినది / మొత్తం)")}{renderSortIndicator("stock", procureSortCol, procureSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("total", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("total", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Total Bill", "మొత్తం బిల్లు")}{renderSortIndicator("total", procureSortCol, procureSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("paid", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("paid", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Paid", "చెల్లించినది")}{renderSortIndicator("paid", procureSortCol, procureSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("due", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("due", procureSortCol, setProcureSortCol, procureSortDir, setProcureSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Due", "బకాయి")}{renderSortIndicator("due", procureSortCol, procureSortDir)}
                             </th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28 whitespace-nowrap">{t("Actions", "చర్యలు")}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -8157,7 +8157,7 @@ Thank you for your business!`;
 
                               return (
                                 <tr key={p.groupKey || p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">
                                     <button
                                       type="button"
                                       onClick={() => setSelectedViewProcure(p)}
@@ -8170,13 +8170,13 @@ Thank you for your business!`;
                                   <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                                     {p.purchase_date || p.created_at?.slice(0, 10)}
                                   </td>
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold whitespace-nowrap">
                                     {p.supplier_name}
                                   </td>
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                     {itemsList.map((it) => it.item_name).filter(Boolean).join(", ") || "-"}
                                   </td>
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-mono">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-mono whitespace-nowrap">
                                     {(() => {
                                       const isFullStock = remQty >= totQty && totQty > 0;
                                       const isPartialStock = remQty > 0 && remQty < totQty;
@@ -8200,16 +8200,16 @@ Thank you for your business!`;
                                       );
                                     })()}
                                   </td>
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-black text-slate-900 dark:text-white">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">
                                     {money(total)}
                                   </td>
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right text-emerald-600 font-bold">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right text-emerald-600 font-bold whitespace-nowrap">
                                     {money(paid)}
                                   </td>
-                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-black text-rose-600">
+                                  <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-black text-rose-600 whitespace-nowrap">
                                     {money(due)}
                                   </td>
-                                  <td className="p-2 sm:p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border border-sky-200 dark:border-slate-700">
+                                  <td className="p-2 sm:p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] border border-sky-200 dark:border-slate-700 whitespace-nowrap">
                                     {/* Desktop Actions */}
                                     <div className="hidden sm:flex items-center justify-center gap-1.5">
                                       <button
@@ -8484,34 +8484,34 @@ Thank you for your business!`;
                       <div className="space-y-2">
                         {renderPagination(safeColPage, filteredCollections.length, 10, setCollectPage)}
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                          <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                          <table className="min-w-[950px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th onClick={() => toggleSort("id", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("id", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Receipt #", "రసీదు #")}{renderSortIndicator("id", collectSortCol, collectSortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("date", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("date", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Date", "తేదీ")}{renderSortIndicator("date", collectSortCol, collectSortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("customer", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("customer", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Customer", "కస్టమర్")}{renderSortIndicator("customer", collectSortCol, collectSortDir)}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">
                                   {t("Balance Before Collection", "వసూలుకు ముందు బకాయి")}
                                 </th>
-                                <th onClick={() => toggleSort("amount", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("amount", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Paid Amount", "చెల్లించిన మొత్తం")}{renderSortIndicator("amount", collectSortCol, collectSortDir)}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">
                                   {t("Balance After Collection", "వసూలు తర్వాత బకాయి")}
                                 </th>
-                                <th onClick={() => toggleSort("mode", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("mode", collectSortCol, setCollectSortCol, collectSortDir, setCollectSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Mode", "చెల్లింపు పద్ధతి")}{renderSortIndicator("mode", collectSortCol, collectSortDir)}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">
                                   {t("Receiver Partner", "స్వీకరించిన భాగస్వామి")}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28 whitespace-nowrap">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -8529,7 +8529,7 @@ Thank you for your business!`;
 
                             return (
                               <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                <td className="p-3 font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                                <td className="p-3 font-mono font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => setSelectedReceiptDetail(c)}
@@ -8542,29 +8542,29 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {c.collection_date || c.created_at?.slice(0, 10)}
                                 </td>
-                                <td className="p-3 font-bold text-slate-900 dark:text-white">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                   {cust?.name || c.customer_name || "Customer"}
                                 </td>
-                                <td className="p-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                <td className="p-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                   {money(c.balanceBefore !== undefined ? c.balanceBefore : 0)}
                                 </td>
-                                <td className="p-3 text-right font-mono font-black text-emerald-700 dark:text-emerald-400">
+                                <td className="p-3 text-right font-mono font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                                   {money(c.amount)}
                                 </td>
-                                <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                   {money(c.balanceAfter !== undefined ? c.balanceAfter : 0)}
                                 </td>
-                                <td className="p-3 text-center">
+                                <td className="p-3 text-center whitespace-nowrap">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                                     (c.payment_mode || "").toUpperCase() === "UPI" ? "bg-indigo-100 text-indigo-800" : "bg-emerald-100 text-emerald-800"
                                   }`}>
                                     {c.payment_mode || "Cash"}
                                   </span>
                                 </td>
-                                <td className="p-3 text-slate-700 font-medium">
+                                <td className="p-3 text-slate-700 font-medium whitespace-nowrap">
                                   {receiver?.name || "-"}
                                 </td>
-                                <td className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                <td className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
                                   <div className="hidden sm:flex items-center justify-center gap-1.5">
                                     {c.source === "invoice" ? (
                                       <>
@@ -8765,37 +8765,37 @@ Thank you for your business!`;
                       <div className="space-y-2">
                         {renderPagination(safeSupPage, filteredSupplierPayments.length, 10, setSupplierPayPage)}
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                          <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                          <table className="min-w-[1000px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th onClick={() => toggleSort("id", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("id", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Payment ID / Ref", "చెల్లింపు ID / రెఫరెన్స్")}{renderSortIndicator("id", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("date", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("date", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Date", "తేదీ")}{renderSortIndicator("date", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("supplier", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("supplier", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Supplier Name", "సరఫరాదారు పేరు")}{renderSortIndicator("supplier", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("item", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("item", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Item Procured", "కొనుగోలు చేసిన వస్తువు")}{renderSortIndicator("item", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("total", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("total", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Total Bill", "మొత్తం బిల్లు")}{renderSortIndicator("total", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("paid", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("paid", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Amount Paid", "చెల్లించిన మొత్తం")}{renderSortIndicator("paid", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("due", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("due", supPaySortCol, setSupPaySortCol, supPaySortDir, setSupPaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   {t("Remaining Due", "మిగిలిన బకాయి")}{renderSortIndicator("due", supPaySortCol, supPaySortDir)}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center whitespace-nowrap">
                                   {t("Payment Mode", "చెల్లింపు పద్ధతి")}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">
                                   {t("Funding Partner", "చెల్లించిన భాగస్వామి")}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28">{t("Actions", "చర్యలు")}</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] w-14 sm:w-28 whitespace-nowrap">{t("Actions", "చర్యలు")}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -8814,7 +8814,7 @@ Thank you for your business!`;
 
                             return (
                               <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => setSelectedReceiptDetail({ ...p, isSupplierPayment: true })}
@@ -8827,22 +8827,22 @@ Thank you for your business!`;
                                 <td className="p-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                                   {p.purchase_date || p.created_at?.slice(0, 10)}
                                 </td>
-                                <td className="p-3 font-bold text-slate-900 dark:text-white">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                   {p.supplier_name}
                                 </td>
-                                <td className="p-3 text-slate-700">
+                                <td className="p-3 text-slate-700 whitespace-nowrap">
                                   {p.item_name}
                                 </td>
-                                <td className="p-3 text-right font-medium text-slate-700">
+                                <td className="p-3 text-right font-medium text-slate-700 whitespace-nowrap">
                                   {money(total)}
                                 </td>
-                                <td className="p-3 text-right font-black text-emerald-600">
+                                <td className="p-3 text-right font-black text-emerald-600 whitespace-nowrap">
                                   {money(paid)}
                                 </td>
-                                <td className="p-3 text-right font-black text-rose-600">
+                                <td className="p-3 text-right font-black text-rose-600 whitespace-nowrap">
                                   {money(due)}
                                 </td>
-                                <td className="p-3 text-center">
+                                <td className="p-3 text-center whitespace-nowrap">
                                   {paid > 0 ? (
                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                                       p.p1_mode === "UPI" ? "bg-indigo-100 text-indigo-800" : "bg-emerald-100 text-emerald-800"
@@ -8853,10 +8853,10 @@ Thank you for your business!`;
                                     <span className="text-slate-400 text-[11px]">-</span>
                                   )}
                                 </td>
-                                <td className="p-3 text-slate-700 font-medium">
+                                <td className="p-3 text-slate-700 font-medium whitespace-nowrap">
                                   {partner?.name || (paid > 0 ? "Partner" : "-")}
                                 </td>
-                                <td className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                <td className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
                                   <div className="hidden sm:flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
@@ -8983,26 +8983,26 @@ Thank you for your business!`;
                       <div className="space-y-2">
                         {renderPagination(safeLoanPage, sortedLoanTx.length, 10, setLoanPayPage)}
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                          <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                          <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th onClick={() => toggleSort("id", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("id", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   Repayment ID / Ref{renderSortIndicator("id", loanRepaySortCol, loanRepaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("date", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("date", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   Date{renderSortIndicator("date", loanRepaySortCol, loanRepaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("lender", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("lender", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   Lender / Source{renderSortIndicator("lender", loanRepaySortCol, loanRepaySortDir)}
                                 </th>
-                                <th onClick={() => toggleSort("type", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th onClick={() => toggleSort("type", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   Type{renderSortIndicator("type", loanRepaySortCol, loanRepaySortDir)}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Partner & Mode</th>
-                                <th onClick={() => toggleSort("amount", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">Partner & Mode</th>
+                                <th onClick={() => toggleSort("amount", loanRepaySortCol, setLoanRepaySortCol, loanRepaySortDir, setLoanRepaySortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                   Amount (₹){renderSortIndicator("amount", loanRepaySortCol, loanRepaySortDir)}
                                 </th>
-                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Notes / Ref</th>
+                                <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">Notes / Ref</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -9019,7 +9019,7 @@ Thank you for your business!`;
                           const isPrincipal = tx.tx_type === "Repayment";
                           return (
                             <tr key={tx.id} className="hover:bg-slate-50/70 transition">
-                              <td className="p-3 font-mono font-bold text-purple-700 dark:text-purple-400">
+                              <td className="p-3 font-mono font-bold text-purple-700 dark:text-purple-400 whitespace-nowrap">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedReceiptDetail({ ...tx, isLoanRepayment: true })}
@@ -9030,21 +9030,21 @@ Thank you for your business!`;
                                 </button>
                               </td>
                               <td className="p-3 text-slate-500 whitespace-nowrap">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
-                              <td className="p-3 font-bold text-slate-900">{targetL?.name || "Lender"}</td>
-                              <td className="p-3 text-center">
+                              <td className="p-3 font-bold text-slate-900 whitespace-nowrap">{targetL?.name || "Lender"}</td>
+                              <td className="p-3 text-center whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                                   isPrincipal ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                                 }`}>
                                   {isPrincipal ? "Principal Repayment" : "Monthly Interest"}
                                 </span>
                               </td>
-                              <td className="p-3 text-slate-600">
+                              <td className="p-3 text-slate-600 whitespace-nowrap">
                                 {targetP?.name || "Partner"} ({tx.payment_mode || "Cash"})
                               </td>
-                              <td className="p-3 text-right font-black text-purple-700">
+                              <td className="p-3 text-right font-black text-purple-700 whitespace-nowrap">
                                 {money(tx.amount)}
                               </td>
-                              <td className="p-3 text-slate-500 text-[11px] max-w-[200px] truncate">
+                              <td className="p-3 text-slate-500 text-[11px] max-w-[200px] truncate whitespace-nowrap">
                                 {tx.notes || "-"}
                               </td>
                             </tr>
@@ -9195,23 +9195,23 @@ Thank you for your business!`;
 
                     {/* High Precision Technical Grid Table */}
                     <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700 shadow-xs">
-                      <table className="w-full border-collapse font-mono text-xs">
+                      <table className="min-w-[650px] w-full border-collapse font-mono text-xs">
                         <thead>
                           <tr className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold uppercase text-[11px] tracking-wider text-left">
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Partner</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right">Opening Cash</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right">Opening UPI</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300">
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Partner</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Opening Cash</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Opening UPI</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300 whitespace-nowrap">
                               Cash In-Hand
                             </th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-indigo-50/60 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-300">
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-indigo-50/60 dark:bg-indigo-950/20 text-indigo-800 dark:text-indigo-300 whitespace-nowrap">
                               UPI In-Hand
                             </th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-slate-100/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black">
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-right bg-slate-100/70 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-black whitespace-nowrap">
                               Total Balance
                             </th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-32">Share %</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-28">Status</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-32 whitespace-nowrap">Share %</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 bg-white dark:bg-slate-900 font-medium">
@@ -9229,25 +9229,25 @@ Thank you for your business!`;
 
                               return (
                                 <tr key={p.id} className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition">
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 text-sm font-sans">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 text-sm font-sans whitespace-nowrap">
                                     {p.name}
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                     {money(p.initCash || 0)}
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                     {money(p.initUpi || 0)}
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10 whitespace-nowrap">
                                     {money(p.netCash || 0)}
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/10">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-950/10 whitespace-nowrap">
                                     {money(p.netUpi || 0)}
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-slate-900 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-800/30 text-sm">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-right font-black text-slate-900 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-800/30 text-sm whitespace-nowrap">
                                     {money(p.totalBalance)}
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
                                     <div className="flex items-center justify-center gap-1.5">
                                       <div className="w-12 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
                                         <div
@@ -9258,7 +9258,7 @@ Thank you for your business!`;
                                       <span className="font-bold text-[11px] text-slate-700 dark:text-slate-300 w-9 text-right">{pShare}%</span>
                                     </div>
                                   </td>
-                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center">
+                                  <td className="p-3 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
                                     <span
                                       className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                                         isPositive
@@ -9279,28 +9279,28 @@ Thank you for your business!`;
                         </tbody>
                         <tfoot>
                           <tr className="bg-[#d5e7f7] dark:bg-slate-800/90 font-bold text-slate-900 dark:text-white border-t-2 border-sky-300 dark:border-slate-600">
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right uppercase tracking-wider text-[11px] font-black">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right uppercase tracking-wider text-[11px] font-black whitespace-nowrap">
                               Consolidated Partner Liquidity
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300 whitespace-nowrap">
                               {money(totInitCash)}
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-600 dark:text-slate-300 whitespace-nowrap">
                               {money(totInitUpi)}
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-emerald-700 dark:text-emerald-300 font-black bg-emerald-100/50 dark:bg-emerald-950/30">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-emerald-700 dark:text-emerald-300 font-black bg-emerald-100/50 dark:bg-emerald-950/30 whitespace-nowrap">
                               {money(businessSummary.totalCash)}
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-indigo-700 dark:text-indigo-300 font-black bg-indigo-100/50 dark:bg-indigo-950/30">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-indigo-700 dark:text-indigo-300 font-black bg-indigo-100/50 dark:bg-indigo-950/30 whitespace-nowrap">
                               {money(businessSummary.totalUpi)}
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-900 dark:text-white font-black text-sm bg-sky-200/50 dark:bg-slate-700/50">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-right text-slate-900 dark:text-white font-black text-sm bg-sky-200/50 dark:bg-slate-700/50 whitespace-nowrap">
                               {money(totalLiquid)}
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-center font-black">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-center font-black whitespace-nowrap">
                               100.0%
                             </td>
-                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-center">
+                            <td className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
                               <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-bold">
                                 ✓ Verified
                               </span>
@@ -10158,25 +10158,25 @@ Thank you for your business!`;
                       <p className="text-xs text-slate-400 p-4 text-center">No purchases recorded in this period.</p>
                     ) : (
                       <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <table className="w-full text-left text-xs border-collapse font-mono">
+                        <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
                           <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                              <th onClick={() => toggleSort("name", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("name", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Supplier Name{renderSortIndicator("name", analysisSupSortCol, analysisSupSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("count", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("count", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Orders Count{renderSortIndicator("count", analysisSupSortCol, analysisSupSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("total", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("total", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Total Invoiced (₹){renderSortIndicator("total", analysisSupSortCol, analysisSupSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("paid", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("paid", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Amount Paid (₹){renderSortIndicator("paid", analysisSupSortCol, analysisSupSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("due", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("due", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Balance Due (₹){renderSortIndicator("due", analysisSupSortCol, analysisSupSortDir)}
                               </th>
-                              <th className="p-2.5 text-right">Spend Share</th>
+                              <th className="p-2.5 text-right whitespace-nowrap">Spend Share</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -10192,12 +10192,12 @@ Thank you for your business!`;
                               const share = totalPurchasesSpend > 0 ? ((sup.total / totalPurchasesSpend) * 100).toFixed(1) : 0;
                               return (
                                 <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                  <td className="p-2.5 font-bold text-slate-900 dark:text-white">{sup.name}</td>
-                                  <td className="p-2.5 text-center">{sup.count}</td>
-                                  <td className="p-2.5 text-right font-bold text-slate-800 dark:text-slate-200">{money(sup.total)}</td>
-                                  <td className="p-2.5 text-right font-bold text-emerald-600">{money(sup.paid)}</td>
-                                  <td className="p-2.5 text-right font-bold text-rose-600">{money(sup.due)}</td>
-                                  <td className="p-2.5 text-right font-bold text-indigo-600">{share}%</td>
+                                  <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{sup.name}</td>
+                                  <td className="p-2.5 text-center whitespace-nowrap">{sup.count}</td>
+                                  <td className="p-2.5 text-right font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{money(sup.total)}</td>
+                                  <td className="p-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">{money(sup.paid)}</td>
+                                  <td className="p-2.5 text-right font-bold text-rose-600 whitespace-nowrap">{money(sup.due)}</td>
+                                  <td className="p-2.5 text-right font-bold text-indigo-600 whitespace-nowrap">{share}%</td>
                                 </tr>
                               );
                             })}
@@ -10311,26 +10311,26 @@ Thank you for your business!`;
                       <p className="text-xs text-slate-400 p-4 text-center">No outstanding customer dues found.</p>
                     ) : (
                       <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <table className="w-full text-left text-xs border-collapse font-mono">
+                        <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
                           <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                              <th onClick={() => toggleSort("name", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("name", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Customer Name{renderSortIndicator("name", analysisCustSortCol, analysisCustSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("mobile", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("mobile", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Mobile{renderSortIndicator("mobile", analysisCustSortCol, analysisCustSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("due", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("due", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Outstanding (₹){renderSortIndicator("due", analysisCustSortCol, analysisCustSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("date", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("date", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Oldest Bill Date{renderSortIndicator("date", analysisCustSortCol, analysisCustSortDir)}
                               </th>
-                              <th onClick={() => toggleSort("days", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("days", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Days Outstanding{renderSortIndicator("days", analysisCustSortCol, analysisCustSortDir)}
                               </th>
-                              <th className="p-2.5 text-center">Aging Bracket</th>
-                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-24">Actions</th>
+                              <th className="p-2.5 text-center whitespace-nowrap">Aging Bracket</th>
+                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-24 whitespace-nowrap">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -10344,17 +10344,17 @@ Thank you for your business!`;
                               return analysisCustSortDir === "asc" ? cmp : -cmp;
                             }).map((d) => (
                               <tr key={d.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                                <td className="p-2.5 font-bold text-slate-900 dark:text-white">{d.name}</td>
-                                <td className="p-2.5 text-slate-500">{d.mobile || "--"}</td>
-                                <td className="p-2.5 text-right font-black text-rose-600">{money(d.due)}</td>
-                                <td className="p-2.5">{d.oldestDate || "Opening Bal"}</td>
-                                <td className="p-2.5 text-center font-bold">{d.days > 0 ? `${d.days} days` : "--"}</td>
-                                <td className="p-2.5 text-center">
+                                <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{d.name}</td>
+                                <td className="p-2.5 text-slate-500 whitespace-nowrap">{d.mobile || "--"}</td>
+                                <td className="p-2.5 text-right font-black text-rose-600 whitespace-nowrap">{money(d.due)}</td>
+                                <td className="p-2.5 whitespace-nowrap">{d.oldestDate || "Opening Bal"}</td>
+                                <td className="p-2.5 text-center font-bold whitespace-nowrap">{d.days > 0 ? `${d.days} days` : "--"}</td>
+                                <td className="p-2.5 text-center whitespace-nowrap">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${d.bucketBadge}`}>
                                     {d.bucket}
                                   </span>
                                 </td>
-                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <button
                                       type="button"
@@ -10431,23 +10431,23 @@ Thank you for your business!`;
                       <p className="text-xs text-slate-400 p-4 text-center">No outstanding supplier payables found.</p>
                     ) : (
                       <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <table className="w-full text-left text-xs border-collapse font-mono">
+                        <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
                           <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                             <tr>
-                              <th onClick={() => toggleSort("name", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("name", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Supplier Name{renderSortIndicator("name", analysisPaySortCol, analysisPaySortDir)}
                               </th>
-                              <th onClick={() => toggleSort("mobile", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("mobile", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Mobile{renderSortIndicator("mobile", analysisPaySortCol, analysisPaySortDir)}
                               </th>
-                              <th onClick={() => toggleSort("due", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("due", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Outstanding (₹){renderSortIndicator("due", analysisPaySortCol, analysisPaySortDir)}
                               </th>
-                              <th onClick={() => toggleSort("date", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                              <th onClick={() => toggleSort("date", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                                 Last Purchase Date{renderSortIndicator("date", analysisPaySortCol, analysisPaySortDir)}
                               </th>
-                              <th className="p-2.5 text-center">Aging Bracket</th>
-                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-28">Actions</th>
+                              <th className="p-2.5 text-center whitespace-nowrap">Aging Bracket</th>
+                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-28 whitespace-nowrap">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -10460,16 +10460,16 @@ Thank you for your business!`;
                               return analysisPaySortDir === "asc" ? cmp : -cmp;
                             }).map((s) => (
                               <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                                <td className="p-2.5 font-bold text-slate-900 dark:text-white">{s.name}</td>
-                                <td className="p-2.5 text-slate-500">{s.mobile ? formatSupplierMobile(s.mobile) : "--"}</td>
-                                <td className="p-2.5 text-right font-black text-amber-600">{money(s.due)}</td>
-                                <td className="p-2.5">{s.lastDate || "Opening Bal"}</td>
-                                <td className="p-2.5 text-center">
+                                <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{s.name}</td>
+                                <td className="p-2.5 text-slate-500 whitespace-nowrap">{s.mobile ? formatSupplierMobile(s.mobile) : "--"}</td>
+                                <td className="p-2.5 text-right font-black text-amber-600 whitespace-nowrap">{money(s.due)}</td>
+                                <td className="p-2.5 whitespace-nowrap">{s.lastDate || "Opening Bal"}</td>
+                                <td className="p-2.5 text-center whitespace-nowrap">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${s.bucketBadge}`}>
                                     {s.bucket}
                                   </span>
                                 </td>
-                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -10515,31 +10515,31 @@ Thank you for your business!`;
                     </div>
 
                     <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse font-mono">
+                      <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                           <tr>
-                            <th onClick={() => toggleSort("name", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("name", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Item Name{renderSortIndicator("name", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("category", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("category", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Category / Unit{renderSortIndicator("category", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("procured", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("procured", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Total Procured{renderSortIndicator("procured", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("sold", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("sold", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Total Sold{renderSortIndicator("sold", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("stock", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("stock", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Available Stock{renderSortIndicator("stock", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("avgCost", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("avgCost", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Avg Cost (₹){renderSortIndicator("avgCost", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("valuation", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("valuation", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               Stock Valuation (₹){renderSortIndicator("valuation", analysisStockSortCol, analysisStockSortDir)}
                             </th>
-                            <th className="p-2.5 text-center">Reorder Status</th>
+                            <th className="p-2.5 text-center whitespace-nowrap">Reorder Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -10555,16 +10555,16 @@ Thank you for your business!`;
                             return analysisStockSortDir === "asc" ? cmp : -cmp;
                           }).map((item, idx) => (
                             <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                              <td className="p-2.5 font-bold text-slate-900 dark:text-white">{item.name}</td>
-                              <td className="p-2.5 text-slate-500">{item.category || "General"} ({item.unit || "Units"})</td>
-                              <td className="p-2.5 text-center">{item.totalProcured}</td>
-                              <td className="p-2.5 text-center text-slate-600 dark:text-slate-400">{item.totalSold}</td>
-                              <td className="p-2.5 text-center font-black text-slate-900 dark:text-white">
+                              <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{item.name}</td>
+                              <td className="p-2.5 text-slate-500 whitespace-nowrap">{item.category || "General"} ({item.unit || "Units"})</td>
+                              <td className="p-2.5 text-center whitespace-nowrap">{item.totalProcured}</td>
+                              <td className="p-2.5 text-center text-slate-600 dark:text-slate-400 whitespace-nowrap">{item.totalSold}</td>
+                              <td className="p-2.5 text-center font-black text-slate-900 dark:text-white whitespace-nowrap">
                                 {item.remQty} {item.unit || ""}
                               </td>
-                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">{money(item.costRate)}</td>
-                              <td className="p-2.5 text-right font-black text-indigo-600 dark:text-indigo-400">{money(item.valuation)}</td>
-                              <td className="p-2.5 text-center">
+                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{money(item.costRate)}</td>
+                              <td className="p-2.5 text-right font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{money(item.valuation)}</td>
+                              <td className="p-2.5 text-center whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
                                   item.isOut
                                     ? "bg-rose-50 text-rose-700 border-rose-200"
@@ -10809,14 +10809,14 @@ Thank you for your business!`;
                     </div>
 
                     <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse font-mono">
+                      <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5">Key Performance Indicator</th>
-                            <th className="p-2.5 text-right">Current Period (₹)</th>
-                            <th className="p-2.5 text-right">Previous Period (₹)</th>
-                            <th className="p-2.5 text-right">Variance (Delta ₹)</th>
-                            <th className="p-2.5 text-center">Growth / Decline %</th>
+                            <th className="p-2.5 whitespace-nowrap">Key Performance Indicator</th>
+                            <th className="p-2.5 text-right whitespace-nowrap">Current Period (₹)</th>
+                            <th className="p-2.5 text-right whitespace-nowrap">Previous Period (₹)</th>
+                            <th className="p-2.5 text-right whitespace-nowrap">Variance (Delta ₹)</th>
+                            <th className="p-2.5 text-center whitespace-nowrap">Growth / Decline %</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -10831,13 +10831,13 @@ Thank you for your business!`;
                             const diff = row.curr - row.prev;
                             return (
                               <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                <td className="p-2.5 font-bold text-slate-900 dark:text-white">{row.name}</td>
-                                <td className="p-2.5 text-right font-black text-slate-900 dark:text-white">{money(row.curr)}</td>
-                                <td className="p-2.5 text-right text-slate-500">{money(row.prev)}</td>
-                                <td className={`p-2.5 text-right font-black ${diff >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                                <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.name}</td>
+                                <td className="p-2.5 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">{money(row.curr)}</td>
+                                <td className="p-2.5 text-right text-slate-500 whitespace-nowrap">{money(row.prev)}</td>
+                                <td className={`whitespace-nowrap p-2.5 text-right font-black ${diff >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                                   {diff >= 0 ? `+${money(diff)}` : `-${money(Math.abs(diff))}`}
                                 </td>
-                                <td className="p-2.5 text-center">
+                                <td className="p-2.5 text-center whitespace-nowrap">
                                   {renderGrowthBadge(row.curr, row.prev)}
                                 </td>
                               </tr>
@@ -10985,33 +10985,33 @@ Thank you for your business!`;
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
+                    <table className="min-w-[750px] w-full text-left text-xs border-collapse font-mono">
                       <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                         <tr>
-                          <th className="p-3 text-left">Financial Indicator / Stream</th>
-                          <th className="p-3 text-left">Activity Volume</th>
-                          <th className="p-3 text-right">Consolidated Total (₹)</th>
-                          <th className="p-3 text-left">Key Performance Ratio / Benchmark</th>
-                          <th className="p-3 text-center">Accounting Classification</th>
+                          <th className="p-3 text-left whitespace-nowrap">Financial Indicator / Stream</th>
+                          <th className="p-3 text-left whitespace-nowrap">Activity Volume</th>
+                          <th className="p-3 text-right whitespace-nowrap">Consolidated Total (₹)</th>
+                          <th className="p-3 text-left whitespace-nowrap">Key Performance Ratio / Benchmark</th>
+                          <th className="p-3 text-center whitespace-nowrap">Accounting Classification</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {/* 1. Sales Revenue */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">🛒</span>
                             <span>Sales Revenue</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {totalInvoicesCount} Invoices Billed
                           </td>
                           <td className="p-3 text-right font-mono font-black text-blue-600 dark:text-blue-400 text-sm whitespace-nowrap">
                             {money(totalRevenue)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Average Ticket: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
                               Operating Inflow
                             </span>
@@ -11020,20 +11020,20 @@ Thank you for your business!`;
 
                         {/* 2. Purchases Spend */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">📦</span>
                             <span>Purchases & Procurement Spend</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {totalPurchasesCount} Orders Placed
                           </td>
                           <td className="p-3 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap">
                             {money(totalPurchasesSpend)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Average Order: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase">
                               Procurement Cost
                             </span>
@@ -11042,20 +11042,20 @@ Thank you for your business!`;
 
                         {/* 3. Collections Received */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">📥</span>
                             <span>Customer Collections Received</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {periodCollections.length} Receipts Settled
                           </td>
                           <td className="p-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
                             {money(totalCollections)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Cash, UPI & Bank Receipts
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase">
                               Realized Cash
                             </span>
@@ -11064,11 +11064,11 @@ Thank you for your business!`;
 
                         {/* 4. Gross Profit */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">⚖️</span>
                             <span>Gross Trading Profit</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             Revenue − COGS ({money(periodCogs)})
                           </td>
                           <td className={`p-3 text-right font-mono font-black text-sm whitespace-nowrap ${
@@ -11076,10 +11076,10 @@ Thank you for your business!`;
                           }`}>
                             {money(grossProfit)}
                           </td>
-                          <td className="p-3 font-bold text-teal-600 dark:text-teal-400">
+                          <td className="p-3 font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">
                             {grossMargin}% Gross Margin
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 uppercase">
                               Trading Margin
                             </span>
@@ -11088,20 +11088,20 @@ Thank you for your business!`;
 
                         {/* 5. Operating Outflows */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">💸</span>
                             <span>Shop Operating Expenses & Interest</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {periodExpenses.length} Expense Vouchers
                           </td>
                           <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
                             -{money(totalOperatingOutflows)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Overhead Outflows & Loan Servicing
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase">
                               Operating Outflow
                             </span>
@@ -11110,11 +11110,11 @@ Thank you for your business!`;
 
                         {/* 6. Net Profit / (Loss) */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition bg-slate-50/50 dark:bg-slate-800/20">
-                          <td className="p-3 font-black text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-black text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">🎯</span>
                             <span>Net Operating Profit / (Loss)</span>
                           </td>
-                          <td className="p-3 text-slate-700 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap">
                             Gross Profit − Expenses
                           </td>
                           <td className={`p-3 text-right font-mono font-black text-sm whitespace-nowrap ${
@@ -11122,10 +11122,10 @@ Thank you for your business!`;
                           }`}>
                             {money(netProfit)}
                           </td>
-                          <td className={`p-3 font-bold ${netProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600"}`}>
+                          <td className={`whitespace-nowrap p-3 font-bold ${netProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600"}`}>
                             {netMargin}% Net Margin
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
                               netProfit >= 0
                                 ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
@@ -11138,20 +11138,20 @@ Thank you for your business!`;
 
                         {/* 7. Stock Valuation */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">📊</span>
                             <span>Stock Inventory Valuation</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {masterItems.length} Active Catalog SKUs
                           </td>
                           <td className="p-3 text-right font-mono font-black text-cyan-700 dark:text-cyan-400 text-sm whitespace-nowrap">
                             {money(inventoryValuation)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Real-time Cost Value of Physical Stock
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 uppercase">
                               Current Asset
                             </span>
@@ -11160,20 +11160,20 @@ Thank you for your business!`;
 
                         {/* 8. Customer Dues */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">👥</span>
                             <span>Customer Outstanding Dues</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {debtorsList.length} Customers with Balances
                           </td>
                           <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
                             {money(totalCustomerDues)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Market Receivables Pending Settlement
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase">
                               Accounts Receivable
                             </span>
@@ -11182,20 +11182,20 @@ Thank you for your business!`;
 
                         {/* 9. Supplier Dues */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
                             <span className="text-base">🚚</span>
                             <span>Supplier Pending Payables</span>
                           </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold">
+                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                             {payablesList.length} Vendors Awaiting Payment
                           </td>
                           <td className="p-3 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-sm whitespace-nowrap">
                             {money(totalSupplierDues)}
                           </td>
-                          <td className="p-3 text-slate-500 font-medium">
+                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
                             Vendor Procurement Liabilities
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 uppercase">
                               Accounts Payable
                             </span>
@@ -11265,31 +11265,31 @@ Thank you for your business!`;
                   <div className="space-y-2">
                     {renderPagination(safeAuditPage, combinedAuditTransactions.length, 15, setAuditPage)}
                     <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                      <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th onClick={() => toggleSort("id", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("id", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Doc #", "పత్రం సంఖ్య")}{renderSortIndicator("id", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("type", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("type", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Type", "రకం")}{renderSortIndicator("type", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("date", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("date", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Date", "తేదీ")}{renderSortIndicator("date", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("party", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("party", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Party", "వ్యక్తి / సంస్థ")}{renderSortIndicator("party", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("total", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("total", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Total (₹)", "మొత్తం (₹)")}{renderSortIndicator("total", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("paid", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("paid", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Paid (₹)", "చెల్లించినది (₹)")}{renderSortIndicator("paid", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("due", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("due", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Balance Due", "బకాయి")}{renderSortIndicator("due", auditSortCol, auditSortDir)}
                             </th>
-                            <th onClick={() => toggleSort("status", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                            <th onClick={() => toggleSort("status", auditSortCol, setAuditSortCol, auditSortDir, setAuditSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                               {t("Status", "స్థితి")}{renderSortIndicator("status", auditSortCol, auditSortDir)}
                             </th>
                           </tr>
@@ -11308,8 +11308,8 @@ Thank you for your business!`;
                         onClick={() => setSelectedAuditTx(tx)}
                         className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 cursor-pointer transition"
                       >
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-mono font-bold text-indigo-600">{tx.docNumber}</td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800">
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-mono font-bold text-indigo-600 whitespace-nowrap">{tx.docNumber}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             tx.txType === "sale" ? "bg-indigo-100 text-indigo-800"
                             : tx.txType === "purchase" ? "bg-emerald-100 text-emerald-800"
@@ -11326,12 +11326,12 @@ Thank you for your business!`;
                               : "Expense"}
                           </span>
                         </td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-slate-500">{tx.date}</td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-bold text-slate-900">{tx.partyName}</td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold">{money(tx.totalAmount)}</td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-emerald-600">{money(tx.paidAmount)}</td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-rose-600 font-bold">{money(tx.balanceDue)}</td>
-                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center">
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-slate-500 whitespace-nowrap">{tx.date}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-bold text-slate-900 whitespace-nowrap">{tx.partyName}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold whitespace-nowrap">{money(tx.totalAmount)}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-emerald-600 whitespace-nowrap">{money(tx.paidAmount)}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-rose-600 font-bold whitespace-nowrap">{money(tx.balanceDue)}</td>
+                        <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                             tx.status === "Collected" || tx.status === "Paid"
                               ? "bg-emerald-100 text-emerald-800"
@@ -11494,26 +11494,26 @@ Thank you for your business!`;
             {/* SUB-VIEW: CUSTOMERS (ERP GRID TABLE) */}
             {mastersSubTab === "customers" && (
               <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
-                      <th onClick={() => toggleSort("name", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans whitespace-nowrap">S.No</th>
+                      <th onClick={() => toggleSort("name", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Customer Name{renderSortIndicator("name", masterCustSortCol, masterCustSortDir)}
                       </th>
-                      <th onClick={() => toggleSort("mobile", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("mobile", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Mobile{renderSortIndicator("mobile", masterCustSortCol, masterCustSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32 text-center">Status</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-32 text-center whitespace-nowrap">Status</th>
                       {enablePanGstin && (
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 font-sans text-center">
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 font-sans text-center whitespace-nowrap">
                           PAN / GSTIN
                         </th>
                       )}
-                      <th onClick={() => toggleSort("due", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("due", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Balance (₹){renderSortIndicator("due", masterCustSortCol, masterCustSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -11533,14 +11533,14 @@ Thank you for your business!`;
                             key={c.id}
                             className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                           >
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                               {c.name}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                               {c.mobile || "—"}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                   isAdv
@@ -11554,7 +11554,7 @@ Thank you for your business!`;
                               </span>
                             </td>
                             {enablePanGstin && (
-                              <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                              <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-mono text-[11px] whitespace-nowrap">
                                 {(() => {
                                   const tax = customerTaxInfo[c.id] || customerTaxInfo[c.name] || {};
                                   const pan = tax.pan || c.pan;
@@ -11570,13 +11570,13 @@ Thank you for your business!`;
                               </td>
                             )}
                             <td
-                              className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
+                              className={`whitespace-nowrap p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 isAdv ? "text-emerald-600" : isSettled ? "text-slate-500" : "text-rose-600"
                               }`}
                             >
                               {isAdv ? `Adv: ${money(Math.abs(dueNum))}` : money(dueNum)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5 font-sans">
                                 <button
                                   type="button"
@@ -11607,10 +11607,10 @@ Thank you for your business!`;
                         <td colSpan={enablePanGstin ? 5 : 4} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Customers ({filteredCustomers.length}):
                         </td>
-                        <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400">
+                        <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
                           {money(filteredCustomers.reduce((s, c) => s + Number(c.old_due || 0), 0))}
                         </td>
-                        <td className="p-2.5"></td>
+                        <td className="p-2.5 whitespace-nowrap"></td>
                       </tr>
                     </tfoot>
                   )}
@@ -11621,26 +11621,26 @@ Thank you for your business!`;
             {/* SUB-VIEW: SUPPLIERS (ERP GRID TABLE) */}
             {mastersSubTab === "suppliers" && (
               <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
-                      <th onClick={() => toggleSort("name", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans whitespace-nowrap">S.No</th>
+                      <th onClick={() => toggleSort("name", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Supplier / Vendor{renderSortIndicator("name", masterSupSortCol, masterSupSortDir)}
                       </th>
-                      <th onClick={() => toggleSort("mobile", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("mobile", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Mobile{renderSortIndicator("mobile", masterSupSortCol, masterSupSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-40 text-center">Allow in Sale</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-40 text-center whitespace-nowrap">Allow in Sale</th>
                       {enablePanGstin && (
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 font-sans text-center">
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 font-sans text-center whitespace-nowrap">
                           PAN / GSTIN
                         </th>
                       )}
-                      <th onClick={() => toggleSort("due", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("due", masterSupSortCol, setMasterSupSortCol, masterSupSortDir, setMasterSupSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Payable Due (₹){renderSortIndicator("due", masterSupSortCol, masterSupSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -11663,14 +11663,14 @@ Thank you for your business!`;
                             key={s.id}
                             className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                           >
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                               {s.name}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                               {formatSupplierMobile(s.mobile) || "—"}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <label className="inline-flex items-center gap-1.5 cursor-pointer font-sans text-xs">
                                 <input
                                   type="checkbox"
@@ -11684,7 +11684,7 @@ Thank you for your business!`;
                               </label>
                             </td>
                             {enablePanGstin && (
-                              <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-mono text-[11px]">
+                              <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-mono text-[11px] whitespace-nowrap">
                                 {(() => {
                                   const tax = supplierTaxInfo[s.id] || supplierTaxInfo[s.name] || {};
                                   const pan = tax.pan || s.pan;
@@ -11700,13 +11700,13 @@ Thank you for your business!`;
                               </td>
                             )}
                             <td
-                              className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
+                              className={`whitespace-nowrap p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 netPayable < 0 ? "text-emerald-600" : netPayable === 0 ? "text-slate-500" : "text-amber-600"
                               }`}
                             >
                               {netPayable < 0 ? `Adv: ${money(Math.abs(netPayable))}` : money(netPayable)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5 font-sans">
                                 <button
                                   type="button"
@@ -11737,7 +11737,7 @@ Thank you for your business!`;
                         <td colSpan={enablePanGstin ? 5 : 4} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Suppliers ({filteredSuppliers.length}):
                         </td>
-                        <td className="p-2.5 text-right font-black text-amber-600 dark:text-amber-400">
+                        <td className="p-2.5 text-right font-black text-amber-600 dark:text-amber-400 whitespace-nowrap">
                           {money(
                             filteredSuppliers.reduce((sum, s) => {
                               const sPurchases = procurements.filter((p) => p.supplier_name === s.name || String(p.supplier_id) === String(s.id));
@@ -11747,7 +11747,7 @@ Thank you for your business!`;
                             }, 0)
                           )}
                         </td>
-                        <td className="p-2.5"></td>
+                        <td className="p-2.5 whitespace-nowrap"></td>
                       </tr>
                     </tfoot>
                   )}
@@ -11758,22 +11758,22 @@ Thank you for your business!`;
             {/* SUB-VIEW: ITEMS (ERP GRID TABLE) */}
             {mastersSubTab === "items" && (
               <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
-                      <th onClick={() => toggleSort("name", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans whitespace-nowrap">S.No</th>
+                      <th onClick={() => toggleSort("name", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Item Master Name{renderSortIndicator("name", masterItemSortCol, masterItemSortDir)}
                       </th>
-                      <th onClick={() => toggleSort("stock", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("stock", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Item Stock{renderSortIndicator("stock", masterItemSortCol, masterItemSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Purchase Cost Rate (₹)</th>
-                      <th onClick={() => toggleSort("rate", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 whitespace-nowrap">Purchase Cost Rate (₹)</th>
+                      <th onClick={() => toggleSort("rate", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Selling Rate (₹){renderSortIndicator("rate", masterItemSortCol, masterItemSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32">Markup Margin (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32 whitespace-nowrap">Markup Margin (₹)</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -11795,31 +11795,31 @@ Thank you for your business!`;
                             key={idx}
                             className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                           >
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                               {item.name}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
                                 itemStock > 0 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
                               }`}>
                                 {itemStock} {itemStock === 1 ? "unit" : "units"}
                               </span>
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               {money(item.purchase_rate)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-indigo-600 dark:text-indigo-400">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                               {money(item.selling_rate)}
                             </td>
                             <td
-                              className={`p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold ${
+                              className={`whitespace-nowrap p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold ${
                                 margin >= 0 ? "text-emerald-600" : "text-rose-600"
                               }`}
                             >
                               {margin >= 0 ? `+${money(margin)}` : money(margin)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5 font-sans">
                                 <button
                                   type="button"
@@ -11860,24 +11860,24 @@ Thank you for your business!`;
             {/* SUB-VIEW: LENDERS (ERP GRID TABLE) */}
             {mastersSubTab === "lenders" && (
               <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
-                      <th onClick={() => toggleSort("name", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans whitespace-nowrap">S.No</th>
+                      <th onClick={() => toggleSort("name", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Lender / Source Name{renderSortIndicator("name", masterLenderSortCol, masterLenderSortDir)}
                       </th>
-                      <th onClick={() => toggleSort("mobile", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("mobile", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Mobile{renderSortIndicator("mobile", masterLenderSortCol, masterLenderSortDir)}
                       </th>
-                      <th onClick={() => toggleSort("borrowed", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th onClick={() => toggleSort("borrowed", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Total Borrowed (₹){renderSortIndicator("borrowed", masterLenderSortCol, masterLenderSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Total Repaid (₹)</th>
-                      <th onClick={() => toggleSort("due", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 whitespace-nowrap">Total Repaid (₹)</th>
+                      <th onClick={() => toggleSort("due", masterLenderSortCol, setMasterLenderSortCol, masterLenderSortDir, setMasterLenderSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Pending Due (₹){renderSortIndicator("due", masterLenderSortCol, masterLenderSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -11893,23 +11893,23 @@ Thank you for your business!`;
                           key={l.id}
                           className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                         >
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                             {l.name}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                             {l.mobile || "—"}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {money(l.total_borrowed)}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                             {money(l.total_repaid)}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
                             {money(l.balance_due)}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5 font-sans">
                               <button
                                 type="button"
@@ -11939,10 +11939,10 @@ Thank you for your business!`;
                         <td colSpan={6} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Active Loan Liability ({filteredLenders.length} lenders):
                         </td>
-                        <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400">
+                        <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
                           {money(filteredLenders.reduce((s, l) => s + Number(l.balance_due || 0), 0))}
                         </td>
-                        <td className="p-2.5"></td>
+                        <td className="p-2.5 whitespace-nowrap"></td>
                       </tr>
                     </tfoot>
                   )}
@@ -11953,17 +11953,17 @@ Thank you for your business!`;
             {/* SUB-VIEW: PARTNERS (ERP GRID TABLE) */}
             {mastersSubTab === "partners" && (
               <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                <table className="min-w-[750px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">S.No</th>
-                      <th onClick={() => toggleSort("name", masterPartnerSortCol, setMasterPartnerSortCol, masterPartnerSortDir, setMasterPartnerSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans whitespace-nowrap">S.No</th>
+                      <th onClick={() => toggleSort("name", masterPartnerSortCol, setMasterPartnerSortCol, masterPartnerSortDir, setMasterPartnerSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Partner Name{renderSortIndicator("name", masterPartnerSortCol, masterPartnerSortDir)}
                       </th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Opening Cash (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36">Opening UPI (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-40">Total Capital (₹)</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-36">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 whitespace-nowrap">Opening Cash (₹)</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 whitespace-nowrap">Opening UPI (₹)</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-40 whitespace-nowrap">Total Capital (₹)</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-36 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -11985,8 +11985,8 @@ Thank you for your business!`;
                             key={p.id}
                             className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                           >
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                               <div className="flex items-center gap-2.5">
                                 {(() => {
                                   const img = partnerImages[p.id] || partnerImages[p.name] || p.image;
@@ -12015,16 +12015,16 @@ Thank you for your business!`;
                                 </div>
                               </div>
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 dark:text-emerald-400">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                               {money(p.opening_cash)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-indigo-600 dark:text-indigo-400">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                               {money(p.opening_upi)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-white">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">
                               {money(totCap)}
                             </td>
-                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5 font-sans">
                                 <button
                                   type="button"
@@ -12063,16 +12063,16 @@ Thank you for your business!`;
                         <td colSpan={2} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                           Total Opening Capital ({partners.length} partners):
                         </td>
-                        <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        <td className="p-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                           {money(partners.reduce((s, p) => s + Number(p.opening_cash || 0), 0))}
                         </td>
-                        <td className="p-2.5 text-right font-bold text-indigo-600 dark:text-indigo-400">
+                        <td className="p-2.5 text-right font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                           {money(partners.reduce((s, p) => s + Number(p.opening_upi || 0), 0))}
                         </td>
-                        <td className="p-2.5 text-right font-black text-slate-900 dark:text-white">
+                        <td className="p-2.5 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">
                           {money(partners.reduce((s, p) => s + Number(p.opening_cash || 0) + Number(p.opening_upi || 0), 0))}
                         </td>
-                        <td className="p-2.5"></td>
+                        <td className="p-2.5 whitespace-nowrap"></td>
                       </tr>
                     </tfoot>
                   )}
@@ -12083,12 +12083,12 @@ Thank you for your business!`;
             {/* SUB-VIEW: CATEGORIES (ERP GRID TABLE) */}
             {mastersSubTab === "categories" && (
               <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs max-w-2xl">
-                <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                <table className="min-w-[450px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                   <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700">Category Name</th>
-                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-24">Actions</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 whitespace-nowrap">S.No</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Category Name</th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-24 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -12104,11 +12104,11 @@ Thank you for your business!`;
                           key={c.id}
                           className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                         >
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                             {c.name}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                             {!isCategoryInUse(c) && (
                               <button
                                 type="button"
@@ -12179,16 +12179,16 @@ Thank you for your business!`;
             </div>
 
             <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-2xl shadow-xs">
-              <table className="w-full text-left text-xs border-collapse font-mono">
+              <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono">
                 <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                   <tr>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans">#</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans">Lender / Finance Source</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans">Contact / Mobile</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans">Total Borrowed</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans">Total Repaid</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans">Remaining Due</th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-sans">Actions</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 font-sans whitespace-nowrap">#</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans whitespace-nowrap">Lender / Finance Source</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans whitespace-nowrap">Contact / Mobile</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans whitespace-nowrap">Total Borrowed</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans whitespace-nowrap">Total Repaid</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right font-sans whitespace-nowrap">Remaining Due</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-sans whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -12205,25 +12205,25 @@ Thank you for your business!`;
                       return (
                         <Fragment key={l.id}>
                           <tr className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60 hover:bg-sky-50/50 dark:hover:bg-slate-800 transition">
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-center font-sans font-bold text-slate-400">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-center font-sans font-bold text-slate-400 whitespace-nowrap">
                               {idx + 1}
                             </td>
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 font-sans font-black text-slate-900 dark:text-white">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 font-sans font-black text-slate-900 dark:text-white whitespace-nowrap">
                               {l.name}
                             </td>
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 font-sans text-slate-600 dark:text-slate-300">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 font-sans text-slate-600 dark:text-slate-300 whitespace-nowrap">
                               {l.mobile || "No Contact"}
                             </td>
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-slate-800 dark:text-slate-200">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-slate-800 dark:text-slate-200 whitespace-nowrap">
                               {money(l.total_borrowed)}
                             </td>
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                               {money(l.total_repaid)}
                             </td>
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
                               {money(l.balance_due)}
                             </td>
-                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-center font-sans">
+                            <td className="p-2.5 border border-slate-200 dark:border-slate-700 text-center font-sans whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5 flex-wrap">
                                 <button
                                   type="button"
@@ -12290,16 +12290,16 @@ Thank you for your business!`;
                                     </div>
                                   ) : (
                                     <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
-                                      <table className="w-full text-left text-[11px] border-collapse font-mono">
+                                      <table className="min-w-[750px] w-full text-left text-[11px] border-collapse font-mono">
                                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700">
                                           <tr>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Repayment ID</th>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Date</th>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Type</th>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Paid By</th>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 text-center">Mode</th>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700">Notes</th>
-                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 text-right">Amount (₹)</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">Repayment ID</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">Date</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">Type</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">Paid By</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 text-center whitespace-nowrap">Mode</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">Notes</th>
+                                            <th className="p-1.5 border border-slate-200 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -12307,7 +12307,7 @@ Thank you for your business!`;
                                             const p = partners.find((part) => part.id == tx.partner_id);
                                             return (
                                               <tr key={tx.id} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-900 dark:even:bg-slate-800/60">
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-mono text-purple-700 dark:text-purple-400">
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-mono text-purple-700 dark:text-purple-400 whitespace-nowrap">
                                                   <button
                                                     type="button"
                                                     onClick={() => setSelectedReceiptDetail({ ...tx, isLoanRepayment: true })}
@@ -12317,18 +12317,18 @@ Thank you for your business!`;
                                                     {tx.reference_no || `LRP-${tx.id}`}
                                                   </button>
                                                 </td>
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-sans">
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{tx.tx_date || tx.created_at?.slice(0, 10)}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold font-sans whitespace-nowrap">
                                                   <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
                                                     tx.tx_type === "Repayment" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                                                   }`}>
                                                     {tx.tx_type === "Repayment" ? "Principal Repaid" : "Interest Paid"}
                                                   </span>
                                                 </td>
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-sans">{p?.name || "Partner"}</td>
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">{tx.payment_mode || "Cash"}</td>
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-sans text-slate-500">{tx.notes || "-"}</td>
-                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-purple-700 dark:text-purple-400">
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-sans whitespace-nowrap">{p?.name || "Partner"}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold whitespace-nowrap">{tx.payment_mode || "Cash"}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-sans text-slate-500 whitespace-nowrap">{tx.notes || "-"}</td>
+                                                <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-purple-700 dark:text-purple-400 whitespace-nowrap">
                                                   {money(tx.amount)}
                                                 </td>
                                               </tr>
@@ -12352,13 +12352,13 @@ Thank you for your business!`;
                     <td colSpan={3} className="p-2.5 text-right font-sans text-xs text-slate-800 dark:text-slate-100">
                       Total Business Loans:
                     </td>
-                    <td className="p-2.5 text-right text-slate-900 dark:text-white font-black">
+                    <td className="p-2.5 text-right text-slate-900 dark:text-white font-black whitespace-nowrap">
                       {money(lenders.reduce((s, l) => s + Number(l.total_borrowed || 0), 0))}
                     </td>
-                    <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black">
+                    <td className="p-2.5 text-right text-emerald-600 dark:text-emerald-400 font-black whitespace-nowrap">
                       {money(lenders.reduce((s, l) => s + Number(l.total_repaid || 0), 0))}
                     </td>
-                    <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-black">
+                    <td className="p-2.5 text-right text-rose-600 dark:text-rose-400 font-black whitespace-nowrap">
                       {money(businessSummary.totalLoansPayable)}
                     </td>
                     <td></td>
@@ -12451,27 +12451,27 @@ Thank you for your business!`;
 
             {/* ERP Grid Table (Point 8) */}
             <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-              <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+              <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                 <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                   <tr>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">{t("S.No", "క్ర.సం.")}</th>
-                    <th onClick={() => toggleSort("id", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 whitespace-nowrap">{t("S.No", "క్ర.సం.")}</th>
+                    <th onClick={() => toggleSort("id", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                       {t("Expense ID", "ఖర్చు ID")}{renderSortIndicator("id", expenseSortCol, expenseSortDir)}
                     </th>
-                    <th onClick={() => toggleSort("date", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                    <th onClick={() => toggleSort("date", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                       {t("Date", "తేదీ")}{renderSortIndicator("date", expenseSortCol, expenseSortDir)}
                     </th>
-                    <th onClick={() => toggleSort("category", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                    <th onClick={() => toggleSort("category", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                       {t("Category", "వర్గం")}{renderSortIndicator("category", expenseSortCol, expenseSortDir)}
                     </th>
-                    <th onClick={() => toggleSort("title", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                    <th onClick={() => toggleSort("title", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                       {t("Title / Description", "శీర్షిక / వివరణ")}{renderSortIndicator("title", expenseSortCol, expenseSortDir)}
                     </th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44">{t("Paid By (Partner & Mode)", "చెల్లించిన భాగస్వామి & విధానం")}</th>
-                    <th onClick={() => toggleSort("amount", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition">
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 w-44 whitespace-nowrap">{t("Paid By (Partner & Mode)", "చెల్లించిన భాగస్వామి & విధానం")}</th>
+                    <th onClick={() => toggleSort("amount", expenseSortCol, setExpenseSortCol, expenseSortDir, setExpenseSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                       {t("Amount (₹)", "మొత్తం (₹)")}{renderSortIndicator("amount", expenseSortCol, expenseSortDir)}
                     </th>
-                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">{t("Actions", "చర్యలు")}</th>
+                    <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">{t("Actions", "చర్యలు")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -12489,15 +12489,15 @@ Thank you for your business!`;
                           key={e.id}
                           className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50 dark:hover:bg-slate-800 transition"
                         >
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold font-mono text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                             {e.expense_no || `EXP-${e.id}`}
                           </td>
                           <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{e.expense_date}</td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-indigo-700 dark:text-indigo-300">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-indigo-700 dark:text-indigo-300 whitespace-nowrap">
                             {e.category_name}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-sans">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-sans whitespace-nowrap">
                             {(() => {
                               const fullDesc = `${e.title || ""}${e.notes ? " — " + e.notes : ""}`;
                               const isLong = fullDesc.length > 25 || Boolean(e.notes);
@@ -12541,14 +12541,14 @@ Thank you for your business!`;
                               );
                             })()}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                             <span className="font-bold text-slate-800 dark:text-slate-200 block">{partner?.name || "N/A"}</span>
                             <span className="text-[10px] text-slate-500 font-sans">({e.payment_mode || "Cash"})</span>
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
                             {money(e.amount)}
                           </td>
-                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">
+                          <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5 font-sans">
                               <button
                                 type="button"
@@ -12577,10 +12577,10 @@ Thank you for your business!`;
                       <td colSpan={5} className="p-2.5 text-right uppercase tracking-wider text-slate-600 dark:text-slate-300">
                         Total Expenses ({filteredExpenses.length} entries):
                       </td>
-                      <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400 text-sm">
+                      <td className="p-2.5 text-right font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
                         {money(filteredExpenses.reduce((s, e) => s + Number(e.amount || 0), 0))}
                       </td>
-                      <td className="p-2.5"></td>
+                      <td className="p-2.5 whitespace-nowrap"></td>
                     </tr>
                   </tfoot>
                 )}
@@ -12639,66 +12639,66 @@ Thank you for your business!`;
 
                 {/* SECTION 1: MASTER BALANCE SHEET TABLE (EXACT VISUAL REPLICA OF USER IMAGE 1) */}
                 <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                  <table className="min-w-[500px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                     <thead>
                       <tr className="bg-slate-900 text-white font-bold">
-                        <th className="p-3 border border-slate-800 text-center w-16">S.No</th>
-                        <th className="p-3 border border-slate-800">{t("Description", "వివరణ (Description)")}</th>
-                        <th className="p-3 border border-slate-800 text-right w-52">{t("Total Value (₹)", "మొత్తం విలువ (Value ₹)")}</th>
+                        <th className="p-3 border border-slate-800 text-center w-16 whitespace-nowrap">S.No</th>
+                        <th className="p-3 border border-slate-800 whitespace-nowrap">{t("Description", "వివరణ (Description)")}</th>
+                        <th className="p-3 border border-slate-800 text-right w-52 whitespace-nowrap">{t("Total Value (₹)", "మొత్తం విలువ (Value ₹)")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {/* Row 1: Debts (Amber) */}
                       <tr className="bg-amber-50/90 dark:bg-amber-950/40 font-bold text-slate-900 dark:text-amber-200">
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">1</td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">1</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                           {t("Debts & Supplier Purchase Dues", "అప్పులు (Debts & Supplier Purchase Dues)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 dark:text-rose-400 font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 dark:text-rose-400 font-black whitespace-nowrap">
                           {money(businessSummary.totalLoansPayable + businessSummary.totalPurchaseDues)}
                         </td>
                       </tr>
 
                       {/* Row 2: Customer Dues */}
                       <tr className="bg-slate-50/80 dark:bg-slate-800/60 font-bold text-slate-900 dark:text-slate-100">
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">2</td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">2</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                           {t("Customer Dues", "కస్టమర్ బ్యాలెన్స్ (Customer Dues)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100 font-bold whitespace-nowrap">
                           {money(businessSummary.totalCustomerDues)}
                         </td>
                       </tr>
 
                       {/* Row 3: Stock Valuation */}
                       <tr className="bg-slate-50/80 dark:bg-slate-800/60 font-bold text-slate-900 dark:text-slate-100">
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">3</td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">3</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                           {t("Stock Valuation", "నిలువలు (Stock Valuation)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-slate-100 font-bold whitespace-nowrap">
                           {money(businessSummary.stockValuation)}
                         </td>
                       </tr>
 
                       {/* Row 4: Expenses & Outlays (Pink) */}
                       <tr className="bg-rose-50/80 dark:bg-rose-950/40 font-bold text-slate-900 dark:text-rose-200">
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">4</td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">4</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                           {t("Expenses & Outlays", "ఖర్చులు (Expenses & Outlays)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 dark:text-rose-400 font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-rose-600 dark:text-rose-400 font-black whitespace-nowrap">
                           {money(businessSummary.totalExpenses)}
                         </td>
                       </tr>
 
                       {/* Row 5: COGS */}
                       <tr className="bg-blue-50/80 dark:bg-blue-950/40 font-bold text-slate-900 dark:text-blue-200">
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center">5</td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">5</td>
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
                           {t("Cost of Goods Sold (COGS)", "కొనుగోలు ఖర్చు / COGS (Cost of Goods Sold)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-blue-300 font-bold">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-900 dark:text-blue-300 font-bold whitespace-nowrap">
                           {money(businessSummary.cogs)}
                         </td>
                       </tr>
@@ -12708,7 +12708,7 @@ Thank you for your business!`;
                         <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase text-xs">
                           {t("GROSS PROFIT = SALES - COGS", "స్థూల లాభం (GROSS PROFIT = SALES - COGS)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-emerald-700 dark:text-emerald-400">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
                           {money(businessSummary.grossProfit)}
                         </td>
                       </tr>
@@ -12718,7 +12718,7 @@ Thank you for your business!`;
                         <td colSpan={2} className="p-3 border border-slate-300 dark:border-slate-700 text-right uppercase">
                           {t("NET BUSINESS PROFIT = (GROSS PROFIT - EXPENSES) = ((1 - 2) - 3)", "నికర లాభం (NET BUSINESS PROFIT = (GROSS PROFIT - EXPENSES) = ((1 - 2) - 3))")}
                         </td>
-                        <td className="p-3 border border-slate-300 dark:border-slate-700 text-right text-emerald-950 dark:text-emerald-200 font-black">
+                        <td className="p-3 border border-slate-300 dark:border-slate-700 text-right text-emerald-950 dark:text-emerald-200 font-black whitespace-nowrap">
                           {money(businessSummary.netProfit)}
                         </td>
                       </tr>
@@ -12728,7 +12728,7 @@ Thank you for your business!`;
                         <td colSpan={2} className="p-2.5 border border-slate-300 dark:border-slate-700 text-right uppercase">
                           {t("BUSINESS NET WORTH = ASSETS - LIABILITIES", "వ్యాపార నికర విలువ (BUSINESS NET WORTH = ASSETS - LIABILITIES)")}
                         </td>
-                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black">
+                        <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black whitespace-nowrap">
                           {money(businessSummary.netWorth)}
                         </td>
                       </tr>
@@ -12747,16 +12747,16 @@ Thank you for your business!`;
                     </span>
                   </div>
                   <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                    <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                       <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Stock Item</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Supplier</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">Available Qty</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Cost Rate</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Selling Rate</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Total Valuation</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Stock Item</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Supplier</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">Available Qty</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Cost Rate</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Selling Rate</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Total Valuation</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -12768,13 +12768,13 @@ Thank you for your business!`;
                             const val = availQty * Number(p.purchase_rate || 0);
                             return (
                               <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{p.items?.item_name || p.item_name}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{p.suppliers?.name || p.supplier_name}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center font-bold">{availQty}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(p.purchase_rate)}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(p.selling_rate || p.purchase_rate)}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-slate-900 dark:text-white">{money(val)}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{p.items?.item_name || p.item_name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 whitespace-nowrap">{p.suppliers?.name || p.supplier_name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center font-bold whitespace-nowrap">{availQty}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">{money(p.purchase_rate)}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">{money(p.selling_rate || p.purchase_rate)}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{money(val)}</td>
                               </tr>
                             );
                           })
@@ -12795,13 +12795,13 @@ Thank you for your business!`;
                     </span>
                   </div>
                   <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                    <table className="min-w-[600px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                       <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Customer Name</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Mobile</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Outstanding Due / Advance</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Customer Name</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Mobile</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Outstanding Due / Advance</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -12810,10 +12810,10 @@ Thank you for your business!`;
                         ) : (
                           customerList.map((c, idx) => (
                             <tr key={c.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{c.name}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">{c.mobile || "N/A"}</td>
-                              <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{c.name}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap">{c.mobile || "N/A"}</td>
+                              <td className={`whitespace-nowrap p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 Number(c.old_due || 0) < 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                               }`}>
                                 {Number(c.old_due || 0) < 0 ? `Adv: ${money(Math.abs(c.old_due))}` : money(c.old_due)}
@@ -12842,14 +12842,14 @@ Thank you for your business!`;
                     </div>
                   </div>
                   <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                    <table className="min-w-[650px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                       <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Supplier Name</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Mobile</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">Status</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Balance Amount (₹)</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Supplier Name</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Mobile</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">Status</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Balance Amount (₹)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -12861,17 +12861,17 @@ Thank you for your business!`;
                             const isAdv = bal < 0;
                             return (
                               <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{s.name}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">{formatSupplierMobile(s.mobile) || "N/A"}</td>
-                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{s.name}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap">{formatSupplierMobile(s.mobile) || "N/A"}</td>
+                                <td className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                     isAdv ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300"
                                   }`}>
                                     {isAdv ? "Advance Credit" : "Payable Due"}
                                   </span>
                                 </td>
-                                <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${isAdv ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                                <td className={`whitespace-nowrap p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${isAdv ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
                                   {isAdv ? `Adv: ${money(Math.abs(bal))}` : money(bal)}
                                 </td>
                               </tr>
@@ -12894,14 +12894,14 @@ Thank you for your business!`;
                     </span>
                   </div>
                   <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                    <table className="min-w-[650px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                       <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-300 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center">S.No</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Category</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700">Description</th>
-                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount (₹)</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">S.No</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Date</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Category</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Description</th>
+                          <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -12910,11 +12910,11 @@ Thank you for your business!`;
                         ) : (
                           expenses.map((e, idx) => (
                             <tr key={e.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 text-slate-900 dark:text-slate-100">
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-center">{idx + 1}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400">{e.expense_date || "N/A"}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100">{e.category_name}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{e.title}</td>
-                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-rose-600 dark:text-rose-400">{money(e.amount)}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 whitespace-nowrap">{e.expense_date || "N/A"}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">{e.category_name}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 whitespace-nowrap">{e.title}</td>
+                              <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">{money(e.amount)}</td>
                             </tr>
                           ))
                         )}
@@ -12949,13 +12949,13 @@ Thank you for your business!`;
                       <span className="text-rose-600 font-mono">Total: {money(totalActiveLoans)}</span>
                     </div>
                     <div className="overflow-x-auto border border-rose-200 dark:border-rose-900/60 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-rose-200 dark:border-rose-900/60">
+                      <table className="min-w-[600px] w-full text-left text-xs border-collapse font-mono border border-rose-200 dark:border-rose-900/60">
                         <thead className="bg-rose-100/70 dark:bg-rose-950/50 text-rose-900 dark:text-rose-200 font-bold border-b border-rose-200 dark:border-rose-900/60">
                           <tr>
-                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 text-center">S.No</th>
-                            <th className="p-2 border border-rose-200 dark:border-rose-900/60">Lender / Loan Source</th>
-                            <th className="p-2 border border-rose-200 dark:border-rose-900/60">Mobile</th>
-                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 text-right">Balance Due (₹)</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 text-center whitespace-nowrap">S.No</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 whitespace-nowrap">Lender / Loan Source</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 whitespace-nowrap">Mobile</th>
+                            <th className="p-2 border border-rose-200 dark:border-rose-900/60 text-right whitespace-nowrap">Balance Due (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -12964,10 +12964,10 @@ Thank you for your business!`;
                           ) : (
                             activeLoans.map((l, idx) => (
                               <tr key={l.id} className="odd:bg-white even:bg-rose-50/30 dark:odd:bg-slate-900 dark:even:bg-rose-950/20 text-slate-900 dark:text-slate-100">
-                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-center">{idx + 1}</td>
-                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 font-bold">{l.name}</td>
-                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-slate-600 dark:text-slate-400">{l.mobile || "N/A"}</td>
-                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-right font-black text-rose-600 dark:text-rose-400">{money(l.balance_due)}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-center whitespace-nowrap">{idx + 1}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 font-bold whitespace-nowrap">{l.name}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-slate-600 dark:text-slate-400 whitespace-nowrap">{l.mobile || "N/A"}</td>
+                                <td className="p-2 border border-rose-200 dark:border-rose-900/60 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">{money(l.balance_due)}</td>
                               </tr>
                             ))
                           )}
@@ -12983,16 +12983,16 @@ Thank you for your business!`;
                       <span className="text-amber-600 dark:text-amber-400 font-mono">Total: {money(totalPendingBills)}</span>
                     </div>
                     <div className="overflow-x-auto border border-amber-200 dark:border-amber-900/60 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-amber-200 dark:border-amber-900/60">
+                      <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono border border-amber-200 dark:border-amber-900/60">
                         <thead className="bg-amber-100/70 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 font-bold border-b border-amber-200 dark:border-amber-900/60">
                           <tr>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-center">S.No</th>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60">Bill ID</th>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60">Supplier</th>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60">Item</th>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">Total (₹)</th>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">Paid (₹)</th>
-                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right">Due (₹)</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-center whitespace-nowrap">S.No</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap">Bill ID</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap">Supplier</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap">Item</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right whitespace-nowrap">Total (₹)</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right whitespace-nowrap">Paid (₹)</th>
+                            <th className="p-2 border border-amber-200 dark:border-amber-900/60 text-right whitespace-nowrap">Due (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -13005,13 +13005,13 @@ Thank you for your business!`;
                               const due = Math.max(0, total - paid);
                               return (
                                 <tr key={p.id} className="odd:bg-white even:bg-amber-50/30 dark:odd:bg-slate-900 dark:even:bg-amber-950/20 text-slate-900 dark:text-slate-100">
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-center">{idx + 1}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold">BILL-{p.id}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold">{p.suppliers?.name || p.supplier_name}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-slate-700 dark:text-slate-300">{p.items?.item_name || p.item_name}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-mono">{money(total)}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right text-emerald-600 dark:text-emerald-400 font-mono">{money(paid)}</td>
-                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-black text-rose-600 dark:text-rose-400 font-mono">{money(due)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-center whitespace-nowrap">{idx + 1}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold whitespace-nowrap">BILL-{p.id}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 font-bold whitespace-nowrap">{p.suppliers?.name || p.supplier_name}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-slate-700 dark:text-slate-300 whitespace-nowrap">{p.items?.item_name || p.item_name}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-mono whitespace-nowrap">{money(total)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right text-emerald-600 dark:text-emerald-400 font-mono whitespace-nowrap">{money(paid)}</td>
+                                  <td className="p-2 border border-amber-200 dark:border-amber-900/60 text-right font-black text-rose-600 dark:text-rose-400 font-mono whitespace-nowrap">{money(due)}</td>
                                 </tr>
                               );
                             })
@@ -13523,7 +13523,7 @@ Thank you for your business!`;
                     </div>
 
                     <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                      <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                      <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                         <colgroup>
                           <col style={{ width: "15%" }} />
                           <col style={{ width: "33%" }} />
@@ -13536,7 +13536,7 @@ Thank you for your business!`;
                           <tr>
                             <th
                               onClick={() => setLedgerSortOrder(ledgerSortOrder === "asc" ? "desc" : "asc")}
-                              className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition"
+                              className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 cursor-pointer select-none hover:bg-sky-100/60 dark:hover:bg-slate-700/60 transition whitespace-nowrap"
                               title="Click to toggle Date sort order"
                             >
                               <div className="flex items-center justify-between">
@@ -13544,22 +13544,22 @@ Thank you for your business!`;
                                 <span className="text-[10px] opacity-75 no-print">{ledgerSortOrder === "asc" ? "▲" : "▼"}</span>
                               </div>
                             </th>
-                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-left">Particulars</th>
-                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-left">Reference</th>
-                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right">Debit (₹)</th>
-                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right">Credit (₹)</th>
-                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right">Balance (₹)</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-left whitespace-nowrap">Particulars</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-left whitespace-nowrap">Reference</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Debit (₹)</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Credit (₹)</th>
+                            <th className="p-2 sm:p-2.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Balance (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
                           {/* Row 0: Opening Balance */}
                           <tr className="bg-slate-100/70 dark:bg-slate-800/60 font-bold print:bg-slate-100 print:text-black">
                             <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap print:text-[8pt]">{filterStartDate ? `Prior to ${filterStartDate}` : "Opening"}</td>
-                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 print:text-[8pt]">{filterStartDate ? "Net cumulative balance prior to period" : "Opening Balance on Record"}</td>
-                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold print:text-[8pt]">OPENING</td>
-                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right print:text-[8pt]">{periodOpeningBal > 0 ? money(periodOpeningBal) : "—"}</td>
-                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right print:text-[8pt]">{periodOpeningBal < 0 ? money(Math.abs(periodOpeningBal)) : "—"}</td>
-                            <td className={`p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black print:text-black print:text-[8pt] ${periodOpeningBal > 0 ? "text-rose-600" : periodOpeningBal < 0 ? "text-emerald-600" : ""}`}>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 print:text-[8pt] whitespace-nowrap">{filterStartDate ? "Net cumulative balance prior to period" : "Opening Balance on Record"}</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold print:text-[8pt] whitespace-nowrap">OPENING</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right print:text-[8pt] whitespace-nowrap">{periodOpeningBal > 0 ? money(periodOpeningBal) : "—"}</td>
+                            <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right print:text-[8pt] whitespace-nowrap">{periodOpeningBal < 0 ? money(Math.abs(periodOpeningBal)) : "—"}</td>
+                            <td className={`whitespace-nowrap p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black print:text-black print:text-[8pt] ${periodOpeningBal > 0 ? "text-rose-600" : periodOpeningBal < 0 ? "text-emerald-600" : ""}`}>
                               {money(periodOpeningBal)}
                             </td>
                           </tr>
@@ -13577,7 +13577,7 @@ Thank you for your business!`;
                                 <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 whitespace-nowrap font-bold text-slate-800 dark:text-slate-200 print:text-black print:font-semibold print:text-[8pt]">
                                   {row.date}
                                 </td>
-                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 print:text-black">
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 print:text-black whitespace-nowrap">
                                   <div className="flex items-center gap-1.5 flex-wrap print:inline print:space-x-1">
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                                       row.debit > 0
@@ -13592,7 +13592,7 @@ Thank you for your business!`;
                                     )}
                                   </div>
                                 </td>
-                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold break-all sm:break-words [overflow-wrap:anywhere] print:text-black print:text-[8pt]">{row.ref}</td>
+                                <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 font-bold break-all sm:break-words [overflow-wrap:anywhere] print:text-black print:text-[8pt] whitespace-nowrap">{row.ref}</td>
                                 <td className="p-2 sm:p-2.5 border border-slate-300 dark:border-slate-700 text-right font-bold text-indigo-700 dark:text-indigo-400 whitespace-nowrap print:text-black print:text-[8pt]">
                                   {row.debit > 0 ? money(row.debit) : "—"}
                                 </td>
@@ -13694,14 +13694,14 @@ Thank you for your business!`;
                             <span className="font-mono text-indigo-600 font-bold">Total: {money(totalDisplayInvoiced)}</span>
                           </h4>
                           <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
-                            <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                            <table className="min-w-[600px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                               <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
                                 <tr>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Doc / Bill #</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Paid</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Due</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Doc / Bill #</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Date</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Amount</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Paid</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Due</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -13715,11 +13715,11 @@ Thank you for your business!`;
                                       const dueAmt = invAlloc ? invAlloc.balanceDue : Math.max(0, Number(inv.total_amount || 0) - paidAmt);
                                       return (
                                         <tr key={inv.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{inv.invoice_number || `INV-${inv.id}`}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{inv.invoice_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-CA") : "N/A")}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(inv.total_amount)}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold">{money(paidAmt)}</td>
-                                          <td className={`p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmt > 0 ? "text-rose-600" : "text-slate-400"}`}>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{inv.invoice_number || `INV-${inv.id}`}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{inv.invoice_date || (inv.created_at ? new Date(inv.created_at).toLocaleDateString("en-CA") : "N/A")}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">{money(inv.total_amount)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 font-bold whitespace-nowrap">{money(paidAmt)}</td>
+                                          <td className={`whitespace-nowrap p-2 border border-slate-300 dark:border-slate-700 text-right font-black ${dueAmt > 0 ? "text-rose-600" : "text-slate-400"}`}>
                                             {money(dueAmt)}
                                           </td>
                                         </tr>
@@ -13738,11 +13738,11 @@ Thank you for your business!`;
                                       const dtStr = p.purchase_date || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A");
                                       return (
                                         <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{poRef}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{dtStr}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right">{money(total)}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600">{money(paid)}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600">{money(due)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{poRef}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{dtStr}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">{money(total)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right text-emerald-600 whitespace-nowrap">{money(paid)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-black text-rose-600 whitespace-nowrap">{money(due)}</td>
                                         </tr>
                                       );
                                     })
@@ -13760,13 +13760,13 @@ Thank you for your business!`;
                             <span className="font-mono text-emerald-600 font-bold">Total: {money(totalDisplayCollected)}</span>
                           </h4>
                           <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-xl max-h-64">
-                            <table className="w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
+                            <table className="min-w-[550px] w-full text-left text-xs border-collapse font-mono border border-slate-300 dark:border-slate-700">
                               <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 border-b border-slate-300 dark:border-slate-700">
                                 <tr>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Date</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Ref</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700">Mode</th>
-                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right">Amount (₹)</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Date</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Ref</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">Mode</th>
+                                  <th className="p-2 border border-slate-300 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -13776,8 +13776,8 @@ Thank you for your business!`;
                                   ) : (
                                     displayCollected.map((col) => (
                                       <tr key={col.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{col.collection_date || (col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A")}</td>
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{col.collection_date || (col.created_at ? new Date(col.created_at).toLocaleDateString("en-CA") : "N/A")}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">
                                           {col.reference_no || `REC-${col.id}`}
                                           {col.isUpfront && (
                                             <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-sans">
@@ -13785,8 +13785,8 @@ Thank you for your business!`;
                                             </span>
                                           )}
                                         </td>
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700">{col.payment_mode || "Cash"}</td>
-                                        <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(col.amount)}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{col.payment_mode || "Cash"}</td>
+                                        <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600 whitespace-nowrap">{money(col.amount)}</td>
                                       </tr>
                                     ))
                                   )
@@ -13799,10 +13799,10 @@ Thank you for your business!`;
                                       const dtStr = p.purchase_date || (p.created_at ? new Date(p.created_at).toLocaleDateString("en-CA") : "N/A");
                                       return (
                                         <tr key={p.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{dtStr}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold">{payRef}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700">{p.p1_mode || "Cash"}</td>
-                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600">{money(p.p1_amount)}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{dtStr}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 font-bold whitespace-nowrap">{payRef}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 whitespace-nowrap">{p.p1_mode || "Cash"}</td>
+                                          <td className="p-2 border border-slate-300 dark:border-slate-700 text-right font-bold text-emerald-600 whitespace-nowrap">{money(p.p1_amount)}</td>
                                         </tr>
                                       );
                                     })
@@ -13958,17 +13958,17 @@ Thank you for your business!`;
                 {renderPagination(safePartnerPage, partnerAccounts.length, 10, setPartnerPage)}
 
                 <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-xs">
-                  <table className="w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
+                  <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono border border-sky-200 dark:border-slate-700">
                     <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                       <tr>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold">Partner Name</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Role</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Opening Cash</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Opening UPI</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Cash in Hand</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">UPI in Hand</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right">Total Net Capital</th>
-                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center">Actions</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold whitespace-nowrap">Partner Name</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center whitespace-nowrap">Role</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">Opening Cash</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">Opening UPI</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">Cash in Hand</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">UPI in Hand</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-right whitespace-nowrap">Total Net Capital</th>
+                        <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-center whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -13983,30 +13983,30 @@ Thank you for your business!`;
                           const netTotal = (p.netCash || 0) + (p.netUpi || 0);
                           return (
                             <tr key={p.id} className="even:bg-[#f8fbfd] dark:even:bg-slate-800/40 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition">
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-bold text-slate-900">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 font-bold text-slate-900 whitespace-nowrap">
                                 {p.name}
                               </td>
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
                                 <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
                                   {p.role || "Partner"}
                                 </span>
                               </td>
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-slate-600">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-slate-600 whitespace-nowrap">
                                 {money(p.initCash || 0)}
                               </td>
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-slate-600">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right text-slate-600 whitespace-nowrap">
                                 {money(p.initUpi || 0)}
                               </td>
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold text-emerald-600">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold text-emerald-600 whitespace-nowrap">
                                 {money(p.netCash || 0)}
                               </td>
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold text-sky-600">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-right font-bold text-sky-600 whitespace-nowrap">
                                 {money(p.netUpi || 0)}
                               </td>
-                              <td className={`p-2.5 border border-sky-100 dark:border-slate-800 text-right font-black ${netTotal >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
+                              <td className={`whitespace-nowrap p-2.5 border border-sky-100 dark:border-slate-800 text-right font-black ${netTotal >= 0 ? "text-indigo-600" : "text-rose-600"}`}>
                                 {money(netTotal)}
                               </td>
-                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center">
+                              <td className="p-2.5 border border-sky-100 dark:border-slate-800 text-center whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-1.5">
                                   <button
                                     type="button"
@@ -14231,16 +14231,16 @@ Thank you for your business!`;
 
                     {/* ERP Grid Table */}
                     <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700">
-                      <table className="w-full text-left text-xs border-collapse font-mono">
+                      <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12">S.No</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans">Module Name</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Prefix</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">Numbering Format</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28">Next Seq #</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700">Live Sample Preview</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-20">Status</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 whitespace-nowrap">S.No</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans whitespace-nowrap">Module Name</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Prefix</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Numbering Format</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Next Seq #</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Live Sample Preview</th>
+                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-20 whitespace-nowrap">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
@@ -14254,13 +14254,13 @@ Thank you for your business!`;
 
                             return (
                               <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-bold text-slate-500">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-bold text-slate-500 whitespace-nowrap">
                                   {idx + 1}
                                 </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans font-bold text-slate-900 dark:text-white">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                   {mod.name}
                                 </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
                                   <input
                                     type="text"
                                     value={mod.prefix}
@@ -14274,12 +14274,12 @@ Thank you for your business!`;
                                     className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold text-indigo-600 dark:text-indigo-400"
                                   />
                                 </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center text-slate-600 dark:text-slate-300">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center text-slate-600 dark:text-slate-300 whitespace-nowrap">
                                   <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px]">
                                     {mod.pattern}
                                   </span>
                                 </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
                                   <input
                                     type="number"
                                     min="1"
@@ -14295,12 +14295,12 @@ Thank you for your business!`;
                                     className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold"
                                   />
                                 </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">
                                   <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                     {preview}
                                   </span>
                                 </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center">
+                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
                                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
                                     Active
                                   </span>
@@ -14763,14 +14763,14 @@ Thank you for your business!`;
 
                     {/* Roles ERP Grid Table */}
                     <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                      <table className="w-full text-left text-xs border-collapse">
+                      <table className="min-w-[750px] w-full text-left text-xs border-collapse">
                         <thead className="bg-[#f0f6fc] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-3 w-12 text-center">S.No</th>
-                            <th className="p-3 w-48">Role Name</th>
-                            <th className="p-3 w-56">Description</th>
-                            <th className="p-3">Allowed Module Access ({SYSTEM_MODULES.length})</th>
-                            <th className="p-3 w-28 text-center">Actions</th>
+                            <th className="p-3 w-12 text-center whitespace-nowrap">S.No</th>
+                            <th className="p-3 w-48 whitespace-nowrap">Role Name</th>
+                            <th className="p-3 w-56 whitespace-nowrap">Description</th>
+                            <th className="p-3 whitespace-nowrap">Allowed Module Access ({SYSTEM_MODULES.length})</th>
+                            <th className="p-3 w-28 text-center whitespace-nowrap">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -14778,8 +14778,8 @@ Thank you for your business!`;
                             const isAdminRole = r.id === "role_admin";
                             return (
                               <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                <td className="p-3 text-center text-slate-400">{idx + 1}</td>
-                                <td className="p-3 font-bold text-slate-900 dark:text-white">
+                                <td className="p-3 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">
                                   <div className="flex items-center gap-1.5">
                                     <span>{isAdminRole ? "👑" : "🛡️"}</span>
                                     <span>{r.name}</span>
@@ -14790,10 +14790,10 @@ Thank you for your business!`;
                                     )}
                                   </div>
                                 </td>
-                                <td className="p-3 text-slate-500 dark:text-slate-400 text-xs">
+                                <td className="p-3 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
                                   {r.description || "—"}
                                 </td>
-                                <td className="p-3">
+                                <td className="p-3 whitespace-nowrap">
                                   <div className="flex flex-wrap gap-1">
                                     {isAdminRole ? (
                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-200">
@@ -14812,7 +14812,7 @@ Thank you for your business!`;
                                     )}
                                   </div>
                                 </td>
-                                <td className="p-3 text-center">
+                                <td className="p-3 text-center whitespace-nowrap">
                                   {!isAdminRole ? (
                                     <div className="inline-flex items-center gap-1">
                                       <button
@@ -15066,13 +15066,13 @@ Thank you for your business!`;
 
                     {/* Partner Recipients Table */}
                     <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse">
+                      <table className="min-w-[600px] w-full text-left text-xs border-collapse">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Partner</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">WhatsApp Number</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Daily Alert</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-24">Actions</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Partner</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">WhatsApp Number</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Daily Alert</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-24 whitespace-nowrap">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
@@ -15080,10 +15080,10 @@ Thank you for your business!`;
                             const val = validateMobileNumber(p.mobile);
                             return (
                               <tr key={p.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
-                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   {p.name}
                                 </td>
-                                <td className="p-3 border border-sky-100 dark:border-slate-800">
+                                <td className="p-3 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="tel"
@@ -15104,7 +15104,7 @@ Thank you for your business!`;
                                     </span>
                                   </div>
                                 </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -15123,7 +15123,7 @@ Thank you for your business!`;
                                     {p.enabled && dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
                                   </button>
                                 </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -15322,16 +15322,16 @@ Thank you for your business!`;
 
                     {/* History Table matching Scenario #11 Point 5 exact columns */}
                     <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
-                      <table className="w-full text-left text-xs border-collapse font-mono">
+                      <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono">
                         <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                           <tr>
                             <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date & Time</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Recipient</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Number</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Status</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">Message ID</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700">API Response</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center">Action</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Recipient</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Number</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Status</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Message ID</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">API Response</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
@@ -15417,10 +15417,10 @@ Thank you for your business!`;
                                 <td className="p-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   {item.messageId || "—"}
                                 </td>
-                                <td className="p-3 text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 text-[11px] font-sans">
+                                <td className="p-3 text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 text-[11px] font-sans whitespace-nowrap">
                                   {item.apiResponse || item.reason || (item.status === "Sent" ? "Accepted" : "—")}
                                 </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800">
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => handleRetrySingleAlert(item)}
@@ -16426,15 +16426,15 @@ Thank you for your business!`;
                         </div>
 
                         <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
-                          <table className="w-full text-left text-[11px] border-collapse font-mono">
+                          <table className="min-w-[650px] w-full text-left text-[11px] border-collapse font-mono">
                             <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                               <tr>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Date</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Ref</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700">Funding Partner</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Mode</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right">Amount (₹)</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center">Actions</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Ref</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Funding Partner</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Mode</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -16454,7 +16454,7 @@ Thank you for your business!`;
                                       <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
                                         {pDate}
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold whitespace-nowrap">
                                         {pRef}
                                         {pay.isUpfront && (
                                           <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-sans">
@@ -16462,18 +16462,18 @@ Thank you for your business!`;
                                           </span>
                                         )}
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700">{pName}</td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{pName}</td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold whitespace-nowrap">
                                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${
                                           pay.payment_mode === "UPI" ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
                                         }`}>
                                           {pay.payment_mode || "Cash"}
                                         </span>
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                         {money(pay.amount)}
                                       </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center whitespace-nowrap">
                                         <div className="flex items-center justify-center gap-1">
                                           <button
                                             type="button"
@@ -17570,21 +17570,21 @@ Thank you for your business!`;
                     <span className="text-[11px] text-slate-400 font-normal">Reference Breakdown</span>
                   </h4>
                   <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
+                    <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
                       <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
                         <tr>
-                          <th className="p-2 border border-sky-200 dark:border-slate-700">Ref #</th>
-                          <th className="p-2 border border-sky-200 dark:border-slate-700">Date</th>
-                          <th className="p-2 border border-sky-200 dark:border-slate-700">Item / Note</th>
-                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right">Bill Total</th>
-                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right">Adjusted</th>
-                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right">Balance</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Ref #</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Item / Note</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Bill Total</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Adjusted</th>
+                          <th className="p-2 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Balance</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
                         {adjustedBills.map((b, bIdx) => (
                           <tr key={bIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                            <td className="p-2 border border-sky-200 dark:border-slate-700 font-bold text-indigo-600 dark:text-indigo-400">
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                               {b.isOpeningBalance || !b.ref ? (
                                 <span>{b.ref || "Opening Due"}</span>
                               ) : (
@@ -17610,16 +17610,16 @@ Thank you for your business!`;
                             <td className="p-2 border border-sky-200 dark:border-slate-700 text-slate-500 whitespace-nowrap">
                               {b.date}
                             </td>
-                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 max-w-[140px] truncate">
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 max-w-[140px] truncate whitespace-nowrap">
                               {b.item}
                             </td>
-                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300">
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               {money(b.totalAmount)}
                             </td>
-                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                               {money(b.adjustedAmount)}
                             </td>
-                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right text-slate-500">
+                            <td className="p-2 border border-sky-200 dark:border-slate-700 text-right text-slate-500 whitespace-nowrap">
                               {money(b.remainingDue)}
                             </td>
                           </tr>
@@ -17754,24 +17754,24 @@ Thank you for your business!`;
 
             <div>
               <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Itemized Breakdown</h4>
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs font-mono">
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-x-auto">
+                <table className="min-w-[500px] w-full text-left text-xs font-mono">
                   <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5">Item</th>
-                      <th className="p-2.5 text-center">Qty</th>
-                      <th className="p-2.5 text-right">Rate</th>
-                      <th className="p-2.5 text-right">Total</th>
+                      <th className="p-2.5 whitespace-nowrap">Item</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Qty</th>
+                      <th className="p-2.5 text-right whitespace-nowrap">Rate</th>
+                      <th className="p-2.5 text-right whitespace-nowrap">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {Array.isArray(selectedViewInvoice.items) && selectedViewInvoice.items.length > 0 ? (
                       selectedViewInvoice.items.map((it, idx) => (
                         <tr key={idx} className="odd:bg-white even:bg-slate-50/50 dark:odd:bg-slate-900 dark:even:bg-slate-800/40">
-                          <td className="p-2.5 font-bold text-slate-900 dark:text-white">{it.item_name}</td>
-                          <td className="p-2.5 text-center font-semibold text-slate-800 dark:text-slate-200">{it.qty}</td>
-                          <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{money(it.rate)}</td>
-                          <td className="p-2.5 text-right font-black text-slate-900 dark:text-white">{money(it.total)}</td>
+                          <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{it.item_name}</td>
+                          <td className="p-2.5 text-center font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">{it.qty}</td>
+                          <td className="p-2.5 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">{money(it.rate)}</td>
+                          <td className="p-2.5 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">{money(it.total)}</td>
                         </tr>
                       ))
                     ) : (
@@ -17916,18 +17916,18 @@ Thank you for your business!`;
 
             <div>
               <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Itemized Breakdown & Stock Status</h4>
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs font-mono">
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-x-auto">
+                <table className="min-w-[800px] w-full text-left text-xs font-mono">
                   <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-2.5">#</th>
-                      <th className="p-2.5">Item</th>
-                      <th className="p-2.5 text-center">Qty</th>
-                      <th className="p-2.5 text-right">Cost Rate</th>
-                      <th className="p-2.5 text-right">Selling Rate</th>
-                      <th className="p-2.5 text-center">Tax</th>
-                      <th className="p-2.5 text-center">Stock Left</th>
-                      <th className="p-2.5 text-right">Total</th>
+                      <th className="p-2.5 whitespace-nowrap">#</th>
+                      <th className="p-2.5 whitespace-nowrap">Item</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Qty</th>
+                      <th className="p-2.5 text-right whitespace-nowrap">Cost Rate</th>
+                      <th className="p-2.5 text-right whitespace-nowrap">Selling Rate</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Tax</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Stock Left</th>
+                      <th className="p-2.5 text-right whitespace-nowrap">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -17943,20 +17943,20 @@ Thank you for your business!`;
                         const rem = Number(it.remaining_qty !== undefined ? it.remaining_qty : q);
                         return (
                           <tr key={idx} className="odd:bg-white even:bg-slate-50/50 dark:odd:bg-slate-900 dark:even:bg-slate-800/40">
-                            <td className="p-2.5 text-slate-400">{idx + 1}</td>
-                            <td className="p-2.5 font-bold text-slate-900 dark:text-white">{it.item_name}</td>
-                            <td className="p-2.5 text-center font-semibold text-slate-800 dark:text-slate-200">{q}</td>
-                            <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{money(r)}</td>
-                            <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400 font-semibold">{money(it.selling_rate || r)}</td>
-                            <td className="p-2.5 text-center text-slate-400 text-[10px]">0% (Exempt)</td>
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 text-slate-400 whitespace-nowrap">{idx + 1}</td>
+                            <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{it.item_name}</td>
+                            <td className="p-2.5 text-center font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">{q}</td>
+                            <td className="p-2.5 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">{money(r)}</td>
+                            <td className="p-2.5 text-right text-indigo-600 dark:text-indigo-400 font-semibold whitespace-nowrap">{money(it.selling_rate || r)}</td>
+                            <td className="p-2.5 text-center text-slate-400 text-[10px] whitespace-nowrap">0% (Exempt)</td>
+                            <td className="p-2.5 text-center whitespace-nowrap">
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
                                 rem > 0 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
                               }`}>
                                 {rem} left
                               </span>
                             </td>
-                            <td className="p-2.5 text-right font-black text-slate-900 dark:text-white">{money(lineTotal)}</td>
+                            <td className="p-2.5 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">{money(lineTotal)}</td>
                           </tr>
                         );
                       });
