@@ -95,6 +95,21 @@ const Icon = ({ name, size = 18, className = "" }) => {
     ),
     send: (
       <path d="M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    settings: (
+      <path d="M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    shield: (
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    file: (
+      <path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z M13 2v7h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    upload: (
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M17 8l-5-5-5 5 M12 3v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ),
+    briefcase: (
+      <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     )
   };
 
@@ -366,127 +381,6 @@ export default function App() {
   const [portalPassword, setPortalPassword] = useState("");
   const [portalTab, setPortalTab] = useState("overview"); // "overview" | "invoices" | "collections" | "purchases" | "payments" | "consolidated"
 
-  // Cloud Settings Persistence Engine
-  const saveSystemSettingsToCloud = useCallback(async (newPartialSettings) => {
-    try {
-      setSystemSettings((prev) => {
-        const merged = {
-          ...prev,
-          ...newPartialSettings,
-          branding: { ...(prev.branding || {}), ...(newPartialSettings.branding || {}) },
-          security: { ...(prev.security || {}), ...(newPartialSettings.security || {}) },
-          inventory: { ...(prev.inventory || {}), ...(newPartialSettings.inventory || {}) },
-          creditControl: { ...(prev.creditControl || {}), ...(newPartialSettings.creditControl || {}) },
-          zReport: { ...(prev.zReport || {}), ...(newPartialSettings.zReport || {}) }
-        };
-        if (typeof window !== "undefined") {
-          localStorage.setItem("app_system_settings", JSON.stringify(merged));
-          if (merged.branding?.systemName) {
-            localStorage.setItem("app_system_name", merged.branding.systemName);
-          }
-        }
-        (async () => {
-          try {
-            const configPayload = {
-              admin_pin: merged.security?.adminPin || globalAdminPin || "1234",
-              partner_pins: merged.security?.partnerPins || globalPartnerPins || {},
-              settings: merged,
-              updated_at: Date.now()
-            };
-            const jsonStr = JSON.stringify(configPayload);
-            const { data } = await db.from("borrowers").select("id").eq("mobile", "SYSTEM_CONFIG_V1").limit(1);
-            if (data && data.length > 0) {
-              await db.from("borrowers").update({ name: jsonStr }).eq("id", data[0].id);
-            } else {
-              await db.from("borrowers").insert([{
-                name: jsonStr,
-                mobile: "SYSTEM_CONFIG_V1",
-                total_borrowed: 0,
-                total_repaid: 0,
-                balance_due: 0
-              }]);
-            }
-            const authChannel = db.channel("jsr_session_tracker");
-            authChannel.send({
-              type: "broadcast",
-              event: "sync_settings",
-              payload: { settings: merged, machineId: clientMachineId }
-            });
-            try {
-              const bc = new BroadcastChannel("jsr_session_channel");
-              bc.postMessage({ type: "sync_settings", settings: merged, machineId: clientMachineId });
-            } catch (e) {}
-          } catch (cloudErr) {
-            console.warn("Could not sync settings to Supabase:", cloudErr);
-          }
-        })();
-        return merged;
-      });
-    } catch (e) {
-      console.error("saveSystemSettingsToCloud error:", e);
-    }
-  }, [globalAdminPin, globalPartnerPins, clientMachineId]);
-
-  // WhatsApp Payment Reminder Helper
-  const handleSendWhatsAppReminder = useCallback((cust) => {
-    if (!cust) return;
-    const totalDue = Math.max(0, Number(cust.old_due || 0));
-    const shopName = systemSettings?.branding?.systemName || "JSR Retails";
-    const upiId = systemSettings?.branding?.upiId || "9848022338@ybl";
-    const phone = (cust.mobile || "").replace(/[^0-9]/g, "");
-
-    if (!phone || phone.length < 10) {
-      alert(`Customer ${cust.name} does not have a valid 10-digit mobile number!`);
-      return;
-    }
-
-    const unpaidInvoices = invoices.filter(
-      (i) => String(i.customer_id) === String(cust.id) &&
-      Number(i.balance_due ?? (Number(i.total_amount || 0) - Number(i.paid_amount || 0))) > 0
-    );
-
-    let msg = `*PAYMENT REMINDER - ${shopName.toUpperCase()}*\n`;
-    msg += `Dear *${cust.name}*,\n`;
-    msg += `Greetings! This is a gentle reminder regarding your outstanding balance with our store.\n\n`;
-    msg += `*Total Outstanding Balance:* ₹${totalDue.toLocaleString("en-IN")}\n\n`;
-
-    if (unpaidInvoices.length > 0) {
-      msg += `*Itemized Unpaid Invoices:*\n`;
-      unpaidInvoices.slice(0, 10).forEach((inv) => {
-        const invDue = Number(inv.balance_due ?? (Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)));
-        msg += `• Invoice #${inv.invoice_number || "INV-" + inv.id} (${(inv.date || "").slice(0, 10)}): Bill ₹${Number(inv.total_amount || 0).toLocaleString("en-IN")} | Due: ₹${invDue.toLocaleString("en-IN")}\n`;
-      });
-      if (unpaidInvoices.length > 10) {
-        msg += `...and ${unpaidInvoices.length - 10} more bills.\n`;
-      }
-      msg += `\n`;
-    }
-
-    msg += `*Payment Details:*\n`;
-    msg += `UPI ID: ${upiId}\n`;
-    msg += `Click to Pay via UPI:\nupi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${totalDue}&cu=INR\n\n`;
-    msg += `Kindly clear the payment at your earliest convenience. Thank you for your business!`;
-
-    const waUrl = `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}`;
-    window.open(waUrl, "_blank");
-
-    const newLog = {
-      id: `REM-${Date.now()}`,
-      customer_id: cust.id,
-      customer_name: cust.name,
-      mobile: cust.mobile,
-      amount: totalDue,
-      date: new Date().toISOString(),
-      status: "Sent"
-    };
-    saveSystemSettingsToCloud({
-      creditControl: {
-        ...(systemSettings?.creditControl || {}),
-        reminderHistory: [newLog, ...(systemSettings?.creditControl?.reminderHistory || [])].slice(0, 100)
-      }
-    });
-  }, [invoices, systemSettings, saveSystemSettingsToCloud]);
-
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mastersSubTab, setMastersSubTab] = useState("customers");
@@ -680,6 +574,127 @@ export default function App() {
     }
     return [];
   });
+
+  // Cloud Settings Persistence Engine
+  const saveSystemSettingsToCloud = useCallback(async (newPartialSettings) => {
+    try {
+      setSystemSettings((prev) => {
+        const merged = {
+          ...prev,
+          ...newPartialSettings,
+          branding: { ...(prev.branding || {}), ...(newPartialSettings.branding || {}) },
+          security: { ...(prev.security || {}), ...(newPartialSettings.security || {}) },
+          inventory: { ...(prev.inventory || {}), ...(newPartialSettings.inventory || {}) },
+          creditControl: { ...(prev.creditControl || {}), ...(newPartialSettings.creditControl || {}) },
+          zReport: { ...(prev.zReport || {}), ...(newPartialSettings.zReport || {}) }
+        };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("app_system_settings", JSON.stringify(merged));
+          if (merged.branding?.systemName) {
+            localStorage.setItem("app_system_name", merged.branding.systemName);
+          }
+        }
+        (async () => {
+          try {
+            const configPayload = {
+              admin_pin: merged.security?.adminPin || globalAdminPin || "1234",
+              partner_pins: merged.security?.partnerPins || globalPartnerPins || {},
+              settings: merged,
+              updated_at: Date.now()
+            };
+            const jsonStr = JSON.stringify(configPayload);
+            const { data } = await db.from("borrowers").select("id").eq("mobile", "SYSTEM_CONFIG_V1").limit(1);
+            if (data && data.length > 0) {
+              await db.from("borrowers").update({ name: jsonStr }).eq("id", data[0].id);
+            } else {
+              await db.from("borrowers").insert([{
+                name: jsonStr,
+                mobile: "SYSTEM_CONFIG_V1",
+                total_borrowed: 0,
+                total_repaid: 0,
+                balance_due: 0
+              }]);
+            }
+            const authChannel = db.channel("jsr_session_tracker");
+            authChannel.send({
+              type: "broadcast",
+              event: "sync_settings",
+              payload: { settings: merged, machineId: clientMachineId }
+            });
+            try {
+              const bc = new BroadcastChannel("jsr_session_channel");
+              bc.postMessage({ type: "sync_settings", settings: merged, machineId: clientMachineId });
+            } catch (e) {}
+          } catch (cloudErr) {
+            console.warn("Could not sync settings to Supabase:", cloudErr);
+          }
+        })();
+        return merged;
+      });
+    } catch (e) {
+      console.error("saveSystemSettingsToCloud error:", e);
+    }
+  }, [globalAdminPin, globalPartnerPins, clientMachineId]);
+
+  // WhatsApp Payment Reminder Helper
+  const handleSendWhatsAppReminder = useCallback((cust) => {
+    if (!cust) return;
+    const totalDue = Math.max(0, Number(cust.old_due || 0));
+    const shopName = systemSettings?.branding?.systemName || "JSR Retails";
+    const upiId = systemSettings?.branding?.upiId || "9848022338@ybl";
+    const phone = (cust.mobile || "").replace(/[^0-9]/g, "");
+
+    if (!phone || phone.length < 10) {
+      alert(`Customer ${cust.name} does not have a valid 10-digit mobile number!`);
+      return;
+    }
+
+    const unpaidInvoices = invoices.filter(
+      (i) => String(i.customer_id) === String(cust.id) &&
+      Number(i.balance_due ?? (Number(i.total_amount || 0) - Number(i.paid_amount || 0))) > 0
+    );
+
+    let msg = `*PAYMENT REMINDER - ${shopName.toUpperCase()}*\n`;
+    msg += `Dear *${cust.name}*,\n`;
+    msg += `Greetings! This is a gentle reminder regarding your outstanding balance with our store.\n\n`;
+    msg += `*Total Outstanding Balance:* ₹${totalDue.toLocaleString("en-IN")}\n\n`;
+
+    if (unpaidInvoices.length > 0) {
+      msg += `*Itemized Unpaid Invoices:*\n`;
+      unpaidInvoices.slice(0, 10).forEach((inv) => {
+        const invDue = Number(inv.balance_due ?? (Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)));
+        msg += `• Invoice #${inv.invoice_number || "INV-" + inv.id} (${(inv.date || "").slice(0, 10)}): Bill ₹${Number(inv.total_amount || 0).toLocaleString("en-IN")} | Due: ₹${invDue.toLocaleString("en-IN")}\n`;
+      });
+      if (unpaidInvoices.length > 10) {
+        msg += `...and ${unpaidInvoices.length - 10} more bills.\n`;
+      }
+      msg += `\n`;
+    }
+
+    msg += `*Payment Details:*\n`;
+    msg += `UPI ID: ${upiId}\n`;
+    msg += `Click to Pay via UPI:\nupi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${totalDue}&cu=INR\n\n`;
+    msg += `Kindly clear the payment at your earliest convenience. Thank you for your business!`;
+
+    const waUrl = `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, "_blank");
+
+    const newLog = {
+      id: `REM-${Date.now()}`,
+      customer_id: cust.id,
+      customer_name: cust.name,
+      mobile: cust.mobile,
+      amount: totalDue,
+      date: new Date().toISOString(),
+      status: "Sent"
+    };
+    saveSystemSettingsToCloud({
+      creditControl: {
+        ...(systemSettings?.creditControl || {}),
+        reminderHistory: [newLog, ...(systemSettings?.creditControl?.reminderHistory || [])].slice(0, 100)
+      }
+    });
+  }, [invoices, systemSettings, saveSystemSettingsToCloud]);
 
   // Load saved WhatsApp Alert configuration & history from server storage on startup
   useEffect(() => {
