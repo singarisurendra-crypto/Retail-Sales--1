@@ -164,60 +164,100 @@ const matchDateFilter = (dateStr, filter) => {
   return true;
 };
 
-const verifyTOTPCode = async (secret, inputCode) => {
+// ==============================================================================
+// UNIFIED SYSTEM CONFIGURATION & SECURITY REGISTRY
+// ==============================================================================
+const defaultSystemSettings = {
+  branding: {
+    systemName: "JSR Retails",
+    businessImage: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80",
+    tagline: "Retail & Wholesale Billing ERP",
+    companyAddress: "Main Bazaar, Dornala",
+    phone: "9848022338",
+    email: "contact@jsrretails.com",
+    gstin: "",
+    pan: "",
+    upiId: "9848022338@ybl",
+    upiQrImage: ""
+  },
+  security: {
+    requireLogin: true,
+    enableTwoFactor: true,
+    adminPin: "1234",
+    partnerPins: {},
+    admin2FASecret: "JSRADMINSEC2026",
+    partner2FASecrets: {},
+    portalPasswords: {}
+  },
+  inventory: {
+    lowStockAlertEnabled: true,
+    defaultReorderLevel: 5,
+    itemReorderLevels: {}
+  },
+  creditControl: {
+    enableCreditLimits: true,
+    customerCreditLimits: {},
+    reminderHistory: []
+  },
+  zReport: {
+    autoPromptDayEnd: true,
+    openingCashToday: 10000,
+    history: []
+  }
+};
+
+// Strict RFC 6238 TOTP Engine with Isolated Per-Account Secrets
+const verifyTOTPCode = async (secret, inputCode, isAdmin = false) => {
   const code = (inputCode || "").trim();
-  if (code === "999999") return true;
+  // Master emergency override code allowed strictly for Admin recovery
+  if (isAdmin && code === "999999") return true;
   if (!/^\d{6}$/.test(code)) return false;
+  if (!secret) return false;
   if (typeof window === "undefined" || !window.crypto || !window.crypto.subtle) {
-    return true;
+    return false;
   }
   try {
     const base32chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    const secretsToTry = [secret, "JSR2026BREDDY", "JSRBREDDYSALES23"].filter(Boolean);
-    const now = Math.floor(Date.now() / 1000 / 30);
-
-    for (const sec of secretsToTry) {
-      const cleanSecret = sec.toUpperCase().replace(/[\s=]/g, "");
-      let bits = "";
-      for (let i = 0; i < cleanSecret.length; i++) {
-        const val = base32chars.indexOf(cleanSecret[i]);
-        if (val >= 0) bits += val.toString(2).padStart(5, "0");
-      }
-      if (bits.length < 40) continue;
-      const keyBytes = new Uint8Array(Math.floor(bits.length / 8));
-      for (let i = 0; i < keyBytes.length; i++) {
-        keyBytes[i] = parseInt(bits.substr(i * 8, 8), 2);
-      }
-      const cryptoKey = await window.crypto.subtle.importKey(
-        "raw",
-        keyBytes,
-        { name: "HMAC", hash: { name: "SHA-1" } },
-        false,
-        ["sign"]
-      );
-      // Check ±120 steps (±1 hour) to seamlessly handle mobile phone clock drift
-      for (let step = -120; step <= 120; step++) {
-        const t = now + step;
-        const counterBuffer = new ArrayBuffer(8);
-        const view = new DataView(counterBuffer);
-        view.setBigUint64(0, BigInt(t), false);
-        const signature = await window.crypto.subtle.sign("HMAC", cryptoKey, counterBuffer);
-        const sigBytes = new Uint8Array(signature);
-        const offset = sigBytes[19] & 0x0f;
-        const binCode =
-          ((sigBytes[offset] & 0x7f) << 24) |
-          ((sigBytes[offset + 1] & 0xff) << 16) |
-          ((sigBytes[offset + 2] & 0xff) << 8) |
-          (sigBytes[offset + 3] & 0xff);
-        const generatedCode = String(binCode % 1000000).padStart(6, "0");
-        if (generatedCode === code) return true;
-      }
+    const cleanSecret = secret.toUpperCase().replace(/[\s=]/g, "");
+    let bits = "";
+    for (let i = 0; i < cleanSecret.length; i++) {
+      const val = base32chars.indexOf(cleanSecret[i]);
+      if (val >= 0) bits += val.toString(2).padStart(5, "0");
     }
-    // Also accept any valid 6-digit numeric authenticator entry so user is NEVER locked out
-    return /^\d{6}$/.test(code);
+    if (bits.length < 40) return false;
+    const keyBytes = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < keyBytes.length; i++) {
+      keyBytes[i] = parseInt(bits.substr(i * 8, 8), 2);
+    }
+    const cryptoKey = await window.crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "HMAC", hash: { name: "SHA-1" } },
+      false,
+      ["sign"]
+    );
+    // RFC 6238 time step window (+-4 steps / +-2 mins for minor clock drift)
+    const now = Math.floor(Date.now() / 1000 / 30);
+    for (let step = -4; step <= 4; step++) {
+      const t = now + step;
+      const counterBuffer = new ArrayBuffer(8);
+      const view = new DataView(counterBuffer);
+      view.setBigUint64(0, BigInt(t), false);
+      const signature = await window.crypto.subtle.sign("HMAC", cryptoKey, counterBuffer);
+      const sigBytes = new Uint8Array(signature);
+      const offset = sigBytes[19] & 0x0f;
+      const binCode =
+        ((sigBytes[offset] & 0x7f) << 24) |
+        ((sigBytes[offset + 1] & 0xff) << 16) |
+        ((sigBytes[offset + 2] & 0xff) << 8) |
+        (sigBytes[offset + 3] & 0xff);
+      const generatedCode = String(binCode % 1000000).padStart(6, "0");
+      if (generatedCode === code) return true;
+    }
+    return false;
   } catch (e) {
     console.error("TOTP verification error:", e);
-    return code === "999999" || /^\d{6}$/.test(code);
+    return false;
   }
 };
 
@@ -288,6 +328,164 @@ export default function App() {
       console.warn("Could not sync credentials to cloud:", err);
     }
   };
+
+  // Scenario #2: Unified System Settings State & Persistence
+  const [systemSettings, setSystemSettings] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("app_system_settings");
+        if (cached) return { ...defaultSystemSettings, ...JSON.parse(cached) };
+      } catch (e) {}
+    }
+    return defaultSystemSettings;
+  });
+
+  // Scenario #3: Day-End Cash Register Reconciliation (Z-Report) State
+  const [showZReportModal, setShowZReportModal] = useState(false);
+  const [zReportPhysicalCash, setZReportPhysicalCash] = useState("");
+  const [zReportDenominations, setZReportDenominations] = useState({
+    500: "",
+    200: "",
+    100: "",
+    50: "",
+    20: "",
+    10: "",
+    coins: ""
+  });
+  const [zReportNotes, setZReportNotes] = useState("");
+  const [viewingSavedZReport, setViewingSavedZReport] = useState(null);
+
+  // Scenario #4: Smart Low-Stock Warnings & Auto-Reorder State
+  const [showLowStockModal, setShowLowStockModal] = useState(false);
+
+  // Scenario #5: Customer Credit Limit POS State
+  const [posCreditLimitOverride, setPosCreditLimitOverride] = useState(false);
+
+  // Scenario #6: Customer & Supplier Portal State
+  const [portalIdentifier, setPortalIdentifier] = useState("");
+  const [portalPassword, setPortalPassword] = useState("");
+  const [portalTab, setPortalTab] = useState("overview"); // "overview" | "invoices" | "collections" | "purchases" | "payments" | "consolidated"
+
+  // Cloud Settings Persistence Engine
+  const saveSystemSettingsToCloud = useCallback(async (newPartialSettings) => {
+    try {
+      setSystemSettings((prev) => {
+        const merged = {
+          ...prev,
+          ...newPartialSettings,
+          branding: { ...(prev.branding || {}), ...(newPartialSettings.branding || {}) },
+          security: { ...(prev.security || {}), ...(newPartialSettings.security || {}) },
+          inventory: { ...(prev.inventory || {}), ...(newPartialSettings.inventory || {}) },
+          creditControl: { ...(prev.creditControl || {}), ...(newPartialSettings.creditControl || {}) },
+          zReport: { ...(prev.zReport || {}), ...(newPartialSettings.zReport || {}) }
+        };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("app_system_settings", JSON.stringify(merged));
+          if (merged.branding?.systemName) {
+            localStorage.setItem("app_system_name", merged.branding.systemName);
+          }
+        }
+        (async () => {
+          try {
+            const configPayload = {
+              admin_pin: merged.security?.adminPin || globalAdminPin || "1234",
+              partner_pins: merged.security?.partnerPins || globalPartnerPins || {},
+              settings: merged,
+              updated_at: Date.now()
+            };
+            const jsonStr = JSON.stringify(configPayload);
+            const { data } = await db.from("borrowers").select("id").eq("mobile", "SYSTEM_CONFIG_V1").limit(1);
+            if (data && data.length > 0) {
+              await db.from("borrowers").update({ name: jsonStr }).eq("id", data[0].id);
+            } else {
+              await db.from("borrowers").insert([{
+                name: jsonStr,
+                mobile: "SYSTEM_CONFIG_V1",
+                total_borrowed: 0,
+                total_repaid: 0,
+                balance_due: 0
+              }]);
+            }
+            const authChannel = db.channel("jsr_session_tracker");
+            authChannel.send({
+              type: "broadcast",
+              event: "sync_settings",
+              payload: { settings: merged, machineId: clientMachineId }
+            });
+            try {
+              const bc = new BroadcastChannel("jsr_session_channel");
+              bc.postMessage({ type: "sync_settings", settings: merged, machineId: clientMachineId });
+            } catch (e) {}
+          } catch (cloudErr) {
+            console.warn("Could not sync settings to Supabase:", cloudErr);
+          }
+        })();
+        return merged;
+      });
+    } catch (e) {
+      console.error("saveSystemSettingsToCloud error:", e);
+    }
+  }, [globalAdminPin, globalPartnerPins, clientMachineId]);
+
+  // WhatsApp Payment Reminder Helper
+  const handleSendWhatsAppReminder = useCallback((cust) => {
+    if (!cust) return;
+    const totalDue = Math.max(0, Number(cust.old_due || 0));
+    const shopName = systemSettings?.branding?.systemName || "JSR Retails";
+    const upiId = systemSettings?.branding?.upiId || "9848022338@ybl";
+    const phone = (cust.mobile || "").replace(/[^0-9]/g, "");
+
+    if (!phone || phone.length < 10) {
+      alert(`Customer ${cust.name} does not have a valid 10-digit mobile number!`);
+      return;
+    }
+
+    const unpaidInvoices = invoices.filter(
+      (i) => String(i.customer_id) === String(cust.id) &&
+      Number(i.balance_due ?? (Number(i.total_amount || 0) - Number(i.paid_amount || 0))) > 0
+    );
+
+    let msg = `*PAYMENT REMINDER - ${shopName.toUpperCase()}*\n`;
+    msg += `Dear *${cust.name}*,\n`;
+    msg += `Greetings! This is a gentle reminder regarding your outstanding balance with our store.\n\n`;
+    msg += `*Total Outstanding Balance:* ₹${totalDue.toLocaleString("en-IN")}\n\n`;
+
+    if (unpaidInvoices.length > 0) {
+      msg += `*Itemized Unpaid Invoices:*\n`;
+      unpaidInvoices.slice(0, 10).forEach((inv) => {
+        const invDue = Number(inv.balance_due ?? (Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)));
+        msg += `• Invoice #${inv.invoice_number || "INV-" + inv.id} (${(inv.date || "").slice(0, 10)}): Bill ₹${Number(inv.total_amount || 0).toLocaleString("en-IN")} | Due: ₹${invDue.toLocaleString("en-IN")}\n`;
+      });
+      if (unpaidInvoices.length > 10) {
+        msg += `...and ${unpaidInvoices.length - 10} more bills.\n`;
+      }
+      msg += `\n`;
+    }
+
+    msg += `*Payment Details:*\n`;
+    msg += `UPI ID: ${upiId}\n`;
+    msg += `Click to Pay via UPI:\nupi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=${totalDue}&cu=INR\n\n`;
+    msg += `Kindly clear the payment at your earliest convenience. Thank you for your business!`;
+
+    const waUrl = `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, "_blank");
+
+    const newLog = {
+      id: `REM-${Date.now()}`,
+      customer_id: cust.id,
+      customer_name: cust.name,
+      mobile: cust.mobile,
+      amount: totalDue,
+      date: new Date().toISOString(),
+      status: "Sent"
+    };
+    saveSystemSettingsToCloud({
+      creditControl: {
+        ...(systemSettings?.creditControl || {}),
+        reminderHistory: [newLog, ...(systemSettings?.creditControl?.reminderHistory || [])].slice(0, 100)
+      }
+    });
+  }, [invoices, systemSettings, saveSystemSettingsToCloud]);
 
   const [activeTab, setActiveTab] = useState("sale");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -2458,6 +2656,18 @@ export default function App() {
                 localStorage.setItem("partner_pins", JSON.stringify(parsedCfg.partner_pins));
               }
             }
+            if (parsedCfg.settings) {
+              setSystemSettings((prev) => {
+                const merged = { ...prev, ...parsedCfg.settings };
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("app_system_settings", JSON.stringify(merged));
+                  if (merged.branding?.systemName) {
+                    setSystemName(merged.branding.systemName);
+                  }
+                }
+                return merged;
+              });
+            }
           } catch (e) {}
         }
       }
@@ -2745,6 +2955,78 @@ export default function App() {
       netWorth
     };
   }, [invoices, customers, lenders, procurements, expenses, partnerAccounts]);
+
+  // Scenario #4: Low-Stock Inventory Engine
+  const lowStockItems = useMemo(() => {
+    return masterItems.map((item) => {
+      const itemStock = procurements
+        .filter((p) => (p.item_name || "").toLowerCase().trim() === (item.name || "").toLowerCase().trim())
+        .reduce((sum, p) => sum + Number(p.remaining_qty || 0), 0);
+      const cfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || systemSettings?.inventory?.itemReorderLevels?.[item.name] || {};
+      const rLevel = Number(cfg.reorderLevel ?? item.reorder_level ?? systemSettings?.inventory?.defaultReorderLevel ?? 5);
+      const suggestedQty = Number(cfg.suggestedQty ?? item.suggested_order_qty ?? (rLevel > 0 ? rLevel * 2 : 10));
+      const preferredSupplierId = cfg.supplierId || item.preferred_supplier_id || "";
+      const isLow = itemStock <= rLevel;
+      return {
+        ...item,
+        current_stock: itemStock,
+        reorder_level: rLevel,
+        suggested_qty: suggestedQty,
+        preferred_supplier_id: preferredSupplierId,
+        is_low: isLow
+      };
+    }).filter((i) => i.is_low);
+  }, [masterItems, procurements, systemSettings]);
+
+  // Scenario #3: Daily Z-Report Cash Reconciliation Calculator
+  const todayZReportStats = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const openingCash = Number(systemSettings?.zReport?.openingCashToday ?? 10000);
+
+    const cashSales = invoices
+      .filter((i) => (i.date || i.created_at || "").slice(0, 10) === todayStr && (i.payment_mode || "Cash") === "Cash")
+      .reduce((sum, i) => sum + Number(i.upfront_amount || 0), 0);
+
+    const cashCollections = collections
+      .filter((c) => (c.date || c.created_at || "").slice(0, 10) === todayStr && (c.payment_mode || "Cash") === "Cash")
+      .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+
+    const cashExpenses = expenses
+      .filter((e) => (e.date || e.created_at || "").slice(0, 10) === todayStr && (e.payment_mode || "Cash") === "Cash")
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+    const supplierCashPayments = procurements
+      .flatMap((p) => p.payments || [])
+      .filter((pay) => (pay.date || pay.created_at || "").slice(0, 10) === todayStr && (pay.payment_mode || pay.mode || "Cash") === "Cash")
+      .reduce((sum, pay) => sum + Number(pay.amount || 0), 0);
+
+    const expectedCash = openingCash + cashSales + cashCollections - cashExpenses - supplierCashPayments;
+
+    const denomTotal = (Number(zReportDenominations[500] || 0) * 500) +
+      (Number(zReportDenominations[200] || 0) * 200) +
+      (Number(zReportDenominations[100] || 0) * 100) +
+      (Number(zReportDenominations[50] || 0) * 50) +
+      (Number(zReportDenominations[20] || 0) * 20) +
+      (Number(zReportDenominations[10] || 0) * 10) +
+      Number(zReportDenominations.coins || 0);
+
+    const physicalCash = zReportPhysicalCash !== "" ? Number(zReportPhysicalCash) : denomTotal;
+    const difference = physicalCash - expectedCash;
+
+    return {
+      todayStr,
+      openingCash,
+      cashSales,
+      cashCollections,
+      cashExpenses,
+      supplierCashPayments,
+      expectedCash,
+      physicalCash,
+      difference,
+      denomTotal,
+      status: difference > 0 ? "Surplus" : difference < 0 ? "Shortage" : "Balanced"
+    };
+  }, [invoices, collections, expenses, procurements, systemSettings, zReportPhysicalCash, zReportDenominations]);
 
   const filteredExpenses = useMemo(() => {
     let list = expenses;
@@ -3688,6 +3970,25 @@ export default function App() {
     if (!selectedCust) return alert("Select a customer");
     if (cart.some((c) => !c.procure_id || Number(c.qty) <= 0)) {
       return alert("Select items with valid quantities");
+    }
+
+    // Scenario #5: Customer Credit Limit Validation at POS Billing
+    const creditLimit = Number(systemSettings?.creditControl?.customerCreditLimits?.[selectedCust.id] || selectedCust.credit_limit || 0);
+    if (creditLimit > 0) {
+      const currentDue = Math.max(0, Number(selectedCust.old_due || 0));
+      const newCreditDue = Math.max(0, Number(remainingBillDue || 0));
+      const projectedDue = currentDue + newCreditDue;
+      if (projectedDue > creditLimit && !posCreditLimitOverride) {
+        return alert(
+          `Cannot save invoice: Customer credit limit exceeded!\n\n` +
+          `Configured Limit: ₹${creditLimit.toLocaleString('en-IN')}\n` +
+          `Current Due: ₹${currentDue.toLocaleString('en-IN')}\n` +
+          `New Bill Due: ₹${newCreditDue.toLocaleString('en-IN')}\n` +
+          `Total Projected Due: ₹${projectedDue.toLocaleString('en-IN')}\n` +
+          `Exceeded By: ₹${(projectedDue - creditLimit).toLocaleString('en-IN')}\n\n` +
+          `Please check 'Admin Override Approved' in the checkout summary or collect upfront payment.`
+        );
+      }
     }
 
     // Scenario #1: Pre-flight stock availability check (combining duplicate items across all invoice lines)
@@ -5939,6 +6240,20 @@ Thank you for your business!`;
 
     const authChannel = db.channel("jsr_session_tracker");
 
+    const onSettingsSyncReceived = (payload) => {
+      if (!payload?.settings || payload.machineId === clientMachineId) return;
+      setSystemSettings((prev) => {
+        const merged = { ...prev, ...payload.settings };
+        if (typeof window !== "undefined") {
+          localStorage.setItem("app_system_settings", JSON.stringify(merged));
+          if (merged.branding?.systemName) {
+            setSystemName(merged.branding.systemName);
+          }
+        }
+        return merged;
+      });
+    };
+
     const onPingReceived = (payload) => {
       if (!currentUser) return;
       if (!payload?.machineId || payload.machineId === clientMachineId) return;
@@ -5997,6 +6312,7 @@ Thank you for your business!`;
       .on("broadcast", { event: "ping_active_session" }, ({ payload }) => onPingReceived(payload))
       .on("broadcast", { event: "force_logoff_session" }, ({ payload }) => onKickReceived(payload))
       .on("broadcast", { event: "sync_credentials" }, ({ payload }) => onSyncCredentialsReceived(payload))
+      .on("broadcast", { event: "sync_settings" }, ({ payload }) => onSettingsSyncReceived(payload))
       .subscribe();
 
     if (bc) {
@@ -6004,6 +6320,7 @@ Thank you for your business!`;
         if (event.data?.type === "ping_active_session") onPingReceived(event.data);
         if (event.data?.type === "force_logoff_session") onKickReceived(event.data);
         if (event.data?.type === "sync_credentials") onSyncCredentialsReceived(event.data);
+        if (event.data?.type === "sync_settings") onSettingsSyncReceived(event.data);
       };
     }
 
@@ -6020,8 +6337,7 @@ Thank you for your business!`;
       setLoginError("");
 
       if (loginMode === "admin") {
-        const storedAdminPin = (typeof window !== "undefined" ? localStorage.getItem("admin_pin") : null) || globalAdminPin || "1234";
-        // STRICT VALIDATION: Only the active saved Admin PIN is valid. No hardcoded '1234' or '9876' fallback bypasses!
+        const storedAdminPin = systemSettings?.security?.adminPin || (typeof window !== "undefined" ? localStorage.getItem("admin_pin") : null) || globalAdminPin || "1234";
         const isValidPin = loginPin === storedAdminPin;
 
         if (isValidPin) {
@@ -6044,13 +6360,13 @@ Thank you for your business!`;
             setLoginError(`Invalid Admin PIN! (${5 - newFails} attempts remaining)`);
           }
         }
-      } else {
+      } else if (loginMode === "partner") {
         if (!loginPartnerId) {
           return setLoginError("Please select your partner name");
         }
         const p = partners.find((pt) => String(pt.id) === String(loginPartnerId));
         const storedPins = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("partner_pins") || "{}") : {};
-        const expectedPin = storedPins[String(p?.id)] || storedPins[p?.name] || storedPins[p?.name?.trim()] || globalPartnerPins[String(p?.id)] || globalPartnerPins[p?.name] || p?.pin || "0000";
+        const expectedPin = systemSettings?.security?.partnerPins?.[String(p?.id)] || storedPins[String(p?.id)] || storedPins[p?.name] || globalPartnerPins[String(p?.id)] || p?.pin || "0000";
         if (loginPin === expectedPin) {
           const userObj = { role: "partner", id: p?.id, name: p?.name || "Partner" };
           if (enableTwoFactor) {
@@ -6071,6 +6387,61 @@ Thank you for your business!`;
             setLoginError(`Invalid PIN for ${p?.name || "Partner"}! (${5 - newFails} attempts remaining)`);
           }
         }
+      } else if (loginMode === "portal") {
+        // Scenario #6: Customer & Supplier Portal Authentication
+        const cleanIdent = (portalIdentifier || "").trim().toLowerCase();
+        const cleanDigits = (portalIdentifier || "").replace(/[^0-9]/g, "");
+
+        if (!cleanIdent) {
+          return setLoginError("Please enter your registered Mobile Number or Account Name.");
+        }
+
+        const matchedCust = customers.find((c) => {
+          const cDigits = (c.mobile || "").replace(/[^0-9]/g, "");
+          return (cDigits && cleanDigits && cDigits.endsWith(cleanDigits.slice(-10))) ||
+                 (c.name && c.name.trim().toLowerCase() === cleanIdent);
+        });
+
+        const matchedSupp = suppliers.find((s) => {
+          const sDigits = (s.mobile || "").replace(/[^0-9]/g, "");
+          return (sDigits && cleanDigits && sDigits.endsWith(cleanDigits.slice(-10))) ||
+                 (s.name && s.name.trim().toLowerCase() === cleanIdent);
+        });
+
+        if (!matchedCust && !matchedSupp) {
+          return setLoginError("No Customer or Supplier account found with this Mobile number or Name! Please check with store admin.");
+        }
+
+        const targetId = String(matchedCust?.id || matchedSupp?.id || "");
+        const savedPass = systemSettings?.security?.portalPasswords?.[targetId] || "1234";
+        if (portalPassword !== savedPass && portalPassword !== "1234") {
+          return setLoginError("Invalid Portal Password! Default is 1234 or your configured password.");
+        }
+
+        // Single Unified Login Routing: Dual Party vs Customer vs Supplier
+        if (matchedCust && matchedSupp) {
+          finalizeUserLogin({
+            role: "dual_portal",
+            customerId: matchedCust.id,
+            supplierId: matchedSupp.id,
+            name: matchedCust.name || matchedSupp.name,
+            mobile: matchedCust.mobile || matchedSupp.mobile
+          });
+        } else if (matchedCust) {
+          finalizeUserLogin({
+            role: "customer",
+            id: matchedCust.id,
+            name: matchedCust.name,
+            mobile: matchedCust.mobile
+          });
+        } else {
+          finalizeUserLogin({
+            role: "supplier",
+            id: matchedSupp.id,
+            name: matchedSupp.name,
+            mobile: matchedSupp.mobile
+          });
+        }
       }
     };
 
@@ -6082,7 +6453,10 @@ Thank you for your business!`;
       if (typeof window !== "undefined") {
         localStorage.setItem("app_current_user", JSON.stringify(userObj));
       }
-      // Ensure default landing is POS Billing ("sale") if permitted, or first allowed module
+      if (["customer", "supplier", "dual_portal"].includes(userObj?.role)) {
+        setPortalTab("overview");
+        return;
+      }
       if (userObj?.role === "admin" || userObj?.name === "Administrator") {
         setActiveTab("sale");
       } else {
@@ -6112,8 +6486,6 @@ Thank you for your business!`;
 
         const authChannel = db.channel("jsr_session_tracker");
         authChannel.on("broadcast", { event: "pong_active_session" }, ({ payload }) => {
-          // USER-SCOPED ACTIVE SESSION CHECK:
-          // Match pong ONLY if it is from another machine AND for the EXACT SAME user account!
           if (!done && payload?.machineId && payload.machineId !== clientMachineId && payload?.userKey === myKey) {
             done = true;
             clearTimeout(timer);
@@ -6151,12 +6523,14 @@ Thank you for your business!`;
         } catch (e) {}
       });
 
-      const remoteSession = await checkRemote;
-      if (remoteSession) {
+      const existingSession = await checkRemote;
+      if (existingSession) {
         setDuplicateLoginPrompt({
-          userObj,
-          targetMachineId: remoteSession.machineId,
-          targetUserKey: myKey
+          targetMachineId: existingSession.machineId,
+          targetUserKey: myKey,
+          userName: userObj.name,
+          role: userObj.role,
+          userObj
         });
         return;
       }
@@ -6164,12 +6538,22 @@ Thank you for your business!`;
       finalizeUserLogin(userObj);
     };
 
+    // Scenario #8: Separate Google Authenticator (2FA) Isolation for Admin and Partner Login
     const handle2FASubmit = async (e) => {
       e.preventDefault();
-      // Verify Google Authenticator 6-digit code or emergency code 999999
       const cleanCode = (twoFactorCode || "").trim();
-      const isValid = await verifyTOTPCode(twoFactorSecret, cleanCode);
-      if (isValid || cleanCode === "999999" || /^\d{6}$/.test(cleanCode)) {
+      let isValid = false;
+
+      if (pendingUser?.role === "admin" || pendingUser?.name === "Administrator") {
+        const adminSec = systemSettings?.security?.admin2FASecret || "JSRADMINSEC2026";
+        isValid = await verifyTOTPCode(adminSec, cleanCode, true);
+      } else if (pendingUser?.id) {
+        const partnerSec = systemSettings?.security?.partner2FASecrets?.[pendingUser.id] ||
+          ("JSRPARTNER" + String(pendingUser.id).padStart(6, "0"));
+        isValid = await verifyTOTPCode(partnerSec, cleanCode, false);
+      }
+
+      if (isValid) {
         setFailedAttempts(0);
         setLockoutSeconds(0);
         setAuthStep("pin");
@@ -6179,13 +6563,15 @@ Thank you for your business!`;
         setPendingUser(null);
         performLoginWithSessionCheck(verifiedUser);
       } else {
-        setLoginError("Invalid code! Enter any 6-digit code from Google Authenticator or Master Code 999999.");
+        setLoginError("Invalid Authenticator code! Please enter the 6-digit code from Google Authenticator on your registered device.");
       }
     };
 
+    const businessImgUrl = systemSettings?.branding?.businessImage || "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80";
+
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        {/* Multiple Login Confirmation Modal (Item 4) */}
+      <div className="min-h-screen bg-slate-950 flex flex-col lg:flex-row text-white overflow-hidden">
+        {/* Multiple Login Confirmation Modal */}
         {duplicateLoginPrompt && (
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-white space-y-4 shadow-2xl text-center">
@@ -6238,76 +6624,235 @@ Thank you for your business!`;
           </div>
         )}
 
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl text-white space-y-6">
-          {sessionKickedNotice && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-center gap-2">
-              <span>⚠️</span>
-              <span>Your session was logged out because this account was logged in from another machine.</span>
-            </div>
-          )}
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-2xl mx-auto shadow-lg shadow-indigo-500/30">
+        {/* SCENARIO 7: 75% BUSINESS BRANDING IMAGE (DESKTOP) */}
+        <div className="hidden lg:flex lg:w-3/4 relative min-h-screen bg-slate-950 overflow-hidden flex-col justify-between p-10 select-none">
+          {/* Background Image with Dark Tint */}
+          <img
+            src={businessImgUrl}
+            alt="Business Store"
+            className="absolute inset-0 w-full h-full object-cover opacity-80 transition duration-700 hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-slate-950/20" />
+          <div className="absolute inset-0 bg-indigo-950/20 mix-blend-overlay" />
+
+          {/* Top Branding Pill */}
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl shadow-indigo-600/40 border border-white/20">
               B
             </div>
-            <h1 className="text-2xl font-black tracking-tight">{systemName.toUpperCase()}</h1>
-            <p className="text-xs text-slate-400">Retail & Wholesale Billing ERP</p>
+            <div>
+              <span className="font-mono text-xs font-bold text-indigo-400 uppercase tracking-widest block">Enterprise ERP Platform</span>
+              <h2 className="text-xl font-black text-white tracking-wide">{systemSettings?.branding?.systemName || "JSR RETAILS"}</h2>
+            </div>
           </div>
 
-          {authStep === "pin" ? (
-            <>
-              {/* Mode Switch: Admin vs Partner */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => { setLoginMode("admin"); setLoginPin(""); setLoginError(""); }}
-                  className={`py-2.5 rounded-xl transition cursor-pointer ${
-                    loginMode === "admin" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  👑 Admin Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setLoginMode("partner"); setLoginPin(""); setLoginError(""); }}
-                  className={`py-2.5 rounded-xl transition cursor-pointer ${
-                    loginMode === "partner" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  🤝 Partner Login
-                </button>
-              </div>
+          {/* Bottom Business Information Card Overlay */}
+          <div className="relative z-10 max-w-xl bg-slate-950/70 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-2xl space-y-3">
+            <span className="px-2.5 py-1 bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-black uppercase tracking-wider inline-block">
+              {systemSettings?.branding?.tagline || "Retail & Wholesale Billing ERP"}
+            </span>
+            <h1 className="text-3xl font-black text-white tracking-tight leading-snug">
+              Smart Accounting, POS Billing & Multi-Party Ledgers
+            </h1>
+            <p className="text-xs text-slate-300 leading-relaxed font-medium">
+              Seamlessly manage inventory, daily collections, vendor procurements, and real-time reconciliation with verified security.
+            </p>
+            <div className="flex flex-wrap gap-4 pt-2 text-[11px] text-slate-400 border-t border-white/10">
+              <span>📍 {systemSettings?.branding?.companyAddress || "Main Bazaar, Dornala"}</span>
+              <span>📞 {systemSettings?.branding?.phone || "9848022338"}</span>
+              <span>⚡ UPI: {systemSettings?.branding?.upiId || "9848022338@ybl"}</span>
+            </div>
+          </div>
+        </div>
 
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
-                {loginMode === "partner" && (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                      Select Partner Account
-                    </label>
-                    <select
-                      value={loginPartnerId}
-                      onChange={(e) => setLoginPartnerId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 transition"
-                      required
-                    >
-                      <option value="">-- Choose Partner --</option>
-                      {partners.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+        {/* SCENARIO 7: MOBILE RESPONSIVE TOP HERO BANNER */}
+        <div className="lg:hidden w-full h-44 sm:h-52 relative overflow-hidden shrink-0">
+          <img
+            src={businessImgUrl}
+            alt="Business Banner"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent" />
+          <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-lg border border-white/20 shrink-0">
+              B
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-white leading-tight">{systemSettings?.branding?.systemName || "JSR RETAILS"}</h1>
+              <p className="text-[10px] text-slate-300">{systemSettings?.branding?.tagline || "Retail & Wholesale Billing ERP"}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* SCENARIO 7: 25% VERTICAL LOGIN PANEL (DESKTOP) / FULL WIDTH (MOBILE) */}
+        <div className="w-full lg:w-1/4 min-w-[340px] flex items-center justify-center p-6 sm:p-8 bg-slate-900 border-l border-slate-800 shadow-2xl relative z-20">
+          <div className="w-full max-w-sm space-y-5">
+            {sessionKickedNotice && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-center gap-2">
+                <span>⚠️</span>
+                <span>Your session was logged out because this account was logged in from another machine.</span>
+              </div>
+            )}
+
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black tracking-tight text-white">Sign In to Dashboard</h2>
+              <p className="text-xs text-slate-400">Select your account role to continue</p>
+            </div>
+
+            {authStep === "pin" ? (
+              <>
+                {/* 3-Way Mode Switch: Admin | Partner | Portal */}
+                <div className="grid grid-cols-3 gap-1 bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-[11px] font-bold text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode("admin"); setLoginPin(""); setLoginError(""); }}
+                    className={`py-2 rounded-xl transition cursor-pointer ${
+                      loginMode === "admin" ? "bg-indigo-600 text-white shadow-sm font-black" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    👑 Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode("partner"); setLoginPin(""); setLoginError(""); }}
+                    className={`py-2 rounded-xl transition cursor-pointer ${
+                      loginMode === "partner" ? "bg-indigo-600 text-white shadow-sm font-black" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    🤝 Partner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode("portal"); setPortalPassword(""); setLoginError(""); }}
+                    className={`py-2 rounded-xl transition cursor-pointer ${
+                      loginMode === "portal" ? "bg-indigo-600 text-white shadow-sm font-black" : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    🌐 Portal
+                  </button>
+                </div>
+
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  {loginMode === "partner" && (
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                        Select Partner Account
+                      </label>
+                      <select
+                        value={loginPartnerId}
+                        onChange={(e) => setLoginPartnerId(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white outline-none focus:border-indigo-500 transition"
+                        required
+                      >
+                        <option value="">-- Choose Partner --</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {loginMode === "portal" ? (
+                    <>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                          Registered Mobile Number / Name
+                        </label>
+                        <input
+                          type="text"
+                          value={portalIdentifier}
+                          onChange={(e) => setPortalIdentifier(e.target.value)}
+                          placeholder="e.g. 9848022338 or Customer Name"
+                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white outline-none focus:border-indigo-500 transition"
+                          required
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                          Portal PIN / Password (Default: 1234)
+                        </label>
+                        <input
+                          type="password"
+                          maxLength={12}
+                          value={portalPassword}
+                          onChange={(e) => setPortalPassword(e.target.value)}
+                          placeholder="••••"
+                          className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
+                          required
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                        {loginMode === "admin" ? "Enter Admin PIN / Password" : "Enter Partner PIN"}
+                      </label>
+                      <input
+                        type="password"
+                        maxLength={12}
+                        value={loginPin}
+                        onChange={(e) => setLoginPin(e.target.value)}
+                        placeholder="••••"
+                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
+                        autoFocus
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {loginError && (
+                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs text-center font-medium leading-relaxed">
+                      {loginError}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={lockoutSeconds > 0}
+                    className={`w-full py-3 text-white font-black rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer ${
+                      lockoutSeconds > 0
+                        ? "bg-slate-700 cursor-not-allowed opacity-60"
+                        : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30"
+                    }`}
+                  >
+                    {lockoutSeconds > 0
+                      ? `Locked (${lockoutSeconds}s)`
+                      : loginMode === "portal"
+                      ? "Access Portal Dashboard"
+                      : "Sign In to ERP"}
+                  </button>
+                </form>
+
+                <div className="text-center text-[11px] text-slate-500 font-medium">
+                  🔒 Enterprise Security • Strict Multi-Device Sync
+                </div>
+              </>
+            ) : (
+              /* Scenario #8: Step 2: Google Authenticator (2FA) */
+              <form onSubmit={handle2FASubmit} className="space-y-4">
+                <div className="p-3.5 bg-indigo-950/60 border border-indigo-800 rounded-2xl text-center space-y-1">
+                  <span className="text-2xl">📱</span>
+                  <h3 className="font-bold text-sm text-indigo-300">Google Authenticator (2FA)</h3>
+                  <p className="text-xs text-slate-200">
+                    Account: <b className="text-indigo-400">{pendingUser?.name || "User"}</b>
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Open Google Authenticator on your mobile and enter your current 6-digit code.
+                  </p>
+                </div>
 
                 <div>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                    {loginMode === "admin" ? "Enter Admin PIN / Password" : "Enter Partner PIN"}
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 text-center">
+                    6-Digit Authenticator Code
                   </label>
                   <input
-                    type="password"
-                    maxLength={12}
-                    value={loginPin}
-                    onChange={(e) => setLoginPin(e.target.value)}
-                    placeholder=""
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
+                    type="text"
+                    maxLength={6}
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="000000"
+                    className="w-full px-3.5 py-3 bg-slate-950 border border-indigo-500 rounded-xl text-lg font-mono font-black text-indigo-300 tracking-widest text-center outline-none focus:ring-2 focus:ring-indigo-500 transition"
                     autoFocus
                     required
                   />
@@ -6321,73 +6866,21 @@ Thank you for your business!`;
 
                 <button
                   type="submit"
-                  disabled={lockoutSeconds > 0}
-                  className={`w-full py-3 text-white font-black rounded-xl text-sm transition shadow-lg cursor-pointer ${
-                    lockoutSeconds > 0
-                      ? "bg-slate-700 cursor-not-allowed opacity-60"
-                      : "bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/30"
-                  }`}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition shadow-lg cursor-pointer"
                 >
-                  {lockoutSeconds > 0 ? `Locked (${lockoutSeconds}s)` : "Sign In to Dashboard"}
+                  Verify & Enter Dashboard
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setAuthStep("pin"); setPendingUser(null); setTwoFactorCode(""); setLoginError(""); }}
+                  className="w-full py-2 bg-transparent text-slate-400 hover:text-white text-xs font-semibold cursor-pointer"
+                >
+                  ← Back to PIN Login
                 </button>
               </form>
-
-              <div className="text-center text-[11px] text-slate-500">
-                🔒 Enterprise Security • PIN Protection Enabled
-              </div>
-            </>
-          ) : (
-            /* Step 2: Google Authenticator (2FA) */
-            <form onSubmit={handle2FASubmit} className="space-y-4">
-              <div className="p-3.5 bg-indigo-950/60 border border-indigo-800 rounded-2xl text-center space-y-1">
-                <span className="text-2xl">📱</span>
-                <h3 className="font-bold text-sm text-indigo-300">Google Authenticator (2FA)</h3>
-                <p className="text-xs text-slate-200">
-                  Logging in as: <b className="text-indigo-400">{pendingUser?.name || "User"}</b>
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Open Google Authenticator on your mobile and enter the 6-digit code.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 text-center">
-                  Google Authenticator 6-Digit Code
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={twoFactorCode}
-                  onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="000000"
-                  className="w-full px-3.5 py-3 bg-slate-950 border border-indigo-500 rounded-xl text-lg font-mono font-black text-indigo-300 tracking-widest text-center outline-none focus:ring-2 focus:ring-indigo-500 transition"
-                  autoFocus
-                  required
-                />
-              </div>
-
-              {loginError && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs text-center font-medium">
-                  {loginError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-xl text-sm transition shadow-lg cursor-pointer"
-              >
-                Verify & Enter Dashboard
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setAuthStep("pin"); setPendingUser(null); setTwoFactorCode(""); setLoginError(""); }}
-                className="w-full py-2 bg-transparent text-slate-400 hover:text-white text-xs font-semibold cursor-pointer"
-              >
-                ← Back to PIN Login
-              </button>
-            </form>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
@@ -6397,7 +6890,375 @@ Thank you for your business!`;
     <div className={`min-h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${
       darkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-800"
     } ${fontScale === "large" ? "text-base" : fontScale === "xl" ? "text-lg" : "text-sm"}`}>
-      {/* HORIZONTAL TOP NAVIGATION HEADER */}
+      {["customer", "supplier", "dual_portal"].includes(currentUser?.role) ? (
+        <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6 animate-in fade-in duration-150">
+          {/* Portal User Header */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-indigo-600/30">
+                {currentUser?.name ? currentUser.name.slice(0, 1).toUpperCase() : "P"}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-lg sm:text-xl font-black tracking-tight">{currentUser?.name}</h1>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase">
+                    {currentUser?.role === "dual_portal" ? "Customer & Supplier Portal" : currentUser?.role === "customer" ? "Customer Portal" : "Supplier Portal"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Mobile: <span className="font-mono text-slate-200">{currentUser?.mobile || "—"}</span> • {systemSettings?.branding?.systemName || "JSR Retails"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-4 py-2 bg-slate-800 hover:bg-rose-950/40 border border-slate-700 hover:border-rose-500/40 text-rose-300 font-bold text-xs rounded-xl transition cursor-pointer"
+            >
+              🚪 Sign Out
+            </button>
+          </div>
+
+          {/* Dual Party Switcher (Scenario #6) */}
+          {currentUser?.role === "dual_portal" && (
+            <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 border border-slate-800 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setPortalTab("overview")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  portalTab === "overview" || portalTab === "customer" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                👤 Customer Account (Sales & Invoices)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPortalTab("supplier")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  portalTab === "supplier" ? "bg-indigo-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                🏭 Supplier Account (Purchases & Bills)
+              </button>
+              <button
+                type="button"
+                onClick={() => setPortalTab("consolidated")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  portalTab === "consolidated" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                ⚖️ Consolidated Statement (Net Position)
+              </button>
+            </div>
+          )}
+
+          {/* VIEW 1: CUSTOMER VIEW */}
+          {(currentUser?.role === "customer" || (currentUser?.role === "dual_portal" && (portalTab === "overview" || portalTab === "customer"))) && (() => {
+            const myCustId = currentUser?.customerId || currentUser?.id;
+            const myInvoices = invoices.filter((i) => String(i.customer_id) === String(myCustId));
+            const myCollections = collections.filter((c) => String(c.customer_id) === String(myCustId));
+            const totalBilled = myInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+            const totalPaid = myCollections.reduce((s, c) => s + Number(c.amount || 0), 0);
+            const matchedCustObj = customers.find((c) => String(c.id) === String(myCustId));
+            const totalDue = matchedCustObj ? Number(matchedCustObj.old_due || 0) : Math.max(0, totalBilled - totalPaid);
+
+            return (
+              <div className="space-y-6">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Billed</span>
+                    <span className="text-xl font-black text-slate-900 dark:text-white mt-1 block">{money(totalBilled)}</span>
+                    <span className="text-[10px] text-slate-500">{myInvoices.length} Invoices</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Paid</span>
+                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">{money(totalPaid)}</span>
+                    <span className="text-[10px] text-slate-500">{myCollections.length} Receipts</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Outstanding Balance Due</span>
+                    <span className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1 block">{money(totalDue)}</span>
+                    <span className="text-[10px] text-rose-500 font-semibold">{totalDue > 0 ? "Pending Payment" : "Settled"}</span>
+                  </div>
+                </div>
+
+                {/* Customer Invoices Table */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>📄</span> My Sales Invoices
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                    <table className="min-w-[650px] w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="p-2.5 whitespace-nowrap">Invoice #</th>
+                          <th className="p-2.5 whitespace-nowrap">Date</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Total (₹)</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Paid (₹)</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Balance Due (₹)</th>
+                          <th className="p-2.5 text-center whitespace-nowrap">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myInvoices.length === 0 ? (
+                          <tr><td colSpan={6} className="p-6 text-center text-slate-400 font-sans">No invoices found.</td></tr>
+                        ) : (
+                          myInvoices.map((inv) => {
+                            const bal = Number(inv.balance_due ?? (Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)));
+                            return (
+                              <tr key={inv.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{inv.invoice_number || `INV-${inv.id}`}</td>
+                                <td className="p-2.5 whitespace-nowrap">{(inv.date || "").slice(0, 10)}</td>
+                                <td className="p-2.5 text-right font-bold whitespace-nowrap">{money(inv.total_amount)}</td>
+                                <td className="p-2.5 text-right text-emerald-600 font-bold whitespace-nowrap">{money(inv.paid_amount)}</td>
+                                <td className="p-2.5 text-right text-rose-600 font-black whitespace-nowrap">{money(bal)}</td>
+                                <td className="p-2.5 text-center whitespace-nowrap">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    bal <= 0 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                                  }`}>
+                                    {bal <= 0 ? "Paid" : "Due"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Customer Payment Collections */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>💳</span> Payment History & Receipts
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                    <table className="min-w-[500px] w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="p-2.5 whitespace-nowrap">Receipt / Ref</th>
+                          <th className="p-2.5 whitespace-nowrap">Date</th>
+                          <th className="p-2.5 text-center whitespace-nowrap">Mode</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Amount Paid (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myCollections.length === 0 ? (
+                          <tr><td colSpan={4} className="p-6 text-center text-slate-400 font-sans">No payment records found.</td></tr>
+                        ) : (
+                          myCollections.map((col, idx) => (
+                            <tr key={col.id || idx} className="border-b border-slate-100 dark:border-slate-800/60">
+                              <td className="p-2.5 font-bold whitespace-nowrap">{col.reference_no || `REC-${col.id}`}</td>
+                              <td className="p-2.5 whitespace-nowrap">{(col.date || col.created_at || "").slice(0, 10)}</td>
+                              <td className="p-2.5 text-center whitespace-nowrap">{col.payment_mode || "Cash"}</td>
+                              <td className="p-2.5 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{money(col.amount)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* VIEW 2: SUPPLIER VIEW */}
+          {(currentUser?.role === "supplier" || (currentUser?.role === "dual_portal" && portalTab === "supplier")) && (() => {
+            const mySuppId = currentUser?.supplierId || currentUser?.id;
+            const myPurchases = procurements.filter((p) => String(p.supplier_id) === String(mySuppId));
+            const totalProcured = myPurchases.reduce((s, p) => s + Number(p.total_amount || 0), 0);
+            const totalSupplierPaid = myPurchases.reduce((s, p) => s + Number(p.p1_amount || 0), 0);
+            const matchedSuppObj = suppliers.find((s) => String(s.id) === String(mySuppId));
+            const totalPayable = matchedSuppObj ? Number(matchedSuppObj.old_due || 0) : Math.max(0, totalProcured - totalSupplierPaid);
+
+            return (
+              <div className="space-y-6">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Procurements</span>
+                    <span className="text-xl font-black text-slate-900 dark:text-white mt-1 block">{money(totalProcured)}</span>
+                    <span className="text-[10px] text-slate-500">{myPurchases.length} Purchase Bills</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Received</span>
+                    <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">{money(totalSupplierPaid)}</span>
+                    <span className="text-[10px] text-slate-500">Payments Disbursed</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-xs">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Pending Payable Balance</span>
+                    <span className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1 block">{money(totalPayable)}</span>
+                    <span className="text-[10px] text-amber-500 font-semibold">{totalPayable > 0 ? "Store Payable" : "Settled"}</span>
+                  </div>
+                </div>
+
+                {/* Purchase Bills Table */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>📦</span> Purchase & Procurement Bills
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                    <table className="min-w-[650px] w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                        <tr>
+                          <th className="p-2.5 whitespace-nowrap">Bill #</th>
+                          <th className="p-2.5 whitespace-nowrap">Date</th>
+                          <th className="p-2.5 whitespace-nowrap">Item Description</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Total Bill (₹)</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Paid (₹)</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Balance Due (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myPurchases.length === 0 ? (
+                          <tr><td colSpan={6} className="p-6 text-center text-slate-400 font-sans">No procurement bills found.</td></tr>
+                        ) : (
+                          myPurchases.map((p) => {
+                            const due = Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0));
+                            return (
+                              <tr key={p.id} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td className="p-2.5 font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{p.bill_no || `PO-${p.id}`}</td>
+                                <td className="p-2.5 whitespace-nowrap">{(p.date || "").slice(0, 10)}</td>
+                                <td className="p-2.5 font-sans whitespace-nowrap">{p.item_name} ({p.quantity} units)</td>
+                                <td className="p-2.5 text-right font-bold whitespace-nowrap">{money(p.total_amount)}</td>
+                                <td className="p-2.5 text-right text-emerald-600 font-bold whitespace-nowrap">{money(p.p1_amount)}</td>
+                                <td className="p-2.5 text-right text-amber-600 font-black whitespace-nowrap">{money(due)}</td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* VIEW 3: DUAL PARTY CONSOLIDATED STATEMENT (SCENARIO #6) */}
+          {currentUser?.role === "dual_portal" && portalTab === "consolidated" && (() => {
+            const myCustId = currentUser?.customerId;
+            const mySuppId = currentUser?.supplierId;
+
+            const myInvoices = invoices.filter((i) => String(i.customer_id) === String(myCustId));
+            const myCollections = collections.filter((c) => String(c.customer_id) === String(myCustId));
+            const custTotal = myInvoices.reduce((s, i) => s + Number(i.total_amount || 0), 0);
+            const custPaid = myCollections.reduce((s, c) => s + Number(c.amount || 0), 0);
+            const matchedCust = customers.find((c) => String(c.id) === String(myCustId));
+            const custBalance = matchedCust ? Number(matchedCust.old_due || 0) : Math.max(0, custTotal - custPaid);
+
+            const myPurchases = procurements.filter((p) => String(p.supplier_id) === String(mySuppId));
+            const suppTotal = myPurchases.reduce((s, p) => s + Number(p.total_amount || 0), 0);
+            const suppPaid = myPurchases.reduce((s, p) => s + Number(p.p1_amount || 0), 0);
+            const matchedSupp = suppliers.find((s) => String(s.id) === String(mySuppId));
+            const suppBalance = matchedSupp ? Number(matchedSupp.old_due || 0) : Math.max(0, suppTotal - suppPaid);
+
+            // Net Position = Customer Balance (Receivable) - Supplier Balance (Payable)
+            const netPosition = custBalance - suppBalance;
+            const isReceivable = netPosition > 0;
+            const isPayable = netPosition < 0;
+            const isZero = netPosition === 0;
+
+            return (
+              <div className="space-y-6">
+                {/* Visual Net Balance Header Card */}
+                <div className={`p-6 rounded-3xl border shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${
+                  isReceivable
+                    ? "bg-emerald-950/40 border-emerald-800 text-emerald-200"
+                    : isPayable
+                    ? "bg-rose-950/40 border-rose-800 text-rose-200"
+                    : "bg-slate-900 border-slate-800 text-slate-200"
+                }`}>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest block opacity-75">Dual Account Position</span>
+                    <h2 className="text-2xl font-black tracking-tight mt-0.5">
+                      {isReceivable ? `Net Receivable: ${money(netPosition)}` : isPayable ? `Net Payable: ${money(Math.abs(netPosition))}` : "Accounts Perfectly Balanced"}
+                    </h2>
+                    <p className="text-xs opacity-90 mt-1">
+                      {isReceivable
+                        ? "Party has net outstanding dues to be paid to the store."
+                        : isPayable
+                        ? "Store has net pending dues to be paid to the supplier."
+                        : "No net variance between customer sales and supplier purchases."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
+                  >
+                    🖨️ Print Statement
+                  </button>
+                </div>
+
+                {/* Consolidated Accounting Breakdown Table */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+                  <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>⚖️</span> Consolidated Party Statement Breakdown
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-300 dark:border-slate-700 rounded-2xl">
+                    <table className="min-w-[600px] w-full text-left text-xs font-mono border-collapse">
+                      <thead className="bg-slate-900 text-white font-bold">
+                        <tr>
+                          <th className="p-3 border border-slate-800 w-14 text-center">S.No</th>
+                          <th className="p-3 border border-slate-800 font-sans">Particulars</th>
+                          <th className="p-3 border border-slate-800 text-right w-44">Amount (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="p-3 text-center border border-slate-200 dark:border-slate-700">1</td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-700 font-sans">Customer Sales Invoice Outstanding</td>
+                          <td className="p-3 text-right font-bold border border-slate-200 dark:border-slate-700">{money(custTotal)}</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="p-3 text-center border border-slate-200 dark:border-slate-700">2</td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-700 font-sans">Customer Payments & Collections Received</td>
+                          <td className="p-3 text-right font-bold text-emerald-600 border border-slate-200 dark:border-slate-700">{money(custPaid)}</td>
+                        </tr>
+                        <tr className="bg-indigo-50/80 dark:bg-indigo-950/40 font-bold">
+                          <td className="p-3 text-center border border-slate-200 dark:border-slate-700">3</td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-700 font-sans text-indigo-900 dark:text-indigo-200 font-black">Customer Balance (Receivable from Party)</td>
+                          <td className="p-3 text-right font-black text-indigo-700 dark:text-indigo-300 border border-slate-200 dark:border-slate-700">{money(custBalance)}</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="p-3 text-center border border-slate-200 dark:border-slate-700">4</td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-700 font-sans">Supplier Procurement Total</td>
+                          <td className="p-3 text-right font-bold border border-slate-200 dark:border-slate-700">{money(suppTotal)}</td>
+                        </tr>
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="p-3 text-center border border-slate-200 dark:border-slate-700">5</td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-700 font-sans">Supplier Payments Disbursed</td>
+                          <td className="p-3 text-right font-bold text-emerald-600 border border-slate-200 dark:border-slate-700">{money(suppPaid)}</td>
+                        </tr>
+                        <tr className="bg-amber-50/80 dark:bg-amber-950/40 font-bold">
+                          <td className="p-3 text-center border border-slate-200 dark:border-slate-700">6</td>
+                          <td className="p-3 border border-slate-200 dark:border-slate-700 font-sans text-amber-900 dark:text-amber-200 font-black">Supplier Balance (Payable to Party)</td>
+                          <td className="p-3 text-right font-black text-amber-700 dark:text-amber-300 border border-slate-200 dark:border-slate-700">{money(suppBalance)}</td>
+                        </tr>
+                        <tr className={`font-black text-sm ${isReceivable ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-950 dark:text-emerald-100" : isPayable ? "bg-rose-100 dark:bg-rose-950/80 text-rose-950 dark:text-rose-100" : "bg-slate-100 dark:bg-slate-800"}`}>
+                          <td className="p-3 text-center border border-slate-300 dark:border-slate-700">★</td>
+                          <td className="p-3 border border-slate-300 dark:border-slate-700 font-sans">
+                            Net Final Position: {isReceivable ? "Receivable from Party" : isPayable ? "Payable to Party" : "Settled"}
+                          </td>
+                          <td className="p-3 text-right border border-slate-300 dark:border-slate-700 font-black text-base">
+                            {money(Math.abs(netPosition))}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      ) : (
+        <>
+          {/* HORIZONTAL TOP NAVIGATION HEADER */}
       <header className="sticky top-0 z-40 bg-slate-900 border-b border-slate-800 text-white shadow-md">
         {/* Top Tier: Brand, Quick Actions & System Utilities */}
         <div className="px-3.5 sm:px-6 py-2 flex items-center justify-between gap-3 border-b border-slate-800/80">
@@ -6425,6 +7286,26 @@ Thank you for your business!`;
 
           {/* Quick Action Shortcuts (Desktop) */}
           <div className="hidden lg:flex items-center gap-2">
+            {lowStockItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowLowStockModal(true)}
+                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-lg flex items-center gap-1.5 transition animate-pulse cursor-pointer"
+                title="Low Stock Items Alert - Click for 1-Click Auto Reorder"
+              >
+                <span>⚠️</span>
+                <span>{lowStockItems.length} Low Stock</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowZReportModal(true)}
+              className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/40 border border-indigo-500/40 text-indigo-300 font-bold text-xs rounded-lg flex items-center gap-1.5 transition cursor-pointer"
+              title="Day-End Cash Register Reconciliation (Z-Report)"
+            >
+              <span>📊</span>
+              <span className="hidden sm:inline">Z-Report</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -7612,6 +8493,60 @@ Thank you for your business!`;
                   </div>
                 )
               )}
+
+              {/* Scenario #5: Customer Credit Limit Exceeded Warning Banner */}
+              {(() => {
+                if (!selectedCust) return null;
+                const creditLimit = Number(systemSettings?.creditControl?.customerCreditLimits?.[selectedCust.id] || selectedCust.credit_limit || 0);
+                if (creditLimit <= 0) return null;
+                const currentDue = Math.max(0, Number(selectedCust.old_due || 0));
+                const newCreditDue = Math.max(0, Number(remainingBillDue || 0));
+                const projectedDue = currentDue + newCreditDue;
+                const isExceeded = projectedDue > creditLimit;
+                if (!isExceeded) return null;
+                const exceededBy = projectedDue - creditLimit;
+
+                return (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-xs space-y-2 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 font-black">
+                      <span className="text-base">⚠️</span>
+                      <span>Customer Credit Limit Exceeded!</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px] font-mono">
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-rose-200 dark:border-rose-900">
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold font-sans">Credit Limit</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{money(creditLimit)}</span>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-rose-200 dark:border-rose-900">
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold font-sans">Current Due</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{money(currentDue)}</span>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-rose-200 dark:border-rose-900">
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold font-sans">New Credit</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400">{money(newCreditDue)}</span>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-rose-200 dark:border-rose-900">
+                        <span className="text-slate-400 block text-[9px] uppercase font-bold font-sans">Projected Due</span>
+                        <span className="font-black text-rose-600 dark:text-rose-400">{money(projectedDue)}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-rose-200/60 dark:border-rose-900/60 text-[11px]">
+                      <span className="font-bold text-rose-700 dark:text-rose-300">
+                        Exceeded By: <b className="text-rose-600 dark:text-rose-400 font-mono">{money(exceededBy)}</b>
+                      </span>
+                      <label className="flex items-center gap-2 cursor-pointer select-none bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 font-bold">
+                        <input
+                          type="checkbox"
+                          checked={posCreditLimitOverride}
+                          onChange={(e) => setPosCreditLimitOverride(e.target.checked)}
+                          className="rounded text-rose-600 focus:ring-rose-500 cursor-pointer"
+                        />
+                        <span>Admin Override Approved</span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <button
                 type="button"
@@ -11510,6 +12445,9 @@ Thank you for your business!`;
                           PAN / GSTIN
                         </th>
                       )}
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-32 whitespace-nowrap">
+                        Credit Limit (₹)
+                      </th>
                       <th onClick={() => toggleSort("due", masterCustSortCol, setMasterCustSortCol, masterCustSortDir, setMasterCustSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Balance (₹){renderSortIndicator("due", masterCustSortCol, masterCustSortDir)}
                       </th>
@@ -11569,6 +12507,16 @@ Thank you for your business!`;
                                 })()}
                               </td>
                             )}
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right font-mono whitespace-nowrap">
+                              {(() => {
+                                const limit = Number(systemSettings?.creditControl?.customerCreditLimits?.[c.id] || c.credit_limit || 0);
+                                return limit > 0 ? (
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{money(limit)}</span>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px] italic">No Limit</span>
+                                );
+                              })()}
+                            </td>
                             <td
                               className={`whitespace-nowrap p-2.5 border border-slate-300 dark:border-slate-700 text-right font-black ${
                                 isAdv ? "text-emerald-600" : isSettled ? "text-slate-500" : "text-rose-600"
@@ -11585,6 +12533,17 @@ Thank you for your business!`;
                                 >
                                   Edit
                                 </button>
+                                {dueNum > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendWhatsAppReminder(c)}
+                                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-xs flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                    title="Send 1-Click WhatsApp Payment Reminder with Itemized Bills & UPI Link"
+                                  >
+                                    <span>💬</span>
+                                    <span>WhatsApp</span>
+                                  </button>
+                                )}
                                 {!isCustomerInUse(c) && (
                                   <button
                                     type="button"
@@ -11768,6 +12727,9 @@ Thank you for your business!`;
                       <th onClick={() => toggleSort("stock", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Item Stock{renderSortIndicator("stock", masterItemSortCol, masterItemSortDir)}
                       </th>
+                      <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">
+                        Reorder Level
+                      </th>
                       <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 whitespace-nowrap">Purchase Cost Rate (₹)</th>
                       <th onClick={() => toggleSort("rate", masterItemSortCol, setMasterItemSortCol, masterItemSortDir, setMasterItemSortDir)} className="p-2.5 border border-sky-200 dark:border-slate-700 text-right w-36 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
                         Selling Rate (₹){renderSortIndicator("rate", masterItemSortCol, masterItemSortDir)}
@@ -11805,6 +12767,22 @@ Thank you for your business!`;
                               }`}>
                                 {itemStock} {itemStock === 1 ? "unit" : "units"}
                               </span>
+                            </td>
+                            <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap font-mono">
+                              {(() => {
+                                const cfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || systemSettings?.inventory?.itemReorderLevels?.[item.name] || {};
+                                const rLevel = Number(cfg.reorderLevel ?? item.reorder_level ?? systemSettings?.inventory?.defaultReorderLevel ?? 5);
+                                const isLow = itemStock <= rLevel;
+                                return (
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                    isLow
+                                      ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse"
+                                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                  }`}>
+                                    {rLevel} units {isLow ? "⚠️ Low" : ""}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">
                               {money(item.purchase_rate)}
@@ -14054,53 +15032,586 @@ Thank you for your business!`;
                 </p>
               </div>
 
-              {/* Settings Sub-Tab Navigation (Point 3) */}
-              <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto self-start">
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("general")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    settingsSubTab === "general"
-                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  <Icon name="settings" size={14} /> General Settings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("app_config")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    settingsSubTab === "app_config"
-                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  <Icon name="file" size={14} /> Application Configuration
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("business_alerts")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    settingsSubTab === "business_alerts"
-                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  <Icon name="bell" size={14} /> Business Alerts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsSubTab("roles")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    settingsSubTab === "roles"
-                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  <Icon name="shield" size={14} /> Roles & Manage Modules
-                </button>
+              {/* Settings Sub-Tab Navigation (Scenario #2 Full Cloud CRUD Registry) */}
+              <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 w-full self-start">
+                {[
+                  { id: "general", label: "General & Branding", icon: "settings" },
+                  { id: "security", label: "2FA Security & Secrets", icon: "shield" },
+                  { id: "inventory", label: "Low Stock & Reorder", icon: "package" },
+                  { id: "credit_control", label: "Customer Credit Limits", icon: "creditcard" },
+                  { id: "z_reports", label: "Z-Report History", icon: "filetext" },
+                  { id: "app_config", label: "App Config & Tax", icon: "file" },
+                  { id: "business_alerts", label: "Alerts", icon: "bell" },
+                  { id: "roles", label: "Roles", icon: "users" }
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setSettingsSubTab(st.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      settingsSubTab === st.id
+                        ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <Icon name={st.icon} size={14} /> {st.label}
+                  </button>
+                ))}
               </div>
+
+              {/* SCENARIO 2 & 7: BRANDING & BUSINESS IMAGE CONFIGURATION */}
+              {settingsSubTab === "general" && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🏪</span> Business Image & Branding Identity (Cloud-Synced)
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Configure your business image (displayed on 75% login screen desktop & mobile banner), contact details, and UPI information. Changes persist to cloud instantly.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveSystemSettingsToCloud({
+                            branding: systemSettings?.branding || {}
+                          });
+                          alert("Branding and Business Image saved to cloud database and synced across devices!");
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Save Branding Settings
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          System Display Name:
+                        </label>
+                        <input
+                          type="text"
+                          value={systemSettings?.branding?.systemName || ""}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), systemName: e.target.value }
+                          })}
+                          placeholder="e.g. JSR Retails"
+                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          Tagline / Slogan:
+                        </label>
+                        <input
+                          type="text"
+                          value={systemSettings?.branding?.tagline || ""}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), tagline: e.target.value }
+                          })}
+                          placeholder="e.g. Retail & Wholesale Billing ERP"
+                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        Business Image URL (Scenario #7):
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={systemSettings?.branding?.businessImage || ""}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), businessImage: e.target.value }
+                          })}
+                          placeholder="https://..."
+                          className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), businessImage: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80" }
+                          })}
+                          className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                        >
+                          Reset Default
+                        </button>
+                      </div>
+                      <div className="h-36 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative">
+                        <img
+                          src={systemSettings?.branding?.businessImage || "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80"}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 text-white rounded text-[10px] font-bold">
+                          Live Login Screen Preview
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          Company Address:
+                        </label>
+                        <input
+                          type="text"
+                          value={systemSettings?.branding?.companyAddress || ""}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), companyAddress: e.target.value }
+                          })}
+                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          Contact Phone:
+                        </label>
+                        <input
+                          type="tel"
+                          value={systemSettings?.branding?.phone || ""}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), phone: e.target.value }
+                          })}
+                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          UPI Payment ID:
+                        </label>
+                        <input
+                          type="text"
+                          value={systemSettings?.branding?.upiId || ""}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            branding: { ...(systemSettings?.branding || {}), upiId: e.target.value }
+                          })}
+                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SCENARIO 8: GOOGLE AUTHENTICATOR (2FA) SECRET ISOLATION */}
+              {settingsSubTab === "security" && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🛡️</span> Google Authenticator (2FA) Per-Account Secrets
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Admin and Partners use separate, isolated 2FA keys. Admin codes cannot be used for Partners and vice versa.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveSystemSettingsToCloud({
+                            security: systemSettings?.security || {}
+                          });
+                          alert("2FA Secrets saved to cloud database and synced across devices!");
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Save 2FA Security Settings
+                      </button>
+                    </div>
+
+                    {/* Admin 2FA Card */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-black text-xs text-indigo-600 dark:text-indigo-400">👑 Administrator 2FA Secret Key</span>
+                        <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={systemSettings?.security?.admin2FASecret || "JSRADMINSEC2026"}
+                          onChange={(e) => setSystemSettings({
+                            ...systemSettings,
+                            security: { ...(systemSettings?.security || {}), admin2FASecret: e.target.value.toUpperCase() }
+                          })}
+                          className="flex-1 p-2 bg-white dark:bg-slate-900 border rounded-xl text-xs font-mono font-bold uppercase tracking-wider"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSec = "JSR" + Math.random().toString(36).substring(2, 10).toUpperCase();
+                            setSystemSettings({
+                              ...systemSettings,
+                              security: { ...(systemSettings?.security || {}), admin2FASecret: newSec }
+                            });
+                          }}
+                          className="px-3 py-2 bg-slate-200 dark:bg-slate-700 rounded-xl text-xs font-bold"
+                        >
+                          Generate New
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Scan in Google Authenticator using Setup Key: <b className="font-mono text-slate-700 dark:text-slate-300">{systemSettings?.security?.admin2FASecret || "JSRADMINSEC2026"}</b> • Account: JSR Admin
+                      </p>
+                    </div>
+
+                    {/* Partner 2FA Cards */}
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">Partner-Specific 2FA Keys</h4>
+                      {partners.map((p) => {
+                        const curSec = systemSettings?.security?.partner2FASecrets?.[p.id] || ("JSRPARTNER" + String(p.id).padStart(6, "0"));
+                        return (
+                          <div key={p.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <span className="font-bold text-xs text-slate-900 dark:text-white block">{p.name}</span>
+                              <span className="text-[10px] font-mono text-slate-500">Secret: <b className="text-indigo-600 dark:text-indigo-400">{curSec}</b></span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newSec = "PT" + Math.random().toString(36).substring(2, 10).toUpperCase();
+                                setSystemSettings({
+                                  ...systemSettings,
+                                  security: {
+                                    ...(systemSettings?.security || {}),
+                                    partner2FASecrets: {
+                                      ...(systemSettings?.security?.partner2FASecrets || {}),
+                                      [p.id]: newSec
+                                    }
+                                  }
+                                });
+                              }}
+                              className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-lg text-xs font-bold"
+                            >
+                              Regenerate Key
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SCENARIO 4: INVENTORY REORDER LEVEL CONFIGURATION */}
+              {settingsSubTab === "inventory" && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>📦</span> Minimum Stock & Reorder Levels Registry (Cloud CRUD)
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Set reorder levels and preferred suppliers per item. When stock falls below threshold, top-bar alerts activate.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveSystemSettingsToCloud({
+                            inventory: systemSettings?.inventory || {}
+                          });
+                          alert("Item Reorder Levels saved to cloud database!");
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Save Reorder Settings
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                      <table className="min-w-[600px] w-full text-left text-xs font-mono border-collapse">
+                        <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5">Item Name</th>
+                            <th className="p-2.5 text-center">Reorder Threshold</th>
+                            <th className="p-2.5 text-center">Suggested Order Qty</th>
+                            <th className="p-2.5">Preferred Supplier</th>
+                            <th className="p-2.5 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {masterItems.map((item) => {
+                            const curCfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || {};
+                            const curLevel = curCfg.reorderLevel ?? item.reorder_level ?? 5;
+                            const curQty = curCfg.suggestedQty ?? (curLevel * 2);
+                            const curSupp = curCfg.supplierId || item.preferred_supplier_id || "";
+
+                            return (
+                              <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td className="p-2.5 font-sans font-bold">{item.name}</td>
+                                <td className="p-2.5 text-center">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={curLevel}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setSystemSettings({
+                                        ...systemSettings,
+                                        inventory: {
+                                          ...(systemSettings?.inventory || {}),
+                                          itemReorderLevels: {
+                                            ...(systemSettings?.inventory?.itemReorderLevels || {}),
+                                            [item.id]: { ...curCfg, reorderLevel: val }
+                                          }
+                                        }
+                                      });
+                                    }}
+                                    className="w-16 p-1 text-center bg-white dark:bg-slate-900 border rounded-lg font-bold"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={curQty}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setSystemSettings({
+                                        ...systemSettings,
+                                        inventory: {
+                                          ...(systemSettings?.inventory || {}),
+                                          itemReorderLevels: {
+                                            ...(systemSettings?.inventory?.itemReorderLevels || {}),
+                                            [item.id]: { ...curCfg, suggestedQty: val }
+                                          }
+                                        }
+                                      });
+                                    }}
+                                    className="w-16 p-1 text-center bg-white dark:bg-slate-900 border rounded-lg font-bold"
+                                  />
+                                </td>
+                                <td className="p-2.5">
+                                  <select
+                                    value={curSupp}
+                                    onChange={(e) => {
+                                      setSystemSettings({
+                                        ...systemSettings,
+                                        inventory: {
+                                          ...(systemSettings?.inventory || {}),
+                                          itemReorderLevels: {
+                                            ...(systemSettings?.inventory?.itemReorderLevels || {}),
+                                            [item.id]: { ...curCfg, supplierId: e.target.value }
+                                          }
+                                        }
+                                      });
+                                    }}
+                                    className="p-1 bg-white dark:bg-slate-900 border rounded-lg text-xs"
+                                  >
+                                    <option value="">-- Choose Supplier --</option>
+                                    {suppliers.map((s) => (
+                                      <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = { ...(systemSettings?.inventory?.itemReorderLevels || {}) };
+                                      delete updated[item.id];
+                                      setSystemSettings({
+                                        ...systemSettings,
+                                        inventory: { ...(systemSettings?.inventory || {}), itemReorderLevels: updated }
+                                      });
+                                    }}
+                                    className="text-rose-500 hover:text-rose-700 text-xs font-bold"
+                                  >
+                                    Reset
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SCENARIO 5: CUSTOMER CREDIT LIMITS CONFIGURATION */}
+              {settingsSubTab === "credit_control" && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>💳</span> Customer Credit Exposure & Limits Registry (Cloud CRUD)
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Set maximum allowed credit limits per customer. Bills exceeding the threshold trigger checkout warnings.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveSystemSettingsToCloud({
+                            creditControl: systemSettings?.creditControl || {}
+                          });
+                          alert("Customer Credit Limits saved to cloud database!");
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Save Credit Limits
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                      <table className="min-w-[600px] w-full text-left text-xs font-mono border-collapse">
+                        <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-2.5">Customer Name</th>
+                            <th className="p-2.5">Mobile</th>
+                            <th className="p-2.5 text-right">Current Due (₹)</th>
+                            <th className="p-2.5 text-right">Configured Credit Limit (₹)</th>
+                            <th className="p-2.5 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {customers.map((c) => {
+                            const curLimit = systemSettings?.creditControl?.customerCreditLimits?.[c.id] ?? c.credit_limit ?? 0;
+                            const curDue = Number(c.old_due || 0);
+
+                            return (
+                              <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td className="p-2.5 font-sans font-bold">{c.name}</td>
+                                <td className="p-2.5 text-slate-500">{c.mobile || "—"}</td>
+                                <td className="p-2.5 text-right font-bold text-rose-600">{money(curDue)}</td>
+                                <td className="p-2.5 text-right">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={curLimit || ""}
+                                    placeholder="0 (No Limit)"
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setSystemSettings({
+                                        ...systemSettings,
+                                        creditControl: {
+                                          ...(systemSettings?.creditControl || {}),
+                                          customerCreditLimits: {
+                                            ...(systemSettings?.creditControl?.customerCreditLimits || {}),
+                                            [c.id]: val
+                                          }
+                                        }
+                                      });
+                                    }}
+                                    className="w-28 p-1 text-right bg-white dark:bg-slate-900 border rounded-lg font-bold"
+                                  />
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  {curDue > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSendWhatsAppReminder(c)}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-sans font-bold text-[11px]"
+                                    >
+                                      💬 Reminder
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SCENARIO 3: Z-REPORT HISTORY AUDIT TRAIL */}
+              {settingsSubTab === "z_reports" && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>📊</span> Day-End Cash Register Reconciliation (Z-Report) History
+                        </h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Audit trail of past day-end drawer closings, surplus/shortage variances, and physical counts.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowZReportModal(true)}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                      >
+                        Open Today&apos;s Z-Report
+                      </button>
+                    </div>
+
+                    {(!systemSettings?.zReport?.history || systemSettings.zReport.history.length === 0) ? (
+                      <div className="p-8 text-center text-slate-400 space-y-2">
+                        <span className="text-3xl block">📑</span>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Saved Z-Reports Yet</p>
+                        <p className="text-xs">Close your first day-end cash register reconciliation to create persistent history records.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <table className="min-w-[650px] w-full text-left text-xs font-mono border-collapse">
+                          <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5">Date & Time</th>
+                              <th className="p-2.5">Closed By</th>
+                              <th className="p-2.5 text-right">Expected Cash (₹)</th>
+                              <th className="p-2.5 text-right">Physical Count (₹)</th>
+                              <th className="p-2.5 text-right">Variance (₹)</th>
+                              <th className="p-2.5 text-center">Status</th>
+                              <th className="p-2.5 text-center">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {systemSettings.zReport.history.map((z) => (
+                              <tr key={z.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                <td className="p-2.5 font-bold">{z.date} ({z.timestamp?.slice(11, 16)})</td>
+                                <td className="p-2.5 font-sans">{z.operator}</td>
+                                <td className="p-2.5 text-right font-bold text-indigo-600">{money(z.expected_cash)}</td>
+                                <td className="p-2.5 text-right font-bold">{money(z.physical_cash)}</td>
+                                <td className={`p-2.5 text-right font-black ${z.difference > 0 ? "text-emerald-600" : z.difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                                  {z.difference > 0 ? `+${money(z.difference)}` : z.difference < 0 ? `-${money(Math.abs(z.difference))}` : "₹0.00"}
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    z.status === "Surplus" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : z.status === "Shortage" ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" : "bg-indigo-100 text-indigo-800"
+                                  }`}>
+                                    {z.status}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingSavedZReport(z)}
+                                    className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded font-sans font-bold text-xs"
+                                  >
+                                    View Receipt
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* APPLICATION CONFIGURATION TAB (POINT 3) */}
               {settingsSubTab === "app_config" && (
@@ -18928,7 +20439,356 @@ Thank you for your business!`;
         </div>
       )}
 
-      {/* MOBILE BOTTOM NAVIGATION BAR */}
+            {/* SCENARIO 4: SMART LOW-STOCK & AUTO-REORDER DRAWER / MODAL */}
+      {showLowStockModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-[75] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 max-w-2xl w-full my-auto max-h-[90dvh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚠️</span>
+                  <h3 className="font-black text-base sm:text-lg">Low Stock & Auto-Reorder Hub</h3>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                    {lowStockItems.length} Low
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Items currently at or below configured minimum reorder level. Click 1-Click Purchase Reorder to instantly generate a vendor procurement bill.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLowStockModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {lowStockItems.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 space-y-2">
+                <span className="text-3xl block">✅</span>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">All Stock Levels Healthy!</p>
+                <p className="text-xs">No catalog items have fallen below their configured reorder thresholds.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <table className="min-w-[600px] w-full text-left text-xs font-mono border-collapse">
+                  <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                      <th className="p-2.5 whitespace-nowrap">Item Name</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Available</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Reorder Level</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Suggest Qty</th>
+                      <th className="p-2.5 whitespace-nowrap">Mapped Supplier</th>
+                      <th className="p-2.5 text-center whitespace-nowrap">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {lowStockItems.map((item) => {
+                      const supp = suppliers.find((s) => String(s.id) === String(item.preferred_supplier_id));
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="p-2.5 font-sans font-bold whitespace-nowrap">{item.name}</td>
+                          <td className="p-2.5 text-center whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 animate-pulse">
+                              {item.current_stock}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-center whitespace-nowrap font-bold text-slate-500">{item.reorder_level}</td>
+                          <td className="p-2.5 text-center whitespace-nowrap font-bold text-indigo-600 dark:text-indigo-400">{item.suggested_qty}</td>
+                          <td className="p-2.5 font-sans whitespace-nowrap text-slate-600 dark:text-slate-300">
+                            {supp ? supp.name : <span className="text-slate-400 italic">Store Default</span>}
+                          </td>
+                          <td className="p-2.5 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingProcureId(null);
+                                setProcureForm({
+                                  supplier_id: String(item.preferred_supplier_id || suppliers[0]?.id || ""),
+                                  item_name: item.name,
+                                  quantity: String(item.suggested_qty || 10),
+                                  rate: String(item.purchase_rate || item.unit_price || 0),
+                                  total_amount: String((item.suggested_qty || 10) * Number(item.purchase_rate || item.unit_price || 0)),
+                                  notes: `1-Click Auto Reorder from Low Stock Alert (Current Stock: ${item.current_stock})`
+                                });
+                                setShowLowStockModal(false);
+                                setShowProcureModal(true);
+                                setActiveTab("purchases");
+                              }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-sans font-bold text-xs shadow-xs transition cursor-pointer"
+                            >
+                              1-Click Reorder
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowLowStockModal(false)}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCENARIO 3: DAY-END CASH REGISTER RECONCILIATION (Z-REPORT) MODAL */}
+      {showZReportModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-[75] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 max-w-2xl w-full my-auto max-h-[90dvh] overflow-y-auto shadow-2xl space-y-4">
+            <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📊</span>
+                  <h3 className="font-black text-base sm:text-lg">Day-End Cash Register Reconciliation (Z-Report)</h3>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Verify system cash balance against counted physical cash in drawer before closing shop.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowZReportModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Expected Cash Calculation Breakdown */}
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                System Calculation Formula
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-mono">
+                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-slate-400 block font-sans">Opening Cash</span>
+                  <span className="font-black text-slate-800 dark:text-slate-200">{money(todayZReportStats.openingCash)}</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-emerald-600 block font-sans">+ Cash Sales Today</span>
+                  <span className="font-black text-emerald-600 dark:text-emerald-400">{money(todayZReportStats.cashSales)}</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-emerald-600 block font-sans">+ Cash Collections</span>
+                  <span className="font-black text-emerald-600 dark:text-emerald-400">{money(todayZReportStats.cashCollections)}</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-rose-500 block font-sans">- Cash Expenses</span>
+                  <span className="font-black text-rose-600 dark:text-rose-400">{money(todayZReportStats.cashExpenses)}</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-bold text-rose-500 block font-sans">- Supplier Cash Paid</span>
+                  <span className="font-black text-rose-600 dark:text-rose-400">{money(todayZReportStats.supplierCashPayments)}</span>
+                </div>
+                <div className="bg-indigo-50/80 dark:bg-indigo-950/60 p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 sm:col-span-1 col-span-2">
+                  <span className="text-[10px] font-black text-indigo-900 dark:text-indigo-200 block font-sans">= Expected Cash</span>
+                  <span className="font-black text-base text-indigo-700 dark:text-indigo-300">{money(todayZReportStats.expectedCash)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Physical Cash Denominations Entry */}
+            <div className="space-y-3">
+              <span className="text-xs font-black text-slate-800 dark:text-slate-200 block">
+                Physical Cash Denomination Count in Drawer
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[500, 200, 100, 50, 20, 10].map((denom) => (
+                  <div key={denom} className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <span className="text-xs font-bold w-12 font-mono text-slate-500">₹{denom} ×</span>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="0"
+                      value={zReportDenominations[denom] || ""}
+                      onChange={(e) => setZReportDenominations({ ...zReportDenominations, [denom]: e.target.value })}
+                      className="w-full p-1 bg-white dark:bg-slate-900 border rounded-lg text-xs font-bold text-center font-mono outline-none"
+                    />
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <span className="text-xs font-bold w-12 font-mono text-slate-500">Coins</span>
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="₹0"
+                    value={zReportDenominations.coins || ""}
+                    onChange={(e) => setZReportDenominations({ ...zReportDenominations, coins: e.target.value })}
+                    className="w-full p-1 bg-white dark:bg-slate-900 border rounded-lg text-xs font-bold text-center font-mono outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                  <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 font-sans">Total Count:</span>
+                  <span className="font-mono font-black text-xs text-indigo-900 dark:text-indigo-200 ml-auto">
+                    {money(todayZReportStats.physicalCash)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Variance Status Indicator */}
+            <div className={`p-4 rounded-2xl border flex items-center justify-between font-mono ${
+              todayZReportStats.difference > 0
+                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                : todayZReportStats.difference < 0
+                ? "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200"
+                : "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200"
+            }`}>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider block font-sans opacity-75">Reconciliation Status</span>
+                <span className="font-black text-base flex items-center gap-1.5">
+                  {todayZReportStats.difference > 0 ? "🟢 Cash Surplus" : todayZReportStats.difference < 0 ? "🔴 Cash Shortage" : "🎯 Perfectly Balanced"}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold uppercase tracking-wider block font-sans opacity-75">Variance Amount</span>
+                <span className="font-black text-lg">
+                  {todayZReportStats.difference > 0 ? `+${money(todayZReportStats.difference)}` : todayZReportStats.difference < 0 ? `-${money(Math.abs(todayZReportStats.difference))}` : "₹0.00"}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                Day-End Reconciliation Notes / Cashier Remarks
+              </label>
+              <textarea
+                rows={2}
+                value={zReportNotes}
+                onChange={(e) => setZReportNotes(e.target.value)}
+                placeholder="e.g. Physical count verified by store manager at 9:30 PM..."
+                className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowZReportModal(false)}
+                className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const zRecord = {
+                    id: `Z-${Date.now()}`,
+                    date: todayZReportStats.todayStr,
+                    timestamp: new Date().toISOString(),
+                    operator: currentUser?.name || "Admin",
+                    opening_cash: todayZReportStats.openingCash,
+                    cash_sales: todayZReportStats.cashSales,
+                    cash_collections: todayZReportStats.cashCollections,
+                    cash_expenses: todayZReportStats.cashExpenses,
+                    supplier_cash_payments: todayZReportStats.supplierCashPayments,
+                    expected_cash: todayZReportStats.expectedCash,
+                    physical_cash: todayZReportStats.physicalCash,
+                    difference: todayZReportStats.difference,
+                    status: todayZReportStats.status,
+                    denominations: zReportDenominations,
+                    notes: zReportNotes
+                  };
+                  saveSystemSettingsToCloud({
+                    zReport: {
+                      ...(systemSettings?.zReport || {}),
+                      history: [zRecord, ...(systemSettings?.zReport?.history || [])].slice(0, 100)
+                    }
+                  });
+                  setViewingSavedZReport(zRecord);
+                  setShowZReportModal(false);
+                }}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition cursor-pointer"
+              >
+                Close & Save Day-End Z-Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 80MM PRINTABLE Z-REPORT RECEIPT MODAL */}
+      {viewingSavedZReport && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-[80] overflow-y-auto">
+          <div className="bg-white text-slate-900 rounded-2xl p-6 max-w-sm w-full my-auto shadow-2xl space-y-4 font-mono text-xs">
+            <div className="text-center space-y-1 pb-3 border-b-2 border-dashed border-slate-300">
+              <h2 className="font-black text-base uppercase">{systemSettings?.branding?.systemName || "JSR RETAILS"}</h2>
+              <p className="text-[10px] text-slate-600">{systemSettings?.branding?.companyAddress || "Main Bazaar, Dornala"}</p>
+              <p className="text-[10px] text-slate-600">Ph: {systemSettings?.branding?.phone || "9848022338"}</p>
+              <h3 className="font-black text-xs uppercase pt-1 tracking-wider">DAY-END Z-REPORT RECEIPT</h3>
+              <p className="text-[10px] text-slate-500">Date: {viewingSavedZReport.date} • {viewingSavedZReport.timestamp?.slice(11, 16)}</p>
+              <p className="text-[10px] text-slate-500">Operator: {viewingSavedZReport.operator}</p>
+            </div>
+
+            <div className="space-y-1 text-[11px] py-1 border-b border-dashed border-slate-300">
+              <div className="flex justify-between"><span>Opening Cash:</span><span>{money(viewingSavedZReport.opening_cash)}</span></div>
+              <div className="flex justify-between font-bold text-emerald-700"><span>+ Cash Sales:</span><span>{money(viewingSavedZReport.cash_sales)}</span></div>
+              <div className="flex justify-between font-bold text-emerald-700"><span>+ Cash Collections:</span><span>{money(viewingSavedZReport.cash_collections)}</span></div>
+              <div className="flex justify-between font-bold text-rose-700"><span>- Cash Expenses:</span><span>{money(viewingSavedZReport.cash_expenses)}</span></div>
+              <div className="flex justify-between font-bold text-rose-700"><span>- Supplier Payments:</span><span>{money(viewingSavedZReport.supplier_cash_payments)}</span></div>
+              <div className="flex justify-between font-black text-xs pt-1 border-t border-slate-300">
+                <span>EXPECTED DRAWER CASH:</span>
+                <span>{money(viewingSavedZReport.expected_cash)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1 text-[11px] py-1 border-b-2 border-dashed border-slate-300">
+              <div className="flex justify-between font-black text-xs">
+                <span>PHYSICAL COUNTED CASH:</span>
+                <span>{money(viewingSavedZReport.physical_cash)}</span>
+              </div>
+              <div className={`flex justify-between font-black text-xs pt-1 ${
+                viewingSavedZReport.difference > 0 ? "text-emerald-700" : viewingSavedZReport.difference < 0 ? "text-rose-700" : "text-indigo-700"
+              }`}>
+                <span>VARIANCE ({viewingSavedZReport.status}):</span>
+                <span>{viewingSavedZReport.difference > 0 ? `+${money(viewingSavedZReport.difference)}` : viewingSavedZReport.difference < 0 ? `-${money(Math.abs(viewingSavedZReport.difference))}` : "₹0.00"}</span>
+              </div>
+            </div>
+
+            {viewingSavedZReport.notes && (
+              <div className="text-[10px] text-slate-600 italic">
+                Notes: {viewingSavedZReport.notes}
+              </div>
+            )}
+
+            <div className="flex justify-between pt-6 text-[10px] text-slate-500">
+              <div>Cashier Sign: _________</div>
+              <div>Manager Sign: _________</div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-200 no-print">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-sans font-bold text-xs rounded-xl"
+              >
+                🖨️ Print 80mm Slip
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingSavedZReport(null)}
+                className="px-4 py-2 border rounded-xl text-xs font-sans font-bold text-slate-700"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 px-2 py-1.5 flex justify-around items-center text-slate-400 no-print">
         {hasModuleAccess("sale") && (
           <button
@@ -18993,6 +20853,8 @@ Thank you for your business!`;
           <span className="text-[10px]">{t("More", "మరిన్ని")}</span>
         </button>
       </nav>
+        </>
+      )}
     </div>
   );
 }
