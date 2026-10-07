@@ -124,14 +124,53 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://yfptlgypcmy
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_C2CTElJlxJ5rktW2YBuAaA_lKWcrQk5";
 const db = createClient(supabaseUrl, supabaseKey);
 
+// Universal Indian Number & Currency Helpers (en-IN comma formatting)
+const cleanNum = (val) => {
+  if (val === null || val === undefined || val === "") return 0;
+  const cleaned = String(val).replace(/,/g, "").trim();
+  const num = Number(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+const formatIndianNumber = (val) => {
+  if (val === null || val === undefined || val === "") return "";
+  const str = String(val).replace(/,/g, "").trim();
+  if (!str) return "";
+  const isNeg = str.startsWith("-");
+  const clean = isNeg ? str.slice(1) : str;
+  const parts = clean.split(".");
+  let intPart = parts[0];
+  const decPart = parts.length > 1 ? parts.slice(1).join("") : null;
+
+  if (intPart.length > 1 && intPart.startsWith("0")) {
+    intPart = intPart.replace(/^0+/, "") || "0";
+  }
+
+  let formattedInt = "";
+  if (intPart.length > 3) {
+    const lastThree = intPart.slice(-3);
+    const rest = intPart.slice(0, -3);
+    const restFormatted = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+    formattedInt = restFormatted + "," + lastThree;
+  } else {
+    formattedInt = intPart;
+  }
+
+  let result = (isNeg ? "-" : "") + formattedInt;
+  if (decPart !== null) {
+    result += "." + decPart;
+  }
+  return result;
+};
+
 const money = (n) =>
-  `₹${Number(n || 0).toLocaleString("en-IN", {
+  `₹${cleanNum(n).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 
 // Invariant Helper: Pitfall #4 (Strict 2-decimal intermediate rounding)
-const round2 = (n) => Number(Number(n || 0).toFixed(2));
+const round2 = (n) => Number(cleanNum(n).toFixed(2));
 
 // Invariant Helper: Pitfall #7 (High-concurrency microsecond doc ID generation)
 const generateDocId = (prefix = "DOC") => {
@@ -274,6 +313,122 @@ const verifyTOTPCode = async (secret, inputCode, isAdmin = false) => {
     console.error("TOTP verification error:", e);
     return false;
   }
+};
+
+// Reusable Indian Number & Currency Input Component with Smooth Formatting & Cursor Preservation
+const IndianNumberInput = ({
+  value,
+  onChange,
+  onBlur,
+  onKeyDown,
+  placeholder = "0.00",
+  className = "",
+  disabled = false,
+  autoFocus = false,
+  allowDecimal = true,
+  allowNegative = false,
+  min,
+  max,
+  id,
+  name,
+  required = false,
+  style = {}
+}) => {
+  const displayValue = formatIndianNumber(value);
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Backspace") {
+      const inputEl = e.target;
+      if (inputEl.selectionStart === inputEl.selectionEnd && inputEl.selectionStart > 1) {
+        const pos = inputEl.selectionStart;
+        if (inputEl.value[pos - 1] === ",") {
+          inputEl.setSelectionRange(pos - 1, pos - 1);
+        }
+      }
+    }
+    if (onKeyDown) onKeyDown(e);
+  };
+
+  const handleChange = (e) => {
+    const inputEl = e.target;
+    const rawInput = inputEl.value;
+    const oldCursor = inputEl.selectionStart || rawInput.length;
+
+    // Count how many non-comma characters were before the cursor
+    const charsBeforeCursor = rawInput.slice(0, oldCursor).replace(/,/g, "").length;
+
+    // Filter raw value to valid numeric characters
+    let cleaned = rawInput.replace(/,/g, "");
+    if (allowDecimal) {
+      cleaned = cleaned.replace(/[^0-9.-]/g, "");
+      const parts = cleaned.split(".");
+      if (parts.length > 2) {
+        cleaned = parts[0] + "." + parts.slice(1).join("");
+      }
+    } else {
+      cleaned = cleaned.replace(/[^0-9-]/g, "");
+    }
+
+    if (!allowNegative) {
+      cleaned = cleaned.replace(/-/g, "");
+    }
+
+    // Format new value
+    const formatted = formatIndianNumber(cleaned);
+
+    // Calculate new cursor position in the formatted string
+    let newCursor = 0;
+    let seenChars = 0;
+    for (let i = 0; i < formatted.length; i++) {
+      if (formatted[i] !== ",") {
+        seenChars++;
+      }
+      if (seenChars === charsBeforeCursor) {
+        newCursor = i + 1;
+        break;
+      }
+    }
+    if (seenChars < charsBeforeCursor) {
+      newCursor = formatted.length;
+    }
+
+    // Trigger parent onChange
+    if (onChange) {
+      e.target.value = formatted;
+      e.target.rawValue = cleaned;
+      onChange(e);
+    }
+
+    // Restore cursor position smoothly
+    if (typeof window !== "undefined" && window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => {
+        if (inputEl && inputEl.setSelectionRange) {
+          try {
+            inputEl.setSelectionRange(newCursor, newCursor);
+          } catch (_) {}
+        }
+      });
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode={allowDecimal ? "decimal" : "numeric"}
+      id={id}
+      name={name}
+      required={required}
+      disabled={disabled}
+      autoFocus={autoFocus}
+      placeholder={placeholder}
+      className={className}
+      value={displayValue}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      onBlur={onBlur}
+      style={style}
+    />
+  );
 };
 
 export default function App() {
@@ -3017,15 +3172,15 @@ export default function App() {
 
     const expectedCash = openingCash + cashSales + cashCollections - cashExpenses - supplierCashPayments;
 
-    const denomTotal = (Number(zReportDenominations[500] || 0) * 500) +
-      (Number(zReportDenominations[200] || 0) * 200) +
-      (Number(zReportDenominations[100] || 0) * 100) +
-      (Number(zReportDenominations[50] || 0) * 50) +
-      (Number(zReportDenominations[20] || 0) * 20) +
-      (Number(zReportDenominations[10] || 0) * 10) +
-      Number(zReportDenominations.coins || 0);
+    const denomTotal = (cleanNum(zReportDenominations[500]) * 500) +
+      (cleanNum(zReportDenominations[200]) * 200) +
+      (cleanNum(zReportDenominations[100]) * 100) +
+      (cleanNum(zReportDenominations[50]) * 50) +
+      (cleanNum(zReportDenominations[20]) * 20) +
+      (cleanNum(zReportDenominations[10]) * 10) +
+      cleanNum(zReportDenominations.coins);
 
-    const physicalCash = zReportPhysicalCash !== "" ? Number(zReportPhysicalCash) : denomTotal;
+    const physicalCash = zReportPhysicalCash !== "" ? cleanNum(zReportPhysicalCash) : denomTotal;
     const difference = physicalCash - expectedCash;
 
     return {
@@ -3971,13 +4126,13 @@ export default function App() {
     const newCart = [...cart];
     newCart[idx][field] = val;
     if (field === "qty" || field === "rate") {
-      newCart[idx].total = Number(newCart[idx].qty || 0) * Number(newCart[idx].rate || 0);
+      newCart[idx].total = cleanNum(newCart[idx].qty) * cleanNum(newCart[idx].rate);
     }
     setCart(newCart);
   };
 
-  const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + Number(item.total || 0), 0), [cart]);
-  const upfrontPaidNum = Number(upfrontAmount || 0);
+  const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + cleanNum(item.total), 0), [cart]);
+  const upfrontPaidNum = cleanNum(upfrontAmount);
   const remainingBillDue = Math.max(0, cartTotal - upfrontPaidNum);
 
   // SAVE INVOICE
@@ -4094,10 +4249,10 @@ export default function App() {
           procure_id: c.procure_id,
           item_name: c.item_name,
           supplier_name: c.supplier_name || "",
-          qty: c.qty,
-          rate: c.rate,
-          total: c.total,
-          purchase_rate: c.purchase_rate
+          qty: cleanNum(c.qty),
+          rate: cleanNum(c.rate),
+          total: cleanNum(c.total),
+          purchase_rate: cleanNum(c.purchase_rate)
         }))
       };
 
@@ -4468,7 +4623,7 @@ Thank you for your business!`;
 
   const saveInvoiceCollection = async (e) => {
     e.preventDefault();
-    const amt = Number(collectForm.amount || 0);
+    const amt = cleanNum(collectForm.amount);
     if (amt <= 0) return alert("Enter valid collection amount");
     const receiverId = Number(collectForm.receiver_id || upfrontPartnerId);
     if (!receiverId) return alert("Select partner who collected");
@@ -4671,7 +4826,7 @@ Thank you for your business!`;
 
   const savePurchasePayment = async (e) => {
     e.preventDefault();
-    const amt = Number(payPurchaseForm.amount || 0);
+    const amt = cleanNum(payPurchaseForm.amount);
     if (amt <= 0) return alert("Enter valid payment amount");
     if (paySupplierMode === "single" && !payPurchaseForm.purchase_id) return alert("Select purchase bill");
     if (paySupplierMode === "multi" && !multiSupplierId) return alert("Select a supplier to settle bills for");
@@ -4890,7 +5045,7 @@ Thank you for your business!`;
     e.preventDefault();
     const name = formatProperText(custForm.name);
     if (!name) return alert("Enter customer name");
-    const payload = { name: name, mobile: custForm.mobile.trim(), old_due: Number(custForm.old_due || 0) };
+    const payload = { name: name, mobile: custForm.mobile.trim(), old_due: cleanNum(custForm.old_due) };
     try {
       let savedId = editingCustId;
       if (editingCustId) {
@@ -4965,7 +5120,7 @@ Thank you for your business!`;
     const payload = {
       name: formatProperText(supplierForm.name),
       mobile: finalMobile,
-      old_due: Number(supplierForm.old_due || 0)
+      old_due: cleanNum(supplierForm.old_due)
     };
     try {
       let savedId = editingSupplierId;
@@ -5077,9 +5232,9 @@ Thank you for your business!`;
     e.preventDefault();
     const itemName = formatProperText(itemForm.name);
     if (!itemName) return alert("Enter item name");
-    const purchaseRate = Number(itemForm.purchase_rate || 0);
-    const sellingRate = Number(itemForm.selling_rate || purchaseRate);
-    const openingQty = Number(itemForm.opening_qty || 0);
+    const purchaseRate = cleanNum(itemForm.purchase_rate);
+    const sellingRate = cleanNum(itemForm.selling_rate || purchaseRate);
+    const openingQty = cleanNum(itemForm.opening_qty);
 
     // Schema in Supabase items table: item_name, unit_price, current_stock
     const payload = {
@@ -5254,8 +5409,8 @@ Thank you for your business!`;
     if (!partnerForm.name.trim()) return alert('Enter partner name');
     const payload = {
       name: partnerForm.name.trim(),
-      opening_cash: Number(partnerForm.opening_cash || 0),
-      opening_upi: Number(partnerForm.opening_upi || 0)
+      opening_cash: cleanNum(partnerForm.opening_cash),
+      opening_upi: cleanNum(partnerForm.opening_upi)
     };
     try {
       let savedId = editingPartnerId;
@@ -5339,7 +5494,7 @@ Thank you for your business!`;
     if (savingLender) return;
     const name = formatProperText(lenderForm.name);
     if (!name) return alert("Enter lender or finance source name");
-    const initialAmount = Number(lenderForm.initial_loan || 0);
+    const initialAmount = cleanNum(lenderForm.initial_loan);
 
     // Duplicate check
     const isDup = lenders.some(
@@ -5382,8 +5537,8 @@ Thank you for your business!`;
 
   const saveLoanRepayment = async (e) => {
     e.preventDefault();
-    const principal = Number(loanPaymentForm.principal_amount || 0);
-    const interest = Number(loanPaymentForm.interest_amount || 0);
+    const principal = cleanNum(loanPaymentForm.principal_amount);
+    const interest = cleanNum(loanPaymentForm.interest_amount);
     const totalAmt = principal + interest;
     if (totalAmt <= 0) return alert("Enter valid repayment amount (Principal or Interest)");
     if (!loanPaymentForm.partner_id) return alert("Select which partner account is paying");
@@ -5651,12 +5806,12 @@ Thank you for your business!`;
           selling_rate: procureForm.selling_rate
         }];
 
-    const validLines = rawLines.filter((l) => l.item_name?.trim() && Number(l.procured_qty || 0) > 0);
+    const validLines = rawLines.filter((l) => l.item_name?.trim() && cleanNum(l.procured_qty) > 0);
     if (validLines.length === 0) {
       return alert("Select items with valid quantities for this purchase order");
     }
 
-    const paidNowNum = editingProcureId ? 0 : Number(procureForm.paid_now || 0);
+    const paidNowNum = editingProcureId ? 0 : cleanNum(procureForm.paid_now);
     const isAdvanceAdjusted = procureForm.p1_mode === "Advance Adjusted";
 
     // Partner fund validation: prevent negative partner balance ONLY when creating a new purchase order with an upfront payment
@@ -5667,7 +5822,7 @@ Thank you for your business!`;
     }
 
     const grandTotal = validLines.reduce(
-      (sum, l) => sum + Number(l.procured_qty || 0) * Number(l.purchase_rate || 0),
+      (sum, l) => sum + cleanNum(l.procured_qty) * cleanNum(l.purchase_rate),
       0
     );
 
@@ -5715,9 +5870,9 @@ Thank you for your business!`;
         // Multi-line edit integrity: Update existing goods rows and insert added lines without touching payments
         for (let i = 0; i < validLines.length; i++) {
           const line = validLines[i];
-          const qty = Number(line.procured_qty || 0);
-          const purchaseRate = Number(line.purchase_rate || 0);
-          const sellingRate = Number(line.selling_rate || purchaseRate);
+          const qty = cleanNum(line.procured_qty);
+          const purchaseRate = cleanNum(line.purchase_rate);
+          const sellingRate = cleanNum(line.selling_rate || purchaseRate);
           const lineTotal = qty * purchaseRate;
 
           if (line.procure_id) {
@@ -5783,9 +5938,9 @@ Thank you for your business!`;
       } else {
         // Create Mode: insert all lines into procurements with shared order number
         const payloads = validLines.map((line) => {
-          const qty = Number(line.procured_qty || 0);
-          const purchaseRate = Number(line.purchase_rate || 0);
-          const sellingRate = Number(line.selling_rate || purchaseRate);
+          const qty = cleanNum(line.procured_qty);
+          const purchaseRate = cleanNum(line.purchase_rate);
+          const sellingRate = cleanNum(line.selling_rate || purchaseRate);
           const lineTotal = qty * purchaseRate;
 
           let linePaid = 0;
@@ -5909,7 +6064,7 @@ Thank you for your business!`;
 
   const saveExpense = async (e) => {
     e.preventDefault();
-    const amt = Number(expenseForm.amount || 0);
+    const amt = cleanNum(expenseForm.amount);
     if (amt <= 0) return alert("Enter valid expense amount");
     if (!expenseForm.title.trim()) return alert("Enter expense description / title");
     if (!expenseForm.paid_by_id) return alert("Select partner who paid");
@@ -8051,8 +8206,7 @@ Thank you for your business!`;
                     <div className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Rate (₹)</label>
-                        <input
-                          type="number"
+                        <IndianNumberInput
                           className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                           value={line.rate}
                           onChange={(e) => updateCart(idx, "rate", e.target.value)}
@@ -8060,8 +8214,7 @@ Thank you for your business!`;
                       </div>
                       <div className="col-span-3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
-                        <input
-                          type="number"
+                        <IndianNumberInput
                           className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-center"
                           value={line.qty}
                           onChange={(e) => updateCart(idx, "qty", e.target.value)}
@@ -8125,8 +8278,8 @@ Thank you for your business!`;
                     const invColsTotal = invAlloc ? invAlloc.totalCollections : 0;
                     const oldInv = editingInvoiceId ? (currentEditingInvoice || invoices.find((i) => i.id === editingInvoiceId)) : null;
                     const oldUpfront = Number(oldInv?.upfront_paid || 0);
-                    const currentUpfront = upfrontAmount !== "" ? Number(upfrontAmount) : oldUpfront;
-                    const totalPaidSoFar = editingInvoiceId ? (currentUpfront + invColsTotal + pendingAdv) : Number(upfrontAmount || 0);
+                    const currentUpfront = upfrontAmount !== "" ? cleanNum(upfrontAmount) : oldUpfront;
+                    const totalPaidSoFar = editingInvoiceId ? (currentUpfront + invColsTotal + pendingAdv) : cleanNum(upfrontAmount);
                     const remainingBill = Math.max(0, cartTotal - totalPaidSoFar);
                     const toApply = Math.min(availCredit, editingInvoiceId ? remainingBill : cartTotal);
 
@@ -8176,7 +8329,7 @@ Thank you for your business!`;
                   const totalCols = invAlloc ? invAlloc.totalCollections : 0;
                   const oldInv = currentEditingInvoice || invoices.find((i) => i.id === editingInvoiceId);
                   const oldUpfront = Number(oldInv?.upfront_paid || 0);
-                  const effectiveUpfront = upfrontAmount !== "" ? Number(upfrontAmount) : oldUpfront;
+                  const effectiveUpfront = upfrontAmount !== "" ? cleanNum(upfrontAmount) : oldUpfront;
                   const effectiveMode = upfrontAmount !== "" ? upfrontMode : (oldInv?.upfront_mode || "Cash");
                   const effectiveReceiver = oldInv?.upfront_receiver_id;
                   const pendingAdv = editSessionAdvances.reduce((s, a) => s + Number(a.amount || 0), 0);
@@ -8423,9 +8576,8 @@ Thank you for your business!`;
                     <label className="text-xs font-bold uppercase text-slate-700 block">Upfront Payment</label>
                     <div className="relative">
                       <span className="absolute left-3 top-3 text-xs text-slate-400 font-bold">₹</span>
-                      <input
+                      <IndianNumberInput
                         id="upfront-payment-input"
-                        type="number"
                         placeholder="0"
                         className="w-full pl-7 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-black text-emerald-600 outline-none"
                         value={upfrontAmount}
@@ -15369,12 +15521,10 @@ Thank you for your business!`;
                               <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                                 <td className="p-2.5 font-sans font-bold">{item.name}</td>
                                 <td className="p-2.5 text-center">
-                                  <input
-                                    type="number"
-                                    min={0}
+                                  <IndianNumberInput
                                     value={curLevel}
                                     onChange={(e) => {
-                                      const val = Number(e.target.value);
+                                      const val = cleanNum(e.target.value);
                                       setSystemSettings({
                                         ...systemSettings,
                                         inventory: {
@@ -15390,12 +15540,10 @@ Thank you for your business!`;
                                   />
                                 </td>
                                 <td className="p-2.5 text-center">
-                                  <input
-                                    type="number"
-                                    min={1}
+                                  <IndianNumberInput
                                     value={curQty}
                                     onChange={(e) => {
-                                      const val = Number(e.target.value);
+                                      const val = cleanNum(e.target.value);
                                       setSystemSettings({
                                         ...systemSettings,
                                         inventory: {
@@ -15508,13 +15656,11 @@ Thank you for your business!`;
                                 <td className="p-2.5 text-slate-500">{c.mobile || "—"}</td>
                                 <td className="p-2.5 text-right font-bold text-rose-600">{money(curDue)}</td>
                                 <td className="p-2.5 text-right">
-                                  <input
-                                    type="number"
-                                    min={0}
+                                  <IndianNumberInput
                                     value={curLimit || ""}
                                     placeholder="0 (No Limit)"
                                     onChange={(e) => {
-                                      const val = Number(e.target.value);
+                                      const val = cleanNum(e.target.value);
                                       setSystemSettings({
                                         ...systemSettings,
                                         creditControl: {
@@ -15806,12 +15952,11 @@ Thank you for your business!`;
                                   </span>
                                 </td>
                                 <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
-                                  <input
-                                    type="number"
-                                    min="1"
+                                  <IndianNumberInput
+                                    allowDecimal={false}
                                     value={mod.nextSeq}
                                     onChange={(e) => {
-                                      const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                                      const val = Math.max(1, parseInt(String(e.target.value).replace(/,/g, ""), 10) || 1);
                                       const updated = {
                                         ...numberingConfig,
                                         [key]: { ...mod, nextSeq: val }
@@ -16991,8 +17136,7 @@ Thank you for your business!`;
                 value={lenderForm.mobile}
                 onChange={(e) => setLenderForm({ ...lenderForm, mobile: e.target.value })}
               />
-              <input
-                type="number"
+              <IndianNumberInput
                 placeholder="Current Outstanding Loan (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
                 value={lenderForm.initial_loan}
@@ -17030,8 +17174,7 @@ Thank you for your business!`;
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                     Principal Repayment (అసలు చెల్లింపు ₹ - Optional if paying interest only)
                   </label>
-                  <input
-                    type="number"
+                  <IndianNumberInput
                     placeholder="Principal Amount (₹, Leave 0 for interest only)"
                     className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
                     value={loanPaymentForm.principal_amount}
@@ -17044,8 +17187,7 @@ Thank you for your business!`;
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                     Interest Amount (వడ్డీ చెల్లింపు ₹)
                   </label>
-                  <input
-                    type="number"
+                  <IndianNumberInput
                     placeholder="Interest Amount (₹, Optional)"
                     className="w-full p-2.5 border rounded-xl text-sm font-bold text-amber-600"
                     value={loanPaymentForm.interest_amount}
@@ -17057,7 +17199,7 @@ Thank you for your business!`;
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
                   <span>Total Deducted from Partner:</span>
                   <span className="text-sm font-black text-rose-600">
-                    {money(Number(loanPaymentForm.principal_amount || 0) + Number(loanPaymentForm.interest_amount || 0))}
+                    {money(cleanNum(loanPaymentForm.principal_amount) + cleanNum(loanPaymentForm.interest_amount))}
                   </span>
                 </div>
               </div>
@@ -17224,8 +17366,7 @@ Thank you for your business!`;
                 </div>
               )}
 
-              <input
-                type="number"
+              <IndianNumberInput
                 required
                 placeholder="Payment Amount (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm font-bold text-indigo-600"
@@ -17320,7 +17461,7 @@ Thank you for your business!`;
                   0
                 );
 
-                const currentPayAmt = Number(payPurchaseForm.amount || 0);
+                const currentPayAmt = cleanNum(payPurchaseForm.amount);
                 const advCredit = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
 
                 return (
@@ -17553,8 +17694,7 @@ Thank you for your business!`;
                 </>
               )}
 
-              <input
-                type="number"
+              <IndianNumberInput
                 required
                 placeholder="Amount (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
@@ -17847,11 +17987,8 @@ Thank you for your business!`;
                     <div className="grid grid-cols-12 gap-2.5 items-center pt-1">
                       <div className="col-span-3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
-                        <input
-                          type="number"
+                        <IndianNumberInput
                           required
-                          min="0.01"
-                          step="any"
                           placeholder="1"
                           className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-center text-slate-900 dark:text-slate-100"
                           value={line.procured_qty}
@@ -17860,11 +17997,8 @@ Thank you for your business!`;
                       </div>
                       <div className="col-span-3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cost Rate (₹)</label>
-                        <input
-                          type="number"
+                        <IndianNumberInput
                           required
-                          min="0"
-                          step="any"
                           placeholder="Cost"
                           className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100"
                           value={line.purchase_rate}
@@ -17873,10 +18007,7 @@ Thank you for your business!`;
                       </div>
                       <div className="col-span-3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Selling (₹)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
+                        <IndianNumberInput
                           placeholder="Sell"
                           className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
                           value={line.selling_rate}
@@ -18044,8 +18175,7 @@ Thank you for your business!`;
                       <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
                         Paid Now by Partner (Leave 0 if full Due)
                       </label>
-                      <input
-                        type="number"
+                      <IndianNumberInput
                         placeholder="0"
                         className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-600"
                         value={procureForm.paid_now}
@@ -18053,7 +18183,7 @@ Thank you for your business!`;
                       />
                     </div>
 
-                    {Number(procureForm.paid_now || 0) > 0 && procureForm.p1_mode !== "Advance Adjusted" && (
+                    {cleanNum(procureForm.paid_now) > 0 && procureForm.p1_mode !== "Advance Adjusted" && (
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <select
                           className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
@@ -18140,8 +18270,7 @@ Thank you for your business!`;
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate (₹)</label>
-                  <input
-                    type="number"
+                  <IndianNumberInput
                     placeholder="0.00"
                     className="w-full p-2.5 border rounded-xl text-xs font-bold"
                     value={itemForm.purchase_rate}
@@ -18150,8 +18279,7 @@ Thank you for your business!`;
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate (₹)</label>
-                  <input
-                    type="number"
+                  <IndianNumberInput
                     placeholder="0.00"
                     className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
                     value={itemForm.selling_rate}
@@ -18163,8 +18291,7 @@ Thank you for your business!`;
               {!editingItemId && (
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 block mb-1">Opening Stock Qty (ఆరంభ నిల్వ)</label>
-                  <input
-                    type="number"
+                  <IndianNumberInput
                     placeholder="0"
                     className="w-full p-2.5 border rounded-xl text-xs font-bold text-emerald-600"
                     value={itemForm.opening_qty}
@@ -18203,8 +18330,7 @@ Thank you for your business!`;
                 value={custForm.mobile}
                 onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
               />
-              <input
-                type="number"
+              <IndianNumberInput
                 placeholder="Opening Due (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={custForm.old_due}
@@ -18270,8 +18396,7 @@ Thank you for your business!`;
                 value={supplierForm.mobile}
                 onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
               />
-              <input
-                type="number"
+              <IndianNumberInput
                 placeholder="Opening Due (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                 value={supplierForm.old_due}
@@ -18543,15 +18668,13 @@ Thank you for your business!`;
                 onChange={(e) => setPartnerForm({ ...partnerForm, name: e.target.value })}
               />
               <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
+                <IndianNumberInput
                   placeholder="Opening Cash (₹)"
                   className="p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                   value={partnerForm.opening_cash}
                   onChange={(e) => setPartnerForm({ ...partnerForm, opening_cash: e.target.value })}
                 />
-                <input
-                  type="number"
+                <IndianNumberInput
                   placeholder="Opening UPI (₹)"
                   className="p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
                   value={partnerForm.opening_upi}
@@ -18696,8 +18819,7 @@ Thank you for your business!`;
                 value={expenseForm.title}
                 onChange={(e) => setExpenseForm({ ...expenseForm, title: e.target.value })}
               />
-              <input
-                type="number"
+              <IndianNumberInput
                 required
                 placeholder="Amount (₹)"
                 className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
@@ -20623,9 +20745,8 @@ Thank you for your business!`;
                 {[500, 200, 100, 50, 20, 10].map((denom) => (
                   <div key={denom} className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                     <span className="text-xs font-bold w-12 font-mono text-slate-500">₹{denom} ×</span>
-                    <input
-                      type="number"
-                      min={0}
+                    <IndianNumberInput
+                      allowDecimal={false}
                       placeholder="0"
                       value={zReportDenominations[denom] || ""}
                       onChange={(e) => setZReportDenominations({ ...zReportDenominations, [denom]: e.target.value })}
@@ -20635,9 +20756,7 @@ Thank you for your business!`;
                 ))}
                 <div className="flex items-center gap-1.5 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                   <span className="text-xs font-bold w-12 font-mono text-slate-500">Coins</span>
-                  <input
-                    type="number"
-                    min={0}
+                  <IndianNumberInput
                     placeholder="₹0"
                     value={zReportDenominations.coins || ""}
                     onChange={(e) => setZReportDenominations({ ...zReportDenominations, coins: e.target.value })}
