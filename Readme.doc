@@ -1,0 +1,332 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset="utf-8">
+<title>JSR Retails & Sales Management System — Comprehensive System Manual</title>
+<!--[if gte mso 9]>
+<xml>
+ <w:WordDocument>
+  <w:View>Print</w:View>
+  <w:Zoom>100</w:Zoom>
+  <w:DoNotOptimizeForBrowser/>
+ </w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+  body {
+    font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #1e293b;
+    margin: 40px;
+    background-color: #ffffff;
+  }
+  h1 {
+    font-size: 24pt;
+    color: #1e1b4b;
+    border-bottom: 2px solid #4338ca;
+    padding-bottom: 6px;
+    margin-top: 24pt;
+    margin-bottom: 12pt;
+  }
+  h2 {
+    font-size: 16pt;
+    color: #312e81;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 4px;
+    margin-top: 18pt;
+    margin-bottom: 8pt;
+  }
+  h3 {
+    font-size: 13pt;
+    color: #4338ca;
+    margin-top: 14pt;
+    margin-bottom: 6pt;
+  }
+  p, li {
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #334155;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 14pt 0;
+    font-size: 10pt;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 8px 12px;
+    text-align: left;
+  }
+  th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: bold;
+  }
+  tr:nth-child(even) {
+    background-color: #f8fafc;
+  }
+  .callout {
+    background-color: #eef2ff;
+    border-left: 4px solid #6366f1;
+    padding: 12px 16px;
+    margin: 14pt 0;
+    border-radius: 4px;
+  }
+  .badge {
+    background-color: #e0e7ff;
+    color: #3730a3;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 9pt;
+  }
+  code {
+    font-family: 'Consolas', 'Courier New', monospace;
+    background-color: #f1f5f9;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 10pt;
+    color: #0f172a;
+  }
+  pre {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 9.5pt;
+    overflow-x: auto;
+  }
+  .header-box {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+    color: #ffffff;
+    padding: 24px;
+    border-radius: 8px;
+    margin-bottom: 24pt;
+  }
+  .header-box h1 {
+    color: #ffffff;
+    border-bottom: none;
+    margin: 0 0 8px 0;
+  }
+  .header-box p {
+    color: #c7d2fe;
+    margin: 4px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="header-box">
+  <h1>JSR Retails & Sales Management System</h1>
+  <p><strong>Official System Manual & Technical Reference</strong></p>
+  <p>Version: 2.4.0 (Indian Number Format & Full System Documentation Release) | Last Updated: October 2026</p>
+  <p>Platform: Next.js 14 &bull; React 18 &bull; Tailwind CSS &bull; Supabase PostgreSQL &bull; Vercel CI/CD</p>
+</div>
+
+<div class="callout">
+  <strong>Living Manual Protocol:</strong> This document is automatically maintained directly within the project folder (<code>c:\Work\JSR_Retails_Sales\Readme.doc</code> and <code>README.md</code>) and is kept updated on every system modification, feature release, and bug fix.
+</div>
+
+<h2>Table of Contents</h2>
+<ol>
+  <li><strong>System Overview & Architecture</strong></li>
+  <li><strong>User Roles & Access Control</strong></li>
+  <li><strong>Authentication & Security (Dual-Mode & 2FA TOTP)</strong></li>
+  <li><strong>Core Business Modules & Workflows</strong>
+    <ul>
+      <li>POS Billing & Cash Register</li>
+      <li>Invoices & Receipts Management</li>
+      <li>Purchases & Inventory Management</li>
+      <li>Low Stock Alert & 1-Click Reorder Hub</li>
+      <li>Payments & Collections (Party Ledgers)</li>
+      <li>Customer Credit Limit Control & Admin Override</li>
+      <li>Automated WhatsApp Payment Reminders</li>
+      <li>Day-End Cash Register Reconciliation (Z-Report)</li>
+      <li>Business Snapshot & Partner Capital Accounting</li>
+      <li>Business Loans & Lender Debt Management</li>
+      <li>Customer & Supplier Self-Service Portal</li>
+      <li>Consolidated Party Statement & Contra Settle</li>
+      <li>System Settings & Cloud Synchronization</li>
+      <li>Indian Number Format (en-IN) Comma Separation</li>
+    </ul>
+  </li>
+  <li><strong>Database Schema & Entity Relationship Model</strong></li>
+  <li><strong>Audit Trails & Data Integrity Invariants</strong></li>
+  <li><strong>Deployment, Build & Environment Configuration</strong></li>
+  <li><strong>Changelog & Maintenance Protocol</strong></li>
+</ol>
+
+<hr/>
+
+<h2>1. System Overview & Architecture</h2>
+<p>The <strong>JSR Retails & Sales Management System</strong> is an enterprise retail Point of Sale (POS), Inventory Control, Multi-Party Ledger Accounting, and Day-End Cash Reconciliation platform engineered specifically for high-speed retail operations in India.</p>
+
+<h3>Key Architectural Principles:</h3>
+<ul>
+  <li><strong>Reactive Single-Page Architecture:</strong> Built on Next.js 14 App Router and React 18, providing sub-millisecond tab switching without page reload latency.</li>
+  <li><strong>Cloud-Native Database:</strong> Powered by Supabase PostgreSQL with real-time WebSocket broadcast sync (<code>sync_settings</code>, party ledgers).</li>
+  <li><strong>Dual Thermal Printing Engine:</strong> Native ESC/POS formatted 58mm and 80mm thermal receipts with store logo, GST tax summary, and Telugu bilingual descriptions.</li>
+  <li><strong>Fully Responsive Layout:</strong> Engineered for seamless usability across mobile phones, tablets, POS terminals, and large widescreen desktop monitors.</li>
+</ul>
+
+<hr/>
+
+<h2>2. User Roles & Access Control</h2>
+<table>
+  <tr>
+    <th>Role Name</th>
+    <th>Access Level</th>
+    <th>Operational Scope</th>
+  </tr>
+  <tr>
+    <td><strong>Admin</strong></td>
+    <td>Superuser Access</td>
+    <td>Complete access to POS, Invoices, Procurements, Accounting, Lenders, Partner Capitals, Master Settings, 2FA credentials, and system audit logs.</td>
+  </tr>
+  <tr>
+    <td><strong>Partner</strong></td>
+    <td>Management Access</td>
+    <td>Full access to business operations, partner capital drawdowns, financial snapshots, and daily approvals.</td>
+  </tr>
+  <tr>
+    <td><strong>Staff / Cashier</strong></td>
+    <td>Operational Access</td>
+    <td>Dedicated access to POS Billing, Invoice search, basic collections, and daily receipts without access to master profit margins or system secrets.</td>
+  </tr>
+  <tr>
+    <td><strong>Customer Portal</strong></td>
+    <td>Self-Service</td>
+    <td>Customer view restricted to personal invoices, receipts, payment history, outstanding balance, and statement downloads.</td>
+  </tr>
+  <tr>
+    <td><strong>Supplier Portal</strong></td>
+    <td>Self-Service</td>
+    <td>Vendor view restricted to purchase orders, payment receipts, outstanding balances, and supply history.</td>
+  </tr>
+  <tr>
+    <td><strong>Dual Portal</strong></td>
+    <td>Combined Self-Service</td>
+    <td>For parties that act as both customer and supplier (contra accounts), allowing unified balance and ledger access.</td>
+  </tr>
+</table>
+
+<hr/>
+
+<h2>3. Authentication & Security</h2>
+<ul>
+  <li><strong>Dual-Mode Login Experience:</strong>
+    <ul>
+      <li><em>Staff & Admin Mode:</em> 4-digit PIN authentication with optional 2FA TOTP verification.</li>
+      <li><em>Party Portal Mode:</em> Direct mobile phone number lookup with OTP/PIN authorization.</li>
+      <li><em>Desktop Split-Screen UI:</em> 75% widescreen visual showcase and 25% clean authorization form.</li>
+    </ul>
+  </li>
+  <li><strong>Two-Factor Authentication (2FA TOTP):</strong> Compliant with RFC 6238 time-based tokens. Generates rolling 30-second security codes with emergency administrative override keys.</li>
+  <li><strong>Session Persistence & Protection:</strong> Automatic session clearance upon browser closure or logout, with PIN re-entry requested for administrative settings.</li>
+</ul>
+
+<hr/>
+
+<h2>4. Core Business Modules & Workflows</h2>
+
+<h3>4.1 POS Billing & Cash Register</h3>
+<p>Enables ultra-fast billing with barcode scanning or keyword lookup. Automatically updates inventory stock in real time, computes line item discounts, and offers flexible payment options (Cash, UPI, Split Payment, or Advance Adjusted). Directly prints 58mm/80mm receipts.</p>
+
+<h3>4.2 Invoices & Receipts Management</h3>
+<p>Provides complete search and filtering across all generated sales invoices. Equipped with horizontal scrolling to guarantee that mobile devices display invoice details without letter-by-letter vertical wrapping.</p>
+
+<h3>4.3 Purchases & Inventory Management</h3>
+<p>Enables recording multi-line purchase orders from suppliers. Automatically tracks individual purchase rates, target sale rates, and remaining batch stocks.</p>
+
+<h3>4.4 Low Stock Alert & 1-Click Reorder Hub</h3>
+<p>Real-time visual badge in the header shows items reaching or breaching reorder thresholds. The 1-Click Auto Reorder feature automatically prepares purchase orders using preferred suppliers and predefined quantities.</p>
+
+<h3>4.5 Payments & Collections (Party Ledgers)</h3>
+<p>Comprehensive ledger settlement supporting both single-bill targeting and multi-bill FIFO auto-allocation. Correctly updates customer dues, accounts payable, and partner cash/UPI accounts.</p>
+
+<h3>4.6 Customer Credit Limit Control & Admin Override</h3>
+<p>Protects business liquidity by enforcing customer credit limits. Alerts cashiers and blocks invoice submission if the new sale exceeds the customer's credit cap, unless authorized via the <em>Admin Override Approved</em> checkbox.</p>
+
+<h3>4.7 Automated WhatsApp Payment Reminders</h3>
+<p>Enables sending 1-click WhatsApp payment reminders with store details, amount due, and UPI payment information directly to customers via the Meta WhatsApp Cloud API.</p>
+
+<h3>4.8 Day-End Cash Register Reconciliation (Z-Report)</h3>
+<p>Provides strict end-of-day cash reconciliation based on the exact formula:</p>
+<div class="callout">
+  <strong>Expected Cash</strong> = Opening Cash + Cash Sales + Cash Collections - Cash Expenses - Supplier Cash Paid
+</div>
+<p>Cashiers enter counts of physical currency notes (₹500, ₹200, ₹100, ₹50, ₹20, ₹10, Coins), and the system detects and records any <strong>Surplus</strong> or <strong>Shortage</strong> with thermal receipt printout.</p>
+
+<h3>4.9 Indian Number Format (en-IN) Comma Separation</h3>
+<p>All numeric displays and inputs automatically format values using the Indian numbering system:</p>
+<ul>
+  <li><code>1000</code> &rarr; <strong>1,000</strong></li>
+  <li><code>10000</code> &rarr; <strong>10,000</strong></li>
+  <li><code>100000</code> &rarr; <strong>1,00,000</strong></li>
+  <li><code>1000000</code> &rarr; <strong>10,00,000</strong></li>
+  <li><code>2500000.50</code> &rarr; <strong>25,00,000.50</strong></li>
+</ul>
+<p>Integrated <code>IndianNumberInput</code> maintains cursor position smoothly during typing, while <code>cleanNum()</code> preserves 100% calculation and database integrity.</p>
+
+<hr/>
+
+<h2>5. Database Schema & Data Model</h2>
+<p>PostgreSQL schema on Supabase with the following primary relational tables:</p>
+<ul>
+  <li><code>customers</code>: Customer master profiles, phone numbers, opening balances, and credit limits.</li>
+  <li><code>suppliers</code>: Vendor master profiles, phone numbers, and opening payables.</li>
+  <li><code>items</code>: Inventory item catalog, cost rates, sale rates, stock counts, reorder thresholds, and suggested quantities.</li>
+  <li><code>procurements</code>: Goods receipts, purchase batches, PO numbers, and vendor disbursement records.</li>
+  <li><code>invoices</code>: Sales bills, customer links, totals, upfront payments, balance dues, and itemized JSON records.</li>
+  <li><code>collections</code>: Inward payment collections received from customers with partner attribution.</li>
+  <li><code>expenses</code>: Daily operating expenditure entries categorized with partner attribution.</li>
+  <li><code>receivers</code>: Partner master records tracking individual cash and UPI balance accounts.</li>
+  <li><code>borrowers</code>: Business loan sources and outstanding principal balances.</li>
+  <li><code>loan_payments</code>: Repayments split by principal and interest.</li>
+  <li><code>system_settings</code>: Master configuration document (JSONB) synced across all clients.</li>
+  <li><code>z_reports</code>: Daily cash drawer reconciliation logs and denomination counts.</li>
+</ul>
+
+<hr/>
+
+<h2>6. Changelog & Living Manual Maintenance</h2>
+<p>This manual is maintained continuously as a living document across all feature additions, fixes, and architectural enhancements.</p>
+<table>
+  <tr>
+    <th>Version</th>
+    <th>Date</th>
+    <th>Key Milestones & Changes</th>
+  </tr>
+  <tr>
+    <td><strong>v2.4.0</strong></td>
+    <td>October 2026</td>
+    <td>Implemented Indian Number Format (<code>en-IN</code>) across all 26 numeric input fields and tables. Created comprehensive system <code>Readme.doc</code> and <code>README.md</code>.</td>
+  </tr>
+  <tr>
+    <td><strong>v2.3.0</strong></td>
+    <td>October 2026</td>
+    <td>Day-End Z-Report Cash Reconciliation, Low Stock Hub & 1-Click Reorder, Customer Credit Limit controls, and 5-Tab System Settings.</td>
+  </tr>
+  <tr>
+    <td><strong>v2.2.0</strong></td>
+    <td>October 2026</td>
+    <td>WhatsApp Cloud API 1-Click payment reminders and Customer/Supplier Self-Service Portal.</td>
+  </tr>
+  <tr>
+    <td><strong>v2.1.0</strong></td>
+    <td>September 2026</td>
+    <td>Mobile responsive table scrolling and non-wrapping layouts across all search/list screens.</td>
+  </tr>
+  <tr>
+    <td><strong>v2.0.0</strong></td>
+    <td>September 2026</td>
+    <td>Dual-mode authentication with 2FA TOTP security and modern desktop split-screen layout.</td>
+  </tr>
+</table>
+
+<br/>
+<p style="text-align: center; color: #64748b; font-size: 9pt;">&copy; 2026 JSR Retails & Sales Management System. All rights reserved.</p>
+</body>
+</html>
