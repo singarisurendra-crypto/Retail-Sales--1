@@ -15468,8 +15468,1504 @@ Thank you for your business!`;
           );
         })()}
 
+      </main>
 
-      {showPartnerModal && (
+      {/* MODAL: ADD / EDIT LENDER */}
+      {showLenderModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingLenderId ? "Edit Loan Source" : "Add Business Loan Source"}</h3>
+            <form onSubmit={saveLender} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Lender / Source (e.g. Muthoot Gold Loan, Srinivas)"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={lenderForm.name}
+                onChange={(e) => setLenderForm({ ...lenderForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Contact Phone"
+                className="w-full p-2.5 border rounded-xl text-sm"
+                value={lenderForm.mobile}
+                onChange={(e) => setLenderForm({ ...lenderForm, mobile: e.target.value })}
+              />
+              <IndianNumberInput
+                placeholder="Current Outstanding Loan (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                value={lenderForm.initial_loan}
+                onChange={(e) => setLenderForm({ ...lenderForm, initial_loan: e.target.value })}
+              />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowLenderModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RECORD LOAN REPAYMENT */}
+      {showLoanPaymentModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">Repay Business Loan / Interest</h3>
+            <form onSubmit={saveLoanRepayment} className="space-y-3">
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={loanPaymentForm.borrower_id}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, borrower_id: e.target.value })}
+              >
+                <option value="">-- Choose Lender / Loan Source --</option>
+                {lenders.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name} (Due: {money(l.balance_due)})</option>
+                ))}
+              </select>
+
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Principal Repayment (అసలు చెల్లింపు ₹ - Optional if paying interest only)
+                  </label>
+                  <IndianNumberInput
+                    placeholder="Principal Amount (₹, Leave 0 for interest only)"
+                    className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
+                    value={loanPaymentForm.principal_amount}
+                    onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, principal_amount: e.target.value })}
+                  />
+                  <span className="text-[10px] text-slate-400">Reduces the lender balance due</span>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Interest Amount (వడ్డీ చెల్లింపు ₹)
+                  </label>
+                  <IndianNumberInput
+                    placeholder="Interest Amount (₹, Optional)"
+                    className="w-full p-2.5 border rounded-xl text-sm font-bold text-amber-600"
+                    value={loanPaymentForm.interest_amount}
+                    onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, interest_amount: e.target.value })}
+                  />
+                  <span className="text-[10px] text-slate-400">Interest paid does not reduce principal balance</span>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
+                  <span>Total Deducted from Partner:</span>
+                  <span className="text-sm font-black text-rose-600">
+                    {money(cleanNum(loanPaymentForm.principal_amount) + cleanNum(loanPaymentForm.interest_amount))}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={loanPaymentForm.partner_id}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, partner_id: e.target.value })}
+              >
+                <option value="">-- Partner Account Paying --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                  Payment Date (చెల్లింపు తేదీ)
+                </label>
+                <input
+                  type="date"
+                  required
+                  className="w-full p-2.5 border rounded-xl text-xs font-semibold text-slate-800"
+                  value={loanPaymentForm.tx_date}
+                  onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, tx_date: e.target.value })}
+                />
+              </div>
+
+              <input
+                type="text"
+                placeholder="Notes / Cheque / Voucher Ref (Optional)"
+                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                value={loanPaymentForm.notes}
+                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, notes: e.target.value })}
+              />
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowLoanPaymentModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Repayment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
+      {showPayPurchaseModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-[70] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
+
+            {!isBillLocked && (
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaySupplierMode("single");
+                    setMultiSupplierId("");
+                    setPayPurchaseForm((prev) => ({ ...prev, purchase_id: "", amount: "" }));
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "single" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                >
+                  Pay Single Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaySupplierMode("multi");
+                    setPayPurchaseForm((prev) => ({ ...prev, purchase_id: "", amount: "" }));
+                    setMultiSupplierId("");
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "multi" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
+                >
+                  Pay Supplier (Multiple Bills)
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={savePurchasePayment} className="space-y-3">
+              {paySupplierMode === "single" ? (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Select Purchase Bill {isBillLocked && "(Locked)"}
+                  </label>
+                  <select
+                    required
+                    disabled={isBillLocked}
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-600"
+                    value={payPurchaseForm.purchase_id}
+                onChange={(e) => {
+                  const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === e.target.value || po.purchaseNum === e.target.value);
+                  const remDue = targetPO ? Math.max(0, Number(targetPO.total_amount || 0) - Number(targetPO.paid_amount || 0)) : "";
+                  setPayPurchaseForm({
+                    ...payPurchaseForm,
+                    purchase_id: e.target.value,
+                    amount: remDue ? String(remDue) : ""
+                  });
+                }}
+              >
+                <option value="">-- Choose Purchase Bill with Due --</option>
+                {purchaseOrdersGrouped
+                  .filter((po) => editingPaymentId || String(po.id) === String(payPurchaseForm.purchase_id) || (Number(po.total_amount || 0) - Number(po.paid_amount || 0)) > 0)
+                  .map((po) => {
+                    const due = Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0));
+                    return (
+                      <option key={po.id} value={po.id}>
+                        {po.supplier_name} — Due: {money(due)} ({po.purchaseNum})
+                      </option>
+                    );
+                  })}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Choose Supplier (Settle Multiple Bills FIFO)
+                  </label>
+                  <select
+                    required
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                    value={multiSupplierId}
+                    onChange={(e) => {
+                      const sid = e.target.value;
+                      setMultiSupplierId(sid);
+                      const targetSup = suppliers.find((s) => String(s.id) === sid);
+                      if (targetSup) {
+                        const totalDue = purchaseOrdersGrouped
+                          .filter((po) => po.supplier_name === targetSup.name)
+                          .reduce((s, po) => s + Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)), 0);
+                        setPayPurchaseForm((prev) => ({ ...prev, amount: totalDue > 0 ? String(totalDue) : "" }));
+                      }
+                    }}
+                  >
+                    <option value="">-- Choose Supplier --</option>
+                    {suppliers.map((s) => {
+                      const totalDue = purchaseOrdersGrouped
+                        .filter((po) => po.supplier_name === s.name)
+                        .reduce((sum, po) => sum + Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)), 0);
+                      return (
+                        <option key={s.id} value={s.id}>
+                          {s.name} — Pending Bills Due: {money(totalDue)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <IndianNumberInput
+                required
+                placeholder="Payment Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold text-indigo-600"
+                value={payPurchaseForm.amount}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              {/* DETAILS CARD: SINGLE BILL MODE */}
+              {paySupplierMode === "single" && payPurchaseForm.purchase_id && (() => {
+                const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === String(payPurchaseForm.purchase_id) || po.purchaseNum === payPurchaseForm.purchase_id);
+                const target = targetPO || procurements.find((p) => String(p.id) === String(payPurchaseForm.purchase_id));
+                if (!target) return null;
+                const tot = Number(target.total_amount || 0);
+                const paid = Number(target.paid_amount !== undefined ? target.paid_amount : (target.p1_amount || 0));
+                const due = Math.max(0, tot - paid);
+                const poTitle = target.purchaseNum || (typeof target.receiver_2_mode === "string" && target.receiver_2_mode.startsWith("PUR-") ? target.receiver_2_mode : `PUR-${target.id}`);
+                const itemsSummary = Array.isArray(target.items) && target.items.length > 0
+                  ? target.items.map((it) => it.item_name).filter(Boolean).join(", ")
+                  : (target.item_name || "Items");
+                return (
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1 text-xs">
+                    <div className="flex justify-between font-bold text-slate-800">
+                      <span>{poTitle}</span>
+                      <span className="text-slate-500">{target.purchase_date || target.created_at?.slice(0, 10)}</span>
+                    </div>
+                    <div className="text-slate-600 font-medium">
+                      Supplier: <strong className="text-slate-900">{target.supplier_name}</strong> | Items: <strong className="text-slate-900">{itemsSummary}</strong>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-indigo-100 text-[11px]">
+                      <span>Total: <strong>{money(tot)}</strong></span>
+                      <span>Paid: <strong className="text-emerald-600">{money(paid)}</strong></span>
+                      <span>Due: <strong className="text-rose-600">{money(due)}</strong></span>
+                    </div>
+
+                    {/* Settle from Supplier Advance Button */}
+                    {(() => {
+                      const sup = suppliers.find((s) => s.name === target.supplier_name);
+                      const adv = Number(sup?.old_due || 0) < 0 ? Math.abs(Number(sup?.old_due)) : 0;
+                      if (adv <= 0) return null;
+                      return (
+                        <div className="pt-2 border-t border-indigo-100 flex justify-between items-center">
+                          <span className="text-[10px] text-emerald-700 font-bold">Advance Credit: {money(adv)}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const useAmt = Math.min(adv, due);
+                              setPayPurchaseForm({
+                                ...payPurchaseForm,
+                                amount: String(useAmt),
+                                payment_mode: "Advance Adjusted"
+                              });
+                            }}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg"
+                          >
+                            ⚡ Settle via Advance
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })()}
+
+              {/* DETAILS CARD: MULTIPLE BILLS (FIFO) MODE */}
+              {paySupplierMode === "multi" && multiSupplierId && (() => {
+                const targetSup = suppliers.find((s) => String(s.id) === String(multiSupplierId) || s.name === multiSupplierId);
+                if (!targetSup) return null;
+
+                const pendingBills = procurements
+                  .filter((p) => p.supplier_name === targetSup.name && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0)
+                  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+                const totalPendingDue = pendingBills.reduce(
+                  (sum, b) => sum + Math.max(0, Number(b.total_amount || 0) - Number(b.p1_amount || 0)),
+                  0
+                );
+
+                const currentPayAmt = cleanNum(payPurchaseForm.amount);
+                const advCredit = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
+
+                return (
+                  <div className="p-3.5 bg-purple-50/70 border-2 border-purple-200 rounded-xl space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="font-black text-purple-900 uppercase text-[11px] tracking-wider flex items-center gap-1.5">
+                        📋 Pending Bills for {targetSup.name}
+                      </span>
+                      <span className="font-bold text-[10px] bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
+                        FIFO Waterfall
+                      </span>
+                    </div>
+
+                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                      {pendingBills.map((b) => {
+                        const tot = Number(b.total_amount || 0);
+                        const paid = Number(b.p1_amount || 0);
+                        const due = Math.max(0, tot - paid);
+                        return (
+                          <div key={b.id} className="p-2 bg-white rounded-lg border border-purple-100 flex justify-between items-center">
+                            <div>
+                              <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px]">PUR-{b.id}</span>
+                                <span>{b.item_name}</span>
+                                <span className="text-slate-400 font-normal">({b.procured_qty} qty)</span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 block mt-0.5">
+                                Total: {money(tot)} | Paid: {money(paid)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Due</span>
+                              <span className="font-black text-rose-600 text-xs">{money(due)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {pendingBills.length === 0 && (
+                        <p className="text-slate-500 italic text-center py-2">No pending bills with due balance found for this supplier.</p>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-purple-200 flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-700">Total Outstanding Payable:</span>
+                      <span className="font-black text-rose-600 text-xs">{money(totalPendingDue)}</span>
+                    </div>
+
+                    {/* Settle from Supplier Advance Credit */}
+                    {advCredit > 0 && (
+                      <div className="pt-1.5 border-t border-purple-200 flex justify-between items-center">
+                        <span className="text-[10px] text-emerald-700 font-bold">Advance Credit: {money(advCredit)}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const useAmt = Math.min(advCredit, totalPendingDue);
+                            setPayPurchaseForm((prev) => ({
+                              ...prev,
+                              amount: String(useAmt),
+                              payment_mode: "Advance Adjusted"
+                            }));
+                          }}
+                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shadow-xs"
+                        >
+                          ⚡ Settle via Advance
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={payPurchaseForm.partner_id}
+                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, partner_id: e.target.value })}
+              >
+                <option value="">-- Partner Paying Bill --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowPayPurchaseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Payment</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: INVOICE-WISE DUE COLLECTION */}
+      {showCollectModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-[70] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
+            <form onSubmit={saveInvoiceCollection} className="space-y-3">
+              {collectForm.invoice_id ? (
+                (() => {
+                  const targetInv = invoices.find((i) => String(i.id) === String(collectForm.invoice_id));
+                  const targetCust = customers.find((c) => String(c.id) === String(collectForm.customer_id)) || { name: targetInv?.customer_name };
+                  const targetAlloc = targetInv ? invoiceAllocationsMap.get(String(targetInv.id)) : null;
+                  const paidAmt = targetAlloc ? targetAlloc.totalPaid : (targetInv ? Math.max(0, Number(targetInv.total_amount || 0) - Number(targetInv.balance_due || 0)) : 0);
+                  const dueAmt = targetAlloc ? targetAlloc.balanceDue : Number(targetInv?.balance_due || 0);
+                  return (
+                    <div className="p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-black text-indigo-950 dark:text-indigo-200">
+                          {targetInv?.invoice_number || `INV-${collectForm.invoice_id}`}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                          Selected Invoice (Locked)
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Customer: <span className="font-black text-indigo-700 dark:text-indigo-300">{targetCust?.name || targetInv?.customer_name}</span>
+                        {targetCust?.mobile && <span className="text-[11px] text-slate-500 font-normal ml-1.5">({targetCust.mobile})</span>}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-indigo-100 dark:border-indigo-800/60 text-xs">
+                        <div>
+                          <span className="text-slate-500 block text-[10px] uppercase font-bold">Bill Total</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{money(targetInv?.total_amount || 0)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[10px] uppercase font-bold">Total Paid</span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{money(paidAmt)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[10px] uppercase font-bold">Balance Due</span>
+                          <span className="font-black text-rose-600 dark:text-rose-400">{money(dueAmt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <>
+                  <select
+                    required
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                    value={collectForm.customer_id}
+                    onChange={(e) => {
+                      const custId = e.target.value;
+                      const cust = customers.find((c) => String(c.id) === String(custId));
+                      setCollectForm({
+                        ...collectForm,
+                        customer_id: custId,
+                        invoice_id: "",
+                        amount: cust && Number(cust.old_due || 0) > 0 ? String(cust.old_due) : ""
+                      });
+                    }}
+                  >
+                    <option value="">-- Choose Customer with Outstanding Due --</option>
+                    {customers
+                      .filter((c) => editingCollectionId || Number(c.old_due || 0) > 0)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} (Total Due: {money(c.old_due)})
+                        </option>
+                      ))}
+                  </select>
+
+                  {/* Reference Invoices Preview for Collection */}
+                  {editingCollectionId && (() => {
+                    const currentCol = collections.find((c) => String(c.id) === String(editingCollectionId));
+                    const adjusted = currentCol ? getAdjustedInvoicesForCollection(currentCol) : [];
+                    if (adjusted.length === 0) return null;
+                    return (
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-2">
+                        <div className="flex justify-between items-center text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                          <span>Reference Invoices Settled ({adjusted.length}):</span>
+                          <span className="font-mono">{money(adjusted.reduce((s, x) => s + Number(x.amount || 0), 0))}</span>
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {adjusted.map((inv) => (
+                            <div key={inv.id} className="flex justify-between items-center text-xs font-mono bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-900">
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400">{inv.invoice_number}</span>
+                              <span className="font-black text-emerald-600 dark:text-emerald-400">{money(inv.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {collectForm.customer_id && (
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        Select Invoice (Optional — FIFO Waterfall by default)
+                      </label>
+                      <select
+                        className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                        value={collectForm.invoice_id}
+                        onChange={(e) => {
+                          const invId = e.target.value;
+                          const inv = invoices.find((i) => String(i.id) === String(invId));
+                          const cust = customers.find((c) => String(c.id) === String(collectForm.customer_id));
+                          const custDue = Math.max(0, Number(cust?.old_due || 0));
+                          const alloc = inv ? invoiceAllocationsMap.get(String(inv.id)) : null;
+                          const targetDue = inv
+                            ? (alloc ? alloc.balanceDue : Math.max(0, Number(inv.balance_due || 0)))
+                            : custDue;
+                          setCollectForm({
+                            ...collectForm,
+                            invoice_id: invId,
+                            amount: targetDue > 0 ? String(targetDue) : collectForm.amount
+                          });
+                        }}
+                      >
+                        <option value="">-- Settle All Invoices (FIFO Waterfall) / General Due --</option>
+                        {(() => {
+                          const custInvs = invoices.filter((i) => String(i.customer_id) === String(collectForm.customer_id));
+                          return custInvs
+                            .map((i) => {
+                              const alloc = invoiceAllocationsMap.get(String(i.id));
+                              const individualDue = alloc ? alloc.balanceDue : Math.max(0, Number(i.balance_due || 0));
+                              return { ...i, individualDue };
+                            })
+                            .filter((i) => editingCollectionId || i.individualDue > 0)
+                            .map((i) => (
+                              <option key={i.id} value={i.id}>
+                                {i.invoice_number || `INV-${i.id}`} — Due: {money(i.individualDue)} (Bill Total: {money(i.total_amount)})
+                              </option>
+                            ));
+                        })()}
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <IndianNumberInput
+                required
+                placeholder="Amount (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
+                value={collectForm.amount}
+                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
+                >
+                  💵 Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
+                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
+                >
+                  📱 UPI
+                </button>
+              </div>
+
+              <select
+                required
+                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                value={collectForm.receiver_id || upfrontPartnerId}
+                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
+              >
+                <option value="">-- Partner Who Received --</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={savingCollection}
+                  className={`flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition ${
+                    savingCollection ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {savingCollection ? "Saving..." : "Save Receipt"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT PURCHASES (FORMATTED LIKE SALES INVOICE SCREEN) */}
+      {showProcureModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-2xl w-full my-auto max-h-[90dvh] overflow-y-auto space-y-4 shadow-xl">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
+                    {editingProcureId ? "Edit Purchase Order / Bill" : "Create Purchase Order / Bill (కొనుగోళ్లు)"}
+                  </h3>
+                  {editingProcureId && (
+                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] rounded-full uppercase">
+                      Editing Mode
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400">
+                  {editingProcureId ? "Review purchase details and recorded supplier payments" : "Record vendor procurements, batch inventory, and supplier dues"}
+                </p>
+              </div>
+              {editingProcureId && (() => {
+                const p = procurements.find((x) => x.id === editingProcureId);
+                const pDate = p?.purchase_date || (p?.created_at ? p.created_at.slice(0, 10) : "");
+                const datePart = pDate ? pDate.replace(/-/g, "").slice(2) : "000000";
+                const purchaseNum = p ? `PUR-${datePart}-${String(p.id).padStart(4, "0")}` : `PUR-${editingProcureId}`;
+                return (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProcureModal(false);
+                        setEditingProcureId(null);
+                        setEditingOrderRef(null);
+                      }}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
+                    >
+                      ← Cancel Edit
+                    </button>
+                    <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      {purchaseNum}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <form onSubmit={saveProcurement} className="space-y-4">
+              {/* Supplier & Date Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Supplier / Vendor Selector */}
+                <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      Supplier / Vendor *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSupplierId(null);
+                        setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
+                        setShowSupplierModal(true);
+                      }}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      + Add New Supplier
+                    </button>
+                  </div>
+                  <select
+                    required
+                    className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold"
+                    value={procureForm.supplier_name}
+                    onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
+                  >
+                    <option value="">-- Choose Supplier --</option>
+                    {uniqueSupplierSuggestions.map((s, idx) => (
+                      <option key={idx} value={s}>{s}</option>
+                    ))}
+                    <option value="Opening Stock">Opening Stock</option>
+                  </select>
+
+                  {/* Supplier Balance / Advance Notification */}
+                  {(() => {
+                    const targetSup = suppliers.find((s) => s.name === procureForm.supplier_name);
+                    if (!targetSup) return null;
+                    const adv = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
+                    const due = Number(targetSup.old_due || 0) > 0 ? Number(targetSup.old_due) : 0;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Supplier Balance:</span>
+                        {adv > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                              Advance: {money(adv)}
+                            </span>
+                            {!editingProcureId && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const billTotal = procureGrandTotal;
+                                  const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
+                                  setProcureForm({
+                                    ...procureForm,
+                                    paid_now: String(applyAmt),
+                                    p1_mode: "Advance Adjusted"
+                                  });
+                                }}
+                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px]"
+                              >
+                                ⚡ Apply
+                              </button>
+                            )}
+                          </div>
+                        ) : due > 0 ? (
+                          <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
+                            Due: {money(due)}
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                            Settled (₹0.00)
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Purchase Date */}
+                <div className="sm:col-span-1 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                        Purchase Date *
+                      </label>
+                      {editingProcureId && (
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <span>🔒</span> Original Date Locked
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="date"
+                      required
+                      readOnly={Boolean(editingProcureId)}
+                      disabled={Boolean(editingProcureId)}
+                      className={`w-full p-2.5 rounded-xl text-xs font-bold border transition ${
+                        editingProcureId
+                          ? "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-90"
+                          : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
+                      }`}
+                      value={procureForm.purchase_date || new Date().toISOString().split("T")[0]}
+                      onChange={(e) => {
+                        if (!editingProcureId) {
+                          setProcureForm({ ...procureForm, purchase_date: e.target.value });
+                        }
+                      }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    {editingProcureId
+                      ? "Original Purchase Order Date is preserved and locked"
+                      : "Order / Inward date for batch tracking"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Purchase Items (Multi-line Support) */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    Purchase Items ({procureForm.items?.length || 1}) *
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItemId(null);
+                        setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
+                        setShowItemModal(true);
+                      }}
+                      className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:underline"
+                    >
+                      + Add Master Item
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddProcureLine}
+                      className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold flex items-center gap-1 transition"
+                    >
+                      <Icon name="plus" size={13} /> Add Line
+                    </button>
+                  </div>
+                </div>
+
+                {(procureForm.items || [{ item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }]).map((line, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 relative"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                        Line #{idx + 1}
+                      </span>
+                      {(procureForm.items?.length || 0) > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProcureLine(idx)}
+                          className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
+                          title="Remove Line"
+                        >
+                          <Icon name="trash" size={15} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Item Selector Dropdown */}
+                    <div>
+                      <select
+                        required
+                        className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                        value={line.item_name}
+                        onChange={(e) => handleUpdateProcureLine(idx, "item_name", e.target.value)}
+                      >
+                        <option value="">-- Choose Item / Product --</option>
+                        {line.item_name && !uniqueItemSuggestions.some((i) => i.name.toLowerCase() === line.item_name.trim().toLowerCase()) && (
+                          <option value={line.item_name}>{line.item_name}</option>
+                        )}
+                        {uniqueItemSuggestions.map((item, itemIdx) => (
+                          <option key={itemIdx} value={item.name}>
+                            {item.name} {item.purchase_rate ? `(Default Cost: ₹${item.purchase_rate})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Qty, Cost Rate, Selling Rate, Line Total Grid */}
+                    <div className="grid grid-cols-12 gap-2.5 items-center pt-1">
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
+                        <IndianNumberInput
+                          required
+                          placeholder="1"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-center text-slate-900 dark:text-slate-100"
+                          value={line.procured_qty}
+                          onChange={(e) => handleUpdateProcureLine(idx, "procured_qty", e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cost Rate (₹)</label>
+                        <IndianNumberInput
+                          required
+                          placeholder="Cost"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100"
+                          value={line.purchase_rate}
+                          onChange={(e) => handleUpdateProcureLine(idx, "purchase_rate", e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Selling (₹)</label>
+                        <IndianNumberInput
+                          placeholder="Sell"
+                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                          value={line.selling_rate}
+                          onChange={(e) => handleUpdateProcureLine(idx, "selling_rate", e.target.value)}
+                        />
+                      </div>
+                      <div className="col-span-3 text-right">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Line Total</label>
+                        <span className="font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white block truncate">
+                          {money(Number(line.procured_qty || 0) * Number(line.purchase_rate || 0))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add Another Line Button */}
+                <button
+                  type="button"
+                  onClick={handleAddProcureLine}
+                  className="w-full py-2.5 border-2 border-dashed border-indigo-200 dark:border-indigo-800/80 hover:border-indigo-400 dark:hover:border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Icon name="plus" size={14} /> Add Another Item Line
+                </button>
+              </div>
+
+              {/* Pulled-Down Settlement Section (Matching Sales Invoice POS) */}
+              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <span>💳</span> Supplier Payments & Settlement
+                  </span>
+                  <span className="text-xs font-black font-mono text-slate-900 dark:text-white">
+                    Bill Total: {money(procureGrandTotal)}
+                  </span>
+                </div>
+
+                {editingProcureId ? (
+                  /* Edit Mode: Show Supplier Payments ERP Grid */
+                  (() => {
+                    const currentPO = purchaseOrdersGrouped.find(
+                      (po) => po.id === editingProcureId || po.purchaseNum === editingOrderRef || po.receiver_2_mode === editingOrderRef
+                    ) || {
+                      total_amount: procureGrandTotal,
+                      paid_amount: Number(procureForm.paid_now || 0),
+                      payments: []
+                    };
+                    const poPayments = currentPO.payments || [];
+                    const totalPaid = poPayments.reduce((s, pay) => s + Number(pay.amount || 0), 0);
+                    const billTotalCost = procureGrandTotal;
+                    const balanceDueNow = Math.max(0, billTotalCost - totalPaid);
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                            💰 Supplier Payments Total:
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                              {money(totalPaid)}
+                            </span>
+                            {balanceDueNow > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handlePayPurchaseOrder(currentPO)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer transition"
+                              >
+                                <Icon name="plus" size={12} /> Record Payment
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
+                          <table className="min-w-[650px] w-full text-left text-[11px] border-collapse font-mono">
+                            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Ref</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Funding Partner</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Mode</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
+                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {poPayments.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="p-3 text-center text-slate-400 font-sans text-xs">
+                                    No payments recorded yet for this purchase bill (Full Due).
+                                  </td>
+                                </tr>
+                              ) : (
+                                poPayments.map((pay, pIdx) => {
+                                  const pDate = pay.date || "-";
+                                  const pRef = pay.ref || `PAY-${pay.id}`;
+                                  const pName = pay.partner_name || "Partner";
+                                  return (
+                                    <tr key={pay.id || pIdx} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition">
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
+                                        {pDate}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold whitespace-nowrap">
+                                        {pRef}
+                                        {pay.isUpfront && (
+                                          <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-sans">
+                                            Upfront
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{pName}</td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold whitespace-nowrap">
+                                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                                          pay.payment_mode === "UPI" ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
+                                        }`}>
+                                          {pay.payment_mode || "Cash"}
+                                        </span>
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                        {money(pay.amount)}
+                                      </td>
+                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center whitespace-nowrap">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            title="Edit Payment"
+                                            onClick={() => handleEditPurchasePayment(pay.rawRow || pay)}
+                                            className="p-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded transition"
+                                          >
+                                            <Icon name="edit" size={12} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            title="Void / Delete Payment"
+                                            onClick={() => handleDeletePurchasePayment(pay.rawRow || pay)}
+                                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-300 rounded transition"
+                                          >
+                                            <Icon name="trash" size={12} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Balance summary card */}
+                        <div className="p-2.5 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs flex justify-between items-center">
+                          <span className="font-bold text-slate-700 dark:text-slate-300">Remaining Due to Supplier:</span>
+                          <span className={`font-mono font-black text-sm ${balanceDueNow > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                            {balanceDueNow > 0 ? money(balanceDueNow) : "Fully Settled (₹0.00)"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  /* Create Mode: Upfront Payment & Partner inputs */
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                        Paid Now by Partner (Leave 0 if full Due)
+                      </label>
+                      <IndianNumberInput
+                        placeholder="0"
+                        className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-600"
+                        value={procureForm.paid_now}
+                        onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
+                      />
+                    </div>
+
+                    {cleanNum(procureForm.paid_now) > 0 && procureForm.p1_mode !== "Advance Adjusted" && (
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <select
+                          className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                          value={procureForm.p1_id}
+                          onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
+                        >
+                          <option value="">-- Funding Partner --</option>
+                          {partners.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                        <select
+                          className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
+                          value={procureForm.p1_mode}
+                          onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
+                        >
+                          <option value="Cash">Cash</option>
+                          <option value="UPI">UPI</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {editingProcureId && renderTransactionAuditTrailGrid(
+                editingOrderRef || `PUR-${editingProcureId}`,
+                "Purchase Order",
+                procurements.find((p) => p.id === editingProcureId)
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-1">
+                {!editingProcureId && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowProcureModal(false); setEditingProcureId(null); setEditingOrderRef(null); }}
+                    className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={savingProcure}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm transition"
+                >
+                  {savingProcure ? "Saving..." : editingProcureId ? "Update Purchase Order" : "Save Purchase Order"}
+                </button>
+              </div>
+
+              {editingProcureId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProcureModal(false);
+                    setEditingProcureId(null);
+                    setEditingOrderRef(null);
+                  }}
+                  className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider cursor-pointer"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT ITEM MASTER */}
+      {showItemModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900">{editingItemId ? "Edit Item Master" : "Add New Item Master"}</h3>
+            <form onSubmit={saveItem} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Item / Product Name"
+                className="w-full p-2.5 border rounded-xl text-sm font-bold"
+                value={itemForm.name}
+                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate (₹)</label>
+                  <IndianNumberInput
+                    placeholder="0.00"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                    value={itemForm.purchase_rate}
+                    onChange={(e) => setItemForm({ ...itemForm, purchase_rate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate (₹)</label>
+                  <IndianNumberInput
+                    placeholder="0.00"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
+                    value={itemForm.selling_rate}
+                    onChange={(e) => setItemForm({ ...itemForm, selling_rate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {!editingItemId && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Opening Stock Qty (ఆరంభ నిల్వ)</label>
+                  <IndianNumberInput
+                    placeholder="0"
+                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-emerald-600"
+                    value={itemForm.opening_qty}
+                    onChange={(e) => setItemForm({ ...itemForm, opening_qty: e.target.value })}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">If entered, automatically adds an opening inventory batch in stock.</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">{editingItemId ? "Update Item" : "Save Item"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT CUSTOMER */}
+      {showCustModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
+            <form onSubmit={saveCustomer} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Customer Name"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                value={custForm.name}
+                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                value={custForm.mobile}
+                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
+              />
+              <IndianNumberInput
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                value={custForm.old_due}
+                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
+              />
+              {enablePanGstin && (
+                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      PAN No.
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      placeholder="ABCDE1234F"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={custForm.pan || ""}
+                      onChange={(e) => setCustForm({ ...custForm, pan: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      placeholder="37ABCDE1234F1Z5"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={custForm.gstin || ""}
+                      onChange={(e) => setCustForm({ ...custForm, gstin: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT SUPPLIER */}
+      {showSupplierModal && (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
+            <form onSubmit={saveSupplier} className="space-y-3">
+              <input
+                type="text"
+                required
+                placeholder="Supplier / Firm Name"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                value={supplierForm.name}
+                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+              />
+              <input
+                type="tel"
+                placeholder="Phone Number"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                value={supplierForm.mobile}
+                onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
+              />
+              <IndianNumberInput
+                placeholder="Opening Due (₹)"
+                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                value={supplierForm.old_due}
+                onChange={(e) => setSupplierForm({ ...supplierForm, old_due: e.target.value })}
+              />
+              {enablePanGstin && (
+                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      PAN No.
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      placeholder="ABCDE1234F"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={supplierForm.pan || ""}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, pan: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                      GSTIN
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      placeholder="37ABCDE1234F1Z5"
+                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                      value={supplierForm.gstin || ""}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                </div>
+              )}
+              <label className="flex items-center gap-2 p-2 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-xl border border-indigo-100 dark:border-indigo-900 cursor-pointer text-xs font-semibold text-indigo-900 dark:text-indigo-200">
+                <input
+                  type="checkbox"
+                  checked={!!supplierForm.is_dual}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, is_dual: e.target.checked })}
+                  className="rounded text-indigo-600 cursor-pointer h-4 w-4"
+                />
+                <span>Allow in Sale Invoice (Supplier is also a Customer)</span>
+              </label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
+                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Supplier</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD / EDIT ROLE (RBAC) */}
+      {showRoleModal && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {editingRoleId ? "Edit Role Permissions" : "Create New Role"}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Define role name and select the exact modules accessible by partners assigned this role.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Role Name:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sales Cashier, Store Manager, Accountant"
+                  value={roleForm.name}
+                  onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Description:
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Can access POS billing and customer receipts only"
+                  value={roleForm.description}
+                  onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
+                />
+              </div>
+
+              {/* Module Selection Grid */}
+              <div className="space-y-2 pt-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Module Access Permissions: ({roleForm.modules.length} selected)
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRoleForm({ ...roleForm, modules: SYSTEM_MODULES.map((m) => m.id) })}
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRoleForm({ ...roleForm, modules: ["sale"] })}
+                      className="text-xs font-bold text-slate-400 hover:underline cursor-pointer"
+                    >
+                      Reset Minimum
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {SYSTEM_MODULES.map((mod) => {
+                    const isChecked = roleForm.modules.includes(mod.id);
+                    return (
+                      <label
+                        key={mod.id}
+                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition ${
+                          isChecked
+                            ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700"
+                            : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-75"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const next = isChecked
+                              ? roleForm.modules.filter((m) => m !== mod.id)
+                              : [...roleForm.modules, mod.id];
+                            setRoleForm({ ...roleForm, modules: next });
+                          }}
+                          className="mt-0.5 rounded text-indigo-600 cursor-pointer"
+                        />
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
+                            <Icon name={mod.icon} size={14} className={isChecked ? "text-indigo-600" : "text-slate-400"} />
+                            <span>{mod.label}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                            {mod.desc}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(false)}
+                className="flex-1 py-2.5 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!roleForm.name.trim()) return alert("Enter role name");
+                  if (roleForm.modules.length === 0) return alert("Select at least one module for this role");
+                  const newRoleId = editingRoleId || `role_${Date.now()}`;
+                  const updatedRole = {
+                    id: newRoleId,
+                    name: roleForm.name.trim(),
+                    description: roleForm.description.trim(),
+                    modules: roleForm.modules,
+                    isSystem: false
+                  };
+                  setSystemRoles((prev) => {
+                    const existingIdx = prev.findIndex((r) => r.id === newRoleId);
+                    let next;
+                    if (existingIdx >= 0) {
+                      next = [...prev];
+                      next[existingIdx] = updatedRole;
+                    } else {
+                      next = [...prev, updatedRole];
+                    }
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("app_system_roles", JSON.stringify(next));
+                    }
+                    return next;
+                  });
+                  setShowRoleModal(false);
+                  alert(`Role "${updatedRole.name}" saved successfully with ${updatedRole.modules.length} module permissions!`);
+                }}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
+              >
+                Save Role Permissions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+{showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
             <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingPartnerId ? "Edit Partner" : "Add Partner"}</h3>
