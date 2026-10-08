@@ -464,759 +464,6 @@ const IndianNumberInput = ({
       style={style}
     />
 
-      {/* MODAL 1: DOCUMENT AUDIT TRAIL & REVISION HISTORY (CLICKABLE DOC NO) */}
-      {viewingDocAuditNumber && (() => {
-        const docLogs = auditTrailLogs.filter(l => l.docNumber === viewingDocAuditNumber);
-        return (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-3xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div>
-                  <h3 className="text-base font-black flex items-center gap-2">
-                    <span>📋</span> Document Audit Trail & Revision History
-                  </h3>
-                  <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                    Doc #: {viewingDocAuditNumber}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setViewingDocAuditNumber(null)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
-                {docLogs.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-xs">
-                    <p className="font-bold">No lifecycle revision events recorded for this document yet.</p>
-                    <p className="text-[11px] mt-1">Initial transaction creation registered in system audit ledger.</p>
-                  </div>
-                ) : (
-                  <table className="w-full text-left text-xs border-collapse font-mono">
-                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px]">
-                      <tr>
-                        <th className="p-2">Timestamp</th>
-                        <th className="p-2">Action</th>
-                        <th className="p-2">Operator</th>
-                        <th className="p-2">Status</th>
-                        <th className="p-2">Change Details</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {docLogs.map(log => (
-                        <tr key={log.id}>
-                          <td className="p-2 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
-                          <td className="p-2 font-bold text-indigo-600">{log.action}</td>
-                          <td className="p-2">{log.operator}</td>
-                          <td className="p-2"><span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800">{log.status}</span></td>
-                          <td className="p-2 text-slate-700 dark:text-slate-300 font-sans">{log.changeDetails}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setViewingDocAuditNumber(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition"
-                >
-                  Close History
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* MODAL 2: OFFICIAL BANK RECONCILIATION STATEMENT (BRS) REPORT */}
-      {showReconReportModal && (() => {
-        const accounts = systemSettings?.banking?.accounts || [];
-        const reconciliations = systemSettings?.banking?.reconciliations || {};
-        const targetBank = accounts.find(a => a.id === bankReconAccount) || accounts[0] || {};
-        const openingBal = Number(targetBank.openingBalance || 0);
-
-        let unclearedDepositsTotal = 0;
-        let unclearedWithdrawalsTotal = 0;
-
-        invoices.forEach(inv => {
-          if (inv.p1_mode === "UPI" && reconciliations[inv.id]?.status !== "cleared") {
-            unclearedDepositsTotal += Number(inv.p1_amount || inv.upfront_paid || 0);
-          }
-        });
-        collections.forEach(col => {
-          if (col.payment_mode === "UPI" && reconciliations[col.id]?.status !== "cleared") {
-            unclearedDepositsTotal += Number(col.amount || 0);
-          }
-        });
-        procurements.forEach(pr => {
-          if (pr.p1_mode === "UPI" && reconciliations[`pr_${pr.id}`]?.status !== "cleared") {
-            unclearedWithdrawalsTotal += Number(pr.p1_amount || 0);
-          }
-        });
-        expenses.forEach(exp => {
-          if (exp.payment_mode === "UPI" && reconciliations[`exp_${exp.id}`]?.status !== "cleared") {
-            unclearedWithdrawalsTotal += Number(exp.amount || 0);
-          }
-        });
-
-        const bankBookBalance = openingBal + unclearedDepositsTotal;
-        const statementBalance = bankBookBalance - unclearedDepositsTotal + unclearedWithdrawalsTotal;
-
-        return (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div>
-                  <h3 className="text-base font-black flex items-center gap-2">
-                    <span>🏦</span> Official Bank Reconciliation Statement (BRS)
-                  </h3>
-                  <p className="text-xs text-slate-500">As on {new Date().toLocaleDateString("en-IN")}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowReconReportModal(false)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 font-mono text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Bank Account:</span>
-                  <strong className="text-slate-900 dark:text-white">{targetBank.bankName} (A/c: {targetBank.accountNo})</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">IFSC & Branch:</span>
-                  <span>{targetBank.ifsc} · {targetBank.branch}</span>
-                </div>
-              </div>
-
-              {/* BRS Table */}
-              <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden font-mono text-xs">
-                <div className="flex justify-between p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 font-bold">
-                  <span>Balance as per Company Cash/Bank Book:</span>
-                  <span>{money(bankBookBalance)}</span>
-                </div>
-                <div className="flex justify-between p-3 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 border-b border-slate-100 dark:border-slate-800">
-                  <span>Add: Cheques/UPI receipts deposited but not yet credited by bank:</span>
-                  <span className="font-bold">+{money(unclearedDepositsTotal)}</span>
-                </div>
-                <div className="flex justify-between p-3 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 border-b border-slate-100 dark:border-slate-800">
-                  <span>Less: Cheques/UPI payments issued but not yet presented/debited:</span>
-                  <span className="font-bold">-{money(unclearedWithdrawalsTotal)}</span>
-                </div>
-                <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 font-black text-sm">
-                  <span>Reconciled Balance as per Official Bank Statement:</span>
-                  <span>{money(statementBalance)}</span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  <Icon name="filetext" size={14} /> Print Formal Statement
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowReconReportModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* MODAL 3: UNDO BANK RECONCILIATION MODAL */}
-      {showUndoReconModal && (() => {
-        const recons = systemSettings?.banking?.reconciliations || {};
-        const clearedEntries = Object.entries(recons).filter(([k, v]) => v?.status === "cleared");
-
-        return (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div>
-                  <h3 className="text-base font-black flex items-center gap-2 text-amber-600">
-                    <span>↺</span> Undo Bank Reconciliation Tool
-                  </h3>
-                  <p className="text-xs text-slate-500">Reverts reconciled transactions back to pending to unlock editing/CRUD.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowUndoReconModal(false)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="max-h-72 overflow-y-auto space-y-2">
-                {clearedEntries.length === 0 ? (
-                  <p className="text-xs text-slate-400 text-center py-6 font-bold">No cleared transactions currently on record.</p>
-                ) : (
-                  clearedEntries.map(([txId, r]) => (
-                    <div key={txId} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs">
-                      <div>
-                        <span className="font-mono font-bold text-indigo-600">ID: {txId}</span>
-                        <span className="text-slate-400 block text-[10px]">Cleared on: {r.valueDate} by {r.reconciledBy || 'Admin'}</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = { ...recons };
-                          delete updated[txId];
-                          saveSystemSettingsToCloud({
-                            banking: { ...(systemSettings?.banking || {}), reconciliations: updated }
-                          });
-                          recordAuditEvent(txId, "Reconciliation", "Bank", "Undo Reconciled", currentUser?.name, "Pending", "Reconciliation reverted to pending to allow edits");
-                        }}
-                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                      >
-                        Revert to Pending
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowUndoReconModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* MODAL 4: ADD / EDIT BANK ACCOUNT */}
-      {showAddBankModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-            <h3 className="font-black text-base">{editingBank ? "Edit Bank Account" : "Add Bank Account"}</h3>
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Bank Name (e.g. State Bank of India)"
-                value={bankForm.bankName}
-                onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  placeholder="Account Number"
-                  value={bankForm.accountNo}
-                  onChange={(e) => setBankForm({ ...bankForm, accountNo: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
-                />
-                <input
-                  type="text"
-                  placeholder="IFSC Code"
-                  value={bankForm.ifsc}
-                  onChange={(e) => setBankForm({ ...bankForm, ifsc: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
-                />
-              </div>
-              <input
-                type="text"
-                placeholder="Branch Name (e.g. Dornala)"
-                value={bankForm.branch}
-                onChange={(e) => setBankForm({ ...bankForm, branch: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-              />
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Tagged Partner</label>
-                <select
-                  value={bankForm.partnerId}
-                  onChange={(e) => setBankForm({ ...bankForm, partnerId: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-                >
-                  <option value="">General / Store Account</option>
-                  {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs">
-                <span className="font-bold">UPI Mode Enabled</span>
-                <input
-                  type="checkbox"
-                  checked={bankForm.upiEnabled}
-                  onChange={(e) => setBankForm({ ...bankForm, upiEnabled: e.target.checked })}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                />
-              </div>
-              {bankForm.upiEnabled && (
-                <input
-                  type="text"
-                  placeholder="UPI ID (e.g. jsrretails@sbi)"
-                  value={bankForm.upiId}
-                  onChange={(e) => setBankForm({ ...bankForm, upiId: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
-                />
-              )}
-              <IndianNumberInput
-                placeholder="Opening Balance (₹)"
-                value={bankForm.openingBalance}
-                onChange={(e) => setBankForm({ ...bankForm, openingBalance: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowAddBankModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!bankForm.bankName || !bankForm.accountNo) {
-                    alert("Please enter bank name and account number");
-                    return;
-                  }
-                  const newBank = {
-                    id: editingBank?.id || `bank_${Date.now()}`,
-                    ...bankForm,
-                    openingBalance: cleanNum(bankForm.openingBalance || 0),
-                    isActive: true
-                  };
-                  const currentList = systemSettings?.banking?.accounts || [];
-                  const updated = editingBank ? currentList.map(b => b.id === newBank.id ? newBank : b) : [...currentList, newBank];
-                  saveSystemSettingsToCloud({
-                    banking: { ...(systemSettings?.banking || {}), accounts: updated }
-                  });
-                  setShowAddBankModal(false);
-                }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
-              >
-                Save Bank
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 5: ADD / EDIT EMPLOYEE */}
-      {showEmployeeModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-            <h3 className="font-black text-base">{editingEmployee ? "Edit Employee" : "Add Employee Profile"}</h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  placeholder="Emp ID (e.g. EMP-001)"
-                  value={employeeForm.empId}
-                  onChange={(e) => setEmployeeForm({ ...employeeForm, empId: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold"
-                />
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  value={employeeForm.name}
-                  onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  placeholder="Designation (e.g. Cashier)"
-                  value={employeeForm.designation}
-                  onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-                />
-                <select
-                  value={employeeForm.department}
-                  onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-                >
-                  <option value="Sales">Sales & Billing</option>
-                  <option value="Billing">Billing Cashiers</option>
-                  <option value="Warehouse">Warehouse & Logistics</option>
-                  <option value="Operations">Operations</option>
-                </select>
-              </div>
-
-              {/* Wage Structure Scheme Selector matching Point 2 */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Wage Scheme (Indian Labour Compliance)</label>
-                <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setEmployeeForm({ ...employeeForm, salaryType: "statutory" })}
-                    className={`p-2 rounded-lg transition ${employeeForm.salaryType === "statutory" ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-2xs font-black" : "text-slate-500"}`}
-                  >
-                    Statutory (EPF + ESI + PT)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEmployeeForm({ ...employeeForm, salaryType: "fixed" })}
-                    className={`p-2 rounded-lg transition ${employeeForm.salaryType === "fixed" ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-2xs font-black" : "text-slate-500"}`}
-                  >
-                    Fixed Salary (Exempt)
-                  </button>
-                </div>
-              </div>
-
-              <IndianNumberInput
-                placeholder="Monthly Gross Salary (₹)"
-                value={employeeForm.baseSalary}
-                onChange={(e) => setEmployeeForm({ ...employeeForm, baseSalary: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  placeholder="PAN (optional)"
-                  value={employeeForm.pan}
-                  onChange={(e) => setEmployeeForm({ ...employeeForm, pan: e.target.value.toUpperCase() })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
-                />
-                <input
-                  type="text"
-                  placeholder="EPF UAN (optional)"
-                  value={employeeForm.uan}
-                  onChange={(e) => setEmployeeForm({ ...employeeForm, uan: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowEmployeeModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!employeeForm.name || !employeeForm.baseSalary) {
-                    alert("Please enter employee name and monthly salary");
-                    return;
-                  }
-                  const newEmp = {
-                    id: editingEmployee?.id || `emp_${Date.now()}`,
-                    ...employeeForm,
-                    baseSalary: cleanNum(employeeForm.baseSalary)
-                  };
-                  const updated = editingEmployee ? employees.map(e => e.id === newEmp.id ? newEmp : e) : [...employees, newEmp];
-                  setEmployees(updated);
-                  if (typeof window !== "undefined") {
-                    try { localStorage.setItem("app_hr_employees", JSON.stringify(updated)); } catch (e) {}
-                  }
-                  setShowEmployeeModal(false);
-                }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
-              >
-                Save Employee
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 6: PAY SLIP VIEW & PRINT */}
-      {viewingPaySlip && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"} · Pay Slip</h3>
-                <p className="text-xs text-slate-500">Pay Period: {selectedPayrollMonth}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingPaySlip(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
-              <div className="flex justify-between"><span className="text-slate-500">Emp ID:</span><strong>{viewingPaySlip.empId}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><strong>{viewingPaySlip.name}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Designation / Dept:</span><span>{viewingPaySlip.designation} · {viewingPaySlip.department}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Wage Structure:</span><span className="text-indigo-600">{viewingPaySlip.typeLabel}</span></div>
-            </div>
-
-            {/* Earnings & Deductions Table */}
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
-                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Earnings</span>
-                <div className="flex justify-between"><span>Basic + DA:</span><span>{money(viewingPaySlip.basicDa)}</span></div>
-                <div className="flex justify-between"><span>HRA:</span><span>{money(viewingPaySlip.hra)}</span></div>
-                <div className="flex justify-between"><span>Allowances:</span><span>{money(viewingPaySlip.allowances)}</span></div>
-                <div className="flex justify-between font-bold border-t pt-1"><span>Total Gross:</span><span>{money(viewingPaySlip.earnedGross)}</span></div>
-              </div>
-
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
-                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Deductions</span>
-                <div className="flex justify-between"><span>EPF (12%):</span><span>{money(viewingPaySlip.pfDeduction)}</span></div>
-                <div className="flex justify-between"><span>ESIC:</span><span>{money(viewingPaySlip.esicDeduction)}</span></div>
-                <div className="flex justify-between"><span>PT:</span><span>{money(viewingPaySlip.ptDeduction)}</span></div>
-                <div className="flex justify-between font-bold border-t pt-1 text-rose-600"><span>Total Ded.:</span><span>{money(viewingPaySlip.totalDeductions)}</span></div>
-              </div>
-            </div>
-
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex justify-between items-center text-emerald-800 dark:text-emerald-300 font-mono">
-              <span className="font-bold text-xs uppercase">Net Salary Payable:</span>
-              <span className="font-black text-base">{money(viewingPaySlip.netSalary)}</span>
-            </div>
-
-            <div className="flex justify-between items-center pt-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-              >
-                <Icon name="filetext" size={14} /> Print Pay Slip
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewingPaySlip(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 7: CREATE NEW ACCOUNTING VOUCHER */}
-      {showNewVoucherModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-            <h3 className="font-black text-base">New Accounting Voucher Entry</h3>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={voucherForm.voucherNo}
-                  onChange={(e) => setVoucherForm({ ...voucherForm, voucherNo: e.target.value })}
-                  placeholder="Voucher #"
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold"
-                />
-                <input
-                  type="date"
-                  value={voucherForm.date}
-                  onChange={(e) => setVoucherForm({ ...voucherForm, date: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
-                />
-              </div>
-
-              <select
-                value={voucherForm.voucherType}
-                onChange={(e) => setVoucherForm({ ...voucherForm, voucherType: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
-              >
-                <option value="journal">Journal Voucher (JV)</option>
-                <option value="contra">Contra Voucher (Cash to Bank / Transfer)</option>
-                <option value="payment">General Payment Voucher</option>
-                <option value="receipt">General Receipt Voucher</option>
-              </select>
-
-              <input
-                type="text"
-                placeholder="Account Head (e.g. Bank Deposit, Rent)"
-                value={voucherForm.accountHead}
-                onChange={(e) => setVoucherForm({ ...voucherForm, accountHead: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-              />
-
-              <input
-                type="text"
-                placeholder="Party Name (e.g. SBI, Vendor, Partner)"
-                value={voucherForm.partyName}
-                onChange={(e) => setVoucherForm({ ...voucherForm, partyName: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
-              />
-
-              <IndianNumberInput
-                placeholder="Voucher Amount (₹)"
-                value={voucherForm.amount}
-                onChange={(e) => setVoucherForm({ ...voucherForm, amount: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
-              />
-
-              <input
-                type="text"
-                placeholder="Narration / Particulars"
-                value={voucherForm.narration}
-                onChange={(e) => setVoucherForm({ ...voucherForm, narration: e.target.value })}
-                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowNewVoucherModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!voucherForm.amount) {
-                    alert("Please enter voucher amount");
-                    return;
-                  }
-                  const newVou = {
-                    id: `mv_${Date.now()}`,
-                    ...voucherForm,
-                    amount: cleanNum(voucherForm.amount)
-                  };
-                  const updated = [newVou, ...manualVouchers];
-                  setManualVouchers(updated);
-                  if (typeof window !== "undefined") {
-                    try { localStorage.setItem("app_manual_vouchers", JSON.stringify(updated)); } catch (e) {}
-                  }
-                  recordAuditEvent(newVou.voucherNo, "Voucher", newVou.partyName, "Created", currentUser?.name, "Active", `Voucher of ₹${newVou.amount} recorded under ${newVou.accountHead}`);
-                  setShowNewVoucherModal(false);
-                }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
-              >
-                Post Voucher
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 8: VIEW VOUCHER SLIP */}
-      {viewingVoucherSlip && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"}</h3>
-                <span className="font-mono text-xs text-indigo-600 font-bold">{viewingVoucherSlip.voucherType}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewingVoucherSlip(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1.5">
-              <div className="flex justify-between"><span className="text-slate-500">Voucher No:</span><strong>{viewingVoucherSlip.voucherNo}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Date:</span><span>{viewingVoucherSlip.date}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Account Head:</span><span>{viewingVoucherSlip.accountHead}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Party:</span><strong>{viewingVoucherSlip.partyName}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Mode:</span><span>{viewingVoucherSlip.mode}</span></div>
-              <div className="flex justify-between pt-1 border-t"><span className="text-slate-500">Amount:</span><strong className="text-sm font-black text-emerald-600">{money(viewingVoucherSlip.amount)}</strong></div>
-            </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-400 italic font-mono bg-slate-100 dark:bg-slate-800/40 p-2.5 rounded-xl">
-              Narration: {viewingVoucherSlip.narration}
-            </p>
-
-            <div className="flex justify-between items-center pt-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-              >
-                <Icon name="filetext" size={14} /> Print Voucher
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewingVoucherSlip(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 9: FORGOT PASSWORD RECOVERY MODAL */}
-      {showForgotPasswordModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-white space-y-4 shadow-2xl text-center">
-            <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
-              🔑
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-base font-black">Password Recovery</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Enter your registered Username or Mobile to request a credential reset.
-              </p>
-            </div>
-
-            <div className="space-y-3 pt-2 text-left">
-              <input
-                type="text"
-                placeholder="Username or Registered Mobile"
-                value={forgotIdentifier}
-                onChange={(e) => setForgotIdentifier(e.target.value)}
-                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"
-              />
-              {forgotStatusMsg && (
-                <p className="text-xs font-bold text-amber-400 bg-amber-950/40 p-2 rounded-xl text-center">
-                  {forgotStatusMsg}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => { setShowForgotPasswordModal(false); setForgotStatusMsg(""); }}
-                className="flex-1 py-2 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!forgotIdentifier) {
-                    setForgotStatusMsg("Please enter your registered mobile or username.");
-                    return;
-                  }
-                  setForgotStatusMsg("Recovery token dispatched. Master Administrator can also reset your password in Settings → Users.");
-                }}
-                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md"
-              >
-                Send Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
   );
 };
 
@@ -17736,7 +16983,7 @@ Thank you for your business!`;
 
               {changePinForm.targetType === "partner" && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                  💡 Administrator override: You can set or reset any partner's login PIN directly.
+                  💡 Administrator override: You can set or reset any partner&apos;s login PIN directly.
                 </p>
               )}
 
@@ -18533,7 +17780,762 @@ Thank you for your business!`;
         </div>
       )}
 
-{/* MOBILE BOTTOM NAVIGATION BAR */}
+      {/* MODAL 1: DOCUMENT AUDIT TRAIL & REVISION HISTORY (CLICKABLE DOC NO) */}
+      {viewingDocAuditNumber && (() => {
+        const docLogs = auditTrailLogs.filter(l => l.docNumber === viewingDocAuditNumber);
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-3xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    <span>📋</span> Document Audit Trail & Revision History
+                  </h3>
+                  <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    Doc #: {viewingDocAuditNumber}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingDocAuditNumber(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                {docLogs.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    <p className="font-bold">No lifecycle revision events recorded for this document yet.</p>
+                    <p className="text-[11px] mt-1">Initial transaction creation registered in system audit ledger.</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2">Timestamp</th>
+                        <th className="p-2">Action</th>
+                        <th className="p-2">Operator</th>
+                        <th className="p-2">Status</th>
+                        <th className="p-2">Change Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {docLogs.map(log => (
+                        <tr key={log.id}>
+                          <td className="p-2 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
+                          <td className="p-2 font-bold text-indigo-600">{log.action}</td>
+                          <td className="p-2">{log.operator}</td>
+                          <td className="p-2"><span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800">{log.status}</span></td>
+                          <td className="p-2 text-slate-700 dark:text-slate-300 font-sans">{log.changeDetails}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setViewingDocAuditNumber(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition"
+                >
+                  Close History
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 2: OFFICIAL BANK RECONCILIATION STATEMENT (BRS) REPORT */}
+      {showReconReportModal && (() => {
+        const accounts = systemSettings?.banking?.accounts || [];
+        const reconciliations = systemSettings?.banking?.reconciliations || {};
+        const targetBank = accounts.find(a => a.id === bankReconAccount) || accounts[0] || {};
+        const openingBal = Number(targetBank.openingBalance || 0);
+
+        let unclearedDepositsTotal = 0;
+        let unclearedWithdrawalsTotal = 0;
+
+        invoices.forEach(inv => {
+          if (inv.p1_mode === "UPI" && reconciliations[inv.id]?.status !== "cleared") {
+            unclearedDepositsTotal += Number(inv.p1_amount || inv.upfront_paid || 0);
+          }
+        });
+        collections.forEach(col => {
+          if (col.payment_mode === "UPI" && reconciliations[col.id]?.status !== "cleared") {
+            unclearedDepositsTotal += Number(col.amount || 0);
+          }
+        });
+        procurements.forEach(pr => {
+          if (pr.p1_mode === "UPI" && reconciliations[`pr_${pr.id}`]?.status !== "cleared") {
+            unclearedWithdrawalsTotal += Number(pr.p1_amount || 0);
+          }
+        });
+        expenses.forEach(exp => {
+          if (exp.payment_mode === "UPI" && reconciliations[`exp_${exp.id}`]?.status !== "cleared") {
+            unclearedWithdrawalsTotal += Number(exp.amount || 0);
+          }
+        });
+
+        const bankBookBalance = openingBal + unclearedDepositsTotal;
+        const statementBalance = bankBookBalance - unclearedDepositsTotal + unclearedWithdrawalsTotal;
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    <span>🏦</span> Official Bank Reconciliation Statement (BRS)
+                  </h3>
+                  <p className="text-xs text-slate-500">As on {new Date().toLocaleDateString("en-IN")}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReconReportModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 font-mono text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Bank Account:</span>
+                  <strong className="text-slate-900 dark:text-white">{targetBank.bankName} (A/c: {targetBank.accountNo})</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">IFSC & Branch:</span>
+                  <span>{targetBank.ifsc} · {targetBank.branch}</span>
+                </div>
+              </div>
+
+              {/* BRS Table */}
+              <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden font-mono text-xs">
+                <div className="flex justify-between p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 font-bold">
+                  <span>Balance as per Company Cash/Bank Book:</span>
+                  <span>{money(bankBookBalance)}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 border-b border-slate-100 dark:border-slate-800">
+                  <span>Add: Cheques/UPI receipts deposited but not yet credited by bank:</span>
+                  <span className="font-bold">+{money(unclearedDepositsTotal)}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 border-b border-slate-100 dark:border-slate-800">
+                  <span>Less: Cheques/UPI payments issued but not yet presented/debited:</span>
+                  <span className="font-bold">-{money(unclearedWithdrawalsTotal)}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 font-black text-sm">
+                  <span>Reconciled Balance as per Official Bank Statement:</span>
+                  <span>{money(statementBalance)}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <Icon name="filetext" size={14} /> Print Formal Statement
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowReconReportModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 3: UNDO BANK RECONCILIATION MODAL */}
+      {showUndoReconModal && (() => {
+        const recons = systemSettings?.banking?.reconciliations || {};
+        const clearedEntries = Object.entries(recons).filter(([k, v]) => v?.status === "cleared");
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2 text-amber-600">
+                    <span>↺</span> Undo Bank Reconciliation Tool
+                  </h3>
+                  <p className="text-xs text-slate-500">Reverts reconciled transactions back to pending to unlock editing/CRUD.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUndoReconModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="max-h-72 overflow-y-auto space-y-2">
+                {clearedEntries.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-6 font-bold">No cleared transactions currently on record.</p>
+                ) : (
+                  clearedEntries.map(([txId, r]) => (
+                    <div key={txId} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs">
+                      <div>
+                        <span className="font-mono font-bold text-indigo-600">ID: {txId}</span>
+                        <span className="text-slate-400 block text-[10px]">Cleared on: {r.valueDate} by {r.reconciledBy || 'Admin'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...recons };
+                          delete updated[txId];
+                          saveSystemSettingsToCloud({
+                            banking: { ...(systemSettings?.banking || {}), reconciliations: updated }
+                          });
+                          recordAuditEvent(txId, "Reconciliation", "Bank", "Undo Reconciled", currentUser?.name, "Pending", "Reconciliation reverted to pending to allow edits");
+                        }}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                      >
+                        Revert to Pending
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUndoReconModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 4: ADD / EDIT BANK ACCOUNT */}
+      {showAddBankModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <h3 className="font-black text-base">{editingBank ? "Edit Bank Account" : "Add Bank Account"}</h3>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Bank Name (e.g. State Bank of India)"
+                value={bankForm.bankName}
+                onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Account Number"
+                  value={bankForm.accountNo}
+                  onChange={(e) => setBankForm({ ...bankForm, accountNo: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+                <input
+                  type="text"
+                  placeholder="IFSC Code"
+                  value={bankForm.ifsc}
+                  onChange={(e) => setBankForm({ ...bankForm, ifsc: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Branch Name (e.g. Dornala)"
+                value={bankForm.branch}
+                onChange={(e) => setBankForm({ ...bankForm, branch: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Tagged Partner</label>
+                <select
+                  value={bankForm.partnerId}
+                  onChange={(e) => setBankForm({ ...bankForm, partnerId: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                >
+                  <option value="">General / Store Account</option>
+                  {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs">
+                <span className="font-bold">UPI Mode Enabled</span>
+                <input
+                  type="checkbox"
+                  checked={bankForm.upiEnabled}
+                  onChange={(e) => setBankForm({ ...bankForm, upiEnabled: e.target.checked })}
+                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                />
+              </div>
+              {bankForm.upiEnabled && (
+                <input
+                  type="text"
+                  placeholder="UPI ID (e.g. jsrretails@sbi)"
+                  value={bankForm.upiId}
+                  onChange={(e) => setBankForm({ ...bankForm, upiId: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              )}
+              <IndianNumberInput
+                placeholder="Opening Balance (₹)"
+                value={bankForm.openingBalance}
+                onChange={(e) => setBankForm({ ...bankForm, openingBalance: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddBankModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!bankForm.bankName || !bankForm.accountNo) {
+                    alert("Please enter bank name and account number");
+                    return;
+                  }
+                  const newBank = {
+                    id: editingBank?.id || `bank_${Date.now()}`,
+                    ...bankForm,
+                    openingBalance: cleanNum(bankForm.openingBalance || 0),
+                    isActive: true
+                  };
+                  const currentList = systemSettings?.banking?.accounts || [];
+                  const updated = editingBank ? currentList.map(b => b.id === newBank.id ? newBank : b) : [...currentList, newBank];
+                  saveSystemSettingsToCloud({
+                    banking: { ...(systemSettings?.banking || {}), accounts: updated }
+                  });
+                  setShowAddBankModal(false);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+              >
+                Save Bank
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ADD / EDIT EMPLOYEE */}
+      {showEmployeeModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <h3 className="font-black text-base">{editingEmployee ? "Edit Employee" : "Add Employee Profile"}</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Emp ID (e.g. EMP-001)"
+                  value={employeeForm.empId}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, empId: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold"
+                />
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={employeeForm.name}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Designation (e.g. Cashier)"
+                  value={employeeForm.designation}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                />
+                <select
+                  value={employeeForm.department}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                >
+                  <option value="Sales">Sales & Billing</option>
+                  <option value="Billing">Billing Cashiers</option>
+                  <option value="Warehouse">Warehouse & Logistics</option>
+                  <option value="Operations">Operations</option>
+                </select>
+              </div>
+
+              {/* Wage Structure Scheme Selector matching Point 2 */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Wage Scheme (Indian Labour Compliance)</label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeForm({ ...employeeForm, salaryType: "statutory" })}
+                    className={`p-2 rounded-lg transition ${employeeForm.salaryType === "statutory" ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-2xs font-black" : "text-slate-500"}`}
+                  >
+                    Statutory (EPF + ESI + PT)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeForm({ ...employeeForm, salaryType: "fixed" })}
+                    className={`p-2 rounded-lg transition ${employeeForm.salaryType === "fixed" ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-2xs font-black" : "text-slate-500"}`}
+                  >
+                    Fixed Salary (Exempt)
+                  </button>
+                </div>
+              </div>
+
+              <IndianNumberInput
+                placeholder="Monthly Gross Salary (₹)"
+                value={employeeForm.baseSalary}
+                onChange={(e) => setEmployeeForm({ ...employeeForm, baseSalary: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="PAN (optional)"
+                  value={employeeForm.pan}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, pan: e.target.value.toUpperCase() })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+                <input
+                  type="text"
+                  placeholder="EPF UAN (optional)"
+                  value={employeeForm.uan}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, uan: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEmployeeModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!employeeForm.name || !employeeForm.baseSalary) {
+                    alert("Please enter employee name and monthly salary");
+                    return;
+                  }
+                  const newEmp = {
+                    id: editingEmployee?.id || `emp_${Date.now()}`,
+                    ...employeeForm,
+                    baseSalary: cleanNum(employeeForm.baseSalary)
+                  };
+                  const updated = editingEmployee ? employees.map(e => e.id === newEmp.id ? newEmp : e) : [...employees, newEmp];
+                  setEmployees(updated);
+                  if (typeof window !== "undefined") {
+                    try { localStorage.setItem("app_hr_employees", JSON.stringify(updated)); } catch (e) {}
+                  }
+                  setShowEmployeeModal(false);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+              >
+                Save Employee
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: PAY SLIP VIEW & PRINT */}
+      {viewingPaySlip && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"} · Pay Slip</h3>
+                <p className="text-xs text-slate-500">Pay Period: {selectedPayrollMonth}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingPaySlip(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
+              <div className="flex justify-between"><span className="text-slate-500">Emp ID:</span><strong>{viewingPaySlip.empId}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><strong>{viewingPaySlip.name}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Designation / Dept:</span><span>{viewingPaySlip.designation} · {viewingPaySlip.department}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Wage Structure:</span><span className="text-indigo-600">{viewingPaySlip.typeLabel}</span></div>
+            </div>
+
+            {/* Earnings & Deductions Table */}
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Earnings</span>
+                <div className="flex justify-between"><span>Basic + DA:</span><span>{money(viewingPaySlip.basicDa)}</span></div>
+                <div className="flex justify-between"><span>HRA:</span><span>{money(viewingPaySlip.hra)}</span></div>
+                <div className="flex justify-between"><span>Allowances:</span><span>{money(viewingPaySlip.allowances)}</span></div>
+                <div className="flex justify-between font-bold border-t pt-1"><span>Total Gross:</span><span>{money(viewingPaySlip.earnedGross)}</span></div>
+              </div>
+
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Deductions</span>
+                <div className="flex justify-between"><span>EPF (12%):</span><span>{money(viewingPaySlip.pfDeduction)}</span></div>
+                <div className="flex justify-between"><span>ESIC:</span><span>{money(viewingPaySlip.esicDeduction)}</span></div>
+                <div className="flex justify-between"><span>PT:</span><span>{money(viewingPaySlip.ptDeduction)}</span></div>
+                <div className="flex justify-between font-bold border-t pt-1 text-rose-600"><span>Total Ded.:</span><span>{money(viewingPaySlip.totalDeductions)}</span></div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex justify-between items-center text-emerald-800 dark:text-emerald-300 font-mono">
+              <span className="font-bold text-xs uppercase">Net Salary Payable:</span>
+              <span className="font-black text-base">{money(viewingPaySlip.netSalary)}</span>
+            </div>
+
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Icon name="filetext" size={14} /> Print Pay Slip
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingPaySlip(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: CREATE NEW ACCOUNTING VOUCHER */}
+      {showNewVoucherModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <h3 className="font-black text-base">New Accounting Voucher Entry</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={voucherForm.voucherNo}
+                  onChange={(e) => setVoucherForm({ ...voucherForm, voucherNo: e.target.value })}
+                  placeholder="Voucher #"
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold"
+                />
+                <input
+                  type="date"
+                  value={voucherForm.date}
+                  onChange={(e) => setVoucherForm({ ...voucherForm, date: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              </div>
+
+              <select
+                value={voucherForm.voucherType}
+                onChange={(e) => setVoucherForm({ ...voucherForm, voucherType: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              >
+                <option value="journal">Journal Voucher (JV)</option>
+                <option value="contra">Contra Voucher (Cash to Bank / Transfer)</option>
+                <option value="payment">General Payment Voucher</option>
+                <option value="receipt">General Receipt Voucher</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Account Head (e.g. Bank Deposit, Rent)"
+                value={voucherForm.accountHead}
+                onChange={(e) => setVoucherForm({ ...voucherForm, accountHead: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+
+              <input
+                type="text"
+                placeholder="Party Name (e.g. SBI, Vendor, Partner)"
+                value={voucherForm.partyName}
+                onChange={(e) => setVoucherForm({ ...voucherForm, partyName: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              />
+
+              <IndianNumberInput
+                placeholder="Voucher Amount (₹)"
+                value={voucherForm.amount}
+                onChange={(e) => setVoucherForm({ ...voucherForm, amount: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              />
+
+              <input
+                type="text"
+                placeholder="Narration / Particulars"
+                value={voucherForm.narration}
+                onChange={(e) => setVoucherForm({ ...voucherForm, narration: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowNewVoucherModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!voucherForm.amount) {
+                    alert("Please enter voucher amount");
+                    return;
+                  }
+                  const newVou = {
+                    id: `mv_${Date.now()}`,
+                    ...voucherForm,
+                    amount: cleanNum(voucherForm.amount)
+                  };
+                  const updated = [newVou, ...manualVouchers];
+                  setManualVouchers(updated);
+                  if (typeof window !== "undefined") {
+                    try { localStorage.setItem("app_manual_vouchers", JSON.stringify(updated)); } catch (e) {}
+                  }
+                  recordAuditEvent(newVou.voucherNo, "Voucher", newVou.partyName, "Created", currentUser?.name, "Active", `Voucher of ₹${newVou.amount} recorded under ${newVou.accountHead}`);
+                  setShowNewVoucherModal(false);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+              >
+                Post Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 8: VIEW VOUCHER SLIP */}
+      {viewingVoucherSlip && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"}</h3>
+                <span className="font-mono text-xs text-indigo-600 font-bold">{viewingVoucherSlip.voucherType}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingVoucherSlip(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1.5">
+              <div className="flex justify-between"><span className="text-slate-500">Voucher No:</span><strong>{viewingVoucherSlip.voucherNo}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Date:</span><span>{viewingVoucherSlip.date}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Account Head:</span><span>{viewingVoucherSlip.accountHead}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Party:</span><strong>{viewingVoucherSlip.partyName}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Mode:</span><span>{viewingVoucherSlip.mode}</span></div>
+              <div className="flex justify-between pt-1 border-t"><span className="text-slate-500">Amount:</span><strong className="text-sm font-black text-emerald-600">{money(viewingVoucherSlip.amount)}</strong></div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 italic font-mono bg-slate-100 dark:bg-slate-800/40 p-2.5 rounded-xl">
+              Narration: {viewingVoucherSlip.narration}
+            </p>
+
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Icon name="filetext" size={14} /> Print Voucher
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingVoucherSlip(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 9: FORGOT PASSWORD RECOVERY MODAL */}
+      {showForgotPasswordModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-white space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
+              🔑
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-black">Password Recovery</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Enter your registered Username or Mobile to request a credential reset.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2 text-left">
+              <input
+                type="text"
+                placeholder="Username or Registered Mobile"
+                value={forgotIdentifier}
+                onChange={(e) => setForgotIdentifier(e.target.value)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"
+              />
+              {forgotStatusMsg && (
+                <p className="text-xs font-bold text-amber-400 bg-amber-950/40 p-2 rounded-xl text-center">
+                  {forgotStatusMsg}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setShowForgotPasswordModal(false); setForgotStatusMsg(""); }}
+                className="flex-1 py-2 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!forgotIdentifier) {
+                    setForgotStatusMsg("Please enter your registered mobile or username.");
+                    return;
+                  }
+                  setForgotStatusMsg("Recovery token dispatched. Master Administrator can also reset your password in Settings → Users.");
+                }}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md"
+              >
+                Send Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-40 px-2 py-1.5 flex justify-around items-center text-slate-400 no-print">
         {hasModuleAccess("sale") && (
           <button
