@@ -2410,25 +2410,8 @@ export default function App() {
   const [expandedExpenseId, setExpandedExpenseId] = useState(null);
   const [editingOrderRef, setEditingOrderRef] = useState(null);
 
-  const [auditTrailLogs, setAuditTrailLogs] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("jsr_audit_trail_logs");
-        if (stored) return JSON.parse(stored);
-      } catch (e) {}
-    }
-    return [
-      {
-        id: "AUD-INIT-01",
-        timestamp: new Date().toISOString(),
-        docRef: "SYS-INIT",
-        docType: "System Baseline",
-        action: "Initial Setup",
-        operator: currentUser?.name || "Administrator",
-        details: "Audit trail engine initialized and tracking all transaction mutations across modules."
-      }
-    ];
-  });
+// (Consolidated with Master Audit Trail State)
+
 
   const logAuditEvent = (event) => {
     const newLog = {
@@ -10800,7 +10783,7 @@ Thank you for your business!`;
               itemProfitMap[name].revenue += q * sp;
             });
           });
-          const itemProfitList = Object.values(itemProfitMap);
+          let itemProfitList = Object.values(itemProfitMap);
           if (analyticsProductSearch) {
             const q = analyticsProductSearch.toLowerCase();
             itemProfitList = itemProfitList.filter(i => i.productTitle.toLowerCase().includes(q));
