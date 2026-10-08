@@ -352,3 +352,94 @@ PostgreSQL database tables hosted on Supabase:
 | **v2.2.0** | October 2026 | WhatsApp Cloud API integration and Customer/Supplier Self-Service Portal with Consolidated Statements. |
 | **v2.1.0** | September 2026 | Mobile-responsive horizontal table scrolling and non-wrapping table headers across all search/list screens. |
 | **v2.0.0** | September 2026 | Dual-mode login authentication with 2FA TOTP RFC 6238 security and 75%/25% desktop layout. |
+
+
+---
+
+## 24. Bank Accounts Master, Partner Tagging & BRS Report (§9.3)
+- **Central Banking Configuration:** Manage commercial bank accounts in Settings (Bank Name, Account Number, IFSC, Branch, Partner Tag, UPI Enabled, UPI ID, Opening Balance).
+- **Partner Tagged Bank UPI Filtering:** When UPI mode is selected during billing or disbursements, the system filters the bank dropdown to only show banks tagged to that partner.
+- **Reconciliation Audit Queue:** Defaults to *Pending / Un-Cleared* transactions.
+- **Locked CRUD Invariants:** Reconciled transactions display a `[🔒 Bank Reconciled]` badge and lock editing and deletion.
+- **Undo Bank Reconciliation:** Administration panel allows authorized Admins to revert reconciled transactions back to Pending, safely unlocking them.
+- **Official BRS Statement & Report:** Formal Bank Reconciliation Statement calculating:
+  $$\text{Reconciled Balance} = \text{Bank Book Balance} + \text{Un-cleared Deposits} - \text{Un-cleared Payments}$$
+  Includes A4 & Thermal formatted print layouts and CSV export.
+
+---
+
+## 25. Indian HR & Statutory Payroll Engine (§19.2)
+- **Dual Wage Structure Schemes:**
+  - **Indian Statutory Scheme:** Fully compliant with Indian labor laws:
+    - Basic + DA (50% of CTC)
+    - HRA (₹15,000 threshold rule)
+    - EPF (12% employee contribution capped at ₹1,800/month; ₹15,000 qualifying wage ceiling)
+    - ESIC (0.75% employee contribution if Gross $\le ₹21,000$/month)
+    - Professional Tax (PT) (State statutory slabs: $\le ₹15,000$: ₹0; $₹15,001–₹20,000$: ₹150; $> ₹20,000$: ₹200)
+  - **Fixed Salary Scheme:** Flat agreed remuneration with zero statutory deductions (for contractual/daily-wage workers).
+- **Staff Directory:** Add/Edit employee profiles, departments (Sales, Billing, Warehouse, Operations), PAN, UAN, and bank accounts.
+- **Monthly Payroll Run:** Monthly salary computations with working days, LOP adjustments, and statutory deductions.
+- **Indian Pay Slip Generator:** Standard corporate format with earnings, deductions, net pay in numbers and Indian words (e.g. *"Rupees Thirty-Two Thousand Four Hundred Only"*), with A4 and thermal printing.
+
+---
+
+## 26. Unified Accounting Vouchers (§20.1)
+- **Comprehensive Voucher Registry:** Integrates all operational movements into auditable vouchers:
+  - `RV`: Sales Receipts
+  - `PV`: Purchase Payments
+  - `CRV`: Customer Due Collections
+  - `SPV`: Supplier Settlements
+  - `EXPV`: Operating Expenses
+  - `CTV`: Contras & Bank Transfers
+  - `SALV`: Salary Payments
+  - `JV`: Manual Journal Adjustments
+- **Multi-Criteria Filtering:** Voucher Type, Payment Mode, Date Range, Party, and Search.
+- **Printable Voucher Slips:** Formal voucher slip viewer with narration, account heads, and signature blocks.
+
+---
+
+## 27. Profit & Sales Analytics Redesign (§10.1)
+- **Executive Header:** *Profit & Sales Analytics* with subtitle: *"Financial ledger, revenue, COGS, operating charges, and itemized margins."*
+- **Period Filter Toolbar:** All Time, This Year, This Month, This Week, Today, and Custom Date Range.
+- **Interactive Financial Timeline Drill-Down:** Clicking any month scopes all subsequent tables to that month, highlighting the row with `[ACTIVE]` and displaying a bold `Filtered: Month ✕ Reset` badge.
+- **Customer Performance Aging Column:** Directly includes an *Aging / Overdue Days* column in the customer performance table alongside orders, value, COGS, gross profit, and margin %.
+- **Catalogue Item Profitability & Unit Sales Matrix:** Granular SKU profitability and monthly unit distribution.
+- **Unit-Wise Customer Purchases:** Interactive toggle between *Cards View* (grouped item chips with pcs and amounts) and *Matrix Table*.
+- **Privacy Mode:** One-click `[👁️ Show/Hide Margins]` toggle to conceal profit and margin columns for shared screens.
+
+---
+
+## 28. Full-Screen Left Sidebar Settings & Brand Normalization (§21.1)
+- **ERP 2-Column Layout:** Left panel navigation sidebar with dedicated configuration workspaces:
+  - *General & Branding*, *Bank Accounts Master*, *User Management & RBAC Roles*, *2FA Security & Secrets*, *Low Stock & Reorder*, *Customer Credit Limits*, *Document Auto-Numbering*, *Alerts & WhatsApp Gateway*, *Z-Report History*, *Administration & Maintenance*.
+- **Deduplication:** Merged redundant general settings blocks into unified tabs.
+- **Business Name Bounds:** Length constrained to 3–60 characters with live character counter.
+- **Dynamic Business Name Normalization:** Replaced all hardcoded system names with `systemSettings.branding.systemName || "JSR Retails"`.
+- **Custom Login Banner Upload:** File upload input in Branding settings enabling Admin to set their custom login background image.
+
+---
+
+## 29. Executive Balance Sheet & Bill-Wise Supplier Dues (§22.1)
+- **Meaningful System Name:** Renamed to *Executive Financial Balance Sheet & Operational Audit (Excel Format)*.
+- **Customizable Group By:** Interactive dropdowns per table to group by Category, Supplier, Aging, Route, or Flat list.
+- **Bill-Wise Supplier Pending Bills:** Individual row per pending purchase bill (Doc #, Date, Supplier, Items, Bill Amount, Paid Amount, Due Amount) without forced supplier grouping.
+- **Corrected Supplier Ledger:** Calculates `Opening Due + Procured - Paid`, separating Payables vs Advances.
+
+---
+
+## 30. Clickable Document Numbers & Chronological Audit Trail (§23.1)
+- **Interactive Doc # Badges:** Clicking any document number (`INV-`, `PUR-`, `REC-`, `PAY-`, `EXP-`, `VOU-`) opens the *Document Audit Trail & Revision History* modal.
+- **Chronological Timeline:** Timestamp, Action, Operator, Status, and detailed field diff summaries.
+
+---
+
+## 31. Differentiated Authentication Policy (§4.3)
+- **Customer & Supplier Portal:** Fast 4–6 digit numeric PIN authentication (`/^\d{4,6}$/`).
+- **Internal Staff (Admin, Partners, Operators):** Strong alphanumeric password with special characters (`@$!%*?&#`).
+- **Auto Role Detection:** Login screen detects Portal vs Staff by entered identifier.
+- **Forgot Password Recovery:** Recovery modal and Admin user management in Settings.
+
+---
+
+## 32. System-Wide WhatsApp SVG Icon-Only (§24.1)
+- **Clean Action Buttons:** Replaced text "WhatsApp" with a clean SVG `<Icon name="whatsapp" size={15} />` across billing, invoices, collections, and reports for uncluttered UI.
