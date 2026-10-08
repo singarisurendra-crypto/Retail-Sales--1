@@ -1,629 +1,445 @@
-<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head>
-<meta charset="utf-8">
-<title>JSR Retail System – Overall System README & Master Technical Manual</title>
-<!--[if gte mso 9]>
-<xml>
- <w:WordDocument>
-  <w:View>Print</w:View>
-  <w:Zoom>100</w:Zoom>
-  <w:DoNotOptimizeForBrowser/>
- </w:WordDocument>
-</xml>
-<![endif]-->
-<style>
-  body {
-    font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
-    font-size: 11pt;
-    line-height: 1.5;
-    color: #1e293b;
-    margin: 40px;
-    background-color: #ffffff;
-  }
-  h1 {
-    font-size: 24pt;
-    color: #1e1b4b;
-    border-bottom: 2px solid #4338ca;
-    padding-bottom: 6px;
-    margin-top: 24pt;
-    margin-bottom: 12pt;
-  }
-  h2 {
-    font-size: 15pt;
-    color: #312e81;
-    border-bottom: 1px solid #cbd5e1;
-    padding-bottom: 4px;
-    margin-top: 18pt;
-    margin-bottom: 8pt;
-  }
-  h3 {
-    font-size: 12.5pt;
-    color: #4338ca;
-    margin-top: 14pt;
-    margin-bottom: 6pt;
-  }
-  p, li {
-    font-size: 10.5pt;
-    line-height: 1.55;
-    color: #334155;
-  }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 14pt 0;
-    font-size: 9.5pt;
-  }
-  th, td {
-    border: 1px solid #cbd5e1;
-    padding: 8px 12px;
-    text-align: left;
-  }
-  th {
-    background-color: #f1f5f9;
-    color: #0f172a;
-    font-weight: bold;
-  }
-  tr:nth-child(even) {
-    background-color: #f8fafc;
-  }
-  .callout {
-    background-color: #eef2ff;
-    border-left: 4px solid #6366f1;
-    padding: 12px 16px;
-    margin: 14pt 0;
-    border-radius: 4px;
-  }
-  .badge {
-    background-color: #e0e7ff;
-    color: #3730a3;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: bold;
-    font-size: 8.5pt;
-  }
-  code {
-    font-family: 'Consolas', 'Courier New', monospace;
-    background-color: #f1f5f9;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-size: 9.5pt;
-    color: #0f172a;
-  }
-  pre {
-    background-color: #0f172a;
-    color: #f8fafc;
-    padding: 12px;
-    border-radius: 6px;
-    font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 9pt;
-    overflow-x: auto;
-  }
-  .header-box {
-    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-    color: #ffffff;
-    padding: 24px;
-    border-radius: 8px;
-    margin-bottom: 24pt;
-  }
-  .header-box h1 {
-    color: #ffffff;
-    border-bottom: none;
-    margin: 0 0 8px 0;
-  }
-  .header-box p {
-    color: #c7d2fe;
-    margin: 4px 0;
-  }
-  .toc {
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    padding: 16px 24px;
-    border-radius: 6px;
-    margin: 16pt 0;
-  }
-  .toc ol {
-    margin: 0;
-    padding-left: 20px;
-  }
-  .toc li {
-    margin-bottom: 4px;
-    font-size: 10pt;
-  }
-</style>
-</head>
-<body>
+# JSR Retail System — Overall System README
+### Functional Requirements, System Architecture, Scenarios & Operational Behaviour
+**Living System Manual & Master Specification Document**  
+**Version:** 2.5.0 (Full 23-Section Requirements & Architecture Specification)  
+**Last Updated:** October 2026  
+**Environment:** Next.js 14 (App Router) &bull; React 18 &bull; Tailwind CSS &bull; Supabase PostgreSQL &bull; Vercel CI/CD  
 
-<div class="header-box">
-  <h1>JSR Retail System – Overall System README</h1>
-  <p><strong>Functional Requirements, Scenarios, Architecture & Operational Behaviour</strong></p>
-  <p>Version: 2.5.0 (Full 23-Section Requirements & Architecture Specification) | Last Updated: October 2026</p>
-  <p>Platform: Next.js 14 (App Router) &bull; React 18 &bull; Tailwind CSS &bull; Supabase PostgreSQL &bull; Vercel CI/CD</p>
-</div>
+---
 
-<div class="callout">
-  <strong>Living Manual Protocol:</strong> This document is maintained directly within the project repository (<code>c:\Work\JSR_Retails_Sales\Readme.doc</code> and <code>README.md</code>) as an authoritative reference across all feature enhancements, bug fixes, and operational updates.
-</div>
+## Table of Contents
+1. [System Overview](#1-system-overview)
+2. [Core Modules](#2-core-modules)
+3. [Configuration and Access](#3-configuration-and-access)
+   - [3.1 Customer & Supplier PAN/GSTIN](#31-customer--supplier-pangstin)
+   - [3.2 Roles and Module Access](#32-roles-and-module-access)
+   - [3.3 Partner Images](#33-partner-images)
+   - [3.4 System Name](#34-system-name)
+4. [Authentication and Security](#4-authentication-and-security)
+   - [4.1 Active Session Control](#41-active-session-control)
+   - [4.2 Password Change Protocol](#42-password-change-protocol)
+   - [4.3 Google Authenticator / 2FA](#43-google-authenticator--2fa)
+5. [Login Screen](#5-login-screen)
+6. [Customer & Supplier Portal](#6-customer--supplier-portal)
+7. [Sales / Invoice & Receipts](#7-sales--invoice--receipts)
+8. [Purchase / Supplier Transactions](#8-purchase--supplier-transactions)
+9. [Bank, UPI and Reconciliation](#9-bank-upi-and-reconciliation)
+   - [9.1 Bank and UPI](#91-bank-and-upi)
+   - [9.2 Bank Reconciliation](#92-bank-reconciliation)
+10. [Day-End Cash Register / Z-Report](#10-day-end-cash-register--z-report)
+11. [Smart Low-Stock and Auto-Reorder](#11-smart-low-stock-and-auto-reorder)
+12. [Customer Credit Limit and WhatsApp Reminder](#12-customer-credit-limit-and-whatsapp-reminder)
+13. [Settings and Configuration Persistence](#13-settings-and-configuration-persistence)
+14. [UI / Responsive Design](#14-ui--responsive-design)
+15. [Number Formatting (Indian Comma Separators)](#15-number-formatting-indian-comma-separators)
+16. [WhatsApp Business Alerts](#16-whatsapp-business-alerts)
+17. [Reports and Analysis](#17-reports-and-analysis)
+18. [Pagination](#18-pagination)
+19. [ERP / Finance / Payroll](#19-erp--finance--payroll)
+20. [Data Integrity Invariants](#20-data-integrity-invariants)
+21. [Browser Cache & Deployment Verification](#21-browser-cache--deployment-verification)
+22. [Acceptance Criteria](#22-acceptance-criteria)
+23. [General Development Principle](#23-general-development-principle)
+24. [Database Schema Reference](#24-database-schema-reference)
+25. [Changelog & Maintenance Protocol](#25-changelog--maintenance-protocol)
 
-<h2>Table of Contents</h2>
-<div class="toc">
-  <ol>
-    <li><strong>System Overview</strong></li>
-    <li><strong>Core Modules (14 Operational Pillars)</strong></li>
-    <li><strong>Configuration and Access (PAN/GSTIN, Roles & Manage Modules, Partner Images, System Name)</strong></li>
-    <li><strong>Authentication and Security (User-Scoped Active Sessions, Password Change, Individual 2FA)</strong></li>
-    <li><strong>Login Screen (75%/25% Split Layout, Mobile Responsiveness)</strong></li>
-    <li><strong>Customer & Supplier Portal (Sandboxed Views, Dual-Role Login, Consolidated Statements)</strong></li>
-    <li><strong>Sales / Invoice & Receipts (Clickable IDs, Cancel Edit Position, Stock Difference Invariants)</strong></li>
-    <li><strong>Purchase / Supplier Transactions (PO Lifecycles, Date Preservation, Vendor Formats)</strong></li>
-    <li><strong>Bank, UPI and Reconciliation (Bank Master, UPI Toggles, Cleared/Un-Cleared Audit)</strong></li>
-    <li><strong>Day-End Cash Register / Z-Report (Formula, Denomination Counter, 80mm Slip)</strong></li>
-    <li><strong>Smart Low-Stock and Auto-Reorder (Thresholds, 1-Click PO Creation, Auto-Clear)</strong></li>
-    <li><strong>Customer Credit Limit and WhatsApp Reminder (POS Validation, Admin Override, 1-Click Messages)</strong></li>
-    <li><strong>Settings and Configuration Persistence (Cloud CRUD, Immediate Reflection, Zero Cache Stale)</strong></li>
-    <li><strong>UI / Responsive Design (Mobile Tables, Horizontal Scroll, Non-Wrapping Headers, Compact Titles)</strong></li>
-    <li><strong>Number Formatting (Indian Comma Separator en-IN, Cursor Preservation, Pure Math)</strong></li>
-    <li><strong>WhatsApp Business Alerts (Provider Lifecycle Tracking, Error Logs, Non-Duplicating Retries)</strong></li>
-    <li><strong>Reports and Analysis (Central Analysis Hub, Period Filters with Apply Button, Drill-Downs)</strong></li>
-    <li><strong>Pagination (Standard 10-Button Windowing, Group Clusters, Directional Controls)</strong></li>
-    <li><strong>ERP / Finance / Payroll (FY Scoping, HRA ₹15,000 Rule, PF Limits, Debit=Credit Balance)</strong></li>
-    <li><strong>Data Integrity Invariants (Atomic Operations, Sequential Numbering, Full Audit Logs)</strong></li>
-    <li><strong>Browser Cache & Deployment Verification (Microsoft Edge Clearing Steps, QR Bypass)</strong></li>
-    <li><strong>Acceptance Criteria (Testability, Data Isolation, Cross-Platform Usability)</strong></li>
-    <li><strong>General Development Principle (Preserving Functionality, Concurrency Validation)</strong></li>
-    <li><strong>Database Schema Reference (All 12 Supabase Tables)</strong></li>
-    <li><strong>Changelog & Maintenance Protocol (v2.0.0 through v2.5.0)</strong></li>
-  </ol>
-</div>
+---
 
-<hr/>
+## 1. System Overview
+The **JSR Retail System** is an enterprise-grade, role-based retail and business management application engineered for high-velocity point-of-sale, inventory tracking, party ledgers, financial accounting, portal access, multi-channel communication, and daily cash reconciliation.
 
-<h2>1. System Overview</h2>
-<p>The <strong>JSR Retail System</strong> is a role-based retail and business management application covering sales, purchases, customers, suppliers, partners, collections, payments, stock, reporting, configuration, portal access, reconciliation, and business alerts. Existing working functionality must be preserved unless an explicit requirement intentionally changes it.</p>
+**Core Directive:** Existing working functionality must be strictly preserved unless an explicit requirement dictates an architectural change. All newly introduced configuration options are non-breaking and default to backward-compatible execution when disabled.
 
-<hr/>
+---
 
-<h2>2. Core Modules</h2>
-<p>The system comprises 14 primary operational modules:</p>
-<ol>
-  <li><strong>Dashboard and Analysis:</strong> Executive KPI cards, sales trends, gross profit margins, operating expense totals, and net financial position.</li>
-  <li><strong>POS / Sales / Invoice & Receipts:</strong> Rapid retail point-of-sale billing, barcode lookup, cart discounts, customer balances, and thermal printing.</li>
-  <li><strong>Purchase / Purchase Orders / Supplier Payments:</strong> Multi-line vendor procurement orders, batch stock entries, cost vs selling rates, and accounts payable.</li>
-  <li><strong>Payment & Collections:</strong> Inward customer receipts, outward vendor payments, partner funding attribution, and multi-bill FIFO settlements.</li>
-  <li><strong>Customer and Supplier Masters:</strong> Party master directories, contact details, opening dues, credit limits, PAN, and GSTIN registrations.</li>
-  <li><strong>Partner Management:</strong> Capital contributions (Cash vs UPI), profit sharing, partner profile images, and access roles.</li>
-  <li><strong>Item / Stock Management:</strong> Product SKU catalog, unit costs, selling prices, batch inventory tracking, and reorder levels.</li>
-  <li><strong>Finance and Reconciliation:</strong> Commercial bank accounts, bank-wise UPI modes, Cleared vs Un-Cleared verification, and Bank Reconciliation Dates.</li>
-  <li><strong>Reports:</strong> Detailed transaction ledgers, audit trail grids, itemized statements, and exports.</li>
-  <li><strong>Settings / Configuration:</strong> Cloud-synchronized master settings across Branding, Security, Inventory, Credit, and Cash Register history.</li>
-  <li><strong>Roles and Module Management:</strong> Fine-grained screen-level permissions assigning specific operational screens to custom roles.</li>
-  <li><strong>Customer & Supplier Portal:</strong> Mobile-friendly self-service portal for parties to review their invoices, receipts, and live statement positions.</li>
-  <li><strong>WhatsApp / Business Alerts:</strong> Meta WhatsApp Cloud API integration for automated payment reminders, invoice sharing, and business event alerts.</li>
-  <li><strong>Day-End Cash Register / Z-Report:</strong> Cash drawer balance auditing, currency denomination counting, and variance detection.</li>
-</ol>
+## 2. Core Modules
+The platform is organized into 14 distinct operational modules:
+1. **Dashboard and Analysis:** Real-time business turnover, gross profits, expense breakdowns, receivables/payables, and inventory valuation.
+2. **POS / Sales / Invoice & Receipts:** Fast multi-line billing, barcode scanning, thermal receipt printing (58mm/80mm), customer dues calculation, and return processing.
+3. **Purchase / Purchase Orders / Supplier Payments:** Multi-line procurement entries, batch stock tracking, vendor credit, and disbursement recording.
+4. **Payment & Collections:** Customer dues collection, supplier bills payment, partner funding attribution, and FIFO multi-bill auto-settlement.
+5. **Customer and Supplier Masters:** Master accounts, phone numbers, opening balances, credit caps, and GSTIN/PAN records.
+6. **Partner Management:** Partner capital tracking (Cash vs UPI), profit share, profile images, and access permissions.
+7. **Item / Stock Management:** Item SKU catalog, unit costs, selling rates, batch stock tracking, and reorder levels.
+8. **Finance and Reconciliation:** Bank ledger maintenance, UPI transaction verification, Cleared vs Un-Cleared status, and Bank Reconciliation Date tracking.
+9. **Reports:** Drill-down reporting, audit logs, ledger statements, and data exports.
+10. **Settings / Configuration:** 5-tab cloud configuration hub with real-time multi-device broadcast synchronization.
+11. **Roles and Module Management:** Screen-level Role-Based Access Control (RBAC) assigning operational boundaries to Admin, Partner, and Staff roles.
+12. **Customer & Supplier Portal:** Sandboxed self-service interface for parties to track their bills, receipts, live dues, and statements.
+13. **WhatsApp / Business Alerts:** Meta WhatsApp Cloud API integration for 1-click payment reminders and automated business event notifications.
+14. **Day-End Cash Register / Z-Report:** Drawer cash auditing, denomination count (₹500 to coins), surplus/shortage detection, and 80mm slip printing.
 
-<hr/>
+---
 
-<h2>3. Configuration and Access</h2>
+## 3. Configuration and Access
 
-<h3>3.1 Customer & Supplier PAN/GSTIN</h3>
-<ul>
-  <li>PAN and GSTIN fields are configurable on Customer and Supplier Master records.</li>
-  <li>The requirement can be enabled or disabled system-wide via Configuration.</li>
-  <li>When disabled, the system operates seamlessly with the standard simplified billing flow without blocking transactions.</li>
-</ul>
+### 3.1 Customer & Supplier PAN/GSTIN
+- **Configurable Capture:** Master forms for Customers and Suppliers support optional PAN (Permanent Account Number) and GSTIN (Goods and Services Tax Identification Number) fields.
+- **System-Wide Feature Toggle:** The requirement to display and validate PAN/GSTIN can be enabled or disabled globally via System Settings.
+- **Backward Compatibility:** When disabled, the system preserves the existing streamlined billing workflow without requiring tax registration numbers.
 
-<h3>3.2 Roles and Module Access</h3>
-<ul>
-  <li>Roles are created, modified, and managed via <code>Configuration → Roles and Manage Modules</code>.</li>
-  <li>The Administrator assigns screen-level access to each specific role.</li>
-  <li>Partners and staff members see only the screens and functional modules explicitly assigned to their role.</li>
-  <li>Administrators maintain unrestricted access to all screens, financial ledgers, and configurations.</li>
-</ul>
+### 3.2 Roles and Module Access
+- **Module Provisioning:** Roles are created, configured, and managed through `Configuration → Roles and Manage Modules`.
+- **Screen-Level RBAC:** The Administrator assigns granular module and screen access permissions to each custom role.
+- **Strict Role Isolation:** Partners and staff users see only the specific tabs and operational screens assigned to their role.
+- **Superuser Access:** Administrators retain unrestricted access to all screens, accounting registers, and cloud configurations.
 
-<h3>3.3 Partner Images</h3>
-<ul>
-  <li>Partner Master and Profile records support adding, viewing, replacing, and removing partner profile images.</li>
-  <li>The image remains linked to the Partner record in the database and respects role-based viewing permissions.</li>
-</ul>
+### 3.3 Partner Images
+- **Profile Photo Support:** The Partner Master and Profile screen supports adding, viewing, replacing, and removing partner profile photos.
+- **Record Binding:** Images remain linked to the respective Partner record in the database and respect role-based view permissions.
 
-<h3>3.4 System Name</h3>
-<ul>
-  <li>The system name is fully configurable (e.g. <em>“B Reddy Sales”</em>) from System Settings.</li>
-  <li>The configured name is dynamically reflected across the top header, login screen, invoice bills, thermal receipts, and statements.</li>
-</ul>
+### 3.4 System Name
+- **Customizable Branding:** The store/system name (e.g. “B Reddy Sales”) is configurable in System Settings.
+- **Ubiquitous Application:** The configured system name updates dynamically throughout the application: navigation header, login screen, POS receipts, tax invoices, statements, and WhatsApp messages.
 
-<hr/>
+---
 
-<h2>4. Authentication and Security</h2>
+## 4. Authentication and Security
 
-<h3>4.1 Active Session Control</h3>
-<ul>
-  <li>Active-session validation is user-specific.</li>
-  <li>A Partner logging into the system never terminates or interferes with an active Admin session.</li>
-  <li>If the same user logs in on another browser or device, the system offers a <strong>Logoff & Continue</strong> prompt.</li>
-  <li>Selecting <strong>Logoff & Continue</strong> terminates *only* that specific user's prior session.</li>
-</ul>
+### 4.1 Active Session Control
+- **User-Specific Tracking:** Active session validation is strictly scoped per individual user account.
+- **Non-Interfering Concurrency:** A Partner logging into the system will never terminate or interfere with an active Administrator session.
+- **Logoff & Continue:** If the same user attempts to log in from a second browser or terminal, the system detects the existing active session and presents a **Logoff & Continue** prompt.
+- **Targeted Session Termination:** Confirming "Logoff & Continue" invalidates *only* that specific user's prior session while leaving other active users unaffected.
 
-<h3>4.2 Password Change Protocol</h3>
-<ul>
-  <li>Immediately after a password change, the old password becomes invalid across all sessions.</li>
-  <li>The new password takes effect immediately across all browsers and devices.</li>
-  <li>Authentication always validates against the latest saved credentials in the database.</li>
-</ul>
+### 4.2 Password Change Protocol
+- **Instant Invalidation:** Immediately upon saving a new password, the old password is permanently invalidated in the database.
+- **Cross-Device Enforcement:** The updated password takes effect instantly across all browsers, mobile devices, and active terminals.
+- **Authentication Source:** All login attempts are verified strictly against the latest saved credentials in Supabase.
 
-<h3>4.3 Google Authenticator / 2FA</h3>
-<ul>
-  <li>Each user maintains an individual Google Authenticator configuration.</li>
-  <li>Admin and Partner roles utilize distinct, non-shared 2FA secrets.</li>
-  <li>An Admin OTP cannot authenticate a Partner login, and a Partner OTP cannot authenticate an Admin login.</li>
-  <li>Username or email identification is enforced before OTP validation to ensure accurate secret matching.</li>
-</ul>
+### 4.3 Google Authenticator / 2FA
+- **Individual TOTP Secrets:** Each user possesses an independent Google Authenticator configuration; Admin and Partners never share TOTP secrets.
+- **Strict OTP Isolation:** An OTP generated from the Admin Authenticator profile will not authenticate a Partner account, and vice versa.
+- **Account Identification:** During 2FA challenge, the user's username or email is explicitly identified to ensure validation against the correct security secret.
+- **Emergency Override:** Backup bypass keys (e.g. `999999`) are strictly restricted to the Super Admin role.
 
-<hr/>
+---
 
-<h2>5. Login Screen</h2>
-<ul>
-  <li><strong>75% / 25% Split Layout:</strong> High-resolution Business Image on the left (~75% desktop width) and Login Panel on the right (~25% desktop width).</li>
-  <li><strong>Image Scaling:</strong> The branding image fills full height without visual distortion or cropping (<code>object-cover</code>).</li>
-  <li><strong>Mobile Experience:</strong> Responsive on mobile devices, collapsing into a streamlined top hero banner with zero horizontal scrolling.</li>
-  <li><strong>Customizable Image:</strong> Business image URL is configurable from Settings with instant preview.</li>
-</ul>
+## 5. Login Screen
+- **Modern Split-Screen Layout:**
+  - **Desktop (Left ~75%):** High-resolution Business Branding Image displaying store identity, address, contact numbers, and tagline.
+  - **Desktop (Right ~25%):** Clean, focused Login Panel containing credentials inputs, role selectors, and authentication actions.
+- **Image Fidelity:** The business image expands to fill full container height without distortion, cropping, or stretching (`object-cover`).
+- **Mobile Responsiveness:** On mobile screens, the layout gracefully collapses into a compact vertical hero header with a streamlined login card below, requiring zero horizontal scrolling.
+- **Configurable Visuals:** The business image URL is configurable from `Settings → General & Branding` with real-time preview.
 
-<hr/>
+---
 
-<h2>6. Customer & Supplier Portal</h2>
-<ul>
-  <li>Portal access is governed strictly by role and assigned module permissions.</li>
-  <li><strong>Customer View:</strong> Customers view only their personal sales invoices, receipts, collections, and net balance due.</li>
-  <li><strong>Supplier View:</strong> Suppliers view only their purchase bills, payment receipts, and accounts payable balance.</li>
-  <li><strong>Unified Dual-Party Login:</strong> Parties acting as both Customer and Supplier use a single mobile number login.</li>
-  <li><strong>Consolidated Statement:</strong> Dual-role accounts feature a combined statement showing net receivable/payable position:
-    <div class="callout">
-      <strong>Net Balance</strong> = Customer Receivable Due &minus; Supplier Payable Due
-    </div>
-  </li>
-  <li>Portal balances match the primary store accounting records in real time.</li>
-</ul>
+## 6. Customer & Supplier Portal
+- **Role-Based Sandboxing:** Dedicated self-service portal accessible via customer/supplier registered mobile number and PIN.
+- **Customer Portal View:** Customers access only their personal sales invoices, payment collections, receipts, and net outstanding balance.
+- **Supplier Portal View:** Suppliers access only their delivered purchase orders, payment disbursements, and pending receivables.
+- **Unified Dual-Role Login:** Parties operating concurrently as both customer and supplier log in using a single mobile credential.
+- **Consolidated Net Position:**
+  $$\text{Net Balance Position} = \text{Customer Due (Receivable)} - \text{Supplier Due (Payable)}$$
+  Dual-role users can toggle between Customer Ledger, Supplier Ledger, and a Consolidated Statement showing whether the party owes money or is owed money.
+- **Ledger Parity:** Balances shown on the portal mirror the store's primary ledger in real time.
 
-<hr/>
+---
 
-<h2>7. Sales / Invoice & Receipts</h2>
-<ul>
-  <li><strong>Clickable Invoice IDs:</strong> The Invoice ID itself is clickable to view and edit; redundant pencil icons are removed.</li>
-  <li><strong>Cancel Edit Placement:</strong> The <em>Cancel Edit</em> button is positioned directly below the Audit Trail section.</li>
-  <li><strong>Explicit Collections Only:</strong> Collections are created strictly when an explicit payment receipt is recorded. Invoice edits do not create duplicate collections or artificially inflate customer due.</li>
-  <li><strong>Sequential Numbering:</strong> Invoice numbers increment sequentially; deleted invoice numbers are never reused.</li>
-  <li><strong>Customer Account Isolation:</strong> Deleting one invoice never deletes or affects other invoices for that customer.</li>
-  <li><strong>Differential Stock Adjustments:</strong> Updating an invoice applies stock movements based *only on the net quantity difference* between old and new lines.</li>
-  <li><strong>Insufficient Stock Blocking:</strong> Insufficient inventory blocks invoice save and prevents negative stock.</li>
-  <li><strong>Combined Duplicate Lines:</strong> Multiple cart lines with the same item validate combined quantity against available batch stock.</li>
-  <li><strong>Collection Reference Retention:</strong> Customer collection references remain visible during search, edit, and receipt re-printing.</li>
-  <li><strong>FIFO Settlement:</strong> First-In, First-Out debt allocation is applied across open invoices where configured.</li>
-</ul>
+## 7. Sales / Invoice & Receipts
+- **Interactive Invoice Navigation:** The Invoice ID itself is directly clickable to open/edit the bill; redundant pencil icons are removed.
+- **Cancel Edit Placement:** In invoice edit mode, the **Cancel Edit** action is prominently positioned below the Audit Trail section for intuitive navigation.
+- **Explicit Collection Creation:** Payment collections are created *only* when an explicit payment receipt is recorded. Editing invoice header metadata never creates phantom collection records or doubles customer debt.
+- **Sequential Invoice Numbering:** Invoice sequence numbers increment strictly and predictably; deleted invoice numbers are never reused or reassigned.
+- **Customer Integrity on Delete:** Deleting an invoice deletes only that single invoice; other invoices belonging to the same customer are preserved.
+- **Differential Stock Adjustment:** Editing an invoice calculates stock changes based *only on the net quantity difference* between the original and updated lines.
+- **Stock Depletion Prevention:** If required line item quantity exceeds available batch stock, the system blocks invoice save and prevents negative inventory.
+- **Duplicate Line Validation:** When multiple lines feature the same item, the system aggregates their combined quantity before validating against batch inventory.
+- **Collection Reference Preservation:** All customer collection reference numbers remain linked and visible during search, edit, and receipt re-printing.
+- **FIFO Debt Allocation:** Where configured, incoming customer lump-sum payments auto-allocate across unpaid invoices in First-In, First-Out chronological order.
 
-<hr/>
+---
 
-<h2>8. Purchase / Supplier Transactions</h2>
-<ul>
-  <li><strong>Lifecycle Accuracy:</strong> Creating, editing, or deleting PO lines maintains items, batch stock, and supplier due accurately.</li>
-  <li><strong>Line Deletion Impact:</strong> Deleted PO lines are removed, reversing their stock increase and reducing supplier due accordingly.</li>
-  <li><strong>Differential PO Updates:</strong> Purchase order updates apply only net quantity and rate differences without duplicating inventory.</li>
-  <li><strong>Payment Segregation:</strong> Supplier payments remain pure financial disbursements and never become Item Master entries or purchase lines.</li>
-  <li><strong>Transaction Date Preservation:</strong> The original purchase date remains untouched during edits; updates are recorded under a separate <em>Updated On</em> timestamp.</li>
-  <li><strong>Rate Persistence:</strong> Updating item rates during procurement persists to the Item Master when saved.</li>
-  <li><strong>Standardized Vendor Names:</strong> Supplier names follow standardized display formatting (e.g. <em>“Karnatam Nagakarthick”</em>).</li>
-</ul>
+## 8. Purchase / Supplier Transactions
+- **Comprehensive PO Lifecycle:** Creating, editing, or deleting purchase order lines accurately updates item inventory counts and supplier accounts payable.
+- **PO Line Deletion Invariant:** Deleting a purchase line completely removes the item from the PO, reduces stock count by the line's quantity, and decrements supplier due.
+- **Differential PO Updates:** Modifying a purchase bill applies only the difference in quantity or rate, preventing duplicate stock increments.
+- **Transaction Segregation:** Supplier payment disbursements remain purely financial transactions and never appear as item catalog entries or purchase line items.
+- **Date Preservation on Edit:** Editing a PO preserves the original transaction purchase date; updates are tracked separately via an `updated_at` audit timestamp.
+- **Item Master Rate Persistence:** Updating cost or selling rates within a purchase order reliably updates the master item rates when confirmed.
+- **Standardized Vendor Naming:** Supplier display names adhere to formatted title case conventions (e.g., *“Karnatam Nagakarthick”*).
 
-<hr/>
+---
 
-<h2>9. Bank, UPI and Reconciliation</h2>
+## 9. Bank, UPI and Reconciliation
 
-<h3>9.1 Bank and UPI</h3>
-<ul>
-  <li>Multiple commercial bank accounts can be configured in the system.</li>
-  <li>UPI payment/receipt modes are enabled or disabled on an individual bank-by-bank basis.</li>
-  <li>When enabled, UPI appears as an active channel for that bank; when disabled, it is cleanly hidden.</li>
-</ul>
+### 9.1 Bank and UPI
+- **Configurable Bank Accounts:** Support for multiple commercial bank accounts (Bank Name, Account Number, IFSC, Branch).
+- **Bank-Wise UPI Toggling:** UPI payment and collection modes are enabled on an individual bank account basis.
+- **Dynamic Payment Availability:** When UPI is enabled for a bank, it appears as an active payment channel across billing and collections; when disabled, it is cleanly hidden.
 
-<h3>9.2 Bank Reconciliation</h3>
-<ul>
-  <li>UPI and digital transactions for each bank account are listed in a dedicated Bank Reconciliation ledger.</li>
-  <li>Each transaction supports dual verification states: <strong>Cleared</strong> and <strong>Un-Cleared</strong>.</li>
-  <li>Users can record and modify the official <strong>Bank Reconciliation Date</strong> (Statement Value Date).</li>
-  <li>Status and reconciliation dates are stored permanently for financial audit reporting.</li>
-</ul>
+### 9.2 Bank Reconciliation
+- **Transaction Audit Queue:** All UPI and digital bank transactions are presented in a dedicated Bank Reconciliation ledger.
+- **Verification Status:** Each digital payment supports dual-state auditing:
+  - 🟢 **Cleared:** Payment confirmed on official bank statement.
+  - 🟡 **Un-Cleared:** Payment recorded in POS but pending bank statement clearance.
+- **Bank Reconciliation Date:** Users can enter and update the official Bank Statement Value Date.
+- **Reconciliation Reports:** Status and reconciliation dates are permanently stored for audit compliance and financial closing reports.
 
-<hr/>
+---
 
-<h2>10. Day-End Cash Register / Z-Report</h2>
-<ul>
-  <li><strong>Cash Audit Formula:</strong>
-    <div class="callout">
-      <strong>Expected Cash</strong> = Opening Cash + Cash Sales + Cash Collections &minus; Cash Expenses &minus; Supplier Cash Payments
-    </div>
-  </li>
-  <li>Displays exact daily figures for Opening Cash, Cash Sales, Cash Collections, Operating Expenses, and Supplier Payments.</li>
-  <li><strong>Physical Denomination Counter:</strong> Supports counting physical notes (₹500, ₹200, ₹100, ₹50, ₹20, ₹10) and loose coins.</li>
-  <li><strong>Variance Analysis:</strong> Computes <code>Physical Cash &minus; Expected Cash</code> as <strong>Surplus</strong>, <strong>Shortage</strong>, or <strong>Balanced</strong>.</li>
-  <li>Generates a printable 80mm ESC/POS thermal Z-Report slip and persists the closed audit to the database.</li>
-</ul>
+## 10. Day-End Cash Register / Z-Report
+- **Rigorous Cash Calculation Formula:**
+  $$\text{Expected Cash} = \text{Opening Cash} + \text{Cash Sales} + \text{Cash Collections} - \text{Cash Expenses} - \text{Supplier Cash Paid}$$
+- **Full Operational Breakdown:** Displays live daily tallies for Opening Cash, Cash Sales, Cash Collections, Operating Cash Expenses, and Supplier Cash Payments.
+- **Physical Denomination Counter:** Cashiers enter exact counts for drawer currency notes:
+  - ₹500, ₹200, ₹100, ₹50, ₹20, ₹10, and Loose Coins.
+- **Discrepancy Evaluation:**
+  $$\text{Variance} = \text{Physical Cash Counted} - \text{Expected Cash}$$
+  - **Cash Surplus (+):** Drawer contains more cash than recorded sales.
+  - **Cash Shortage (-):** Drawer contains less cash than expected.
+  - **Balanced (₹0):** Physical cash matches expected cash to the rupee.
+- **Thermal Slip Generation:** Generates a formatted 80mm ESC/POS thermal audit slip for physical drawer sign-off.
+- **Cloud Audit Storage:** Closing reports and denomination breakdowns are saved to the cloud database for management review.
 
-<hr/>
+---
 
-<h2>11. Smart Low-Stock and Auto-Reorder</h2>
-<ul>
-  <li>Configurable minimum reorder level (<code>reorder_level</code>) and suggested order quantity (<code>suggested_qty</code>) per item.</li>
-  <li>Visual alert badge in navigation header (<code>⚠️ Low Stock</code>) pulses when stock drops to or below threshold.</li>
-  <li>Low Stock Drawer details Item Name, Current Stock, Reorder Level, Suggested Quantity, and Mapped Supplier.</li>
-  <li><strong>1-Click Purchase Reorder:</strong> Generates an instant purchase order pre-filled with supplier, item name, and suggested quantity.</li>
-  <li>The warning clears automatically once incoming stock is received.</li>
-</ul>
+## 11. Smart Low-Stock and Auto-Reorder
+- **Item-Specific Thresholds:** Configure minimum reorder thresholds (`reorder_level`) and suggested replenishment quantities (`suggested_qty`) per catalog item.
+- **Dynamic Header Warning:** A real-time warning badge (`⚠️ Low Stock`) pulses in the top navigation when any item falls to or below its threshold.
+- **Low Stock Drawer:** Displays a prioritized table showing Item Name, Current Stock, Minimum Reorder Level, Suggested Order Quantity, and Mapped Supplier.
+- **1-Click Purchase Reorder:** Clicking **1-Click Reorder** instantly opens the Purchase Order modal pre-filled with the preferred supplier, item name, suggested quantity, and last purchase rate.
+- **Automatic Clearance:** The alert badge automatically clears as soon as new stock is procured and received into inventory.
 
-<hr/>
+---
 
-<h2>12. Customer Credit Limit and WhatsApp Reminder</h2>
-<ul>
-  <li>Configurable maximum credit limits per customer.</li>
-  <li>POS automatically computes: <code>Current Due + New Credit Sale Amount</code>.</li>
-  <li>Warns cashiers and blocks invoice submission if the limit is breached, unless authorized via <strong>Admin Override Approved</strong>.</li>
-  <li><strong>1-Click WhatsApp Reminder:</strong> Sends pre-formatted reminders including customer name, total due, unpaid invoice list, invoice dates, bill-wise dues, and store UPI payment QR/link.</li>
-  <li>Tracks reminder status (Sent, Delivered, Failed) with timestamp history.</li>
-</ul>
+## 12. Customer Credit Limit and WhatsApp Reminder
+- **Customer Credit Caps:** Establish maximum credit limits per customer in Customer Master or Settings.
+- **POS Validation & Warning:** During POS billing, the system computes:
+  $$\text{Projected Balance} = \text{Existing Unpaid Due} + \text{New Invoice Credit Amount}$$
+  If projected balance exceeds the credit limit, invoice saving is blocked with a clear warning alert.
+- **Admin Override Approved:** Authorized cashiers can check **Admin Override Approved** in checkout summary to bypass the block for emergency transactions.
+- **1-Click WhatsApp Payment Reminder:** Clicking the WhatsApp action in Customer Master or Statements opens a pre-formatted WhatsApp message:
+  - Customer name and greeting
+  - Total outstanding balance due
+  - Itemized unpaid invoices (Invoice #, Date, Bill Amount, Balance Due)
+  - Store UPI ID and one-click payment deep-link (`upi://pay?pa=...`)
+- **Reminder Status & Audit:** Logs reminder status (Sent, Delivered, Failed) with exact timestamp for auditing.
 
-<hr/>
+---
 
-<h2>13. Settings and Configuration Persistence</h2>
-<ul>
-  <li>Full CRUD support (Create, Update, Delete) across all system settings tabs.</li>
-  <li>Modifications save directly to the database and reflect immediately in memory.</li>
-  <li>Settings persist across page refresh, logout/login, and reopening the application.</li>
-  <li>Deleted configurations immediately cease affecting the application.</li>
-  <li>Frontend always loads the latest configuration from the database, eliminating stale cached settings.</li>
-</ul>
+## 13. Settings and Configuration Persistence
+- **Full Cloud CRUD:** Master configurations support Create, Update, and Delete operations across all configuration tabs.
+- **Immediate In-Memory & Cloud Reflection:** Modifications are stored directly in the database and applied immediately to the application state without page reloads.
+- **Persistent State:** Configurations persist across page refreshes, user logout/login cycles, and application restarts.
+- **Stale Cache Elimination:** The frontend loads fresh settings directly from the database, eliminating stale cached values.
+- **Multi-Terminal Real-Time Broadcast:** Changes broadcast across active client sessions via Supabase Realtime WebSocket channels (`jsr_session_tracker`).
 
-<hr/>
+---
 
-<h2>14. UI / Responsive Design</h2>
-<ul>
-  <li>All search and list screens are fully responsive across mobile phones, tablets, and POS terminals.</li>
-  <li>Column headings maintain fixed minimum widths without character-by-character vertical wrapping.</li>
-  <li>Tables support smooth horizontal scrolling (<code>overflow-x-auto</code>) when columns exceed screen width.</li>
-  <li>Action controls remain usable and accessible on touchscreens.</li>
-  <li>Redundant "Created" columns are removed where specified to streamline layouts.</li>
-  <li>Compact mobile menus are used in place of frozen action columns on small viewports.</li>
-  <li>Screen headers and titles maintain a compact, space-efficient vertical footprint.</li>
-</ul>
+## 14. UI / Responsive Design
+- **Mobile-First Search & List Screens:** All search, list, and ledger screens are responsive across mobile devices, tablets, and POS terminals.
+- **Non-Wrapping Column Headers:** Table headers and data cells maintain fixed minimum widths with `whitespace-nowrap`, completely preventing character-by-character vertical text wrapping.
+- **Horizontal Touch Scrolling:** Tables that exceed viewport width support smooth horizontal scrolling (`overflow-x-auto`).
+- **Compact Headers & Actions:** Page titles and header banners maintain compact vertical footprints. Action buttons on mobile use streamlined menus to preserve screen space.
+- **Redundant Column Removal:** Unnecessary or duplicate date/audit columns are removed in favor of clean, readable transaction views.
 
-<hr/>
+---
 
-<h2>15. Number Formatting (Indian Comma Separators)</h2>
-<ul>
-  <li>All numeric and amount fields display standard Indian comma grouping:
-    <ul>
-      <li><code>1000</code> &rarr; <strong>1,000</strong></li>
-      <li><code>10000</code> &rarr; <strong>10,000</strong></li>
-      <li><code>100000</code> &rarr; <strong>1,00,000</strong></li>
-      <li><code>1000000</code> &rarr; <strong>10,00,000</strong></li>
-      <li><code>2500000.50</code> &rarr; <strong>25,00,000.50</strong></li>
-    </ul>
-  </li>
-  <li><strong>Cursor Preservation:</strong> The custom <code>IndianNumberInput</code> component maintains cursor placement during typing, decimal entry, and backspacing.</li>
-  <li><strong>Arithmetic Integrity:</strong> <code>cleanNum()</code> strips commas before any calculations or database saves, preventing <code>NaN</code> and preserving numeric accuracy.</li>
-</ul>
+## 15. Number Formatting (Indian Comma Separators)
+- **Standardized Indian Numbering System (`en-IN`):** All numbers, currencies, and balance fields format automatically with Indian comma separators:
+  - `1000` $\rightarrow$ **`1,000`**
+  - `10000` $\rightarrow$ **`10,000`**
+  - `100000` $\rightarrow$ **`1,00,000`**
+  - `1000000` $\rightarrow$ **`10,00,000`**
+  - `2500000.50` $\rightarrow$ **`25,00,000.50`**
+- **Cursor-Preserving Input (`IndianNumberInput`):** All 26 numeric inputs across the application dynamically track non-comma character offsets, allowing smooth typing, decimal entry, and backspacing without cursor jumping.
+- **Pure Arithmetic Integrity (`cleanNum`):** Input strings are cleaned of commas (`String(val).replace(/,/g, ""))`) before any math operation or database write, guaranteeing 100% calculation accuracy and zero `NaN` errors.
 
-<hr/>
+---
 
-<h2>16. WhatsApp Business Alerts</h2>
-<ul>
-  <li>Tracks verified delivery statuses: <strong>Queued</strong>, <strong>Sent</strong>, <strong>Delivered</strong>, <strong>Read</strong>, and <strong>Failed</strong>.</li>
-  <li>Stores provider response message IDs and failure reasons for diagnostics.</li>
-  <li>Validates recipient phone numbers, country codes (<code>+91</code>), credentials, and message templates.</li>
-  <li>Alert history logs recipient, timestamp, status, and message ID.</li>
-  <li>Automatic retries never duplicate underlying business transactions.</li>
-</ul>
+## 16. WhatsApp Business Alerts
+- **Provider Status Tracking:** Tracks actual Meta WhatsApp Cloud API status rather than assuming delivery:
+  - `Queued` $\rightarrow$ `Sent` $\rightarrow$ `Delivered` $\rightarrow$ `Read` $\rightarrow$ `Failed`
+- **Error Diagnostics:** Stores API response message IDs and detailed error reasons for failed transmissions.
+- **Validation Rules:** Validates recipient phone number formats, country codes (`+91`), API bearer tokens, and template parameters before dispatch.
+- **Idempotent Retries:** Re-sending a notification never duplicates financial transactions or collection records.
 
-<hr/>
+---
 
-<h2>17. Reports and Analysis</h2>
-<ul>
-  <li>Central Analysis module covers Sales Turnover, Purchases, Collections, Customer Debts, Supplier Payables, Stock Valuation, and Gross Profits.</li>
-  <li>Period selection includes pre-set ranges and custom <strong>From Date</strong> / <strong>To Date</strong> with an <strong>Apply</strong> button.</li>
-  <li>Supports drill-down into specific invoices, comparative views, and exports.</li>
-  <li>Avoids duplicate summaries on transaction screens when the central Analysis module provides them.</li>
-</ul>
+## 17. Reports and Analysis
+- **Central Analysis Hub:** Unified analytical engine covering Sales Turnover, Procurement Spending, Customer Collections, Inventory Valuation, and Net Gross Margins.
+- **Flexible Date Filtering:** Provides preset periods (Today, Yesterday, This Week, This Month, FY) and custom **From Date** / **To Date** inputs with a dedicated **Apply Filter** button.
+- **Drill-Down & Export:** Allows drilling down from summary figures into individual bills, with export capabilities to CSV and printable PDF statements.
+- **Non-Redundant Presentation:** Eliminates duplicate analytical widgets on transactional screens in favor of central, authoritative analysis reporting.
 
-<hr/>
+---
 
-<h2>18. Pagination</h2>
-<ul>
-  <li>Displays a maximum of 10 page numbers at once.</li>
-  <li>Uses clustered groupings (e.g. 1–10, 11–20) with ellipsis (<code>...</code>) indicators.</li>
-  <li>Equipped with <strong>First</strong>, <strong>Previous</strong>, <strong>Next</strong>, and <strong>Last</strong> navigation controls.</li>
-</ul>
+## 18. Pagination
+- **Standardized 10-Page Windowing:** List tables display a maximum of 10 page buttons at once.
+- **Grouped Navigation:** Pages are clustered in logical groups (e.g. 1–10, 11–20) with ellipsis (`...`) indicators for large datasets.
+- **Directional Controls:** Fully equipped with **First**, **Previous**, **Next**, and **Last** navigation buttons.
 
-<hr/>
+---
 
-<h2>19. ERP / Finance / Payroll</h2>
-<ul>
-  <li>Payroll configurations are organized by Financial Year (FY-wise).</li>
-  <li>Basic + DA and allowance structures follow approved percentage formulas.</li>
-  <li>House Rent Allowance (HRA) applies the configured ₹15,000 threshold logic.</li>
-  <li>Provident Fund qualifying wages follow the configured ₹15,000 cap logic.</li>
-  <li>Employee PF follows the statutory 12% rule with applicable ₹1,800 monthly ceiling.</li>
-  <li>Every payroll and financial voucher must balance:
-    <div class="callout">
-      <strong>Total Debits</strong> = <strong>Total Credits</strong>
-    </div>
-  </li>
-  <li>PFMS and general accounting posting identifies and blocks Dr/Cr mismatches before posting.</li>
-</ul>
+## 19. ERP / Finance / Payroll
+- **Financial Year (FY) Scoping:** Payroll and financial accounting configurations are partitioned by Financial Year (e.g. FY 2026–27).
+- **Approved Wage Structures:** Basic + DA structures calculate using authorized percentage brackets.
+- **HRA Threshold:** House Rent Allowance applies the configured ₹15,000 monthly threshold rule.
+- **PF Statutory Limits:**
+  - Qualifying wage ceiling capped at ₹15,000.
+  - Employee Provident Fund calculated at statutory 12% with ₹1,800 monthly contribution cap.
+- **Voucher Debit/Credit Balance:** Every accounting and payroll voucher enforces:
+  $$\sum \text{Debits} = \sum \text{Credits}$$
+  Unbalanced vouchers are blocked from posting to prevent PFMS and ledger discrepancies.
 
-<hr/>
+---
 
-<h2>20. Data Integrity Invariants</h2>
-<ul>
-  <li><strong>Single Creation:</strong> Create actions produce exactly one intended business transaction.</li>
-  <li><strong>Differential Updates:</strong> Edit actions modify the existing record and apply only net differences.</li>
-  <li><strong>Clean Deletion:</strong> Delete actions remove and reverse only the selected transaction.</li>
-  <li>Inventory counts, customer dues, supplier payables, and partner balances remain synchronized across all operations.</li>
-  <li>Deleted transaction numbers are never reused where sequential numbering is configured.</li>
-  <li>Significant status and financial modifications retain complete audit history logs.</li>
-</ul>
+## 20. Data Integrity Invariants
+- **Atomic Operations:** Creating an entry generates exactly one business transaction record.
+- **Differential Updates:** Editing an invoice or purchase order calculates and applies only net quantity/rate differences.
+- **Complete Reversal on Delete:** Deleting a transaction completely removes the record and cleanly reverses all linked stock and party ledger balances.
+- **Non-Reuse of Sequential Numbers:** Deleted invoice and PO sequence numbers are permanently retired and never reassigned to future bills.
+- **Audit Logging:** Crucial operational events (invoice edits, debt write-offs, credit limit overrides, settings modifications) are timestamped in the system audit log.
 
-<hr/>
+---
 
-<h2>21. Browser Cache & Deployment Verification</h2>
-<ul>
-  <li>After deployment, users testing on Microsoft Edge should clear browser cache to load the latest build:
-    <ol>
-      <li>Open Edge &rarr; Click <strong>Three dots (`...`)</strong> &rarr; <strong>Settings</strong> &rarr; <strong>Privacy, search, and services</strong>.</li>
-      <li>Under <em>Clear browsing data</em>, click <strong>Choose what to clear</strong>.</li>
-      <li>Set Time range to <strong>All time</strong>.</li>
-      <li>Select <strong>Cookies and other site data</strong> and <strong>Cached images and files</strong> &rarr; Click <strong>Clear now</strong>.</li>
-      <li>Close and reopen Edge before testing.</li>
-    </ol>
-  </li>
-  <li><strong>Login Protocol:</strong> If a QR Code login prompt appears, ignore QR login and authenticate using <strong>Username and Password / PIN</strong>.</li>
-</ul>
+## 21. Browser Cache & Deployment Verification
+- **Post-Deployment Cache Clear:** After production updates, client browsers (especially Microsoft Edge) should clear cached application assets:
+  1. Open Microsoft Edge &rarr; Click **Three dots (`...`)** &rarr; **Settings**.
+  2. Navigate to **Privacy, search, and services** &rarr; Under *Clear browsing data*, click **Choose what to clear**.
+  3. Set Time range to **All time**.
+  4. Check **Cookies and other site data** and **Cached images and files**.
+  5. Click **Clear now**, then close and reopen the browser.
+- **Authentication Guidance:** If a QR Code login prompt appears, bypass the QR option and authenticate using registered **Username/Mobile** and **Password/PIN** unless otherwise instructed.
 
-<hr/>
+---
 
-<h2>22. Acceptance Criteria</h2>
-<ul>
-  <li>All requirements must be testable through Create, View, Update, and Delete workflows where applicable.</li>
-  <li>Role restrictions must be enforced at both UI presentation and backend/data-access levels.</li>
-  <li>Users must access only data permitted for their assigned role and account.</li>
-  <li>Financial totals, stock counts, and party balances must remain accurate following edits and deletions.</li>
-  <li>Desktop and mobile screens must remain responsive with zero visual clipping.</li>
-  <li>Configuration modifications must persist after page refresh and fresh login.</li>
-  <li>Authentication and 2FA credentials must be strictly user-specific.</li>
-  <li>All production fixes must pass complete regression testing prior to release.</li>
-</ul>
+## 22. Acceptance Criteria
+1. **CRUD Completeness:** All features must be fully verifiable across Create, View, Update, and Delete operations.
+2. **Security & RBAC Enforcement:** Role restrictions must be enforced at both UI presentation and database/API access layers.
+3. **Mathematical Parity:** Financial totals, cash tallies, and stock counts must remain accurate after edits and deletions.
+4. **Cross-Platform Usability:** Application must render cleanly across mobile, tablet, and desktop screens with zero broken layouts.
+5. **Persistence Reliability:** Configuration changes must persist across page refreshes, re-logins, and browser restarts.
+6. **2FA Isolation:** Authentication secrets and OTP validations must be strictly user-scoped.
+7. **Regression Safety:** All production updates must pass complete regression verification before release.
 
-<hr/>
+---
 
-<h2>23. General Development Principle</h2>
-<ul>
-  <li>Do not unintentionally modify existing working functionality.</li>
-  <li>New configuration options must be enabled only where required; existing application behavior must continue uninterrupted when disabled.</li>
-  <li>Any change affecting financial records, stock, balances, authentication, or permissions must be tested across Create, Update, Delete, Page Refresh, Logout/Login, and Concurrent User scenarios.</li>
-</ul>
+## 23. General Development Principle
+- **Preserve Existing Functionality:** Working functionality must never be altered inadvertently.
+- **Feature Flagging:** New configuration options should be enabled only when explicitly requested; when disabled, legacy application behavior must continue uninterrupted.
+- **Multi-State Testing:** Any code modification affecting financials, stock, balances, authentication, or permissions must be tested across Create, Update, Delete, Page Refresh, Re-login, and Concurrent User scenarios.
 
-<hr/>
+---
 
-<h2>24. Database Schema Reference</h2>
-<p>Relational entities hosted on Supabase PostgreSQL:</p>
-<table>
-  <tr>
-    <th>Table Name</th>
-    <th>Primary Columns</th>
-    <th>Operational Role</th>
-  </tr>
-  <tr>
-    <td><code>customers</code></td>
-    <td><code>id, name, mobile, old_due, credit_limit, pan, gstin, created_at</code></td>
-    <td>Customer master profiles, phone numbers, opening dues, credit caps, and tax registrations.</td>
-  </tr>
-  <tr>
-    <td><code>suppliers</code></td>
-    <td><code>id, name, mobile, old_due, pan, gstin, created_at</code></td>
-    <td>Vendor master profiles, contact info, opening accounts payable, and tax details.</td>
-  </tr>
-  <tr>
-    <td><code>items</code></td>
-    <td><code>id, item_name, unit_price, purchase_rate, selling_rate, current_stock, reorder_level, suggested_qty</code></td>
-    <td>Inventory catalog, cost rates, sale rates, stock counts, reorder thresholds, and order quantities.</td>
-  </tr>
-  <tr>
-    <td><code>procurements</code></td>
-    <td><code>id, purchase_date, supplier_name, item_name, procured_qty, remaining_qty, purchase_rate, selling_rate, total_amount, p1_id, p1_amount, p1_mode, receiver_2_mode</code></td>
-    <td>Goods receipts, batch tracking, PO reference numbers, and supplier payment records.</td>
-  </tr>
-  <tr>
-    <td><code>invoices</code></td>
-    <td><code>id, invoice_number, customer_id, customer_name, invoice_date, total_amount, upfront_paid, balance_due, upfront_mode, status, payment_mode, items (JSONB)</code></td>
-    <td>Sales invoices, customer links, upfront payments, balance dues, and itemized JSON line items.</td>
-  </tr>
-  <tr>
-    <td><code>collections</code></td>
-    <td><code>id, invoice_id, customer_name, amount, payment_mode, receiver_id, date</code></td>
-    <td>Inward customer dues collections with partner attribution.</td>
-  </tr>
-  <tr>
-    <td><code>expenses</code></td>
-    <td><code>id, title, amount, payment_mode, category, receiver_id, date</code></td>
-    <td>Operating expenditures categorized with partner cash/UPI attribution.</td>
-  </tr>
-  <tr>
-    <td><code>receivers</code></td>
-    <td><code>id, name, opening_cash, opening_upi, role, role_id, pin, image</code></td>
-    <td>Partner master profiles, cash balances, UPI balances, roles, PINs, and profile images.</td>
-  </tr>
-  <tr>
-    <td><code>borrowers</code></td>
-    <td><code>id, name, mobile, initial_loan, balance_due</code></td>
-    <td>Business loan sources, outstanding principal balances, and cloud system settings (<code>SYSTEM_CONFIG_V1</code>).</td>
-  </tr>
-  <tr>
-    <td><code>loan_payments</code></td>
-    <td><code>id, borrower_id, principal_amount, interest_amount, payment_mode, partner_id, date</code></td>
-    <td>Debt repayments split by principal reduction and interest expense.</td>
-  </tr>
-  <tr>
-    <td><code>system_settings</code></td>
-    <td><code>id, config (JSONB), updated_at</code></td>
-    <td>Central master system settings document synced across all active sessions.</td>
-  </tr>
-  <tr>
-    <td><code>z_reports</code></td>
-    <td><code>id, report_date, expected_cash, physical_cash, difference, status, denominations (JSONB), notes</code></td>
-    <td>Day-end cash register reconciliation reports and denomination counts.</td>
-  </tr>
-</table>
+## 24. Database Schema Reference
+PostgreSQL database tables hosted on Supabase:
+1. `customers`: Master profiles, phone numbers, opening dues, credit limits, PAN, GSTIN.
+2. `suppliers`: Vendor profiles, contact details, opening dues, PAN, GSTIN.
+3. `items`: Item catalog, cost rate, selling rate, current stock, reorder level, suggested reorder quantity.
+4. `procurements`: Purchase orders, batch stock tracking, vendor disbursements, PO references (`receiver_2_mode`).
+5. `invoices`: Sales invoices, customer IDs, gross totals, upfront payments, balance dues, itemized JSON (`items`).
+6. `collections`: Customer payment receipts, payment mode (Cash/UPI), partner attribution (`receiver_id`).
+7. `expenses`: Operating expenses, categories, payment mode, partner attribution.
+8. `receivers`: Partner accounts, cash balances, UPI balances, role definitions, PINs, profile images.
+9. `borrowers`: Business loans, lender contact info, initial principal, balance due, and cloud system settings (`SYSTEM_CONFIG_V1`).
+10. `loan_payments`: Repayments split by principal reduction and interest expense.
+11. `system_settings`: Master configuration document (JSONB) synchronized in real time.
+12. `z_reports`: Day-end cash register reconciliation reports, denomination tallies (JSONB), and discrepancy status.
 
-<hr/>
+---
 
-<h2>25. Changelog & Maintenance Protocol</h2>
-<p>This living manual is updated synchronously on every system release, feature addition, and bug fix.</p>
-<table>
-  <tr>
-    <th>Version</th>
-    <th>Date</th>
-    <th>Key Milestones & Changes</th>
-  </tr>
-  <tr>
-    <td><strong>v2.5.0</strong></td>
-    <td>October 2026</td>
-    <td>Full 23-section requirements specification, PAN/GSTIN configuration toggles, Roles & Manage Modules, Partner profile photos, System Name customization, Active Session control, Bank/UPI Reconciliation, Central Reports & Analysis, 10-page pagination, ERP/Payroll rules, and Edge cache clearing protocols.</td>
-  </tr>
-  <tr>
-    <td><strong>v2.4.0</strong></td>
-    <td>October 2026</td>
-    <td>Implemented Indian Number Format (<code>en-IN</code>) across all 26 numeric inputs, tables, and receipts with cursor preservation (<code>IndianNumberInput</code>) and arithmetic integrity (<code>cleanNum</code>). Generated living <code>Readme.doc</code> and <code>README.md</code>.</td>
-  </tr>
-  <tr>
-    <td><strong>v2.3.0</strong></td>
-    <td>October 2026</td>
-    <td>Day-End Cash Register Reconciliation (Z-Report), Low Stock Alert Hub & 1-Click Reorder, Customer Credit Limits & WhatsApp reminders, and 5-Tab Cloud Settings.</td>
-  </tr>
-  <tr>
-    <td><strong>v2.2.0</strong></td>
-    <td>October 2026</td>
-    <td>WhatsApp Cloud API integration and Customer/Supplier Self-Service Portal with Consolidated Statements.</td>
-  </tr>
-  <tr>
-    <td><strong>v2.1.0</strong></td>
-    <td>September 2026</td>
-    <td>Mobile-responsive horizontal table scrolling and non-wrapping table headers across all search/list screens.</td>
-  </tr>
-  <tr>
-    <td><strong>v2.0.0</strong></td>
-    <td>September 2026</td>
-    <td>Dual-mode login authentication with 2FA TOTP RFC 6238 security and 75%/25% desktop layout.</td>
-  </tr>
-</table>
+## 25. Changelog & Maintenance Protocol
+> **Living Manual Protocol:** This document is continuously maintained in the project root (`c:\Work\JSR_Retails_Sales\Readme.doc` and `README.md`) and is updated synchronously on every system release, feature addition, and bug fix.
 
-<br/>
-<p style="text-align: center; color: #64748b; font-size: 9pt;">&copy; 2026 JSR Retail System. All rights reserved. Maintained as a living specification document.</p>
-</body>
-</html>
+| Version | Release Date | Key Features & Modifications |
+|:---|:---|:---|
+| **v2.5.0** | October 2026 | Full 23-section requirements specification, PAN/GSTIN toggles, Roles & Manage Modules, Partner profile photos, System Name customization, Active Session control, Bank/UPI Reconciliation, Central Reports & Analysis, 10-page pagination, ERP/Payroll rules, and Edge cache clearing protocols. |
+| **v2.4.0** | October 2026 | Implemented Indian Number Format (`en-IN`) across all 26 numeric inputs, tables, and receipts with cursor preservation (`IndianNumberInput`) and arithmetic integrity (`cleanNum`). |
+| **v2.3.0** | October 2026 | Day-End Cash Register Reconciliation (Z-Report), Low Stock Alert Hub & 1-Click Reorder, Customer Credit Limits & WhatsApp reminders, and 5-Tab Cloud Settings. |
+| **v2.2.0** | October 2026 | WhatsApp Cloud API integration and Customer/Supplier Self-Service Portal with Consolidated Statements. |
+| **v2.1.0** | September 2026 | Mobile-responsive horizontal table scrolling and non-wrapping table headers across all search/list screens. |
+| **v2.0.0** | September 2026 | Dual-mode login authentication with 2FA TOTP RFC 6238 security and 75%/25% desktop layout. |
+
+
+---
+
+## 24. Bank Accounts Master, Partner Tagging & BRS Report (§9.3)
+- **Central Banking Configuration:** Manage commercial bank accounts in Settings (Bank Name, Account Number, IFSC, Branch, Partner Tag, UPI Enabled, UPI ID, Opening Balance).
+- **Partner Tagged Bank UPI Filtering:** When UPI mode is selected during billing or disbursements, the system filters the bank dropdown to only show banks tagged to that partner.
+- **Reconciliation Audit Queue:** Defaults to *Pending / Un-Cleared* transactions.
+- **Locked CRUD Invariants:** Reconciled transactions display a `[🔒 Bank Reconciled]` badge and lock editing and deletion.
+- **Undo Bank Reconciliation:** Administration panel allows authorized Admins to revert reconciled transactions back to Pending, safely unlocking them.
+- **Official BRS Statement & Report:** Formal Bank Reconciliation Statement calculating:
+  $$\text{Reconciled Balance} = \text{Bank Book Balance} + \text{Un-cleared Deposits} - \text{Un-cleared Payments}$$
+  Includes A4 & Thermal formatted print layouts and CSV export.
+
+---
+
+## 25. Indian HR & Statutory Payroll Engine (§19.2)
+- **Dual Wage Structure Schemes:**
+  - **Indian Statutory Scheme:** Fully compliant with Indian labor laws:
+    - Basic + DA (50% of CTC)
+    - HRA (₹15,000 threshold rule)
+    - EPF (12% employee contribution capped at ₹1,800/month; ₹15,000 qualifying wage ceiling)
+    - ESIC (0.75% employee contribution if Gross $\le ₹21,000$/month)
+    - Professional Tax (PT) (State statutory slabs: $\le ₹15,000$: ₹0; $₹15,001–₹20,000$: ₹150; $> ₹20,000$: ₹200)
+  - **Fixed Salary Scheme:** Flat agreed remuneration with zero statutory deductions (for contractual/daily-wage workers).
+- **Staff Directory:** Add/Edit employee profiles, departments (Sales, Billing, Warehouse, Operations), PAN, UAN, and bank accounts.
+- **Monthly Payroll Run:** Monthly salary computations with working days, LOP adjustments, and statutory deductions.
+- **Indian Pay Slip Generator:** Standard corporate format with earnings, deductions, net pay in numbers and Indian words (e.g. *"Rupees Thirty-Two Thousand Four Hundred Only"*), with A4 and thermal printing.
+
+---
+
+## 26. Unified Accounting Vouchers (§20.1)
+- **Comprehensive Voucher Registry:** Integrates all operational movements into auditable vouchers:
+  - `RV`: Sales Receipts
+  - `PV`: Purchase Payments
+  - `CRV`: Customer Due Collections
+  - `SPV`: Supplier Settlements
+  - `EXPV`: Operating Expenses
+  - `CTV`: Contras & Bank Transfers
+  - `SALV`: Salary Payments
+  - `JV`: Manual Journal Adjustments
+- **Multi-Criteria Filtering:** Voucher Type, Payment Mode, Date Range, Party, and Search.
+- **Printable Voucher Slips:** Formal voucher slip viewer with narration, account heads, and signature blocks.
+
+---
+
+## 27. Profit & Sales Analytics Redesign (§10.1)
+- **Executive Header:** *Profit & Sales Analytics* with subtitle: *"Financial ledger, revenue, COGS, operating charges, and itemized margins."*
+- **Period Filter Toolbar:** All Time, This Year, This Month, This Week, Today, and Custom Date Range.
+- **Interactive Financial Timeline Drill-Down:** Clicking any month scopes all subsequent tables to that month, highlighting the row with `[ACTIVE]` and displaying a bold `Filtered: Month ✕ Reset` badge.
+- **Customer Performance Aging Column:** Directly includes an *Aging / Overdue Days* column in the customer performance table alongside orders, value, COGS, gross profit, and margin %.
+- **Catalogue Item Profitability & Unit Sales Matrix:** Granular SKU profitability and monthly unit distribution.
+- **Unit-Wise Customer Purchases:** Interactive toggle between *Cards View* (grouped item chips with pcs and amounts) and *Matrix Table*.
+- **Privacy Mode:** One-click `[👁️ Show/Hide Margins]` toggle to conceal profit and margin columns for shared screens.
+
+---
+
+## 28. Full-Screen Left Sidebar Settings & Brand Normalization (§21.1)
+- **ERP 2-Column Layout:** Left panel navigation sidebar with dedicated configuration workspaces:
+  - *General & Branding*, *Bank Accounts Master*, *User Management & RBAC Roles*, *2FA Security & Secrets*, *Low Stock & Reorder*, *Customer Credit Limits*, *Document Auto-Numbering*, *Alerts & WhatsApp Gateway*, *Z-Report History*, *Administration & Maintenance*.
+- **Deduplication:** Merged redundant general settings blocks into unified tabs.
+- **Business Name Bounds:** Length constrained to 3–60 characters with live character counter.
+- **Dynamic Business Name Normalization:** Replaced all hardcoded system names with `systemSettings.branding.systemName || "JSR Retails"`.
+- **Custom Login Banner Upload:** File upload input in Branding settings enabling Admin to set their custom login background image.
+
+---
+
+## 29. Executive Balance Sheet & Bill-Wise Supplier Dues (§22.1)
+- **Meaningful System Name:** Renamed to *Executive Financial Balance Sheet & Operational Audit (Excel Format)*.
+- **Customizable Group By:** Interactive dropdowns per table to group by Category, Supplier, Aging, Route, or Flat list.
+- **Bill-Wise Supplier Pending Bills:** Individual row per pending purchase bill (Doc #, Date, Supplier, Items, Bill Amount, Paid Amount, Due Amount) without forced supplier grouping.
+- **Corrected Supplier Ledger:** Calculates `Opening Due + Procured - Paid`, separating Payables vs Advances.
+
+---
+
+## 30. Clickable Document Numbers & Chronological Audit Trail (§23.1)
+- **Interactive Doc # Badges:** Clicking any document number (`INV-`, `PUR-`, `REC-`, `PAY-`, `EXP-`, `VOU-`) opens the *Document Audit Trail & Revision History* modal.
+- **Chronological Timeline:** Timestamp, Action, Operator, Status, and detailed field diff summaries.
+
+---
+
+## 31. Differentiated Authentication Policy (§4.3)
+- **Customer & Supplier Portal:** Fast 4–6 digit numeric PIN authentication (`/^\d{4,6}$/`).
+- **Internal Staff (Admin, Partners, Operators):** Strong alphanumeric password with special characters (`@$!%*?&#`).
+- **Auto Role Detection:** Login screen detects Portal vs Staff by entered identifier.
+- **Forgot Password Recovery:** Recovery modal and Admin user management in Settings.
+
+---
+
+## 32. System-Wide WhatsApp SVG Icon-Only (§24.1)
+- **Clean Action Buttons:** Replaced text "WhatsApp" with a clean SVG `<Icon name="whatsapp" size={15} />` across billing, invoices, collections, and reports for uncluttered UI.
