@@ -6,6 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 // Inline SVG icons
 const Icon = ({ name, size = 18, className = "" }) => {
   const icons = {
+    whatsapp: (
+      <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2zm5.8 14.15c-.24.68-1.4 1.25-1.92 1.33-.5.07-1.14.1-3.32-.8-2.77-1.15-4.57-3.95-4.71-4.14-.14-.19-1.13-1.5-1.13-2.87 0-1.37.71-2.04.97-2.32.25-.28.56-.35.75-.35.19 0 .37 0 .54.01.17.01.41-.07.64.49.24.58.82 2.01.89 2.16.07.15.12.33.02.53-.1.19-.15.31-.3.48-.15.17-.32.39-.46.52-.15.15-.31.31-.13.62.17.31.78 1.28 1.67 2.07 1.15 1.02 2.11 1.34 2.42 1.49.3.15.48.13.66-.08.18-.21.78-.91.99-1.22.21-.31.42-.26.7-.15.28.1.78.37 1.13.52.15.15.25.22.29.29.04.07.04.42-.2.1.1z" fill="currentColor" />
+    ),
+
     cart: (
       <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z M3 6h18 M16 10a4 4 0 01-8 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     ),
@@ -257,7 +261,38 @@ const defaultSystemSettings = {
     autoPromptDayEnd: true,
     openingCashToday: 10000,
     history: []
-  }
+  },
+  banking: {
+    accounts: [
+      { id: "bank_sbi", bankName: "State Bank of India", accountNo: "38920192831", ifsc: "SBIN0001234", branch: "Dornala", partnerId: "p1", upiEnabled: true, upiId: "jsrretails@sbi", openingBalance: 50000, isActive: true },
+      { id: "bank_hdfc", bankName: "HDFC Bank", accountNo: "50100293847", ifsc: "HDFC0004321", branch: "Markapur", partnerId: "p2", upiEnabled: true, upiId: "jsrretails@hdfc", openingBalance: 25000, isActive: true }
+    ],
+    reconciliations: {}
+  },
+  payroll: {
+    financialYear: "FY 2026-27",
+    basicDaPercentage: 50,
+    hraThreshold: 15000,
+    pfWageCap: 15000,
+    pfEmployeeRate: 12,
+    pfMonthlyCeiling: 1800,
+    esicWageCap: 21000,
+    esicEmployeeRate: 0.75,
+    esicEmployerRate: 3.25,
+    ptSlabs: [
+      { min: 0, max: 15000, tax: 0 },
+      { min: 15001, max: 20000, tax: 150 },
+      { min: 20001, max: 9999999, tax: 200 }
+    ],
+    employees: [
+      { id: "emp_1", empId: "EMP-001", name: "Ramesh Babu", designation: "Store Supervisor", department: "Operations", mobile: "9848011223", pan: "ABCDE1234F", uan: "100902837482", salaryType: "statutory", baseSalary: 25000, dateOfJoining: "2024-01-15", status: "active", bankName: "SBI", accountNo: "38920192831", ifsc: "SBIN0001234" },
+      { id: "emp_2", empId: "EMP-002", name: "Kavitha Reddy", designation: "Head Cashier", department: "Billing", mobile: "9848022334", pan: "BCDEF2345G", uan: "100902837483", salaryType: "statutory", baseSalary: 18000, dateOfJoining: "2024-06-01", status: "active", bankName: "HDFC", accountNo: "50100293847", ifsc: "HDFC0004321" },
+      { id: "emp_3", empId: "EMP-003", name: "Srinivas Rao", designation: "Loading & Delivery Helper", department: "Warehouse", mobile: "9848033445", pan: "", uan: "", salaryType: "fixed", baseSalary: 12000, dateOfJoining: "2025-02-10", status: "active", bankName: "Cash", accountNo: "", ifsc: "" }
+    ]
+  },
+  systemUsers: [
+    { id: "usr_admin", username: "admin", name: "Administrator", role: "admin", passwordHash: "Admin@123", email: "admin@jsrretails.com", isActive: true }
+  ]
 };
 
 // Strict RFC 6238 TOTP Engine with Isolated Per-Account Secrets
@@ -428,6 +463,760 @@ const IndianNumberInput = ({
       onBlur={onBlur}
       style={style}
     />
+
+      {/* MODAL 1: DOCUMENT AUDIT TRAIL & REVISION HISTORY (CLICKABLE DOC NO) */}
+      {viewingDocAuditNumber && (() => {
+        const docLogs = auditTrailLogs.filter(l => l.docNumber === viewingDocAuditNumber);
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-3xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    <span>📋</span> Document Audit Trail & Revision History
+                  </h3>
+                  <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                    Doc #: {viewingDocAuditNumber}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingDocAuditNumber(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+                {docLogs.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs">
+                    <p className="font-bold">No lifecycle revision events recorded for this document yet.</p>
+                    <p className="text-[11px] mt-1">Initial transaction creation registered in system audit ledger.</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2">Timestamp</th>
+                        <th className="p-2">Action</th>
+                        <th className="p-2">Operator</th>
+                        <th className="p-2">Status</th>
+                        <th className="p-2">Change Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {docLogs.map(log => (
+                        <tr key={log.id}>
+                          <td className="p-2 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
+                          <td className="p-2 font-bold text-indigo-600">{log.action}</td>
+                          <td className="p-2">{log.operator}</td>
+                          <td className="p-2"><span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800">{log.status}</span></td>
+                          <td className="p-2 text-slate-700 dark:text-slate-300 font-sans">{log.changeDetails}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setViewingDocAuditNumber(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition"
+                >
+                  Close History
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 2: OFFICIAL BANK RECONCILIATION STATEMENT (BRS) REPORT */}
+      {showReconReportModal && (() => {
+        const accounts = systemSettings?.banking?.accounts || [];
+        const reconciliations = systemSettings?.banking?.reconciliations || {};
+        const targetBank = accounts.find(a => a.id === bankReconAccount) || accounts[0] || {};
+        const openingBal = Number(targetBank.openingBalance || 0);
+
+        let unclearedDepositsTotal = 0;
+        let unclearedWithdrawalsTotal = 0;
+
+        invoices.forEach(inv => {
+          if (inv.p1_mode === "UPI" && reconciliations[inv.id]?.status !== "cleared") {
+            unclearedDepositsTotal += Number(inv.p1_amount || inv.upfront_paid || 0);
+          }
+        });
+        collections.forEach(col => {
+          if (col.payment_mode === "UPI" && reconciliations[col.id]?.status !== "cleared") {
+            unclearedDepositsTotal += Number(col.amount || 0);
+          }
+        });
+        procurements.forEach(pr => {
+          if (pr.p1_mode === "UPI" && reconciliations[`pr_${pr.id}`]?.status !== "cleared") {
+            unclearedWithdrawalsTotal += Number(pr.p1_amount || 0);
+          }
+        });
+        expenses.forEach(exp => {
+          if (exp.payment_mode === "UPI" && reconciliations[`exp_${exp.id}`]?.status !== "cleared") {
+            unclearedWithdrawalsTotal += Number(exp.amount || 0);
+          }
+        });
+
+        const bankBookBalance = openingBal + unclearedDepositsTotal;
+        const statementBalance = bankBookBalance - unclearedDepositsTotal + unclearedWithdrawalsTotal;
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2">
+                    <span>🏦</span> Official Bank Reconciliation Statement (BRS)
+                  </h3>
+                  <p className="text-xs text-slate-500">As on {new Date().toLocaleDateString("en-IN")}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowReconReportModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1 font-mono text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Bank Account:</span>
+                  <strong className="text-slate-900 dark:text-white">{targetBank.bankName} (A/c: {targetBank.accountNo})</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">IFSC & Branch:</span>
+                  <span>{targetBank.ifsc} · {targetBank.branch}</span>
+                </div>
+              </div>
+
+              {/* BRS Table */}
+              <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden font-mono text-xs">
+                <div className="flex justify-between p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 font-bold">
+                  <span>Balance as per Company Cash/Bank Book:</span>
+                  <span>{money(bankBookBalance)}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-amber-50/50 dark:bg-amber-950/20 text-amber-700 border-b border-slate-100 dark:border-slate-800">
+                  <span>Add: Cheques/UPI receipts deposited but not yet credited by bank:</span>
+                  <span className="font-bold">+{money(unclearedDepositsTotal)}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 border-b border-slate-100 dark:border-slate-800">
+                  <span>Less: Cheques/UPI payments issued but not yet presented/debited:</span>
+                  <span className="font-bold">-{money(unclearedWithdrawalsTotal)}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 font-black text-sm">
+                  <span>Reconciled Balance as per Official Bank Statement:</span>
+                  <span>{money(statementBalance)}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  <Icon name="filetext" size={14} /> Print Formal Statement
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowReconReportModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 3: UNDO BANK RECONCILIATION MODAL */}
+      {showUndoReconModal && (() => {
+        const recons = systemSettings?.banking?.reconciliations || {};
+        const clearedEntries = Object.entries(recons).filter(([k, v]) => v?.status === "cleared");
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-base font-black flex items-center gap-2 text-amber-600">
+                    <span>↺</span> Undo Bank Reconciliation Tool
+                  </h3>
+                  <p className="text-xs text-slate-500">Reverts reconciled transactions back to pending to unlock editing/CRUD.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUndoReconModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="max-h-72 overflow-y-auto space-y-2">
+                {clearedEntries.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-6 font-bold">No cleared transactions currently on record.</p>
+                ) : (
+                  clearedEntries.map(([txId, r]) => (
+                    <div key={txId} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs">
+                      <div>
+                        <span className="font-mono font-bold text-indigo-600">ID: {txId}</span>
+                        <span className="text-slate-400 block text-[10px]">Cleared on: {r.valueDate} by {r.reconciledBy || 'Admin'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = { ...recons };
+                          delete updated[txId];
+                          saveSystemSettingsToCloud({
+                            banking: { ...(systemSettings?.banking || {}), reconciliations: updated }
+                          });
+                          recordAuditEvent(txId, "Reconciliation", "Bank", "Undo Reconciled", currentUser?.name, "Pending", "Reconciliation reverted to pending to allow edits");
+                        }}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                      >
+                        Revert to Pending
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUndoReconModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL 4: ADD / EDIT BANK ACCOUNT */}
+      {showAddBankModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <h3 className="font-black text-base">{editingBank ? "Edit Bank Account" : "Add Bank Account"}</h3>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Bank Name (e.g. State Bank of India)"
+                value={bankForm.bankName}
+                onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Account Number"
+                  value={bankForm.accountNo}
+                  onChange={(e) => setBankForm({ ...bankForm, accountNo: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+                <input
+                  type="text"
+                  placeholder="IFSC Code"
+                  value={bankForm.ifsc}
+                  onChange={(e) => setBankForm({ ...bankForm, ifsc: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Branch Name (e.g. Dornala)"
+                value={bankForm.branch}
+                onChange={(e) => setBankForm({ ...bankForm, branch: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Tagged Partner</label>
+                <select
+                  value={bankForm.partnerId}
+                  onChange={(e) => setBankForm({ ...bankForm, partnerId: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                >
+                  <option value="">General / Store Account</option>
+                  {partners.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs">
+                <span className="font-bold">UPI Mode Enabled</span>
+                <input
+                  type="checkbox"
+                  checked={bankForm.upiEnabled}
+                  onChange={(e) => setBankForm({ ...bankForm, upiEnabled: e.target.checked })}
+                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                />
+              </div>
+              {bankForm.upiEnabled && (
+                <input
+                  type="text"
+                  placeholder="UPI ID (e.g. jsrretails@sbi)"
+                  value={bankForm.upiId}
+                  onChange={(e) => setBankForm({ ...bankForm, upiId: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              )}
+              <IndianNumberInput
+                placeholder="Opening Balance (₹)"
+                value={bankForm.openingBalance}
+                onChange={(e) => setBankForm({ ...bankForm, openingBalance: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAddBankModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!bankForm.bankName || !bankForm.accountNo) {
+                    alert("Please enter bank name and account number");
+                    return;
+                  }
+                  const newBank = {
+                    id: editingBank?.id || `bank_${Date.now()}`,
+                    ...bankForm,
+                    openingBalance: cleanNum(bankForm.openingBalance || 0),
+                    isActive: true
+                  };
+                  const currentList = systemSettings?.banking?.accounts || [];
+                  const updated = editingBank ? currentList.map(b => b.id === newBank.id ? newBank : b) : [...currentList, newBank];
+                  saveSystemSettingsToCloud({
+                    banking: { ...(systemSettings?.banking || {}), accounts: updated }
+                  });
+                  setShowAddBankModal(false);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+              >
+                Save Bank
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: ADD / EDIT EMPLOYEE */}
+      {showEmployeeModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <h3 className="font-black text-base">{editingEmployee ? "Edit Employee" : "Add Employee Profile"}</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Emp ID (e.g. EMP-001)"
+                  value={employeeForm.empId}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, empId: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold"
+                />
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  value={employeeForm.name}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Designation (e.g. Cashier)"
+                  value={employeeForm.designation}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, designation: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                />
+                <select
+                  value={employeeForm.department}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                >
+                  <option value="Sales">Sales & Billing</option>
+                  <option value="Billing">Billing Cashiers</option>
+                  <option value="Warehouse">Warehouse & Logistics</option>
+                  <option value="Operations">Operations</option>
+                </select>
+              </div>
+
+              {/* Wage Structure Scheme Selector matching Point 2 */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Wage Scheme (Indian Labour Compliance)</label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeForm({ ...employeeForm, salaryType: "statutory" })}
+                    className={`p-2 rounded-lg transition ${employeeForm.salaryType === "statutory" ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-2xs font-black" : "text-slate-500"}`}
+                  >
+                    Statutory (EPF + ESI + PT)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeForm({ ...employeeForm, salaryType: "fixed" })}
+                    className={`p-2 rounded-lg transition ${employeeForm.salaryType === "fixed" ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-2xs font-black" : "text-slate-500"}`}
+                  >
+                    Fixed Salary (Exempt)
+                  </button>
+                </div>
+              </div>
+
+              <IndianNumberInput
+                placeholder="Monthly Gross Salary (₹)"
+                value={employeeForm.baseSalary}
+                onChange={(e) => setEmployeeForm({ ...employeeForm, baseSalary: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="PAN (optional)"
+                  value={employeeForm.pan}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, pan: e.target.value.toUpperCase() })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+                <input
+                  type="text"
+                  placeholder="EPF UAN (optional)"
+                  value={employeeForm.uan}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, uan: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEmployeeModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!employeeForm.name || !employeeForm.baseSalary) {
+                    alert("Please enter employee name and monthly salary");
+                    return;
+                  }
+                  const newEmp = {
+                    id: editingEmployee?.id || `emp_${Date.now()}`,
+                    ...employeeForm,
+                    baseSalary: cleanNum(employeeForm.baseSalary)
+                  };
+                  const updated = editingEmployee ? employees.map(e => e.id === newEmp.id ? newEmp : e) : [...employees, newEmp];
+                  setEmployees(updated);
+                  if (typeof window !== "undefined") {
+                    try { localStorage.setItem("app_hr_employees", JSON.stringify(updated)); } catch (e) {}
+                  }
+                  setShowEmployeeModal(false);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+              >
+                Save Employee
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: PAY SLIP VIEW & PRINT */}
+      {viewingPaySlip && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"} · Pay Slip</h3>
+                <p className="text-xs text-slate-500">Pay Period: {selectedPayrollMonth}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingPaySlip(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
+              <div className="flex justify-between"><span className="text-slate-500">Emp ID:</span><strong>{viewingPaySlip.empId}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><strong>{viewingPaySlip.name}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Designation / Dept:</span><span>{viewingPaySlip.designation} · {viewingPaySlip.department}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Wage Structure:</span><span className="text-indigo-600">{viewingPaySlip.typeLabel}</span></div>
+            </div>
+
+            {/* Earnings & Deductions Table */}
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Earnings</span>
+                <div className="flex justify-between"><span>Basic + DA:</span><span>{money(viewingPaySlip.basicDa)}</span></div>
+                <div className="flex justify-between"><span>HRA:</span><span>{money(viewingPaySlip.hra)}</span></div>
+                <div className="flex justify-between"><span>Allowances:</span><span>{money(viewingPaySlip.allowances)}</span></div>
+                <div className="flex justify-between font-bold border-t pt-1"><span>Total Gross:</span><span>{money(viewingPaySlip.earnedGross)}</span></div>
+              </div>
+
+              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Deductions</span>
+                <div className="flex justify-between"><span>EPF (12%):</span><span>{money(viewingPaySlip.pfDeduction)}</span></div>
+                <div className="flex justify-between"><span>ESIC:</span><span>{money(viewingPaySlip.esicDeduction)}</span></div>
+                <div className="flex justify-between"><span>PT:</span><span>{money(viewingPaySlip.ptDeduction)}</span></div>
+                <div className="flex justify-between font-bold border-t pt-1 text-rose-600"><span>Total Ded.:</span><span>{money(viewingPaySlip.totalDeductions)}</span></div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex justify-between items-center text-emerald-800 dark:text-emerald-300 font-mono">
+              <span className="font-bold text-xs uppercase">Net Salary Payable:</span>
+              <span className="font-black text-base">{money(viewingPaySlip.netSalary)}</span>
+            </div>
+
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Icon name="filetext" size={14} /> Print Pay Slip
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingPaySlip(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: CREATE NEW ACCOUNTING VOUCHER */}
+      {showNewVoucherModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <h3 className="font-black text-base">New Accounting Voucher Entry</h3>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={voucherForm.voucherNo}
+                  onChange={(e) => setVoucherForm({ ...voucherForm, voucherNo: e.target.value })}
+                  placeholder="Voucher #"
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold"
+                />
+                <input
+                  type="date"
+                  value={voucherForm.date}
+                  onChange={(e) => setVoucherForm({ ...voucherForm, date: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono"
+                />
+              </div>
+
+              <select
+                value={voucherForm.voucherType}
+                onChange={(e) => setVoucherForm({ ...voucherForm, voucherType: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              >
+                <option value="journal">Journal Voucher (JV)</option>
+                <option value="contra">Contra Voucher (Cash to Bank / Transfer)</option>
+                <option value="payment">General Payment Voucher</option>
+                <option value="receipt">General Receipt Voucher</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Account Head (e.g. Bank Deposit, Rent)"
+                value={voucherForm.accountHead}
+                onChange={(e) => setVoucherForm({ ...voucherForm, accountHead: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+
+              <input
+                type="text"
+                placeholder="Party Name (e.g. SBI, Vendor, Partner)"
+                value={voucherForm.partyName}
+                onChange={(e) => setVoucherForm({ ...voucherForm, partyName: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              />
+
+              <IndianNumberInput
+                placeholder="Voucher Amount (₹)"
+                value={voucherForm.amount}
+                onChange={(e) => setVoucherForm({ ...voucherForm, amount: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+              />
+
+              <input
+                type="text"
+                placeholder="Narration / Particulars"
+                value={voucherForm.narration}
+                onChange={(e) => setVoucherForm({ ...voucherForm, narration: e.target.value })}
+                className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowNewVoucherModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!voucherForm.amount) {
+                    alert("Please enter voucher amount");
+                    return;
+                  }
+                  const newVou = {
+                    id: `mv_${Date.now()}`,
+                    ...voucherForm,
+                    amount: cleanNum(voucherForm.amount)
+                  };
+                  const updated = [newVou, ...manualVouchers];
+                  setManualVouchers(updated);
+                  if (typeof window !== "undefined") {
+                    try { localStorage.setItem("app_manual_vouchers", JSON.stringify(updated)); } catch (e) {}
+                  }
+                  recordAuditEvent(newVou.voucherNo, "Voucher", newVou.partyName, "Created", currentUser?.name, "Active", `Voucher of ₹${newVou.amount} recorded under ${newVou.accountHead}`);
+                  setShowNewVoucherModal(false);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+              >
+                Post Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 8: VIEW VOUCHER SLIP */}
+      {viewingVoucherSlip && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"}</h3>
+                <span className="font-mono text-xs text-indigo-600 font-bold">{viewingVoucherSlip.voucherType}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingVoucherSlip(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1.5">
+              <div className="flex justify-between"><span className="text-slate-500">Voucher No:</span><strong>{viewingVoucherSlip.voucherNo}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Date:</span><span>{viewingVoucherSlip.date}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Account Head:</span><span>{viewingVoucherSlip.accountHead}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Party:</span><strong>{viewingVoucherSlip.partyName}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500">Mode:</span><span>{viewingVoucherSlip.mode}</span></div>
+              <div className="flex justify-between pt-1 border-t"><span className="text-slate-500">Amount:</span><strong className="text-sm font-black text-emerald-600">{money(viewingVoucherSlip.amount)}</strong></div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 italic font-mono bg-slate-100 dark:bg-slate-800/40 p-2.5 rounded-xl">
+              Narration: {viewingVoucherSlip.narration}
+            </p>
+
+            <div className="flex justify-between items-center pt-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Icon name="filetext" size={14} /> Print Voucher
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewingVoucherSlip(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 9: FORGOT PASSWORD RECOVERY MODAL */}
+      {showForgotPasswordModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-6 text-white space-y-4 shadow-2xl text-center">
+            <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center text-2xl mx-auto shadow-inner">
+              🔑
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-black">Password Recovery</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Enter your registered Username or Mobile to request a credential reset.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2 text-left">
+              <input
+                type="text"
+                placeholder="Username or Registered Mobile"
+                value={forgotIdentifier}
+                onChange={(e) => setForgotIdentifier(e.target.value)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"
+              />
+              {forgotStatusMsg && (
+                <p className="text-xs font-bold text-amber-400 bg-amber-950/40 p-2 rounded-xl text-center">
+                  {forgotStatusMsg}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => { setShowForgotPasswordModal(false); setForgotStatusMsg(""); }}
+                className="flex-1 py-2 bg-slate-800 text-slate-300 font-bold text-xs rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!forgotIdentifier) {
+                    setForgotStatusMsg("Please enter your registered mobile or username.");
+                    return;
+                  }
+                  setForgotStatusMsg("Recovery token dispatched. Master Administrator can also reset your password in Settings → Users.");
+                }}
+                className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md"
+              >
+                Send Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
   );
 };
 
@@ -599,6 +1388,141 @@ export default function App() {
   const [showLenderModal, setShowLenderModal] = useState(false);
   const [showLoanPaymentModal, setShowLoanPaymentModal] = useState(false);
 
+  // NEW MASTER SPECIFICATION STATES (Banking, HR & Payroll, Vouchers, Analytics, Audit)
+  const [bankReconAccount, setBankReconAccount] = useState("all");
+  const [bankReconStatusFilter, setBankReconStatusFilter] = useState("pending"); // "pending" | "cleared" | "all"
+  const [bankReconSearch, setBankReconSearch] = useState("");
+  const [bankReconDateFilter, setBankReconDateFilter] = useState("all");
+  const [showReconReportModal, setShowReconReportModal] = useState(false);
+  const [showUndoReconModal, setShowUndoReconModal] = useState(false);
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [editingBank, setEditingBank] = useState(null);
+  const [bankForm, setBankForm] = useState({ bankName: "", accountNo: "", ifsc: "", branch: "", partnerId: "p1", upiEnabled: true, upiId: "", openingBalance: "" });
+
+  // HR & Payroll States
+  const [employees, setEmployees] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("app_hr_employees");
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return defaultSystemSettings.payroll?.employees || [];
+  });
+  const [selectedPayrollMonth, setSelectedPayrollMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [employeeForm, setEmployeeForm] = useState({ empId: "", name: "", designation: "", department: "Sales", mobile: "", pan: "", uan: "", salaryType: "statutory", baseSalary: "", dateOfJoining: "", status: "active", bankName: "", accountNo: "", ifsc: "" });
+  const [viewingPaySlip, setViewingPaySlip] = useState(null);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
+  const [employeeDeptFilter, setEmployeeDeptFilter] = useState("all");
+
+  // Accounting Vouchers States
+  const [voucherFilterType, setVoucherFilterType] = useState("all");
+  const [voucherDateFilter, setVoucherDateFilter] = useState("all");
+  const [voucherSearchQuery, setVoucherSearchQuery] = useState("");
+  const [voucherModeFilter, setVoucherModeFilter] = useState("all");
+  const [showNewVoucherModal, setShowNewVoucherModal] = useState(false);
+  const [viewingVoucherSlip, setViewingVoucherSlip] = useState(null);
+  const [manualVouchers, setManualVouchers] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("app_manual_vouchers");
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [voucherForm, setVoucherForm] = useState({ voucherType: "journal", voucherNo: "", date: new Date().toISOString().slice(0, 10), accountHead: "", partyName: "", mode: "Cash", bankId: "", amount: "", narration: "" });
+
+  // Document Audit Trail States
+  const [viewingDocAuditNumber, setViewingDocAuditNumber] = useState(null);
+  const [auditTrailLogs, setAuditTrailLogs] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("app_audit_trail_events");
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  // Profit & Sales Analytics States
+  const [analyticsSubTab, setAnalyticsSubTab] = useState("sales_margin");
+  const [analyticsPeriod, setAnalyticsPeriod] = useState("all_time");
+  const [analyticsCustomStart, setAnalyticsCustomStart] = useState("");
+  const [analyticsCustomEnd, setAnalyticsCustomEnd] = useState("");
+  const [analyticsScopedMonth, setAnalyticsScopedMonth] = useState(null);
+  const [showProfitColumns, setShowProfitColumns] = useState(true);
+  const [customerPurchasesViewMode, setCustomerPurchasesViewMode] = useState("cards");
+  const [analyticsCustomerSearch, setAnalyticsCustomerSearch] = useState("");
+  const [analyticsProductSearch, setAnalyticsProductSearch] = useState("");
+
+  // Settings Full-Screen Left Sidebar State
+  const [settingsSidebarTab, setSettingsSidebarTab] = useState("branding");
+
+  // Executive Balance Sheet Group By States
+  const [balanceSheetStockGroupBy, setBalanceSheetStockGroupBy] = useState("none");
+  const [balanceSheetCustomerGroupBy, setBalanceSheetCustomerGroupBy] = useState("none");
+  const [balanceSheetSupplierGroupBy, setBalanceSheetSupplierGroupBy] = useState("none");
+
+  // Full-Screen PO & Expanded Loan Repayment States
+  const [viewingProcurementFull, setViewingProcurementFull] = useState(null);
+
+  // Authentication & Text Login States
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPasswordText, setLoginPasswordText] = useState("");
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
+  const [forgotStatusMsg, setForgotStatusMsg] = useState("");
+  const [operatorSelectPrompt, setOperatorSelectPrompt] = useState(null);
+
+  const recordAuditEvent = useCallback((docNumber, docType, partyName, action, operator, status, changeDetails) => {
+    const newLog = {
+      id: "aud_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+      docNumber: docNumber || "N/A",
+      docType: docType || "Transaction",
+      timestamp: new Date().toISOString().replace("T", " ").slice(0, 19),
+      partyName: partyName || "General",
+      action: action || "Recorded",
+      operator: operator || currentUser?.name || "Administrator",
+      status: status || "Active",
+      changeDetails: changeDetails || "Transaction updated"
+    };
+    setAuditTrailLogs(prev => {
+      const updated = [newLog, ...(prev || [])].slice(0, 500);
+      if (typeof window !== "undefined") {
+        try { localStorage.setItem("app_audit_trail_events", JSON.stringify(updated)); } catch (e) {}
+      }
+      return updated;
+    });
+  }, [currentUser]);
+
+  const isTxReconciled = useCallback((txId) => {
+    if (!txId) return false;
+    const recon = systemSettings?.banking?.reconciliations?.[txId];
+    return recon?.status === "cleared";
+  }, [systemSettings]);
+
+  const renderClickableDocNo = (docNumber, label) => {
+    const text = label || docNumber || "N/A";
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setViewingDocAuditNumber(docNumber);
+        }}
+        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-mono font-bold hover:underline cursor-pointer inline-flex items-center gap-1 text-left"
+        title="Click to view chronological lifecycle history & audit diffs"
+      >
+        <span>{text}</span>
+        <span className="text-[10px] opacity-60">📋</span>
+      </button>
+    );
+  };
+
+
   // Search & Filter State
   const [masterSearchQuery, setMasterSearchQuery] = useState("");
   const [paySupplierMode, setPaySupplierMode] = useState("single"); // "single" | "multi"
@@ -741,7 +1665,10 @@ export default function App() {
           security: { ...(prev.security || {}), ...(newPartialSettings.security || {}) },
           inventory: { ...(prev.inventory || {}), ...(newPartialSettings.inventory || {}) },
           creditControl: { ...(prev.creditControl || {}), ...(newPartialSettings.creditControl || {}) },
-          zReport: { ...(prev.zReport || {}), ...(newPartialSettings.zReport || {}) }
+          zReport: { ...(prev.zReport || {}), ...(newPartialSettings.zReport || {}) },
+          banking: { ...(prev.banking || {}), ...(newPartialSettings.banking || {}) },
+          payroll: { ...(prev.payroll || {}), ...(newPartialSettings.payroll || {}) },
+          systemUsers: newPartialSettings.systemUsers || prev.systemUsers || []
         };
         if (typeof window !== "undefined") {
           localStorage.setItem("app_system_settings", JSON.stringify(merged));
@@ -1693,9 +2620,9 @@ export default function App() {
   // System Configuration & Brand Name State
   const [systemName, setSystemName] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("app_system_name") || "B Reddy Sales";
+      return localStorage.getItem("app_system_name") || systemSettings?.branding?.systemName || "JSR Retails";
     }
-    return "B Reddy Sales";
+    return systemSettings?.branding?.systemName || "JSR Retails";
   });
   const [enablePanGstin, setEnablePanGstin] = useState(() => {
     if (typeof window !== "undefined") {
@@ -1740,6 +2667,9 @@ export default function App() {
     { id: "analysis", label: "Business Analysis", icon: "chart", desc: "P&L, partner balances, dues aging" },
     { id: "masters", label: "Masters Hub", icon: "layers", desc: "Customers, Suppliers, Items, Categories" },
     { id: "reports", label: "Reports & Statements", icon: "filetext", desc: "Daybook, Ledger PDF, Excel statements" },
+    { id: "banking", label: "Bank & Reconciliation", icon: "wallet", desc: "Bank masters, UPI toggles, statement reconciliation, BRS report" },
+    { id: "hr_payroll", label: "HR & Payroll", icon: "users", desc: "Staff directory, Indian statutory (EPF, ESIC, PT) & fixed payroll, pay slips" },
+    { id: "accounting_vouchers", label: "Accounting Vouchers", icon: "receipt", desc: "Unified vouchers (Receipts, Payments, Contras, Expenses, Salaries, Journals)" },
     { id: "settings", label: "System Settings", icon: "settings", desc: "Configuration, Roles, 2FA, Branding" }
   ];
 
@@ -1748,14 +2678,14 @@ export default function App() {
       id: "role_admin",
       name: "System Admin",
       isSystem: true,
-      modules: ["sale", "invoices", "purchases", "payments_collections", "summary", "analysis", "masters", "reports", "settings"],
+      modules: ["sale", "invoices", "purchases", "payments_collections", "summary", "analysis", "banking", "hr_payroll", "accounting_vouchers", "masters", "reports", "settings"],
       description: "Full unrestricted access to all modules and configurations."
     },
     {
       id: "role_partner",
       name: "Standard Partner",
       isSystem: false,
-      modules: ["sale", "invoices", "purchases", "payments_collections", "summary", "analysis", "masters", "reports"],
+      modules: ["sale", "invoices", "purchases", "payments_collections", "summary", "analysis", "banking", "accounting_vouchers", "masters", "reports"],
       description: "Access to day-to-day operations, sales, procurement, and reports."
     },
     {
@@ -2247,7 +3177,7 @@ export default function App() {
         docRef: "SYS-INIT",
         docType: "System Baseline",
         action: "Initial Setup",
-        operator: "Administrator (B Reddy)",
+        operator: currentUser?.name || "Administrator",
         details: "Audit trail engine initialized and tracking all transaction mutations across modules."
       }
     ];
@@ -2257,7 +3187,7 @@ export default function App() {
     const newLog = {
       id: `AUD-${Date.now().toString().slice(-6)}`,
       timestamp: new Date().toISOString(),
-      operator: (typeof currentUser !== "undefined" && currentUser?.name) || "Administrator (B Reddy)",
+      operator: (typeof currentUser !== "undefined" && currentUser?.name) || currentUser?.name || "Administrator",
       ...event
     };
     setAuditTrailLogs((prev) => {
@@ -2493,7 +3423,7 @@ export default function App() {
         id: `BASE-${cleanRef}`,
         timestamp: entity.created_at || entity.purchase_date || entity.invoice_date || new Date().toISOString(),
         action: "Created",
-        operator: entity.created_by || "Administrator (B Reddy)",
+        operator: entity.created_by || currentUser?.name || "Administrator",
         details: `${docType} recorded in system for ${entity.customer_name || entity.supplier_name || "Account"}. Total: ${money(entity.total_amount || entity.total || 0)}`
       });
     }
@@ -3105,7 +4035,7 @@ export default function App() {
     const totalLiabilities = totalPurchaseDues + totalLoansPayable;
     // Business Net Worth / Equity
     const netWorth = totalAssets - totalLiabilities;
-    const bReddyNetProfit = netProfit;
+    const netBusinessProfit = netProfit;
 
     return {
       totalSales,
@@ -3117,7 +4047,7 @@ export default function App() {
       cogs,
       grossProfit,
       netProfit,
-      bReddyNetProfit,
+      netBusinessProfit,
       totalCash,
       totalUpi,
       totalAssets,
@@ -9041,7 +9971,7 @@ Thank you for your business!`;
                                               onClick={() => { setOpenMobileActionId(null); handleShareWhatsApp(inv); }}
                                               className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-300"
                                             >
-                                              <Icon name="share" size={14} /> WhatsApp
+                                              <Icon name="whatsapp" size={15} />
                                             </button>
                                             <button
                                               type="button"
@@ -10513,1801 +11443,1509 @@ Thank you for your business!`;
 
 
         {/* VIEW: COMPREHENSIVE ANALYSIS & REPORTS */}
-        {hasModuleAccess("analysis") && activeTab === "analysis" && (() => {
-          // 1. DATE BOUNDARIES & FILTERING
+        
+        {/* VIEW: PROFIT & SALES ANALYTICS (REDESIGNED) */}
+        {hasModuleAccess("analysis") && (activeTab === "analysis" || activeTab === "analytics") && (() => {
+          // Date boundaries based on period filter
           const now = new Date();
           const todayStr = toISODate(now) || now.toISOString().slice(0, 10);
 
-          let periodStart = "1970-01-01";
-          let periodEnd = "2099-12-31";
-          let periodLabel = "All Time";
-          let prevStart = "1970-01-01";
-          let prevEnd = "1970-01-01";
+          let filterStart = "1970-01-01";
+          let filterEnd = "2099-12-31";
 
-          if (analysisPeriod === "today") {
-            periodStart = todayStr;
-            periodEnd = todayStr;
-            periodLabel = `Today (${todayStr})`;
-            const y = new Date();
-            y.setDate(y.getDate() - 1);
-            prevStart = toISODate(y) || y.toISOString().slice(0, 10);
-            prevEnd = prevStart;
-          } else if (analysisPeriod === "yesterday") {
-            const y = new Date();
-            y.setDate(y.getDate() - 1);
-            periodStart = toISODate(y) || y.toISOString().slice(0, 10);
-            periodEnd = periodStart;
-            periodLabel = `Yesterday (${periodStart})`;
-            const by = new Date();
-            by.setDate(by.getDate() - 2);
-            prevStart = toISODate(by) || by.toISOString().slice(0, 10);
-            prevEnd = prevStart;
-          } else if (analysisPeriod === "this_week") {
-            const w = new Date();
-            w.setDate(w.getDate() - 7);
-            periodStart = toISODate(w) || w.toISOString().slice(0, 10);
-            periodEnd = todayStr;
-            periodLabel = `Last 7 Days (${periodStart} to ${periodEnd})`;
-            const pw = new Date();
-            pw.setDate(pw.getDate() - 14);
-            prevStart = toISODate(pw) || pw.toISOString().slice(0, 10);
-            prevEnd = periodStart;
-          } else if (analysisPeriod === "this_month") {
-            const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            periodStart = toISODate(mStart) || mStart.toISOString().slice(0, 10);
-            periodEnd = todayStr;
-            periodLabel = `This Month (${now.toLocaleString("default", { month: "short", year: "numeric" })})`;
-            const prevMStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            const prevMEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-            prevStart = toISODate(prevMStart) || prevMStart.toISOString().slice(0, 10);
-            prevEnd = toISODate(prevMEnd) || prevMEnd.toISOString().slice(0, 10);
-          } else if (analysisPeriod === "last_month") {
-            const prevMStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            const prevMEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-            periodStart = toISODate(prevMStart) || prevMStart.toISOString().slice(0, 10);
-            periodEnd = toISODate(prevMEnd) || prevMEnd.toISOString().slice(0, 10);
-            periodLabel = `Last Month (${prevMStart.toLocaleString("default", { month: "short", year: "numeric" })})`;
-            const p2MStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-            const p2MEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0);
-            prevStart = toISODate(p2MStart) || p2MStart.toISOString().slice(0, 10);
-            prevEnd = toISODate(p2MEnd) || p2MEnd.toISOString().slice(0, 10);
-          } else if (analysisPeriod === "this_year") {
-            periodStart = `${now.getFullYear()}-01-01`;
-            periodEnd = todayStr;
-            periodLabel = `This Year (${now.getFullYear()})`;
-            prevStart = `${now.getFullYear() - 1}-01-01`;
-            prevEnd = `${now.getFullYear() - 1}-12-31`;
-          } else if (analysisPeriod === "custom") {
-            periodStart = analysisFromDate || "1970-01-01";
-            periodEnd = analysisToDate || todayStr;
-            periodLabel = `Custom (${periodStart} to ${periodEnd})`;
-            const diff = Math.max(1, Math.round((new Date(periodEnd) - new Date(periodStart)) / (1000 * 60 * 60 * 24)) + 1);
-            const pEnd = new Date(periodStart);
-            pEnd.setDate(pEnd.getDate() - 1);
-            const pStart = new Date(pEnd);
-            pStart.setDate(pStart.getDate() - diff + 1);
-            prevStart = toISODate(pStart) || pStart.toISOString().slice(0, 10);
-            prevEnd = toISODate(pEnd) || pEnd.toISOString().slice(0, 10);
+          if (analyticsPeriod === "today") {
+            filterStart = todayStr;
+            filterEnd = todayStr;
+          } else if (analyticsPeriod === "this_week") {
+            const d = new Date();
+            d.setDate(d.getDate() - 7);
+            filterStart = toISODate(d) || d.toISOString().slice(0, 10);
+            filterEnd = todayStr;
+          } else if (analyticsPeriod === "this_month") {
+            const m = new Date(now.getFullYear(), now.getMonth(), 1);
+            filterStart = toISODate(m) || m.toISOString().slice(0, 10);
+            filterEnd = todayStr;
+          } else if (analyticsPeriod === "this_year") {
+            const y = new Date(now.getFullYear(), 0, 1);
+            filterStart = toISODate(y) || y.toISOString().slice(0, 10);
+            filterEnd = todayStr;
+          } else if (analyticsPeriod === "custom" && analyticsCustomStart) {
+            filterStart = analyticsCustomStart;
+            filterEnd = analyticsCustomEnd || todayStr;
           }
 
-          const inPeriod = (dateStr, start = periodStart, end = periodEnd) => {
-            if (!dateStr) return false;
-            const d = dateStr.slice(0, 10);
-            return d >= start && d <= end;
-          };
-
-          // 2. DATA FILTERING
-          const periodInvoices = invoices.filter((i) => inPeriod(i.invoice_date));
-          const periodProcurements = procurements.filter((p) => inPeriod(p.purchase_date));
-          const periodCollections = allCollectionsList.filter((c) => inPeriod(c.collection_date || c.created_at));
-          const periodExpenses = expenses.filter((e) => inPeriod(e.expense_date || e.created_at));
-          const periodLoanInterest = loanTransactions.filter((l) => l.tx_type === "Interest" && inPeriod(l.tx_date || l.created_at));
-
-          // Previous period for comparison
-          const prevInvoices = invoices.filter((i) => inPeriod(i.invoice_date, prevStart, prevEnd));
-          const prevProcurements = procurements.filter((p) => inPeriod(p.purchase_date, prevStart, prevEnd));
-          const prevCollections = allCollectionsList.filter((c) => inPeriod(c.collection_date || c.created_at, prevStart, prevEnd));
-          const prevExpenses = expenses.filter((e) => inPeriod(e.expense_date || e.created_at, prevStart, prevEnd));
-
-          // 3. ITEM COST MAPPING (Weighted average purchase rate)
-          const costMap = {};
-          procurements.forEach((p) => {
-            if (!p.item_name) return;
-            const key = p.item_name.trim().toLowerCase();
-            const rate = Number(p.purchase_rate || 0);
-            const qty = Number(p.procured_qty || 0);
-            if (!costMap[key]) costMap[key] = { cost: 0, qty: 0, rate: rate };
-            costMap[key].cost += rate * qty;
-            costMap[key].qty += qty;
-            if (rate > 0) costMap[key].rate = rate;
-          });
-          masterItems.forEach((m) => {
-            const itemName = (m.item_name || m.name || "").trim();
-            if (!itemName) return;
-            const key = itemName.toLowerCase();
-            const regRate = itemRatesMap[key]?.purchase_rate;
-            const rate = regRate !== undefined && Number(regRate) > 0
-              ? Number(regRate)
-              : Number(m.purchase_rate || m.unit_price || 0);
-            if (!costMap[key]) costMap[key] = { cost: 0, qty: 0, rate: rate };
-            else if (!costMap[key].rate && rate > 0) costMap[key].rate = rate;
-            if (regRate !== undefined && Number(regRate) > 0) costMap[key].rate = Number(regRate);
-          });
-          const getItemCost = (name) => {
-            if (!name) return 0;
-            const key = String(name).trim().toLowerCase();
-            const item = costMap[key];
-            if (!item) return 0;
-            return item.qty > 0 ? item.cost / item.qty : item.rate;
-          };
-
-          // 4. METRIC COMPUTATIONS
-          const totalRevenue = periodInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
-          const totalPurchasesSpend = periodProcurements.reduce(
-            (sum, p) => sum + Number(p.total_amount || Number(p.procured_qty || 0) * Number(p.purchase_rate || 0)),
-            0
-          );
-          const totalCollections = periodCollections.reduce((sum, c) => sum + Number(c.amount || 0), 0);
-          const totalCustomerDues = customers.reduce((sum, c) => sum + Math.max(0, Number(c.old_due || 0)), 0);
-          // Note: totalSupplierDues is accurately computed from payablesList below (incorporating opening due + net purchase bill balances)
-
-          let periodCogs = 0;
-          periodInvoices.forEach((inv) => {
-            if (Array.isArray(inv.items)) {
-              inv.items.forEach((it) => {
-                const qty = Number(it.qty || it.quantity || 0);
-                periodCogs += qty * getItemCost(it.item_name);
-              });
-            }
-          });
-          const grossProfit = totalRevenue - periodCogs;
-          const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : 0;
-
-          const inventoryValuation = procurements.reduce(
-            (sum, p) => sum + Math.max(0, Number(p.remaining_qty || 0)) * Number(p.purchase_rate || 0),
-            0
-          );
-          const totalInvoicesCount = periodInvoices.length;
-          const totalPurchasesCount = periodProcurements.length;
-
-          const totalExpensesSpend = periodExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-          const totalInterestSpend = periodLoanInterest.reduce((sum, l) => sum + Number(l.amount || 0), 0);
-          const totalOperatingOutflows = totalExpensesSpend + totalInterestSpend;
-          const netProfit = grossProfit - totalOperatingOutflows;
-          const netMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : 0;
-
-          // Comparison metrics
-          const prevRevenue = prevInvoices.reduce((sum, i) => sum + Number(i.total_amount || 0), 0);
-          const prevPurchasesSpend = prevProcurements.reduce(
-            (sum, p) => sum + Number(p.total_amount || Number(p.procured_qty || 0) * Number(p.purchase_rate || 0)),
-            0
-          );
-          const prevCollectionsTotal = prevCollections.reduce((sum, c) => sum + Number(c.amount || 0), 0);
-          const prevExpensesSpend = prevExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-          let prevCogs = 0;
-          prevInvoices.forEach((inv) => {
-            if (Array.isArray(inv.items)) {
-              inv.items.forEach((it) => {
-                prevCogs += Number(it.qty || it.quantity || 0) * getItemCost(it.item_name);
-              });
-            }
-          });
-          const prevGrossProfit = prevRevenue - prevCogs;
-          const prevNetProfit = prevGrossProfit - prevExpensesSpend;
-
-          // 5. SUB-TAB DATA COMPUTATION
-          // Top Customers
-          const customerSalesMap = {};
-          periodInvoices.forEach((inv) => {
-            const cId = inv.customer_id || inv.customer_name || "Unknown";
-            const name = inv.customer_name || "Walk-in Customer";
-            if (!customerSalesMap[cId]) {
-              customerSalesMap[cId] = { name, count: 0, total: 0, id: cId };
-            }
-            customerSalesMap[cId].count += 1;
-            customerSalesMap[cId].total += Number(inv.total_amount || 0);
-          });
-          const topCustomers = Object.values(customerSalesMap).sort((a, b) => b.total - a.total).slice(0, 10);
-
-          // Top Items
-          const itemSalesMap = {};
-          periodInvoices.forEach((inv) => {
-            if (Array.isArray(inv.items)) {
-              inv.items.forEach((it) => {
-                const name = it.item_name || "Unknown";
-                if (!itemSalesMap[name]) itemSalesMap[name] = { name, qty: 0, revenue: 0 };
-                itemSalesMap[name].qty += Number(it.qty || it.quantity || 0);
-                itemSalesMap[name].revenue += Number(it.total || Number(it.qty || 0) * Number(it.rate || 0));
-              });
-            }
-          });
-          const topItemsSold = Object.values(itemSalesMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-
-          // Payment mode split
-          const salesModeMap = { Cash: 0, UPI: 0, Due: 0 };
-          periodInvoices.forEach((inv) => {
-            const alloc = invoiceAllocationsMap.get(String(inv.id));
-            const paid = alloc ? alloc.totalPaid : Number(inv.upfront_paid || 0);
-            const due = alloc ? alloc.balanceDue : Number(inv.balance_due || 0);
-            const mode = (inv.payment_mode || "Cash").toUpperCase();
-            if (mode.includes("CASH")) salesModeMap.Cash += paid;
-            else salesModeMap.UPI += paid;
-            if (due > 0) salesModeMap.Due += due;
+          // Filter invoices for selected period
+          const periodInvoices = invoices.filter(inv => {
+            const d = inv.invoice_date || inv.created_at?.slice(0, 10);
+            if (!d) return false;
+            return d >= filterStart && d <= filterEnd;
           });
 
-          // Purchases by Supplier
-          const supplierPurchaseMap = {};
-          periodProcurements.forEach((p) => {
-            const sName = p.supplier_name || "Direct Vendor";
-            if (!supplierPurchaseMap[sName]) {
-              supplierPurchaseMap[sName] = { name: sName, count: 0, total: 0, paid: 0, due: 0 };
-            }
-            supplierPurchaseMap[sName].count += 1;
-            const tot = Number(p.total_amount || Number(p.procured_qty || 0) * Number(p.purchase_rate || 0));
-            const pd = Number(p.p1_amount || 0);
-            supplierPurchaseMap[sName].total += tot;
-            supplierPurchaseMap[sName].paid += pd;
-            supplierPurchaseMap[sName].due += Math.max(0, tot - pd);
-          });
-          const purchasesBySupplier = Object.values(supplierPurchaseMap).sort((a, b) => b.total - a.total);
-
-          // Collections by Mode & Partner
-          const collectionsByMode = {};
-          const collectionsByPartner = {};
-          periodCollections.forEach((c) => {
-            const mode = c.payment_mode || "Cash";
-            collectionsByMode[mode] = (collectionsByMode[mode] || 0) + Number(c.amount || 0);
-            const pName = c.receiver_name || partners.find((p) => String(p.id) === String(c.receiver_id))?.name || "Store Default";
-            collectionsByPartner[pName] = (collectionsByPartner[pName] || 0) + Number(c.amount || 0);
-          });
-
-          // Customer Aging Analysis
-          const debtorsList = customers
-            .filter((c) => Number(c.old_due || 0) > 0)
-            .map((c) => {
-              const custInvs = invoices.filter((i) => String(i.customer_id) === String(c.id) || i.customer_name === c.name);
-              let oldestDate = null;
-              custInvs.forEach((i) => {
-                const alloc = invoiceAllocationsMap.get(String(i.id));
-                const due = alloc ? alloc.balanceDue : Number(i.balance_due || 0);
-                if (due > 0 && (!oldestDate || i.invoice_date < oldestDate)) {
-                  oldestDate = i.invoice_date;
-                }
-              });
-              const days = oldestDate ? Math.max(0, Math.round((now - new Date(oldestDate)) / (1000 * 60 * 60 * 24))) : 0;
-              let bucket = "0-30 Days";
-              let bucketBadge = "bg-emerald-50 text-emerald-700 border-emerald-200";
-              if (days > 90) {
-                bucket = "90+ Days";
-                bucketBadge = "bg-rose-50 text-rose-700 border-rose-200";
-              } else if (days > 60) {
-                bucket = "61-90 Days";
-                bucketBadge = "bg-amber-50 text-amber-700 border-amber-200";
-              } else if (days > 30) {
-                bucket = "31-60 Days";
-                bucketBadge = "bg-indigo-50 text-indigo-700 border-indigo-200";
-              }
-              return { ...c, oldestDate, days, bucket, bucketBadge, due: Number(c.old_due || 0) };
-            })
-            .sort((a, b) => b.due - a.due);
-
-          const customerAgingBuckets = { "0-30 Days": 0, "31-60 Days": 0, "61-90 Days": 0, "90+ Days": 0 };
-          debtorsList.forEach((d) => {
-            customerAgingBuckets[d.bucket] = (customerAgingBuckets[d.bucket] || 0) + d.due;
-          });
-
-          // Supplier Aging Analysis (Consolidates Master Suppliers + Direct Purchase Vendors)
-          const allSupplierNamesSet = new Set(
-            suppliers.map((s) => (s.name || "").trim()).filter(Boolean)
-          );
-          procurements.forEach((p) => {
-            const sName = (p.supplier_name || "").trim();
-            if (sName && sName.toLowerCase() !== "opening stock") {
-              allSupplierNamesSet.add(sName);
-            }
-          });
-
-          const payablesList = Array.from(allSupplierNamesSet)
-            .map((sName) => {
-              const supMaster = suppliers.find((s) => (s.name || "").trim().toLowerCase() === sName.toLowerCase());
-              const supId = supMaster ? supMaster.id : null;
-              const mobile = supMaster ? supMaster.mobile : "";
-              const oldDue = Number(supMaster?.old_due || 0);
-
-              const supProcs = procurements.filter(
-                (p) => (p.supplier_name || "").trim().toLowerCase() === sName.toLowerCase() || (supId && String(p.supplier_id) === String(supId))
-              );
-
-              const sPurchased = supProcs
-                .filter((p) => !isPaymentProcurementRow(p))
-                .reduce((sum, p) => sum + Number(p.total_amount || 0), 0);
-
-              const sPaid = supProcs.reduce((sum, p) => sum + Number(p.p1_amount || 0), 0);
-              const netDue = Math.max(0, oldDue + sPurchased - sPaid);
-
-              const unpaidBills = supProcs.filter(
-                (p) => !isPaymentProcurementRow(p) && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0
-              );
-
-              let oldestUnpaidDate = null;
-              unpaidBills.forEach((p) => {
-                const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : null);
-                if (pDate && (!oldestUnpaidDate || pDate < oldestUnpaidDate)) {
-                  oldestUnpaidDate = pDate;
-                }
-              });
-
-              let lastDate = null;
-              supProcs.forEach((p) => {
-                const pDate = p.purchase_date || (p.created_at ? p.created_at.slice(0, 10) : null);
-                if (pDate && (!lastDate || pDate > lastDate)) lastDate = pDate;
-              });
-
-              const refDate = oldestUnpaidDate || lastDate;
-              const days = refDate ? Math.max(0, Math.round((now - new Date(refDate)) / (1000 * 60 * 60 * 24))) : 0;
-
-              let bucket = "0-30 Days";
-              let bucketBadge = "bg-emerald-50 text-emerald-700 border-emerald-200";
-              if (days > 60) {
-                bucket = "60+ Days";
-                bucketBadge = "bg-rose-50 text-rose-700 border-rose-200";
-              } else if (days > 30) {
-                bucket = "31-60 Days";
-                bucketBadge = "bg-amber-50 text-amber-700 border-amber-200";
-              }
-
-              return {
-                id: supId || `sup_${sName.replace(/\s+/g, "_")}`,
-                name: sName,
-                mobile,
-                lastDate: refDate || "Opening Bal",
-                days,
-                bucket,
-                bucketBadge,
-                due: netDue,
-                unpaidBillsCount: unpaidBills.length
+          // Group by Month for Financial Timeline
+          const monthMap = {};
+          invoices.forEach(inv => {
+            const d = inv.invoice_date || inv.created_at?.slice(0, 10) || "";
+            const monthKey = d ? d.slice(0, 7) : "Unknown"; // "YYYY-MM"
+            if (!monthMap[monthKey]) {
+              const dt = new Date(monthKey + "-01");
+              const label = dt.toLocaleString("en-US", { month: "short", year: "numeric" });
+              monthMap[monthKey] = {
+                key: monthKey,
+                label: isNaN(dt.getTime()) ? monthKey : label,
+                orders: 0,
+                unitsSold: 0,
+                revenue: 0,
+                cogs: 0,
+                charges: 0
               };
-            })
-            .filter((s) => s.due > 0)
-            .sort((a, b) => b.due - a.due);
+            }
+            monthMap[monthKey].orders += 1;
+            const rev = Number(inv.total_amount || 0);
+            monthMap[monthKey].revenue += rev;
 
-          const supplierAgingBuckets = { "0-30 Days": 0, "31-60 Days": 0, "60+ Days": 0 };
-          payablesList.forEach((p) => {
-            supplierAgingBuckets[p.bucket] = (supplierAgingBuckets[p.bucket] || 0) + p.due;
+            if (Array.isArray(inv.items)) {
+              inv.items.forEach(it => {
+                const q = Number(it.qty || 0);
+                const pr = Number(it.purchase_rate || 0);
+                monthMap[monthKey].unitsSold += q;
+                monthMap[monthKey].cogs += q * pr;
+              });
+            }
           });
 
-          const totalSupplierDues = payablesList.reduce((sum, s) => sum + Number(s.due || 0), 0);
-
-          // Stock Items Valuation Breakdown
-          const stockInventoryList = (uniqueItemSuggestions.length > 0 ? uniqueItemSuggestions : masterItems)
-            .map((m) => {
-              const itemName = (m.item_name || m.name || "").trim();
-              const relatedProcs = procurements.filter(
-                (p) => p.item_name && p.item_name.trim().toLowerCase() === itemName.toLowerCase()
-              );
-              const totalProcured = relatedProcs.reduce((s, p) => s + Number(p.procured_qty || 0), 0);
-              const remQty = relatedProcs.reduce((s, p) => s + Number(p.remaining_qty || 0), 0);
-              const totalSold = Math.max(0, totalProcured - remQty);
-              const costRate = getItemCost(itemName) || Number(m.unit_price || m.purchase_rate || 0);
-              const valuation = remQty * costRate;
-              const isLow = remQty > 0 && remQty <= 5;
-              const isOut = remQty <= 0;
-              return {
-                ...m,
-                name: itemName,
-                item_name: itemName,
-                totalProcured,
-                remQty,
-                totalSold,
-                costRate,
-                valuation,
-                isLow,
-                isOut,
-                status: isOut ? "Out of Stock" : isLow ? "Low Stock" : "In Stock"
-              };
-            })
-            .sort((a, b) => b.valuation - a.valuation);
-
-          // Expenses by Category
-          const expenseCatMap = {};
-          periodExpenses.forEach((e) => {
-            const cName = e.category_name || expenseCategories.find((c) => String(c.id) === String(e.category_id))?.name || "General Expenses";
-            expenseCatMap[cName] = (expenseCatMap[cName] || 0) + Number(e.amount || 0);
+          // Allocate operating expenses by month
+          expenses.forEach(exp => {
+            const d = exp.date || exp.created_at?.slice(0, 10) || "";
+            const monthKey = d ? d.slice(0, 7) : "";
+            if (monthMap[monthKey]) {
+              monthMap[monthKey].charges += Number(exp.amount || 0);
+            }
           });
-          if (totalInterestSpend > 0) {
-            expenseCatMap["Loan Interest Paid"] = totalInterestSpend;
+
+          const monthlyTimelineList = Object.values(monthMap).sort((a, b) => b.key.localeCompare(a.key));
+
+          // Active Scoped Month invoices
+          const activeMonthInvoices = analyticsScopedMonth
+            ? invoices.filter(inv => {
+                const d = inv.invoice_date || inv.created_at?.slice(0, 10);
+                const dt = new Date(d);
+                const lbl = dt.toLocaleString("en-US", { month: "short", year: "numeric" });
+                return lbl === analyticsScopedMonth || d?.startsWith(analyticsScopedMonth);
+              })
+            : periodInvoices;
+
+          const scopeBadgeText = analyticsScopedMonth ? `Scoped to ${analyticsScopedMonth}` : "Scoped to All Time History";
+
+          // Table 2: Catalogue Item Profitability
+          const itemProfitMap = {};
+          activeMonthInvoices.forEach(inv => {
+            if (!Array.isArray(inv.items)) return;
+            inv.items.forEach(it => {
+              const name = it.name || it.item_name || "Unknown Item";
+              if (!itemProfitMap[name]) {
+                itemProfitMap[name] = { productTitle: name, unitsSold: 0, revenue: 0, cogs: 0 };
+              }
+              const q = Number(it.qty || 0);
+              const pr = Number(it.purchase_rate || 0);
+              const sp = Number(it.rate || it.sale_rate || 0);
+              itemProfitMap[name].unitsSold += q;
+              itemProfitMap[name].cogs += q * pr;
+              itemProfitMap[name].revenue += q * sp;
+            });
+          });
+          const itemProfitList = Object.values(itemProfitMap);
+          if (analyticsProductSearch) {
+            const q = analyticsProductSearch.toLowerCase();
+            itemProfitList = itemProfitList.filter(i => i.productTitle.toLowerCase().includes(q));
           }
-          const expensesByCategory = Object.entries(expenseCatMap)
-            .map(([name, amount]) => ({ name, amount }))
-            .sort((a, b) => b.amount - a.amount);
+          itemProfitList.sort((a, b) => b.revenue - a.revenue);
 
-          // CSV Export Handler
-          const handleExportAnalysisCSV = () => {
-            const rows = [
-              ["JSR RETAIL SALES - COMPREHENSIVE BUSINESS ANALYSIS REPORT"],
-              [`Generated On: ${new Date().toLocaleString()}`, `Period: ${periodLabel}`],
-              [],
-              ["=== 1. EXECUTIVE KPI SUMMARY ==="],
-              ["Metric", "Value"],
-              ["Total Sales Revenue", totalRevenue],
-              ["Total Cost of Goods Sold (COGS)", periodCogs],
-              ["Gross Profit", grossProfit],
-              ["Gross Profit Margin %", `${grossMargin}%`],
-              ["Total Shop Expenses", totalExpensesSpend],
-              ["Loan Interest Paid", totalInterestSpend],
-              ["Net Business Profit / (Loss)", netProfit],
-              ["Net Profit Margin %", `${netMargin}%`],
-              ["Total Goods Procured", totalPurchasesSpend],
-              ["Customer Collections Inflow", totalCollections],
-              ["Total Pending Customer Dues", totalCustomerDues],
-              ["Total Pending Supplier Payables", totalSupplierDues],
-              ["Current Stock Valuation", inventoryValuation],
-              ["Invoices Issued Count", totalInvoicesCount],
-              ["Purchases Recorded Count", totalPurchasesCount],
-              [],
-              ["=== 2. TOP CUSTOMERS (SALES) ==="],
-              ["Customer Name", "Invoices Count", "Total Revenue (Rs)", "Share %"],
-              ...topCustomers.map((c) => [
-                `"${c.name.replace(/"/g, '""')}"`,
-                c.count,
-                c.total,
-                totalRevenue > 0 ? `${((c.total / totalRevenue) * 100).toFixed(1)}%` : "0%"
-              ]),
-              [],
-              ["=== 3. TOP SELLING PRODUCTS ==="],
-              ["Product Name", "Units Sold", "Revenue (Rs)", "Share %"],
-              ...topItemsSold.map((it) => [
-                `"${it.name.replace(/"/g, '""')}"`,
-                it.qty,
-                it.revenue,
-                totalRevenue > 0 ? `${((it.revenue / totalRevenue) * 100).toFixed(1)}%` : "0%"
-              ]),
-              [],
-              ["=== 4. CUSTOMER OUTSTANDING AGING ==="],
-              ["Customer Name", "Mobile", "Outstanding Due (Rs)", "Aging Bracket", "Oldest Bill Date"],
-              ...debtorsList.map((d) => [
-                `"${d.name.replace(/"/g, '""')}"`,
-                d.mobile || "",
-                d.due,
-                d.bucket,
-                d.oldestDate || "N/A"
-              ]),
-              [],
-              ["=== 5. INVENTORY & STOCK VALUATION ==="],
-              ["Item Name", "Category", "Procured Qty", "Available Stock", "Cost Rate (Rs)", "Valuation (Rs)", "Status"],
-              ...stockInventoryList.map((s) => [
-                `"${s.name.replace(/"/g, '""')}"`,
-                s.category || "General",
-                s.totalProcured,
-                s.remQty,
-                s.costRate,
-                s.valuation,
-                s.status
-              ]),
-              [],
-              ["=== 6. EXPENSES BREAKDOWN ==="],
-              ["Expense Category", "Amount (Rs)", "Share %"],
-              ...expensesByCategory.map((e) => [
-                `"${e.name.replace(/"/g, '""')}"`,
-                e.amount,
-                totalOperatingOutflows > 0 ? `${((e.amount / totalOperatingOutflows) * 100).toFixed(1)}%` : "0%"
-              ])
-            ];
+          // Table 3: Monthly Unit Sales by Catalogue (Matrix)
+          const allMonthsPresent = [...new Set(invoices.map(inv => {
+            const d = inv.invoice_date || inv.created_at?.slice(0, 10) || "";
+            if (!d) return null;
+            const dt = new Date(d.slice(0, 7) + "-01");
+            return isNaN(dt.getTime()) ? null : dt.toLocaleString("en-US", { month: "short", year: "numeric" });
+          }).filter(Boolean))].slice(0, 10);
 
-            const csvContent = "data:text/csv;charset=utf-8,﻿" + rows.map((r) => r.join(",")).join("\n");
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `JSR_Retails_Analysis_${analysisPeriod}_${todayStr}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          };
+          const catalogMatrixMap = {};
+          invoices.forEach(inv => {
+            if (!Array.isArray(inv.items)) return;
+            const d = inv.invoice_date || inv.created_at?.slice(0, 10) || "";
+            const dt = new Date(d.slice(0, 7) + "-01");
+            const mLabel = isNaN(dt.getTime()) ? "" : dt.toLocaleString("en-US", { month: "short", year: "numeric" });
+            inv.items.forEach(it => {
+              const name = it.name || it.item_name || "Item";
+              if (!catalogMatrixMap[name]) {
+                catalogMatrixMap[name] = { product: name, months: {}, totalUnits: 0 };
+              }
+              const q = Number(it.qty || 0);
+              catalogMatrixMap[name].totalUnits += q;
+              if (mLabel) {
+                catalogMatrixMap[name].months[mLabel] = (catalogMatrixMap[name].months[mLabel] || 0) + q;
+              }
+            });
+          });
+          const catalogMatrixList = Object.values(catalogMatrixMap).sort((a, b) => b.totalUnits - a.totalUnits);
 
-          // Render comparison helper badge
-          const renderGrowthBadge = (curr, prev) => {
-            if (!prev && !curr) return <span className="text-slate-400 text-xs">--</span>;
-            if (!prev && curr > 0) return <span className="text-emerald-600 font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded-full">New</span>;
-            const diff = curr - prev;
-            const pct = prev !== 0 ? ((diff / Math.abs(prev)) * 100).toFixed(1) : 0;
-            const isPos = diff >= 0;
-            return (
-              <span className={`inline-flex items-center gap-0.5 font-bold text-xs px-2 py-0.5 rounded-full ${
-                isPos ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
-              }`}>
-                {isPos ? "↑" : "↓"} {isPos ? `+${pct}%` : `${pct}%`}
-              </span>
-            );
-          };
+          // Table 4: Customer Financial Performance
+          const custPerformanceMap = {};
+          activeMonthInvoices.forEach(inv => {
+            const name = inv.customer_name || "Walk-in";
+            if (!custPerformanceMap[name]) {
+              const custObj = customers.find(c => c.name === name || c.id === inv.customer_id);
+              custPerformanceMap[name] = {
+                customerName: name,
+                customerId: inv.customer_id,
+                orders: 0,
+                purchaseValue: 0,
+                cogs: 0,
+                units: 0,
+                oldDue: Number(custObj?.old_due || 0)
+              };
+            }
+            custPerformanceMap[name].orders += 1;
+            custPerformanceMap[name].purchaseValue += Number(inv.total_amount || 0);
+            if (Array.isArray(inv.items)) {
+              inv.items.forEach(it => {
+                const q = Number(it.qty || 0);
+                const pr = Number(it.purchase_rate || 0);
+                custPerformanceMap[name].units += q;
+                custPerformanceMap[name].cogs += q * pr;
+              });
+            }
+          });
+          let customerPerfList = Object.values(custPerformanceMap);
+          if (analyticsCustomerSearch) {
+            const q = analyticsCustomerSearch.toLowerCase();
+            customerPerfList = customerPerfList.filter(c => c.customerName.toLowerCase().includes(q));
+          }
+          customerPerfList.sort((a, b) => b.purchaseValue - a.purchaseValue);
+
+          // Table 5: Unit-wise Purchase by Customer
+          const custUnitGroupMap = {};
+          activeMonthInvoices.forEach(inv => {
+            const cName = inv.customer_name || "Customer";
+            if (!custUnitGroupMap[cName]) {
+              custUnitGroupMap[cName] = {
+                customerName: cName,
+                totalUnits: 0,
+                totalAmount: 0,
+                productsMap: {}
+              };
+            }
+            custUnitGroupMap[cName].totalAmount += Number(inv.total_amount || 0);
+            if (Array.isArray(inv.items)) {
+              inv.items.forEach(it => {
+                const pName = it.name || it.item_name || "Item";
+                const q = Number(it.qty || 0);
+                const amt = Number(it.total || (q * Number(it.rate || 0)));
+                custUnitGroupMap[cName].totalUnits += q;
+                if (!custUnitGroupMap[cName].productsMap[pName]) {
+                  custUnitGroupMap[cName].productsMap[pName] = { name: pName, units: 0, amount: 0 };
+                }
+                custUnitGroupMap[cName].productsMap[pName].units += q;
+                custUnitGroupMap[cName].productsMap[pName].amount += amt;
+              });
+            }
+          });
+          const customerUnitsList = Object.values(custUnitGroupMap);
 
           return (
-            <div className="space-y-2.5 sm:space-y-3">
-              {/* TOP HEADER */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <div>
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight leading-tight flex items-center gap-1.5">
-                    <Icon name="chart" size={18} className="text-indigo-600" />
-                    Comprehensive Analysis & Reports
-                  </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                    Real-time analytical intelligence, aging ledgers, visual metrics, and periodic P&L
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleExportAnalysisCSV}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                  >
-                    <Icon name="download" size={13} /> Export CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnalysisSubTab("export_print")}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-                  >
-                    <span>🖨️</span> Print Report
-                  </button>
-                </div>
-              </div>
-
-              {/* FILTER TOOLBAR (MATCHING PAYMENTS & COLLECTIONS IN IMAGE 1) */}
-              <div className="bg-white dark:bg-slate-900 p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-                <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-2 text-slate-400">
-                      <Icon name="search" size={14} />
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Search analysis records (customers, items, suppliers, receipts)..."
-                      className="w-full pl-10 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 transition text-slate-900 dark:text-slate-100"
-                      value={analysisSearchQuery}
-                      onChange={(e) => setAnalysisSearchQuery(e.target.value)}
-                    />
+            <div className="space-y-6">
+              {/* Top Header matching Point 10 */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                      <span className="text-indigo-600">📊</span> Profit & Sales Analytics
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Financial ledger, revenue, COGS, operating charges, and itemized margins.
+                    </p>
                   </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Period Filter Dropdown */}
-                    <select
-                      className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
-                      value={analysisPeriod}
-                      onChange={(e) => setAnalysisPeriod(e.target.value)}
-                    >
-                      <option value="all">📅 All Time</option>
-                      <option value="today">Today</option>
-                      <option value="yesterday">Yesterday</option>
-                      <option value="this_week">This Week</option>
-                      <option value="this_month">This Month</option>
-                      <option value="last_month">Last Month</option>
-                      <option value="this_year">This Year</option>
-                      <option value="custom">Custom Dates</option>
-                    </select>
-
-                    {/* Custom Date Pickers */}
-                    {analysisPeriod === "custom" && (
-                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold">
-                        <span className="text-slate-400 font-bold">From:</span>
-                        <input
-                          type="date"
-                          value={analysisFromDate}
-                          onChange={(e) => setAnalysisFromDate(e.target.value)}
-                          className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                        />
-                        <span className="text-slate-400">→</span>
-                        <span className="text-slate-400 font-bold">To:</span>
-                        <input
-                          type="date"
-                          value={analysisToDate}
-                          onChange={(e) => setAnalysisToDate(e.target.value)}
-                          className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-                        />
-                      </div>
-                    )}
-
-                    {/* Active Period Badge */}
-                    <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900/50 whitespace-nowrap">
-                      📅 {periodLabel}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {/* 10 SUB-TABS NAVIGATION */}
-              <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-x-auto">
-                <div className="flex items-center gap-1.5 min-w-max text-xs font-bold">
-                  {[
-                    { id: "sales", label: "🛒 Sales Analysis", count: periodInvoices.length },
-                    { id: "purchases", label: "📦 Purchases Analysis", count: periodProcurements.length },
-                    { id: "collections", label: "📥 Collections & Inflows", count: periodCollections.length },
-                    { id: "customers", label: "👥 Customer Aging", count: debtorsList.length },
-                    { id: "suppliers", label: "🚚 Supplier Payables", count: payablesList.length },
-                    { id: "stock", label: "📊 Stock Valuation", count: masterItems.length },
-                    { id: "pnl", label: "⚖️ Profit & Loss (P&L)", highlight: true },
-                    { id: "charts", label: "📈 Visual Charts" },
-                    { id: "comparison", label: "🔄 Period Comparison" },
-                    { id: "export_print", label: "🖨️ Export & Print" }
-                  ].map((sub) => (
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
-                      key={sub.id}
                       type="button"
-                      onClick={() => setAnalysisSubTab(sub.id)}
-                      className={`px-3.5 py-2 rounded-xl transition cursor-pointer flex items-center gap-1.5 ${
-                        analysisSubTab === sub.id
-                          ? "bg-indigo-600 text-white shadow-xs"
-                          : sub.highlight
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100"
-                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      }`}
+                      disabled={loading}
+                      onClick={async () => {
+                        await refreshData();
+                        setShowRefreshToast(true);
+                        setTimeout(() => setShowRefreshToast(false), 3000);
+                      }}
+                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                     >
-                      <span>{sub.label}</span>
-                      {sub.count !== undefined && (
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                          analysisSubTab === sub.id ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
-                        }`}>
-                          {sub.count}
-                        </span>
-                      )}
+                      <Icon name="history" size={13} className={loading ? "animate-spin" : ""} />
+                      Refresh
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setShowProfitColumns(prev => !prev)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${showProfitColumns ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}
+                      title="Toggle visibility of Profit & Margin columns"
+                    >
+                      {showProfitColumns ? "👁️ Hide Margins" : "👁️ Show Margins"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Period Selector matching user specification */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-xl text-xs font-bold">
+                    <span className="px-2 text-slate-400 font-semibold uppercase text-[10px]">Period:</span>
+                    {[
+                      { id: "all_time", label: "All Time" },
+                      { id: "this_year", label: "This Year" },
+                      { id: "this_month", label: "This Month" },
+                      { id: "this_week", label: "This Week" },
+                      { id: "today", label: "Today" },
+                      { id: "custom", label: "Date Range" }
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setAnalyticsPeriod(p.id); setAnalyticsScopedMonth(null); }}
+                        className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${analyticsPeriod === p.id ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs font-black" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"}`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {analyticsPeriod === "custom" && (
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <input
+                        type="date"
+                        value={analyticsCustomStart}
+                        onChange={(e) => setAnalyticsCustomStart(e.target.value)}
+                        className="p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 font-mono"
+                      />
+                      <span className="text-slate-400">to</span>
+                      <input
+                        type="date"
+                        value={analyticsCustomEnd}
+                        onChange={(e) => setAnalyticsCustomEnd(e.target.value)}
+                        className="p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 font-mono"
+                      />
+                    </div>
+                  )}
+
+                  {/* Scoped Month Drill-Down Reset Badge matching Point 10 */}
+                  {analyticsScopedMonth && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                        Filtered: {analyticsScopedMonth}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAnalyticsScopedMonth(null)}
+                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-md text-xs font-bold transition cursor-pointer"
+                      >
+                        ✕ Reset
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* SUB-TAB 1: SALES ANALYSIS */}
-              {analysisSubTab === "sales" && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    {/* Top 10 Customers */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🏆</span> Top Customers by Revenue ({topCustomers.length})
-                        </h3>
-                        <span className="text-xs text-slate-400">Selected Period</span>
-                      </div>
-                      {topCustomers.length === 0 ? (
-                        <p className="text-xs text-slate-400 p-4 text-center">No sales recorded in this period.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {topCustomers.map((cust, idx) => {
-                            const share = totalRevenue > 0 ? (cust.total / totalRevenue) * 100 : 0;
-                            return (
-                              <div key={idx} className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold">
-                                  <span className="text-slate-800 dark:text-slate-200">
-                                    {idx + 1}. {cust.name} ({cust.count} bills)
-                                  </span>
-                                  <span className="text-indigo-600 dark:text-indigo-400">
-                                    {money(cust.total)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
-                                  </span>
-                                </div>
-                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                  <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Top 10 Selling Items */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🔥</span> Top Products Sold ({topItemsSold.length})
-                        </h3>
-                        <span className="text-xs text-slate-400">By Revenue</span>
-                      </div>
-                      {topItemsSold.length === 0 ? (
-                        <p className="text-xs text-slate-400 p-4 text-center">No item lines found in period invoices.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {topItemsSold.map((it, idx) => {
-                            const share = totalRevenue > 0 ? (it.revenue / totalRevenue) * 100 : 0;
-                            return (
-                              <div key={idx} className="space-y-1">
-                                <div className="flex justify-between text-xs font-bold">
-                                  <span className="text-slate-800 dark:text-slate-200">
-                                    {idx + 1}. {it.name} ({it.qty} units)
-                                  </span>
-                                  <span className="text-emerald-600 dark:text-emerald-400">
-                                    {money(it.revenue)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
-                                  </span>
-                                </div>
-                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                  <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+              {/* SECTION 1: Financial Timeline & Performance Ledger */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                      Financial Timeline & Performance Ledger
+                    </h3>
+                    <p className="text-[11px] text-slate-500">Click any month below to drill-down and scope subsequent tables.</p>
                   </div>
-
-                  {/* Payment Mode Breakdown Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cash Inflow on Invoices</span>
-                      <b className="text-xl font-black text-slate-900 dark:text-white mt-1 block">{money(salesModeMap.Cash)}</b>
-                      <span className="text-[11px] text-slate-400 mt-0.5 block">Physical cash collected upfront</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">UPI / Digital Inflow</span>
-                      <b className="text-xl font-black text-indigo-600 mt-1 block">{money(salesModeMap.UPI)}</b>
-                      <span className="text-[11px] text-slate-400 mt-0.5 block">Electronic payments</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                      <span className="text-[11px] font-bold text-rose-500 uppercase tracking-wider block">Credit / Pending Balance</span>
-                      <b className="text-xl font-black text-rose-600 mt-1 block">{money(salesModeMap.Due)}</b>
-                      <span className="text-[11px] text-rose-400 mt-0.5 block">Customer market dues added</span>
-                    </div>
-                  </div>
+                  {analyticsScopedMonth && (
+                    <span className="text-xs font-bold text-slate-400">
+                      Active Filter: <strong className="text-indigo-600">{analyticsScopedMonth}</strong>
+                    </span>
+                  )}
                 </div>
-              )}
 
-              {/* SUB-TAB 2: PURCHASES ANALYSIS */}
-              {analysisSubTab === "purchases" && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>🚚</span> Vendor Procurements Breakdown ({purchasesBySupplier.length})
-                      </h3>
-                      <span className="text-xs text-slate-400">Ranked by Total Spend</span>
-                    </div>
-                    {purchasesBySupplier.length === 0 ? (
-                      <p className="text-xs text-slate-400 p-4 text-center">No purchases recorded in this period.</p>
-                    ) : (
-                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
-                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
-                            <tr>
-                              <th onClick={() => toggleSort("name", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Supplier Name{renderSortIndicator("name", analysisSupSortCol, analysisSupSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("count", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Orders Count{renderSortIndicator("count", analysisSupSortCol, analysisSupSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("total", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Total Invoiced (₹){renderSortIndicator("total", analysisSupSortCol, analysisSupSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("paid", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Amount Paid (₹){renderSortIndicator("paid", analysisSupSortCol, analysisSupSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("due", analysisSupSortCol, setAnalysisSupSortCol, analysisSupSortDir, setAnalysisSupSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Balance Due (₹){renderSortIndicator("due", analysisSupSortCol, analysisSupSortDir)}
-                              </th>
-                              <th className="p-2.5 text-right whitespace-nowrap">Spend Share</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {[...purchasesBySupplier].sort((a, b) => {
-                              let cmp = 0;
-                              if (analysisSupSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
-                              else if (analysisSupSortCol === "count") cmp = Number(a.count || 0) - Number(b.count || 0);
-                              else if (analysisSupSortCol === "total") cmp = Number(a.total || 0) - Number(b.total || 0);
-                              else if (analysisSupSortCol === "paid") cmp = Number(a.paid || 0) - Number(b.paid || 0);
-                              else if (analysisSupSortCol === "due") cmp = Number(a.due || 0) - Number(b.due || 0);
-                              return analysisSupSortDir === "asc" ? cmp : -cmp;
-                            }).map((sup, idx) => {
-                              const share = totalPurchasesSpend > 0 ? ((sup.total / totalPurchasesSpend) * 100).toFixed(1) : 0;
-                              return (
-                                <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                  <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{sup.name}</td>
-                                  <td className="p-2.5 text-center whitespace-nowrap">{sup.count}</td>
-                                  <td className="p-2.5 text-right font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{money(sup.total)}</td>
-                                  <td className="p-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">{money(sup.paid)}</td>
-                                  <td className="p-2.5 text-right font-bold text-rose-600 whitespace-nowrap">{money(sup.due)}</td>
-                                  <td className="p-2.5 text-right font-bold text-indigo-600 whitespace-nowrap">{share}%</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5">Time Period</th>
+                        <th className="p-2.5 text-right">Orders</th>
+                        <th className="p-2.5 text-right">Units Sold</th>
+                        <th className="p-2.5 text-right">Revenue (₹)</th>
+                        <th className="p-2.5 text-right">COGS (₹)</th>
+                        <th className="p-2.5 text-right">Charges (₹)</th>
+                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600">Net Profit (₹)</th>}
+                        {showProfitColumns && <th className="p-2.5 text-right">Margin %</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {monthlyTimelineList.map(row => {
+                        const grossProf = row.revenue - row.cogs;
+                        const netProf = grossProf - row.charges;
+                        const marginPct = row.revenue > 0 ? ((netProf / row.revenue) * 100).toFixed(1) : "0.0";
+                        const isActive = analyticsScopedMonth === row.label;
 
-              {/* SUB-TAB 3: COLLECTIONS & INFLOWS */}
-              {analysisSubTab === "collections" && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    {/* Collections by Payment Mode */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>💳</span> Collections by Payment Mode
-                        </h3>
-                        <span className="text-xs font-bold text-emerald-600">{money(totalCollections)}</span>
-                      </div>
-                      <div className="space-y-3">
-                        {Object.entries(collectionsByMode).map(([mode, amt], idx) => {
-                          const share = totalCollections > 0 ? (amt / totalCollections) * 100 : 0;
-                          return (
-                            <div key={idx} className="space-y-1">
-                              <div className="flex justify-between text-xs font-bold">
-                                <span className="text-slate-800 dark:text-slate-200">{mode}</span>
-                                <span className="text-emerald-600">
-                                  {money(amt)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
+                        return (
+                          <tr
+                            key={row.key}
+                            onClick={() => setAnalyticsScopedMonth(isActive ? null : row.label)}
+                            className={`cursor-pointer transition ${isActive ? "bg-indigo-50/80 dark:bg-indigo-950/50 font-bold" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}
+                          >
+                            <td className="p-2.5">
+                              <div className="flex items-center gap-2">
+                                <span className={isActive ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-slate-900 dark:text-white"}>
+                                  {row.label}
                                 </span>
-                              </div>
-                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-emerald-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Collections by Partner */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🤝</span> Inflow by Receiving Partner
-                        </h3>
-                        <span className="text-xs text-slate-400">Store Depositories</span>
-                      </div>
-                      <div className="space-y-3">
-                        {Object.entries(collectionsByPartner).map(([pName, amt], idx) => {
-                          const share = totalCollections > 0 ? (amt / totalCollections) * 100 : 0;
-                          return (
-                            <div key={idx} className="space-y-1">
-                              <div className="flex justify-between text-xs font-bold">
-                                <span className="text-slate-800 dark:text-slate-200">{pName}</span>
-                                <span className="text-indigo-600 dark:text-indigo-400">
-                                  {money(amt)} <span className="text-[10px] text-slate-400">({share.toFixed(1)}%)</span>
-                                </span>
-                              </div>
-                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-TAB 4: CUSTOMER AGING ANALYSIS */}
-              {analysisSubTab === "customers" && (
-                <div className="space-y-6">
-                  {/* Aging Bucket Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">0–30 Days (Current)</span>
-                      <b className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-1 block">{money(customerAgingBuckets["0-30 Days"])}</b>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">Healthy receivables</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">31–60 Days</span>
-                      <b className="text-lg font-black text-indigo-700 dark:text-indigo-400 mt-1 block">{money(customerAgingBuckets["31-60 Days"])}</b>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">Standard credit terms</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">61–90 Days</span>
-                      <b className="text-lg font-black text-amber-700 dark:text-amber-400 mt-1 block">{money(customerAgingBuckets["61-90 Days"])}</b>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">Attention needed</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">90+ Days (Overdue)</span>
-                      <b className="text-lg font-black text-rose-700 dark:text-rose-400 mt-1 block">{money(customerAgingBuckets["90+ Days"])}</b>
-                      <span className="text-[10px] text-rose-400 mt-0.5 block">Critical follow-up</span>
-                    </div>
-                  </div>
-
-                  {/* Debtors List Table */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>📋</span> Customer Receivables Aging Ledger ({debtorsList.length})
-                      </h3>
-                      <span className="text-xs font-bold text-rose-600">Total Due: {money(totalCustomerDues)}</span>
-                    </div>
-                    {debtorsList.length === 0 ? (
-                      <p className="text-xs text-slate-400 p-4 text-center">No outstanding customer dues found.</p>
-                    ) : (
-                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
-                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
-                            <tr>
-                              <th onClick={() => toggleSort("name", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Customer Name{renderSortIndicator("name", analysisCustSortCol, analysisCustSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("mobile", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Mobile{renderSortIndicator("mobile", analysisCustSortCol, analysisCustSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("due", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Outstanding (₹){renderSortIndicator("due", analysisCustSortCol, analysisCustSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("date", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Oldest Bill Date{renderSortIndicator("date", analysisCustSortCol, analysisCustSortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("days", analysisCustSortCol, setAnalysisCustSortCol, analysisCustSortDir, setAnalysisCustSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Days Outstanding{renderSortIndicator("days", analysisCustSortCol, analysisCustSortDir)}
-                              </th>
-                              <th className="p-2.5 text-center whitespace-nowrap">Aging Bracket</th>
-                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-24 whitespace-nowrap">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                            {[...debtorsList].sort((a, b) => {
-                              let cmp = 0;
-                              if (analysisCustSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
-                              else if (analysisCustSortCol === "mobile") cmp = (a.mobile || "").localeCompare(b.mobile || "");
-                              else if (analysisCustSortCol === "due") cmp = Number(a.due || 0) - Number(b.due || 0);
-                              else if (analysisCustSortCol === "date") cmp = (a.oldestDate || "").localeCompare(b.oldestDate || "");
-                              else if (analysisCustSortCol === "days") cmp = Number(a.days || 0) - Number(b.days || 0);
-                              return analysisCustSortDir === "asc" ? cmp : -cmp;
-                            }).map((d) => (
-                              <tr key={d.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                                <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{d.name}</td>
-                                <td className="p-2.5 text-slate-500 whitespace-nowrap">{d.mobile || "--"}</td>
-                                <td className="p-2.5 text-right font-black text-rose-600 whitespace-nowrap">{money(d.due)}</td>
-                                <td className="p-2.5 whitespace-nowrap">{d.oldestDate || "Opening Bal"}</td>
-                                <td className="p-2.5 text-center font-bold whitespace-nowrap">{d.days > 0 ? `${d.days} days` : "--"}</td>
-                                <td className="p-2.5 text-center whitespace-nowrap">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${d.bucketBadge}`}>
-                                    {d.bucket}
+                                {isActive && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-600 text-white shadow-2xs">
+                                    ACTIVE
                                   </span>
-                                </td>
-                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setCollectForm({
-                                          customer_id: String(d.id),
-                                          invoice_id: "",
-                                          amount: String(d.due),
-                                          payment_mode: "Cash",
-                                          receiver_id: upfrontPartnerId || "",
-                                          reference_no: "",
-                                          notes: "Aging Settlement"
-                                        });
-                                        setShowCollectModal(true);
-                                      }}
-                                      className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer"
-                                    >
-                                      Collect
-                                    </button>
-                                    {d.mobile && (
-                                      <a
-                                        href={`https://wa.me/91${d.mobile.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                                          `Dear ${d.name}, your outstanding due balance at B Reddy Sales is ${money(d.due)}. Please settle at your earliest convenience.`
-                                        )}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="p-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold border border-emerald-200"
-                                        title="WhatsApp Reminder"
-                                      >
-                                        💬
-                                      </a>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-TAB 5: SUPPLIER PAYABLES & AGING */}
-              {analysisSubTab === "suppliers" && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">0–30 Days</span>
-                      <b className="text-lg font-black text-emerald-700 dark:text-emerald-400 mt-1 block">{money(supplierAgingBuckets["0-30 Days"])}</b>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">Recent purchase bills</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">31–60 Days</span>
-                      <b className="text-lg font-black text-amber-700 dark:text-amber-400 mt-1 block">{money(supplierAgingBuckets["31-60 Days"])}</b>
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">Due for payment</span>
-                    </div>
-                    <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-rose-200 dark:border-rose-900/50 shadow-xs">
-                      <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">60+ Days</span>
-                      <b className="text-lg font-black text-rose-700 dark:text-rose-400 mt-1 block">{money(supplierAgingBuckets["60+ Days"])}</b>
-                      <span className="text-[10px] text-rose-400 mt-0.5 block">Overdue vendor payables</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                        <span>🚚</span> Supplier Outstanding Payables ({payablesList.length})
-                      </h3>
-                      <span className="text-xs font-bold text-amber-600">Total Payable: {money(totalSupplierDues)}</span>
-                    </div>
-                    {payablesList.length === 0 ? (
-                      <p className="text-xs text-slate-400 p-4 text-center">No outstanding supplier payables found.</p>
-                    ) : (
-                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                        <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
-                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
-                            <tr>
-                              <th onClick={() => toggleSort("name", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Supplier Name{renderSortIndicator("name", analysisPaySortCol, analysisPaySortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("mobile", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Mobile{renderSortIndicator("mobile", analysisPaySortCol, analysisPaySortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("due", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Outstanding (₹){renderSortIndicator("due", analysisPaySortCol, analysisPaySortDir)}
-                              </th>
-                              <th onClick={() => toggleSort("date", analysisPaySortCol, setAnalysisPaySortCol, analysisPaySortDir, setAnalysisPaySortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                                Last Purchase Date{renderSortIndicator("date", analysisPaySortCol, analysisPaySortDir)}
-                              </th>
-                              <th className="p-2.5 text-center whitespace-nowrap">Aging Bracket</th>
-                              <th className="p-2.5 text-center sm:sticky sm:right-0 bg-[#e4effa] dark:bg-slate-800 sm:z-10 w-28 whitespace-nowrap">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                            {[...payablesList].sort((a, b) => {
-                              let cmp = 0;
-                              if (analysisPaySortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
-                              else if (analysisPaySortCol === "mobile") cmp = (a.mobile || "").localeCompare(b.mobile || "");
-                              else if (analysisPaySortCol === "due") cmp = Number(a.due || 0) - Number(b.due || 0);
-                              else if (analysisPaySortCol === "date") cmp = (a.lastDate || "").localeCompare(b.lastDate || "");
-                              return analysisPaySortDir === "asc" ? cmp : -cmp;
-                            }).map((s) => (
-                              <tr key={s.id} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                                <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{s.name}</td>
-                                <td className="p-2.5 text-slate-500 whitespace-nowrap">{s.mobile ? formatSupplierMobile(s.mobile) : "--"}</td>
-                                <td className="p-2.5 text-right font-black text-amber-600 whitespace-nowrap">{money(s.due)}</td>
-                                <td className="p-2.5 whitespace-nowrap">{s.lastDate || "Opening Bal"}</td>
-                                <td className="p-2.5 text-center whitespace-nowrap">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${s.bucketBadge}`}>
-                                    {s.bucket}
-                                  </span>
-                                </td>
-                                <td className="p-2.5 text-center sm:sticky sm:right-0 bg-white dark:bg-slate-900 sm:z-10 sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setIsBillLocked(false);
-                                      setPaySupplierMode("multi");
-                                      setMultiSupplierId(String(s.id || s.name));
-                                      setPayPurchaseForm({
-                                        purchase_id: "",
-                                        amount: String(s.due),
-                                        partner_id: upfrontPartnerId || "",
-                                        payment_mode: "Cash",
-                                        reference_no: "",
-                                        notes: `Aging Settlement - ${s.name}`
-                                      });
-                                      setShowPayPurchaseModal(true);
-                                    }}
-                                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer"
-                                  >
-                                    Pay Supplier
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-TAB 6: STOCK & VALUATION */}
-              {analysisSubTab === "stock" && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>📊</span> Item-wise Inventory Valuation ({stockInventoryList.length} SKUs)
-                        </h3>
-                        <p className="text-xs text-slate-400">Total Stock Value: <b className="text-indigo-600">{money(inventoryValuation)}</b></p>
-                      </div>
-                    </div>
-
-                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                      <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono">
-                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
-                          <tr>
-                            <th onClick={() => toggleSort("name", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Item Name{renderSortIndicator("name", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("category", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Category / Unit{renderSortIndicator("category", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("procured", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Total Procured{renderSortIndicator("procured", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("sold", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Total Sold{renderSortIndicator("sold", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("stock", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-center cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Available Stock{renderSortIndicator("stock", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("avgCost", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Avg Cost (₹){renderSortIndicator("avgCost", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th onClick={() => toggleSort("valuation", analysisStockSortCol, setAnalysisStockSortCol, analysisStockSortDir, setAnalysisStockSortDir)} className="p-2.5 text-right cursor-pointer select-none hover:bg-sky-100/70 dark:hover:bg-slate-700/60 transition whitespace-nowrap">
-                              Stock Valuation (₹){renderSortIndicator("valuation", analysisStockSortCol, analysisStockSortDir)}
-                            </th>
-                            <th className="p-2.5 text-center whitespace-nowrap">Reorder Status</th>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-300">{row.orders}</td>
+                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-300">{row.unitsSold.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(row.revenue)}</td>
+                            <td className="p-2.5 text-right text-slate-500">{money(row.cogs)}</td>
+                            <td className="p-2.5 text-right text-rose-500">{money(row.charges)}</td>
+                            {showProfitColumns && (
+                              <td className="p-2.5 text-right font-bold text-emerald-600">{money(netProf)}</td>
+                            )}
+                            {showProfitColumns && (
+                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">{marginPct}%</td>
+                            )}
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                          {[...stockInventoryList].sort((a, b) => {
-                            let cmp = 0;
-                            if (analysisStockSortCol === "name") cmp = (a.name || "").localeCompare(b.name || "");
-                            else if (analysisStockSortCol === "category") cmp = (a.category || "").localeCompare(b.category || "");
-                            else if (analysisStockSortCol === "procured") cmp = Number(a.procured || 0) - Number(b.procured || 0);
-                            else if (analysisStockSortCol === "sold") cmp = Number(a.sold || 0) - Number(b.sold || 0);
-                            else if (analysisStockSortCol === "stock") cmp = Number(a.stock || 0) - Number(b.stock || 0);
-                            else if (analysisStockSortCol === "avgCost") cmp = Number(a.avgCost || 0) - Number(b.avgCost || 0);
-                            else if (analysisStockSortCol === "valuation") cmp = Number(a.valuation || 0) - Number(b.valuation || 0);
-                            return analysisStockSortDir === "asc" ? cmp : -cmp;
-                          }).map((item, idx) => (
-                            <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50 hover:bg-slate-100/50">
-                              <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{item.name}</td>
-                              <td className="p-2.5 text-slate-500 whitespace-nowrap">{item.category || "General"} ({item.unit || "Units"})</td>
-                              <td className="p-2.5 text-center whitespace-nowrap">{item.totalProcured}</td>
-                              <td className="p-2.5 text-center text-slate-600 dark:text-slate-400 whitespace-nowrap">{item.totalSold}</td>
-                              <td className="p-2.5 text-center font-black text-slate-900 dark:text-white whitespace-nowrap">
-                                {item.remQty} {item.unit || ""}
-                              </td>
-                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{money(item.costRate)}</td>
-                              <td className="p-2.5 text-right font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap">{money(item.valuation)}</td>
-                              <td className="p-2.5 text-center whitespace-nowrap">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                                  item.isOut
-                                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                                    : item.isLow
-                                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                }`}>
-                                  {item.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SUB-TAB 7: PROFIT & LOSS (P&L) STATEMENT */}
-              {analysisSubTab === "pnl" && (
-                <div className="space-y-6 max-w-4xl mx-auto">
-                  <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-6">
-                    <div className="flex justify-between items-center pb-4 border-b border-slate-200 dark:border-slate-800">
-                      <div>
-                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Financial Report</span>
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white">Trading & Profit & Loss Statement</h3>
-                        <p className="text-xs text-slate-400 mt-0.5">Period: {periodLabel}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-xs font-black px-3 py-1 rounded-full border ${
-                          netProfit >= 0
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border-rose-200"
-                        }`}>
-                          {netProfit >= 0 ? "✓ Net Operating Profit" : "⚠️ Net Operating Loss"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* A. TRADING ACCOUNT / GROSS PROFIT */}
-                    <div className="space-y-2.5">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">A. Trading Account (Gross Profit)</h4>
-                      <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl space-y-2 text-xs font-mono">
-                        <div className="flex justify-between items-center text-slate-800 dark:text-slate-200">
-                          <span>(+) Gross Sales Invoices Revenue</span>
-                          <span className="font-bold">{money(totalRevenue)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-rose-600 dark:text-rose-400">
-                          <span>(-) Cost of Goods Sold (COGS)</span>
-                          <span className="font-bold">-{money(periodCogs)}</span>
-                        </div>
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-sm font-black text-indigo-700 dark:text-indigo-400">
-                          <span>= Gross Trading Profit</span>
-                          <span>{money(grossProfit)} ({grossMargin}%)</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* B. OPERATING EXPENSES */}
-                    <div className="space-y-2.5">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">B. Operating & Shop Expenses</h4>
-                      <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl space-y-2 text-xs font-mono">
-                        {expensesByCategory.length === 0 ? (
-                          <p className="text-slate-400 italic">No shop expenses recorded in this period.</p>
-                        ) : (
-                          expensesByCategory.map((exp, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-slate-600 dark:text-slate-300">
-                              <span>(-) {exp.name}</span>
-                              <span className="font-bold text-slate-900 dark:text-slate-100">-{money(exp.amount)}</span>
-                            </div>
-                          ))
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+                      <tr>
+                        <td className="p-2.5 uppercase text-[11px]">Total</td>
+                        <td className="p-2.5 text-right">{monthlyTimelineList.reduce((s, r) => s + r.orders, 0)}</td>
+                        <td className="p-2.5 text-right">{monthlyTimelineList.reduce((s, r) => s + r.unitsSold, 0).toLocaleString("en-IN")}</td>
+                        <td className="p-2.5 text-right">{money(monthlyTimelineList.reduce((s, r) => s + r.revenue, 0))}</td>
+                        <td className="p-2.5 text-right">{money(monthlyTimelineList.reduce((s, r) => s + r.cogs, 0))}</td>
+                        <td className="p-2.5 text-right text-rose-600">{money(monthlyTimelineList.reduce((s, r) => s + r.charges, 0))}</td>
+                        {showProfitColumns && (
+                          <td className="p-2.5 text-right text-emerald-600 font-black">
+                            {money(monthlyTimelineList.reduce((s, r) => s + (r.revenue - r.cogs - r.charges), 0))}
+                          </td>
                         )}
-                        <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center font-bold text-rose-600">
-                          <span>Total Operating Outflows</span>
-                          <span>-{money(totalOperatingOutflows)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* C. NET BUSINESS RESULT */}
-                    <div className={`p-5 rounded-2xl border text-center space-y-1.5 ${
-                      netProfit >= 0
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100"
-                        : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-100"
-                    }`}>
-                      <span className="text-[11px] font-black uppercase tracking-wider block">
-                        Net Operating Profit / (Loss) for Period
-                      </span>
-                      <h2 className="text-3xl font-black font-mono tracking-tight">
-                        {money(netProfit)}
-                      </h2>
-                      <span className="text-xs font-bold block opacity-80">
-                        Net Margin: {netMargin}% of Total Revenue
-                      </span>
-                    </div>
-                  </div>
+                        {showProfitColumns && <td className="p-2.5 text-right">—</td>}
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-              )}
+              </div>
 
-              {/* SUB-TAB 8: VISUAL CHARTS (PURE SVG) */}
-              {analysisSubTab === "charts" && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    {/* Chart 1: Sales Payment Modes (SVG Donut) */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🍩</span> Sales Payment Modes Breakdown
-                        </h3>
-                        <span className="text-xs font-bold text-slate-500">Revenue Split</span>
-                      </div>
-
-                      {(() => {
-                        const totalModes = (salesModeMap.Cash + salesModeMap.UPI + salesModeMap.Due) || 1;
-                        const pCash = (salesModeMap.Cash / totalModes) * 100;
-                        const pUPI = (salesModeMap.UPI / totalModes) * 100;
-                        const pDue = (salesModeMap.Due / totalModes) * 100;
-
-                        // Circumference for r=50 is ~314.15
-                        const circ = 2 * Math.PI * 50;
-                        const dashCash = (pCash / 100) * circ;
-                        const dashUPI = (pUPI / 100) * circ;
-                        const dashDue = (pDue / 100) * circ;
-
-                        return (
-                          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-4">
-                            <svg width="160" height="160" viewBox="0 0 140 140" className="transform -rotate-90">
-                              <circle cx="70" cy="70" r="50" fill="transparent" stroke="#e2e8f0" strokeWidth="20" />
-                              {/* Cash Slice (Emerald) */}
-                              <circle
-                                cx="70"
-                                cy="70"
-                                r="50"
-                                fill="transparent"
-                                stroke="#10b981"
-                                strokeWidth="20"
-                                strokeDasharray={`${dashCash} ${circ}`}
-                                strokeDashoffset="0"
-                              />
-                              {/* UPI Slice (Indigo) */}
-                              <circle
-                                cx="70"
-                                cy="70"
-                                r="50"
-                                fill="transparent"
-                                stroke="#6366f1"
-                                strokeWidth="20"
-                                strokeDasharray={`${dashUPI} ${circ}`}
-                                strokeDashoffset={`-${dashCash}`}
-                              />
-                              {/* Due Slice (Rose) */}
-                              <circle
-                                cx="70"
-                                cy="70"
-                                r="50"
-                                fill="transparent"
-                                stroke="#f43f5e"
-                                strokeWidth="20"
-                                strokeDasharray={`${dashDue} ${circ}`}
-                                strokeDashoffset={`-${dashCash + dashUPI}`}
-                              />
-                            </svg>
-
-                            <div className="space-y-2 text-xs font-bold">
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
-                                <span className="text-slate-600 dark:text-slate-300">Cash:</span>
-                                <span className="font-mono text-slate-900 dark:text-white font-black">{money(salesModeMap.Cash)} ({pCash.toFixed(1)}%)</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-indigo-500 shrink-0" />
-                                <span className="text-slate-600 dark:text-slate-300">UPI / Bank:</span>
-                                <span className="font-mono text-slate-900 dark:text-white font-black">{money(salesModeMap.UPI)} ({pUPI.toFixed(1)}%)</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-rose-500 shrink-0" />
-                                <span className="text-slate-600 dark:text-slate-300">Market Due:</span>
-                                <span className="font-mono text-slate-900 dark:text-white font-black">{money(salesModeMap.Due)} ({pDue.toFixed(1)}%)</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Chart 2: Cashflow Comparison Grouped Bar Chart */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>📊</span> Financial Inflow vs Outflow Comparison
-                        </h3>
-                        <span className="text-xs font-bold text-slate-500">Totals</span>
-                      </div>
-
-                      {(() => {
-                        const maxVal = Math.max(totalRevenue, totalPurchasesSpend, totalCollections, totalOperatingOutflows, 1);
-                        const items = [
-                          { label: "Revenue", val: totalRevenue, color: "bg-indigo-600" },
-                          { label: "Purchases", val: totalPurchasesSpend, color: "bg-amber-500" },
-                          { label: "Collections", val: totalCollections, color: "bg-emerald-600" },
-                          { label: "Expenses", val: totalOperatingOutflows, color: "bg-rose-500" }
-                        ];
-
-                        return (
-                          <div className="py-2 space-y-3">
-                            {items.map((it, idx) => {
-                              const pct = Math.max(4, (it.val / maxVal) * 100);
-                              return (
-                                <div key={idx} className="space-y-1">
-                                  <div className="flex justify-between text-xs font-bold">
-                                    <span className="text-slate-700 dark:text-slate-300">{it.label}</span>
-                                    <span className="font-mono text-slate-900 dark:text-white font-black">{money(it.val)}</span>
-                                  </div>
-                                  <div className="w-full bg-slate-100 dark:bg-slate-800 h-3.5 rounded-full overflow-hidden">
-                                    <div className={`${it.color} h-full rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
+              {/* SECTION 2: Catalogue Item Profitability */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                      Catalogue Item Profitability
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-semibold">{scopeBadgeText}</p>
                   </div>
+                  <input
+                    type="text"
+                    placeholder="Search product..."
+                    value={analyticsProductSearch}
+                    onChange={(e) => setAnalyticsProductSearch(e.target.value)}
+                    className="p-1.5 px-3 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                  />
                 </div>
-              )}
 
-              {/* SUB-TAB 9: PERIOD COMPARISON */}
-              {analysisSubTab === "comparison" && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🔄</span> Comparative Growth Matrix: Selected vs Previous Period
-                        </h3>
-                        <p className="text-xs text-slate-400">
-                          Comparing <b className="text-indigo-600">{periodLabel}</b> against preceding duration ({prevStart} to {prevEnd})
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                      <table className="min-w-[700px] w-full text-left text-xs border-collapse font-mono">
-                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-2.5 whitespace-nowrap">Key Performance Indicator</th>
-                            <th className="p-2.5 text-right whitespace-nowrap">Current Period (₹)</th>
-                            <th className="p-2.5 text-right whitespace-nowrap">Previous Period (₹)</th>
-                            <th className="p-2.5 text-right whitespace-nowrap">Variance (Delta ₹)</th>
-                            <th className="p-2.5 text-center whitespace-nowrap">Growth / Decline %</th>
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5 font-sans">Product Title</th>
+                        <th className="p-2.5 text-right">Units Sold</th>
+                        <th className="p-2.5 text-right">Revenue (₹)</th>
+                        <th className="p-2.5 text-right">COGS (₹)</th>
+                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600">Gross Profit (₹)</th>}
+                        {showProfitColumns && <th className="p-2.5 text-right">Margin %</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {itemProfitList.slice(0, 20).map(row => {
+                        const gp = row.revenue - row.cogs;
+                        const m = row.revenue > 0 ? ((gp / row.revenue) * 100).toFixed(1) : "0.0";
+                        return (
+                          <tr key={row.productTitle} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{row.productTitle}</td>
+                            <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{row.unitsSold.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(row.revenue)}</td>
+                            <td className="p-2.5 text-right text-slate-500">{money(row.cogs)}</td>
+                            {showProfitColumns && <td className="p-2.5 text-right font-bold text-emerald-600">{money(gp)}</td>}
+                            {showProfitColumns && <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{m}%</td>}
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                          {[
-                            { name: "Gross Sales Revenue", curr: totalRevenue, prev: prevRevenue },
-                            { name: "Inventory Purchases Spend", curr: totalPurchasesSpend, prev: prevPurchasesSpend },
-                            { name: "Customer Collections (Inflows)", curr: totalCollections, prev: prevCollectionsTotal },
-                            { name: "Operating Expenses Outflow", curr: totalExpensesSpend, prev: prevExpensesSpend },
-                            { name: "Gross Trading Profit", curr: grossProfit, prev: prevGrossProfit },
-                            { name: "Net Operating Profit", curr: netProfit, prev: prevNetProfit }
-                          ].map((row, idx) => {
-                            const diff = row.curr - row.prev;
-                            return (
-                              <tr key={idx} className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900 dark:even:bg-slate-800/50">
-                                <td className="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.name}</td>
-                                <td className="p-2.5 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">{money(row.curr)}</td>
-                                <td className="p-2.5 text-right text-slate-500 whitespace-nowrap">{money(row.prev)}</td>
-                                <td className={`whitespace-nowrap p-2.5 text-right font-black ${diff >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                                  {diff >= 0 ? `+${money(diff)}` : `-${money(Math.abs(diff))}`}
-                                </td>
-                                <td className="p-2.5 text-center whitespace-nowrap">
-                                  {renderGrowthBadge(row.curr, row.prev)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+                      <tr>
+                        <td className="p-2.5 font-sans uppercase text-[11px]">Total ({itemProfitList.length} items)</td>
+                        <td className="p-2.5 text-right">{itemProfitList.reduce((s, r) => s + r.unitsSold, 0).toLocaleString("en-IN")}</td>
+                        <td className="p-2.5 text-right">{money(itemProfitList.reduce((s, r) => s + r.revenue, 0))}</td>
+                        <td className="p-2.5 text-right">{money(itemProfitList.reduce((s, r) => s + r.cogs, 0))}</td>
+                        {showProfitColumns && (
+                          <td className="p-2.5 text-right text-emerald-600 font-black">
+                            {money(itemProfitList.reduce((s, r) => s + (r.revenue - r.cogs), 0))}
+                          </td>
+                        )}
+                        {showProfitColumns && <td className="p-2.5 text-right">—</td>}
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-              )}
+              </div>
 
-              {/* SUB-TAB 10: EXPORT & PRINT */}
-              {analysisSubTab === "export_print" && (
-                <div className="space-y-6">
-                  {/* Action Toolbar */}
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 no-print">
-                    <div>
-                      <h3 className="font-black text-sm text-slate-900 dark:text-white">Print-Ready Executive Report</h3>
-                      <p className="text-xs text-slate-400">Formatted for A4 desktop printing and PDF generation</p>
-                    </div>
-                    <div className="flex items-center gap-2">
+              {/* SECTION 3: Monthly Unit Sales by Catalogue (Matrix) */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div>
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                    Monthly Unit Sales by Catalogue
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-semibold">Scoped to All Time History</p>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5 font-sans whitespace-nowrap">Product</th>
+                        {allMonthsPresent.map(m => (
+                          <th key={m} className="p-2.5 text-right whitespace-nowrap">{m}</th>
+                        ))}
+                        <th className="p-2.5 text-right whitespace-nowrap font-bold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {catalogMatrixList.slice(0, 20).map(row => (
+                        <tr key={row.product} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.product}</td>
+                          {allMonthsPresent.map(m => (
+                            <td key={m} className="p-2.5 text-right text-slate-600 dark:text-slate-400">
+                              {row.months[m] ? row.months[m].toLocaleString("en-IN") : "—"}
+                            </td>
+                          ))}
+                          <td className="p-2.5 text-right font-bold text-indigo-600">{row.totalUnits.toLocaleString("en-IN")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+                      <tr>
+                        <td className="p-2.5 font-sans uppercase text-[11px]">Total Units</td>
+                        {allMonthsPresent.map(m => (
+                          <td key={m} className="p-2.5 text-right">
+                            {catalogMatrixList.reduce((s, r) => s + (r.months[m] || 0), 0).toLocaleString("en-IN")}
+                          </td>
+                        ))}
+                        <td className="p-2.5 text-right font-black text-indigo-600">
+                          {catalogMatrixList.reduce((s, r) => s + r.totalUnits, 0).toLocaleString("en-IN")}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 4: Customer Financial Performance with Aging Column */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                      Customer Financial Performance
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Total purchase value, cost of goods, gross profit, margin percentages, and dues aging per customer.
+                    </p>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search customer..."
+                    value={analyticsCustomerSearch}
+                    onChange={(e) => setAnalyticsCustomerSearch(e.target.value)}
+                    className="p-1.5 px-3 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800"
+                  />
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5 font-sans">Customer Account</th>
+                        <th className="p-2.5 text-right">Orders</th>
+                        <th className="p-2.5 text-right">Purchase Value (₹)</th>
+                        <th className="p-2.5 text-right">COGS (₹)</th>
+                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600">Gross Profit (₹)</th>}
+                        {showProfitColumns && <th className="p-2.5 text-right">Margin %</th>}
+                        <th className="p-2.5 text-right">Units</th>
+                        <th className="p-2.5 text-center font-sans">Aging / Overdue Days</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {customerPerfList.slice(0, 25).map(row => {
+                        const gp = row.purchaseValue - row.cogs;
+                        const m = row.purchaseValue > 0 ? ((gp / row.purchaseValue) * 100).toFixed(1) : "0.0";
+                        const due = row.oldDue;
+                        return (
+                          <tr key={row.customerName} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{row.customerName}</td>
+                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-400">{row.orders}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(row.purchaseValue)}</td>
+                            <td className="p-2.5 text-right text-slate-500">{money(row.cogs)}</td>
+                            {showProfitColumns && <td className="p-2.5 text-right font-bold text-emerald-600">{money(gp)}</td>}
+                            {showProfitColumns && <td className="p-2.5 text-right">{m}%</td>}
+                            <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">{row.units.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-center font-sans">
+                              {due > 0 ? (
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${due > 50000 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                                  ₹{due.toLocaleString("en-IN")} ({due > 50000 ? "> 60 Days" : "30-60 Days"})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-emerald-600 font-bold">✓ Settled</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+                      <tr>
+                        <td className="p-2.5 font-sans uppercase text-[11px]">Total ({customerPerfList.length} customers)</td>
+                        <td className="p-2.5 text-right">{customerPerfList.reduce((s, r) => s + r.orders, 0)}</td>
+                        <td className="p-2.5 text-right">{money(customerPerfList.reduce((s, r) => s + r.purchaseValue, 0))}</td>
+                        <td className="p-2.5 text-right">{money(customerPerfList.reduce((s, r) => s + r.cogs, 0))}</td>
+                        {showProfitColumns && (
+                          <td className="p-2.5 text-right text-emerald-600 font-black">
+                            {money(customerPerfList.reduce((s, r) => s + (r.purchaseValue - r.cogs), 0))}
+                          </td>
+                        )}
+                        {showProfitColumns && <td className="p-2.5 text-right">—</td>}
+                        <td className="p-2.5 text-right">{customerPerfList.reduce((s, r) => s + r.units, 0).toLocaleString("en-IN")}</td>
+                        <td className="p-2.5 text-center">—</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 5: Unit-wise Purchase by Customer (Cards vs Matrix) */}
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                      Unit-wise Purchase by Customer
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Exact catalogue unit volumes purchased by each customer account across this period.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold">
                       <button
                         type="button"
-                        onClick={handleExportAnalysisCSV}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        onClick={() => setCustomerPurchasesViewMode("cards")}
+                        className={`px-3 py-1.5 rounded-lg transition ${customerPurchasesViewMode === "cards" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs font-black" : "text-slate-500 hover:text-slate-900"}`}
                       >
-                        <Icon name="download" size={15} /> Download CSV
+                        Cards View
                       </button>
                       <button
                         type="button"
-                        onClick={() => window.print()}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        onClick={() => setCustomerPurchasesViewMode("matrix")}
+                        className={`px-3 py-1.5 rounded-lg transition ${customerPurchasesViewMode === "matrix" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs font-black" : "text-slate-500 hover:text-slate-900"}`}
                       >
-                        <span>🖨️</span> Print Document / Save PDF
+                        Matrix Table
                       </button>
                     </div>
                   </div>
-
-                  {/* Clean A4 Printable Container */}
-                  <div className="bg-white text-slate-900 p-8 rounded-2xl border border-slate-200 shadow-md space-y-6 print:p-0 print:border-none print:shadow-none font-sans">
-                    {/* Header */}
-                    <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-                      <div>
-                        <h1 className="text-2xl font-black tracking-tight text-slate-950">JSR RETAIL SALES</h1>
-                        <p className="text-xs font-bold text-slate-600 mt-0.5">B Reddy Sales & Inventory Management System</p>
-                        <p className="text-[11px] text-slate-400">Executive Performance & Financial Summary</p>
-                      </div>
-                      <div className="text-right text-xs space-y-0.5">
-                        <p className="font-bold text-slate-900">Period: {periodLabel}</p>
-                        <p className="text-slate-500">Date Range: {periodStart} to {periodEnd}</p>
-                        <p className="text-slate-400 text-[10px]">Generated: {new Date().toLocaleString()}</p>
-                      </div>
-                    </div>
-
-                    {/* KPI Matrix */}
-                    <div className="grid grid-cols-3 gap-4 border border-slate-200 rounded-xl p-4 bg-slate-50">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Gross Sales Revenue</span>
-                        <p className="text-lg font-black text-slate-900 font-mono mt-0.5">{money(totalRevenue)}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Goods Procured</span>
-                        <p className="text-lg font-black text-slate-900 font-mono mt-0.5">{money(totalPurchasesSpend)}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Collections Inflow</span>
-                        <p className="text-lg font-black text-emerald-600 font-mono mt-0.5">{money(totalCollections)}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Customer Receivables</span>
-                        <p className="text-lg font-black text-rose-600 font-mono mt-0.5">{money(totalCustomerDues)}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Supplier Payables</span>
-                        <p className="text-lg font-black text-amber-600 font-mono mt-0.5">{money(totalSupplierDues)}</p>
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Current Stock Value</span>
-                        <p className="text-lg font-black text-indigo-600 font-mono mt-0.5">{money(inventoryValuation)}</p>
-                      </div>
-                    </div>
-
-                    {/* P&L Snapshot */}
-                    <div className="border border-slate-200 rounded-xl p-4 space-y-2 text-xs font-mono">
-                      <h4 className="font-black text-xs uppercase tracking-wider text-slate-900 font-sans border-b border-slate-200 pb-1">
-                        P&L Snapshot
-                      </h4>
-                      <div className="flex justify-between">
-                        <span>Sales Revenue:</span>
-                        <span className="font-bold">{money(totalRevenue)}</span>
-                      </div>
-                      <div className="flex justify-between text-rose-600">
-                        <span>Cost of Goods Sold (COGS):</span>
-                        <span className="font-bold">-{money(periodCogs)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1">
-                        <span>Gross Trading Profit:</span>
-                        <span>{money(grossProfit)} ({grossMargin}%)</span>
-                      </div>
-                      <div className="flex justify-between text-rose-600">
-                        <span>Operating Outflows & Expenses:</span>
-                        <span className="font-bold">-{money(totalOperatingOutflows)}</span>
-                      </div>
-                      <div className="flex justify-between font-black text-sm text-indigo-900 border-t-2 border-slate-900 pt-2">
-                        <span>Net Operating Profit / (Loss):</span>
-                        <span>{money(netProfit)} ({netMargin}%)</span>
-                      </div>
-                    </div>
-
-                    {/* Signature sign-off */}
-                    <div className="pt-10 flex justify-between items-end text-xs font-bold text-slate-600">
-                      <div>
-                        <div className="w-36 border-b border-slate-400 mb-1" />
-                        <span>Prepared By / Store Incharge</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="w-36 border-b border-slate-400 mb-1 ml-auto" />
-                        <span>Authorized Partner Signature</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-              )}
 
-              {/* EXECUTIVE FINANCIAL SUMMARY GRID (STRUCTURED ERP TABLE PLACED BELOW) */}
-              {analysisSubTab !== "export_print" && (
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div>
-                      <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                        <Icon name="chart" size={17} className="text-indigo-600" />
-                        <span>Executive Financial & Operational Summary</span>
-                      </h3>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Consolidated ledger indicators and business KPIs for {periodLabel}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs font-bold">
-                      <span className="text-slate-400">Date Range:</span>
-                      <span className="px-2.5 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-mono text-[11px] border border-indigo-100 dark:border-indigo-900/60 font-black">
-                        {periodStart} → {periodEnd}
-                      </span>
-                    </div>
+                {customerPurchasesViewMode === "cards" ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {customerUnitsList.slice(0, 18).map(c => {
+                      const prods = Object.values(c.productsMap).sort((a, b) => b.units - a.units);
+                      return (
+                        <div key={c.customerName} className="bg-slate-50/70 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+                          <div className="border-b border-slate-200 dark:border-slate-700 pb-2">
+                            <h4 className="font-black text-sm text-slate-900 dark:text-white">{c.customerName}</h4>
+                            <span className="text-[11px] text-slate-500 font-semibold block mt-0.5">
+                              {prods.length} products purchased · {c.totalUnits.toLocaleString("en-IN")} units · {money(c.totalAmount)}
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                            {prods.map(p => (
+                              <div key={p.name} className="flex justify-between items-center text-xs py-1 px-1.5 rounded-lg bg-white dark:bg-slate-800 shadow-2xs">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]">{p.name}</span>
+                                <div className="flex items-center gap-2 font-mono">
+                                  <span className="text-indigo-600 font-bold">{p.units} pcs</span>
+                                  <span className="text-slate-400">({money(p.amount)})</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
-                    <table className="min-w-[750px] w-full text-left text-xs border-collapse font-mono">
-                      <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                         <tr>
-                          <th className="p-3 text-left whitespace-nowrap">Financial Indicator / Stream</th>
-                          <th className="p-3 text-left whitespace-nowrap">Activity Volume</th>
-                          <th className="p-3 text-right whitespace-nowrap">Consolidated Total (₹)</th>
-                          <th className="p-3 text-left whitespace-nowrap">Key Performance Ratio / Benchmark</th>
-                          <th className="p-3 text-center whitespace-nowrap">Accounting Classification</th>
+                          <th className="p-2.5 font-sans">Customer</th>
+                          <th className="p-2.5 text-right">Products Count</th>
+                          <th className="p-2.5 text-right">Total Units</th>
+                          <th className="p-2.5 text-right">Total Purchase (₹)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {/* 1. Sales Revenue */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">🛒</span>
-                            <span>Sales Revenue</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {totalInvoicesCount} Invoices Billed
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-blue-600 dark:text-blue-400 text-sm whitespace-nowrap">
-                            {money(totalRevenue)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Average Ticket: {money(totalInvoicesCount > 0 ? totalRevenue / totalInvoicesCount : 0)}
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
-                              Operating Inflow
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 2. Purchases Spend */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">📦</span>
-                            <span>Purchases & Procurement Spend</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {totalPurchasesCount} Orders Placed
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm whitespace-nowrap">
-                            {money(totalPurchasesSpend)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Average Order: {money(totalPurchasesCount > 0 ? totalPurchasesSpend / totalPurchasesCount : 0)}
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 uppercase">
-                              Procurement Cost
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 3. Collections Received */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">📥</span>
-                            <span>Customer Collections Received</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {periodCollections.length} Receipts Settled
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
-                            {money(totalCollections)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Cash, UPI & Bank Receipts
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 uppercase">
-                              Realized Cash
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 4. Gross Profit */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">⚖️</span>
-                            <span>Gross Trading Profit</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            Revenue − COGS ({money(periodCogs)})
-                          </td>
-                          <td className={`p-3 text-right font-mono font-black text-sm whitespace-nowrap ${
-                            grossProfit >= 0 ? "text-teal-600 dark:text-teal-400" : "text-rose-600"
-                          }`}>
-                            {money(grossProfit)}
-                          </td>
-                          <td className="p-3 font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">
-                            {grossMargin}% Gross Margin
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 uppercase">
-                              Trading Margin
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 5. Operating Outflows */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">💸</span>
-                            <span>Shop Operating Expenses & Interest</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {periodExpenses.length} Expense Vouchers
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
-                            -{money(totalOperatingOutflows)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Overhead Outflows & Loan Servicing
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase">
-                              Operating Outflow
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 6. Net Profit / (Loss) */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition bg-slate-50/50 dark:bg-slate-800/20">
-                          <td className="p-3 font-black text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">🎯</span>
-                            <span>Net Operating Profit / (Loss)</span>
-                          </td>
-                          <td className="p-3 text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap">
-                            Gross Profit − Expenses
-                          </td>
-                          <td className={`p-3 text-right font-mono font-black text-sm whitespace-nowrap ${
-                            netProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600"
-                          }`}>
-                            {money(netProfit)}
-                          </td>
-                          <td className={`whitespace-nowrap p-3 font-bold ${netProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600"}`}>
-                            {netMargin}% Net Margin
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase ${
-                              netProfit >= 0
-                                ? "bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"
-                                : "bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800"
-                            }`}>
-                              {netProfit >= 0 ? "Net Profit" : "Net Deficit"}
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 7. Stock Valuation */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">📊</span>
-                            <span>Stock Inventory Valuation</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {masterItems.length} Active Catalog SKUs
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-cyan-700 dark:text-cyan-400 text-sm whitespace-nowrap">
-                            {money(inventoryValuation)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Real-time Cost Value of Physical Stock
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 uppercase">
-                              Current Asset
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 8. Customer Dues */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">👥</span>
-                            <span>Customer Outstanding Dues</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {debtorsList.length} Customers with Balances
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-rose-600 dark:text-rose-400 text-sm whitespace-nowrap">
-                            {money(totalCustomerDues)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Market Receivables Pending Settlement
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 uppercase">
-                              Accounts Receivable
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* 9. Supplier Dues */}
-                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-base">🚚</span>
-                            <span>Supplier Pending Payables</span>
-                          </td>
-                          <td className="p-3 text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                            {payablesList.length} Vendors Awaiting Payment
-                          </td>
-                          <td className="p-3 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-sm whitespace-nowrap">
-                            {money(totalSupplierDues)}
-                          </td>
-                          <td className="p-3 text-slate-500 font-medium whitespace-nowrap">
-                            Vendor Procurement Liabilities
-                          </td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 uppercase">
-                              Accounts Payable
-                            </span>
-                          </td>
-                        </tr>
+                        {customerUnitsList.map(c => (
+                          <tr key={c.customerName} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{c.customerName}</td>
+                            <td className="p-2.5 text-right text-slate-600">{Object.keys(c.productsMap).length}</td>
+                            <td className="p-2.5 text-right font-bold text-indigo-600">{c.totalUnits.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(c.totalAmount)}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+
+
+        {/* VIEW: BANK ACCOUNTS MASTER & RECONCILIATION LEDGER */}
+        {hasModuleAccess("banking") && activeTab === "banking" && (() => {
+          const accounts = systemSettings?.banking?.accounts || [];
+          const reconciliations = systemSettings?.banking?.reconciliations || {};
+
+          // Filtered transactions for reconciliation
+          const digitalTransactions = [];
+          
+          invoices.forEach(inv => {
+            if (Number(inv.p1_amount || 0) > 0 && (inv.p1_mode === "UPI" || inv.payment_mode === "UPI")) {
+              digitalTransactions.push({
+                id: inv.id,
+                docNo: inv.invoice_number || `INV-${inv.id}`,
+                docType: "Sales Invoice (UPI)",
+                date: inv.invoice_date || inv.created_at?.slice(0, 10),
+                partyName: inv.customer_name || "Walk-in Customer",
+                type: "deposit",
+                amount: Number(inv.p1_amount || inv.upfront_paid || 0),
+                partnerId: inv.partner_id || "p1",
+                bankId: inv.bank_id || "bank_sbi",
+                refNo: inv.p1_ref || inv.ref_number || "",
+                raw: inv
+              });
+            }
+          });
+
+          collections.forEach(col => {
+            if (col.payment_mode === "UPI" || col.p1_mode === "UPI") {
+              digitalTransactions.push({
+                id: col.id,
+                docNo: `REC-${col.id}`,
+                docType: "Customer Collection (UPI)",
+                date: col.collection_date || col.created_at?.slice(0, 10),
+                partyName: col.customer_name || "Customer",
+                type: "deposit",
+                amount: Number(col.amount || 0),
+                partnerId: col.partner_id || "p1",
+                bankId: col.bank_id || "bank_sbi",
+                refNo: col.notes || "",
+                raw: col
+              });
+            }
+          });
+
+          procurements.forEach(pr => {
+            if (Number(pr.p1_amount || 0) > 0 && (pr.p1_mode === "UPI" || pr.payment_mode === "UPI")) {
+              digitalTransactions.push({
+                id: `pr_${pr.id}`,
+                docNo: `PUR-${pr.id}`,
+                docType: "Supplier Payment (UPI)",
+                date: pr.created_at?.slice(0, 10),
+                partyName: pr.supplier_name || "Supplier",
+                type: "withdrawal",
+                amount: Number(pr.p1_amount || 0),
+                partnerId: pr.partner_id || "p1",
+                bankId: pr.bank_id || "bank_sbi",
+                refNo: pr.p1_ref || "",
+                raw: pr
+              });
+            }
+          });
+
+          expenses.forEach(exp => {
+            if (exp.payment_mode === "UPI" || exp.mode === "UPI") {
+              digitalTransactions.push({
+                id: `exp_${exp.id}`,
+                docNo: `EXP-${exp.id}`,
+                docType: "Expense Payment (UPI)",
+                date: exp.date || exp.created_at?.slice(0, 10),
+                partyName: exp.category || "General Expense",
+                type: "withdrawal",
+                amount: Number(exp.amount || 0),
+                partnerId: exp.partner_id || "p1",
+                bankId: exp.bank_id || "bank_sbi",
+                refNo: exp.notes || "",
+                raw: exp
+              });
+            }
+          });
+
+          // Filter by bank account
+          const bankFiltered = digitalTransactions.filter(tx => {
+            if (bankReconAccount !== "all" && tx.bankId !== bankReconAccount) return false;
+            if (bankReconSearch) {
+              const q = bankReconSearch.toLowerCase();
+              const matchDoc = tx.docNo.toLowerCase().includes(q);
+              const matchParty = (tx.partyName || "").toLowerCase().includes(q);
+              if (!matchDoc && !matchParty) return false;
+            }
+            const recon = reconciliations[tx.id];
+            const isCleared = recon?.status === "cleared";
+            if (bankReconStatusFilter === "pending" && isCleared) return false;
+            if (bankReconStatusFilter === "cleared" && !isCleared) return false;
+            return true;
+          });
+
+          // Metrics calculation
+          const targetBank = accounts.find(a => a.id === bankReconAccount);
+          const openingBal = targetBank ? Number(targetBank.openingBalance || 0) : accounts.reduce((s, a) => s + Number(a.openingBalance || 0), 0);
+          
+          let totalDeposits = 0;
+          let totalWithdrawals = 0;
+          let clearedDeposits = 0;
+          let clearedWithdrawals = 0;
+          let unclearedDeposits = 0;
+          let unclearedWithdrawals = 0;
+
+          digitalTransactions.forEach(tx => {
+            if (bankReconAccount !== "all" && tx.bankId !== bankReconAccount) return;
+            const amt = tx.amount;
+            const isCleared = reconciliations[tx.id]?.status === "cleared";
+            if (tx.type === "deposit") {
+              totalDeposits += amt;
+              if (isCleared) clearedDeposits += amt; else unclearedDeposits += amt;
+            } else {
+              totalWithdrawals += amt;
+              if (isCleared) clearedWithdrawals += amt; else unclearedWithdrawals += amt;
+            }
+          });
+
+          const bankBookBalance = openingBal + totalDeposits - totalWithdrawals;
+          const statementBalance = openingBal + clearedDeposits - clearedWithdrawals;
+
+          return (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-indigo-600">🏦</span> Bank Accounts Master & Statement Reconciliation
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Audit inward UPI collections, verify clearance against official bank statements, and generate BRS compliance reports.
+                  </p>
                 </div>
-              )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowReconReportModal(true)}
+                    className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800 transition cursor-pointer"
+                  >
+                    <Icon name="filetext" size={14} /> Official BRS Report
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingBank(null);
+                      setBankForm({ bankName: "", accountNo: "", ifsc: "", branch: "", partnerId: "p1", upiEnabled: true, upiId: "", openingBalance: "0" });
+                      setShowAddBankModal(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                  >
+                    <Icon name="plus" size={14} /> Add Bank Account
+                  </button>
+                </div>
+              </div>
+
+              {/* Bank Accounts Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {accounts.map(acc => {
+                  const partnerObj = partners.find(p => p.id === acc.partnerId);
+                  return (
+                    <div key={acc.id} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2.5">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">
+                            {acc.ifsc} · {acc.branch || "Branch"}
+                          </span>
+                          <h3 className="font-black text-sm text-slate-900 dark:text-white mt-0.5">{acc.bankName}</h3>
+                          <span className="font-mono text-xs text-slate-500">A/c: {acc.accountNo}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${acc.upiEnabled ? "bg-emerald-50 text-emerald-600 border border-emerald-200" : "bg-slate-100 text-slate-500"}`}>
+                          {acc.upiEnabled ? "UPI Enabled" : "Offline"}
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Tagged Partner: <strong className="text-slate-800 dark:text-slate-200">{partnerObj?.name || "General"}</strong></span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">{money(acc.openingBalance || 0)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* BRS Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bank Book Balance (System Ledger)</span>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1 font-mono">{money(bankBookBalance)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Opening + Inward UPI - Outward UPI</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/60 shadow-2xs">
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Pending Uncleared Deposits (Inward)</span>
+                  <h3 className="text-lg font-black text-amber-600 mt-1 font-mono">+{money(unclearedDeposits)}</h3>
+                  <span className="text-[10px] text-amber-500/80 block mt-0.5">POS & Collections pending clearance</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-rose-200 dark:border-rose-900/60 shadow-2xs">
+                  <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Pending Uncleared Payments (Outward)</span>
+                  <h3 className="text-lg font-black text-rose-600 mt-1 font-mono">-{money(unclearedWithdrawals)}</h3>
+                  <span className="text-[10px] text-rose-500/80 block mt-0.5">Supplier payouts pending clearance</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 shadow-2xs">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Reconciled Statement Balance</span>
+                  <h3 className="text-lg font-black text-emerald-600 mt-1 font-mono">{money(statementBalance)}</h3>
+                  <span className="text-[10px] text-emerald-500/80 block mt-0.5">Cleared balance verified with passbook</span>
+                </div>
+              </div>
+
+              {/* Filter Toolbar */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={bankReconAccount}
+                    onChange={(e) => setBankReconAccount(e.target.value)}
+                    className="p-2 border rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="all">All Bank Accounts</option>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.bankName} ({a.accountNo?.slice(-4)})</option>)}
+                  </select>
+
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setBankReconStatusFilter("pending")}
+                      className={`px-3 py-1.5 rounded-lg transition ${bankReconStatusFilter === "pending" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs" : "text-slate-500 hover:text-slate-900"}`}
+                    >
+                      🟡 Pending / Un-Cleared ({digitalTransactions.filter(t => reconciliations[t.id]?.status !== "cleared").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankReconStatusFilter("cleared")}
+                      className={`px-3 py-1.5 rounded-lg transition ${bankReconStatusFilter === "cleared" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs" : "text-slate-500 hover:text-slate-900"}`}
+                    >
+                      🟢 Cleared ({digitalTransactions.filter(t => reconciliations[t.id]?.status === "cleared").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankReconStatusFilter("all")}
+                      className={`px-3 py-1.5 rounded-lg transition ${bankReconStatusFilter === "all" ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-2xs" : "text-slate-500 hover:text-slate-900"}`}
+                    >
+                      All Transactions ({digitalTransactions.length})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Search Doc #, Party name..."
+                    value={bankReconSearch}
+                    onChange={(e) => setBankReconSearch(e.target.value)}
+                    className="p-1.5 px-3 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowUndoReconModal(true)}
+                    className="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition cursor-pointer"
+                    title="Undo previous reconciliation (Admin Authorization)"
+                  >
+                    ↺ Undo Reconciliation
+                  </button>
+                </div>
+              </div>
+
+              {/* Transactions Ledger Table */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Doc # / Ref</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Party / Particulars</th>
+                        <th className="p-3 text-right">Inward (Deposit ₹)</th>
+                        <th className="p-3 text-right">Outward (Payout ₹)</th>
+                        <th className="p-3 text-center">Status</th>
+                        <th className="p-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {bankFiltered.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-6 text-center text-slate-400 font-bold">
+                            No digital transactions matching current filters
+                          </td>
+                        </tr>
+                      ) : (
+                        bankFiltered.map(tx => {
+                          const recon = reconciliations[tx.id];
+                          const isCleared = recon?.status === "cleared";
+                          return (
+                            <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                              <td className="p-3 font-mono font-bold text-indigo-600">
+                                {renderClickableDocNo(tx.docNo)}
+                              </td>
+                              <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{tx.docType}</td>
+                              <td className="p-3 text-slate-500 font-mono">{tx.date}</td>
+                              <td className="p-3 font-bold text-slate-900 dark:text-white">{tx.partyName}</td>
+                              <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                                {tx.type === "deposit" ? money(tx.amount) : "—"}
+                              </td>
+                              <td className="p-3 text-right font-mono font-bold text-rose-600">
+                                {tx.type === "withdrawal" ? money(tx.amount) : "—"}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isCleared ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                                  {isCleared ? `🟢 Cleared (${recon?.valueDate || tx.date})` : "🟡 Pending"}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                {isCleared ? (
+                                  <span className="text-[10px] font-bold text-slate-400">🔒 Reconciled</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const valDate = prompt("Enter Statement Clearance Date (YYYY-MM-DD):", tx.date) || tx.date;
+                                      const updatedRecons = {
+                                        ...reconciliations,
+                                        [tx.id]: {
+                                          status: "cleared",
+                                          valueDate: valDate,
+                                          reconciledAt: new Date().toISOString(),
+                                          reconciledBy: currentUser?.name || "Admin"
+                                        }
+                                      };
+                                      saveSystemSettingsToCloud({
+                                        banking: {
+                                          ...(systemSettings?.banking || {}),
+                                          reconciliations: updatedRecons
+                                        }
+                                      });
+                                      recordAuditEvent(tx.docNo, tx.docType, tx.partyName, "Bank Reconciled", currentUser?.name, "Cleared", `Payment of ₹${tx.amount} marked cleared with value date ${valDate}`);
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                                  >
+                                    Mark Cleared
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+
+
+        {/* VIEW: INDIAN HR & PAYROLL MANAGEMENT */}
+        {hasModuleAccess("hr_payroll") && activeTab === "hr_payroll" && (() => {
+          const cfg = systemSettings?.payroll || defaultSystemSettings.payroll;
+          const filteredEmployees = employees.filter(emp => {
+            if (employeeDeptFilter !== "all" && emp.department !== employeeDeptFilter) return false;
+            if (employeeSearchQuery) {
+              const q = employeeSearchQuery.toLowerCase();
+              return emp.name.toLowerCase().includes(q) || (emp.empId || "").toLowerCase().includes(q) || (emp.designation || "").toLowerCase().includes(q);
+            }
+            return true;
+          });
+
+          // Payroll calculation for active month
+          const computedPayroll = filteredEmployees.map(emp => {
+            const baseGross = Number(emp.baseSalary || 0);
+            const isStatutory = emp.salaryType !== "fixed";
+            
+            if (!isStatutory) {
+              // Fixed Salary: flat agreed amount with 0 statutory deductions
+              return {
+                ...emp,
+                earnedGross: baseGross,
+                basicDa: baseGross,
+                hra: 0,
+                allowances: 0,
+                pfDeduction: 0,
+                esicDeduction: 0,
+                ptDeduction: 0,
+                tdsDeduction: 0,
+                totalDeductions: 0,
+                netSalary: baseGross,
+                typeLabel: "Fixed Remuneration (Exempt from Statutory Deductions)"
+              };
+            }
+
+            // Indian Statutory Rules
+            const basicDa = Math.round(baseGross * (Number(cfg.basicDaPercentage || 50) / 100));
+            const hra = Math.min(Math.round(baseGross * 0.20), Number(cfg.hraThreshold || 15000));
+            const allowances = Math.max(0, baseGross - basicDa - hra);
+            
+            // EPF: 12% capped at ₹1,800
+            const pfQualifyingWage = Math.min(basicDa, Number(cfg.pfWageCap || 15000));
+            const pfDeduction = Math.min(Math.round(pfQualifyingWage * (Number(cfg.pfEmployeeRate || 12) / 100)), Number(cfg.pfMonthlyCeiling || 1800));
+
+            // ESIC: 0.75% if Gross <= ₹21,000
+            const esicDeduction = baseGross <= Number(cfg.esicWageCap || 21000) ? Math.round(baseGross * (Number(cfg.esicEmployeeRate || 0.75) / 100)) : 0;
+
+            // PT: Andhra Pradesh / Telangana slabs
+            let ptDeduction = 0;
+            if (baseGross > 20000) ptDeduction = 200;
+            else if (baseGross > 15000) ptDeduction = 150;
+
+            const totalDeductions = pfDeduction + esicDeduction + ptDeduction;
+            const netSalary = Math.max(0, baseGross - totalDeductions);
+
+            return {
+              ...emp,
+              earnedGross: baseGross,
+              basicDa,
+              hra,
+              allowances,
+              pfDeduction,
+              esicDeduction,
+              ptDeduction,
+              tdsDeduction: 0,
+              totalDeductions,
+              netSalary,
+              typeLabel: "Indian Statutory (EPF, ESIC, PT)"
+            };
+          });
+
+          const totalGrossDisbursed = computedPayroll.reduce((s, e) => s + e.earnedGross, 0);
+          const totalPfCollected = computedPayroll.reduce((s, e) => s + e.pfDeduction, 0);
+          const totalEsicCollected = computedPayroll.reduce((s, e) => s + e.esicDeduction, 0);
+          const totalPtCollected = computedPayroll.reduce((s, e) => s + e.ptDeduction, 0);
+          const totalNetDisbursed = computedPayroll.reduce((s, e) => s + e.netSalary, 0);
+
+          return (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-indigo-600">👥</span> Indian HR & Statutory Payroll Management
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Staff directory, wage structure compliance (Code on Wages, EPF 12% cap, ESIC, PT), and monthly pay slip generation.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl text-xs font-bold">
+                    <span className="text-slate-500">Payroll Month:</span>
+                    <input
+                      type="month"
+                      value={selectedPayrollMonth}
+                      onChange={(e) => setSelectedPayrollMonth(e.target.value)}
+                      className="bg-transparent font-mono text-slate-900 dark:text-white outline-none cursor-pointer"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingEmployee(null);
+                      setEmployeeForm({ empId: `EMP-${String(employees.length + 1).padStart(3, "0")}`, name: "", designation: "", department: "Sales", mobile: "", pan: "", uan: "", salaryType: "statutory", baseSalary: "", dateOfJoining: new Date().toISOString().slice(0, 10), status: "active", bankName: "SBI", accountNo: "", ifsc: "" });
+                      setShowEmployeeModal(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                  >
+                    <Icon name="plus" size={14} /> Add Employee
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Monthly Gross</span>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1 font-mono">{money(totalGrossDisbursed)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">{filteredEmployees.length} staff members</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Total EPF (Employee 12%)</span>
+                  <h3 className="text-lg font-black text-indigo-600 mt-1 font-mono">{money(totalPfCollected)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Statutory cap ₹1,800/mo</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Total ESIC (0.75%)</span>
+                  <h3 className="text-lg font-black text-indigo-600 mt-1 font-mono">{money(totalEsicCollected)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Applicable Gross ≤ ₹21k</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Professional Tax (PT)</span>
+                  <h3 className="text-lg font-black text-amber-600 mt-1 font-mono">{money(totalPtCollected)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">State statutory slabs</span>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 shadow-2xs">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Net Salary Disbursed</span>
+                  <h3 className="text-lg font-black text-emerald-600 mt-1 font-mono">{money(totalNetDisbursed)}</h3>
+                  <span className="text-[10px] text-emerald-500/80 block mt-0.5">Bank transfer payable</span>
+                </div>
+              </div>
+
+              {/* Filter Toolbar */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={employeeDeptFilter}
+                    onChange={(e) => setEmployeeDeptFilter(e.target.value)}
+                    className="p-2 border rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="all">All Departments</option>
+                    <option value="Sales">Sales & Billing</option>
+                    <option value="Billing">Cashiers</option>
+                    <option value="Warehouse">Warehouse & Logistics</option>
+                    <option value="Operations">Operations & Supervisors</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Search employee, ID, designation..."
+                    value={employeeSearchQuery}
+                    onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                    className="p-1.5 px-3 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+                <div className="text-xs text-slate-500">
+                  Showing <strong>{computedPayroll.length}</strong> employees for <strong>{selectedPayrollMonth}</strong>
+                </div>
+              </div>
+
+              {/* Payroll Register Table */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse font-mono">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Emp ID</th>
+                        <th className="p-3 font-sans">Employee Name & Role</th>
+                        <th className="p-3 text-center">Wage Scheme</th>
+                        <th className="p-3 text-right">Gross (₹)</th>
+                        <th className="p-3 text-right">Basic+DA (₹)</th>
+                        <th className="p-3 text-right">EPF (₹)</th>
+                        <th className="p-3 text-right">ESIC (₹)</th>
+                        <th className="p-3 text-right">PT (₹)</th>
+                        <th className="p-3 text-right">Net Pay (₹)</th>
+                        <th className="p-3 text-center font-sans">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {computedPayroll.map(emp => (
+                        <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-bold text-indigo-600">{emp.empId}</td>
+                          <td className="p-3 font-sans">
+                            <span className="font-bold text-slate-900 dark:text-white block">{emp.name}</span>
+                            <span className="text-[11px] text-slate-500">{emp.designation} · {emp.department}</span>
+                          </td>
+                          <td className="p-3 text-center font-sans">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${emp.salaryType === "fixed" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}`}>
+                              {emp.salaryType === "fixed" ? "Fixed (Exempt)" : "Statutory (EPF+ESI)"}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-bold text-slate-900 dark:text-white">{money(emp.earnedGross)}</td>
+                          <td className="p-3 text-right text-slate-600 dark:text-slate-400">{money(emp.basicDa)}</td>
+                          <td className="p-3 text-right text-indigo-600">{emp.pfDeduction > 0 ? money(emp.pfDeduction) : "—"}</td>
+                          <td className="p-3 text-right text-indigo-600">{emp.esicDeduction > 0 ? money(emp.esicDeduction) : "—"}</td>
+                          <td className="p-3 text-right text-amber-600">{emp.ptDeduction > 0 ? money(emp.ptDeduction) : "—"}</td>
+                          <td className="p-3 text-right font-bold text-emerald-600">{money(emp.netSalary)}</td>
+                          <td className="p-3 text-center font-sans">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setViewingPaySlip(emp)}
+                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition cursor-pointer"
+                              >
+                                Pay Slip
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingEmployee(emp);
+                                  setEmployeeForm({ ...emp });
+                                  setShowEmployeeModal(true);
+                                }}
+                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
+                                title="Edit Employee Profile"
+                              >
+                                <Icon name="settings" size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+
+
+        {/* VIEW: UNIFIED ACCOUNTING VOUCHERS */}
+        {hasModuleAccess("accounting_vouchers") && activeTab === "accounting_vouchers" && (() => {
+          // Collect all operational vouchers system-wide
+          const allVouchers = [];
+
+          invoices.forEach(inv => {
+            allVouchers.push({
+              id: `v_inv_${inv.id}`,
+              voucherNo: inv.invoice_number || `INV-${inv.id}`,
+              voucherType: "Sales Receipt (RV)",
+              date: inv.invoice_date || inv.created_at?.slice(0, 10),
+              partyName: inv.customer_name || "Customer",
+              amount: Number(inv.total_amount || 0),
+              paidAmount: Number(inv.upfront_paid || 0),
+              mode: inv.payment_mode || "Cash",
+              accountHead: "Sales Revenue",
+              narration: `POS Retail Bill · Upfront Paid: ₹${inv.upfront_paid || 0} · Due: ₹${inv.balance_due || 0}`,
+              raw: inv
+            });
+          });
+
+          procurements.forEach(pr => {
+            allVouchers.push({
+              id: `v_pur_${pr.id}`,
+              voucherNo: `PUR-${pr.id}`,
+              voucherType: "Purchase Payment (PV)",
+              date: pr.created_at?.slice(0, 10),
+              partyName: pr.supplier_name || "Supplier",
+              amount: Number(pr.total_amount || 0),
+              paidAmount: Number(pr.p1_amount || 0),
+              mode: pr.p1_mode || "Cash",
+              accountHead: "Inventory Procurement",
+              narration: `Procurement of ${pr.item_name} (Qty: ${pr.procured_qty || pr.quantity})`,
+              raw: pr
+            });
+          });
+
+          collections.forEach(col => {
+            allVouchers.push({
+              id: `v_col_${col.id}`,
+              voucherNo: `REC-${col.id}`,
+              voucherType: "Customer Receipt (CRV)",
+              date: col.collection_date || col.created_at?.slice(0, 10),
+              partyName: col.customer_name || "Customer",
+              amount: Number(col.amount || 0),
+              paidAmount: Number(col.amount || 0),
+              mode: col.payment_mode || "Cash",
+              accountHead: "Accounts Receivable",
+              narration: `Settlement of outstanding customer balance · ${col.notes || ''}`,
+              raw: col
+            });
+          });
+
+          expenses.forEach(exp => {
+            allVouchers.push({
+              id: `v_exp_${exp.id}`,
+              voucherNo: `EXP-${exp.id}`,
+              voucherType: "Expense Voucher (EXPV)",
+              date: exp.date || exp.created_at?.slice(0, 10),
+              partyName: exp.category || "General Expense",
+              amount: Number(exp.amount || 0),
+              paidAmount: Number(exp.amount || 0),
+              mode: exp.payment_mode || "Cash",
+              accountHead: "Operating Expenses",
+              narration: exp.notes || exp.description || `Shop expense under ${exp.category}`,
+              raw: exp
+            });
+          });
+
+          manualVouchers.forEach(mv => {
+            allVouchers.push({
+              id: `v_mv_${mv.id}`,
+              voucherNo: mv.voucherNo || `VOU-${mv.id}`,
+              voucherType: mv.voucherType === "journal" ? "Journal Voucher (JV)" : mv.voucherType === "contra" ? "Contra Voucher (CTV)" : "Adjustment Voucher",
+              date: mv.date,
+              partyName: mv.partyName || "General",
+              amount: Number(mv.amount || 0),
+              paidAmount: Number(mv.amount || 0),
+              mode: mv.mode || "Cash",
+              accountHead: mv.accountHead || "General Ledger",
+              narration: mv.narration || "Manual accounting entry",
+              raw: mv
+            });
+          });
+
+          // Sort descending by date
+          allVouchers.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+          // Filter
+          const filteredVouchers = allVouchers.filter(v => {
+            if (voucherFilterType !== "all" && !v.voucherType.toLowerCase().includes(voucherFilterType.toLowerCase())) return false;
+            if (voucherModeFilter !== "all" && v.mode !== voucherModeFilter) return false;
+            if (voucherSearchQuery) {
+              const q = voucherSearchQuery.toLowerCase();
+              return v.voucherNo.toLowerCase().includes(q) || v.partyName.toLowerCase().includes(q) || (v.narration || "").toLowerCase().includes(q);
+            }
+            return true;
+          });
+
+          const totalVoucherAmount = filteredVouchers.reduce((s, v) => s + v.amount, 0);
+
+          return (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="text-indigo-600">🧾</span> Accounting Vouchers Ledger
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Unified audit ledger across all operational movements: Sales receipts, Procurement payments, Dues collections, Contras, and Journals.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVoucherForm({
+                        voucherType: "journal",
+                        voucherNo: `VOU-${Date.now().toString().slice(-6)}`,
+                        date: new Date().toISOString().slice(0, 10),
+                        accountHead: "General Ledger",
+                        partyName: "",
+                        mode: "Cash",
+                        bankId: "",
+                        amount: "",
+                        narration: ""
+                      });
+                      setShowNewVoucherModal(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                  >
+                    <Icon name="plus" size={14} /> New Accounting Voucher
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Toolbar */}
+              <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={voucherFilterType}
+                    onChange={(e) => setVoucherFilterType(e.target.value)}
+                    className="p-2 border rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="all">All Voucher Types</option>
+                    <option value="Receipt">Sales Receipts (RV)</option>
+                    <option value="Purchase">Purchase Payments (PV)</option>
+                    <option value="Collection">Customer Collections (CRV)</option>
+                    <option value="Expense">Expense Vouchers (EXPV)</option>
+                    <option value="Contra">Contra Vouchers (CTV)</option>
+                    <option value="Journal">Journal Vouchers (JV)</option>
+                  </select>
+
+                  <select
+                    value={voucherModeFilter}
+                    onChange={(e) => setVoucherModeFilter(e.target.value)}
+                    className="p-2 border rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="all">All Payment Modes</option>
+                    <option value="Cash">Cash</option>
+                    <option value="UPI">UPI / Bank</option>
+                    <option value="Credit">Credit / Dues</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="Search voucher #, party, narration..."
+                    value={voucherSearchQuery}
+                    onChange={(e) => setVoucherSearchQuery(e.target.value)}
+                    className="p-1.5 px-3 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+
+                <div className="text-xs font-bold text-slate-600 dark:text-slate-400 font-mono">
+                  Total Filtered Value: <strong className="text-slate-900 dark:text-white">{money(totalVoucherAmount)}</strong> ({filteredVouchers.length} vouchers)
+                </div>
+              </div>
+
+              {/* Vouchers Table */}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="p-3">Voucher #</th>
+                        <th className="p-3">Type</th>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Account Head</th>
+                        <th className="p-3">Party Name</th>
+                        <th className="p-3">Mode</th>
+                        <th className="p-3 text-right">Amount (₹)</th>
+                        <th className="p-3 text-center">Slip View</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredVouchers.map(v => (
+                        <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-mono font-bold text-indigo-600">
+                            {renderClickableDocNo(v.voucherNo)}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{v.voucherType}</td>
+                          <td className="p-3 font-mono text-slate-500">{v.date}</td>
+                          <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{v.accountHead}</td>
+                          <td className="p-3 font-bold text-slate-900 dark:text-white">{v.partyName}</td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {v.mode}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                            {money(v.amount)}
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setViewingVoucherSlip(v)}
+                              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition cursor-pointer"
+                            >
+                              View Slip
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           );
         })()}
@@ -12708,7 +13346,7 @@ Thank you for your business!`;
                                     title="Send 1-Click WhatsApp Payment Reminder with Itemized Bills & UPI Link"
                                   >
                                     <span>💬</span>
-                                    <span>WhatsApp</span>
+                                    <Icon name="whatsapp" size={15} />
                                   </button>
                                 )}
                                 {!isCustomerInUse(c) && (
@@ -13767,7 +14405,7 @@ Thank you for your business!`;
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
                   <div>
                     <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">
-                      {t("B Reddy Statement (Excel Sheet Format)", "బి రెడ్డి స్టేట్‌మెంట్ (ఎక్సెల్ షీట్ ఫార్మాట్)")}
+                      {t("Executive Financial Balance Sheet & Operational Audit (Excel Format)", "ఎగ్జిక్యూటివ్ ఫైనాన్షియల్ బ్యాలెన్స్ షీట్ & ఆపరేషనల్ ఆడిట్")}
                     </h2>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                       {t("Complete balance sheet. Zero stock batches and settled zero balances are excluded.", "పూర్తి బ్యాలెన్స్ షీట్. జీరో స్టాక్ మరియు సెటిల్ అయినవి మినహాయించబడ్డాయి.")}
@@ -14124,7 +14762,20 @@ Thank you for your business!`;
                   {/* 6B: Supplier Pending Bills */}
                   <div className="space-y-2 pt-2">
                     <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <span>2. Supplier Purchase Pending Bills:</span>
+                      <div className="flex items-center gap-3">
+                        <span>2. Supplier Purchase Pending Bills:</span>
+                        <div className="flex items-center gap-1.5 text-xs font-normal">
+                          <span className="text-slate-400 font-semibold text-[10px] uppercase">Group By:</span>
+                          <select
+                            value={balanceSheetSupplierGroupBy}
+                            onChange={(e) => setBalanceSheetSupplierGroupBy(e.target.value)}
+                            className="p-1 px-2 border rounded-lg text-xs bg-slate-50 dark:bg-slate-800 font-bold"
+                          >
+                            <option value="none">Bill-Wise (Ungrouped)</option>
+                            <option value="supplier">By Supplier</option>
+                          </select>
+                        </div>
+                      </div>
                       <span className="text-amber-600 dark:text-amber-400 font-mono">Total: {money(totalPendingBills)}</span>
                     </div>
                     <div className="overflow-x-auto border border-amber-200 dark:border-amber-900/60 rounded-xl">
@@ -15185,3432 +15836,392 @@ Thank you for your business!`;
           );
         })()}
 
-        {/* VIEW 13: SYSTEM SETTINGS MODULE (LANGUAGE, LIVE THEME PREVIEW, GOOGLE AUTHENTICATOR 2FA, BACKUP) */}
+        
+        {/* VIEW 13: FULL-SCREEN SYSTEM SETTINGS MODULE WITH LEFT SIDEBAR MENU */}
         {hasModuleAccess("settings") && activeTab === "settings" && (() => {
           return (
-            <div className="space-y-2.5 sm:space-y-3 max-w-4xl mx-auto">
-              {/* Header */}
-              <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5 leading-tight">
-                  <span className="text-lg">⚙️</span> {t("System Settings & Customization", "సిస్టమ్ సెట్టింగ్స్ & కాన్ఫిగరేషన్")}
-                </h2>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
-                  {t("Configure language, color themes, display modes, Google Authenticator security, and database backup.", "భాష, రంగులు, లైట్/డార్క్ మోడ్, సెక్యూరిటీ మరియు బ్యాకప్ సెట్టింగ్స్")}
-                </p>
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[650px]">
+              {/* Left Panel Sidebar Menu matching Point 5 */}
+              <div className="w-full md:w-64 lg:w-72 bg-slate-50 dark:bg-slate-950/60 border-r border-slate-200 dark:border-slate-800 p-4 space-y-2 shrink-0">
+                <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <Icon name="settings" size={16} /> System Settings
+                  </h3>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Customization & ERP Configuration</p>
+                </div>
+
+                <div className="space-y-1">
+                  {[
+                    { id: "branding", label: "General & Branding", icon: "briefcase" },
+                    { id: "banking", label: "Bank Accounts Master", icon: "wallet" },
+                    { id: "users_roles", label: "User Management & RBAC Roles", icon: "users" },
+                    { id: "security", label: "2FA Security & Secrets", icon: "shield" },
+                    { id: "inventory", label: "Low Stock & Reorder", icon: "package" },
+                    { id: "credit_control", label: "Customer Credit Limits", icon: "creditcard" },
+                    { id: "numbering", label: "Document Auto-Numbering", icon: "filetext" },
+                    { id: "alerts", label: "Alerts & WhatsApp Gateway", icon: "bell" },
+                    { id: "z_reports", label: "Z-Report History", icon: "file" },
+                    { id: "admin_tools", label: "Administration & Maintenance", icon: "history" }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setSettingsSidebarTab(tab.id)}
+                      className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 cursor-pointer ${settingsSidebarTab === tab.id ? "bg-indigo-600 text-white shadow-xs font-black" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900"}`}
+                    >
+                      <Icon name={tab.icon} size={15} />
+                      <span className="truncate">{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Settings Sub-Tab Navigation (Scenario #2 Full Cloud CRUD Registry) */}
-              <div className="flex flex-wrap gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 w-full self-start">
-                {[
-                  { id: "general", label: "General & Branding", icon: "settings" },
-                  { id: "security", label: "2FA Security & Secrets", icon: "shield" },
-                  { id: "inventory", label: "Low Stock & Reorder", icon: "package" },
-                  { id: "credit_control", label: "Customer Credit Limits", icon: "creditcard" },
-                  { id: "z_reports", label: "Z-Report History", icon: "filetext" },
-                  { id: "app_config", label: "App Config & Tax", icon: "file" },
-                  { id: "business_alerts", label: "Alerts", icon: "bell" },
-                  { id: "roles", label: "Roles", icon: "users" }
-                ].map((st) => (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => setSettingsSubTab(st.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                      settingsSubTab === st.id
-                        ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <Icon name={st.icon} size={14} /> {st.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* SCENARIO 2 & 7: BRANDING & BUSINESS IMAGE CONFIGURATION */}
-              {settingsSubTab === "general" && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🏪</span> Business Image & Branding Identity (Cloud-Synced)
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Configure your business image (displayed on 75% login screen desktop & mobile banner), contact details, and UPI information. Changes persist to cloud instantly.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          saveSystemSettingsToCloud({
-                            branding: systemSettings?.branding || {}
-                          });
-                          alert("Branding and Business Image saved to cloud database and synced across devices!");
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Save Branding Settings
-                      </button>
+              {/* Right Workspace Area */}
+              <div className="flex-1 p-6 overflow-y-auto max-h-[850px] space-y-6">
+                {/* 1. BUSINESS IDENTITY & BRANDING */}
+                {settingsSidebarTab === "branding" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Business Identity & Branding</h3>
+                      <p className="text-xs text-slate-500">Configure business trade name (3–60 chars), banner image upload, address, and GSTIN.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          System Display Name:
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex justify-between">
+                          <span>Business Trade Name</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{(systemSettings?.branding?.systemName || "").length}/60 chars</span>
                         </label>
                         <input
                           type="text"
+                          minLength={3}
+                          maxLength={60}
                           value={systemSettings?.branding?.systemName || ""}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
-                            branding: { ...(systemSettings?.branding || {}), systemName: e.target.value }
-                          })}
-                          placeholder="e.g. JSR Retails"
-                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                          onChange={(e) => {
+                            const val = e.target.value.slice(0, 60);
+                            saveSystemSettingsToCloud({
+                              branding: { ...(systemSettings?.branding || {}), systemName: val }
+                            });
+                          }}
+                          className="w-full p-2.5 border rounded-xl text-xs font-bold bg-white dark:bg-slate-800"
+                          placeholder="e.g. JSR Retails & Wholesale"
                         />
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          Tagline / Slogan:
-                        </label>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tagline / Sub-Heading</label>
                         <input
                           type="text"
                           value={systemSettings?.branding?.tagline || ""}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
+                          onChange={(e) => saveSystemSettingsToCloud({
                             branding: { ...(systemSettings?.branding || {}), tagline: e.target.value }
                           })}
-                          placeholder="e.g. Retail & Wholesale Billing ERP"
-                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                          className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800"
                         />
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                        Business Image URL (Scenario #7):
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          value={systemSettings?.branding?.businessImage || ""}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
-                            branding: { ...(systemSettings?.branding || {}), businessImage: e.target.value }
-                          })}
-                          placeholder="https://..."
-                          className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setSystemSettings({
-                            ...systemSettings,
-                            branding: { ...(systemSettings?.branding || {}), businessImage: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80" }
-                          })}
-                          className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
-                        >
-                          Reset Default
-                        </button>
-                      </div>
-                      <div className="h-36 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative">
-                        <img
-                          src={systemSettings?.branding?.businessImage || "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80"}
-                          alt="Preview"
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 text-white rounded text-[10px] font-bold">
-                          Live Login Screen Preview
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          Company Address:
+                    {/* Login Page Background Banner Upload matching Point 12 */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-xs text-slate-900 dark:text-white">Login Page Background Image</h4>
+                          <p className="text-[11px] text-slate-500">Admin can upload a custom desktop & mobile login hero banner.</p>
+                        </div>
+                        <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 transition">
+                          <Icon name="upload" size={13} /> Upload New Banner
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const base64 = ev.target?.result;
+                                  if (base64) {
+                                    saveSystemSettingsToCloud({
+                                      branding: { ...(systemSettings?.branding || {}), businessImage: base64 }
+                                    });
+                                    alert("✓ New login page banner image uploaded and cloud-synced successfully!");
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
                         </label>
+                      </div>
+
+                      {systemSettings?.branding?.businessImage && (
+                        <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 relative">
+                          <img
+                            src={systemSettings.branding.businessImage}
+                            alt="Current Banner"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Company Store Address</label>
                         <input
                           type="text"
                           value={systemSettings?.branding?.companyAddress || ""}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
+                          onChange={(e) => saveSystemSettingsToCloud({
                             branding: { ...(systemSettings?.branding || {}), companyAddress: e.target.value }
                           })}
-                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs"
+                          className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800"
                         />
                       </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          Contact Phone:
-                        </label>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Store Contact Number</label>
                         <input
-                          type="tel"
+                          type="text"
                           value={systemSettings?.branding?.phone || ""}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
+                          onChange={(e) => saveSystemSettingsToCloud({
                             branding: { ...(systemSettings?.branding || {}), phone: e.target.value }
                           })}
-                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs"
+                          className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800"
                         />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          UPI Payment ID:
-                        </label>
-                        <input
-                          type="text"
-                          value={systemSettings?.branding?.upiId || ""}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
-                            branding: { ...(systemSettings?.branding || {}), upiId: e.target.value }
-                          })}
-                          className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SCENARIO 8: GOOGLE AUTHENTICATOR (2FA) SECRET ISOLATION */}
-              {settingsSubTab === "security" && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🛡️</span> Google Authenticator (2FA) Per-Account Secrets
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Admin and Partners use separate, isolated 2FA keys. Admin codes cannot be used for Partners and vice versa.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          saveSystemSettingsToCloud({
-                            security: systemSettings?.security || {}
-                          });
-                          alert("2FA Secrets saved to cloud database and synced across devices!");
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Save 2FA Security Settings
-                      </button>
-                    </div>
-
-                    {/* Admin 2FA Card */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="font-black text-xs text-indigo-600 dark:text-indigo-400">👑 Administrator 2FA Secret Key</span>
-                        <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={systemSettings?.security?.admin2FASecret || "JSRADMINSEC2026"}
-                          onChange={(e) => setSystemSettings({
-                            ...systemSettings,
-                            security: { ...(systemSettings?.security || {}), admin2FASecret: e.target.value.toUpperCase() }
-                          })}
-                          className="flex-1 p-2 bg-white dark:bg-slate-900 border rounded-xl text-xs font-mono font-bold uppercase tracking-wider"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newSec = "JSR" + Math.random().toString(36).substring(2, 10).toUpperCase();
-                            setSystemSettings({
-                              ...systemSettings,
-                              security: { ...(systemSettings?.security || {}), admin2FASecret: newSec }
-                            });
-                          }}
-                          className="px-3 py-2 bg-slate-200 dark:bg-slate-700 rounded-xl text-xs font-bold"
-                        >
-                          Generate New
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-slate-500">
-                        Scan in Google Authenticator using Setup Key: <b className="font-mono text-slate-700 dark:text-slate-300">{systemSettings?.security?.admin2FASecret || "JSRADMINSEC2026"}</b> • Account: JSR Admin
-                      </p>
-                    </div>
-
-                    {/* Partner 2FA Cards */}
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">Partner-Specific 2FA Keys</h4>
-                      {partners.map((p) => {
-                        const curSec = systemSettings?.security?.partner2FASecrets?.[p.id] || ("JSRPARTNER" + String(p.id).padStart(6, "0"));
-                        return (
-                          <div key={p.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div>
-                              <span className="font-bold text-xs text-slate-900 dark:text-white block">{p.name}</span>
-                              <span className="text-[10px] font-mono text-slate-500">Secret: <b className="text-indigo-600 dark:text-indigo-400">{curSec}</b></span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newSec = "PT" + Math.random().toString(36).substring(2, 10).toUpperCase();
-                                setSystemSettings({
-                                  ...systemSettings,
-                                  security: {
-                                    ...(systemSettings?.security || {}),
-                                    partner2FASecrets: {
-                                      ...(systemSettings?.security?.partner2FASecrets || {}),
-                                      [p.id]: newSec
-                                    }
-                                  }
-                                });
-                              }}
-                              className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-lg text-xs font-bold"
-                            >
-                              Regenerate Key
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SCENARIO 4: INVENTORY REORDER LEVEL CONFIGURATION */}
-              {settingsSubTab === "inventory" && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>📦</span> Minimum Stock & Reorder Levels Registry (Cloud CRUD)
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Set reorder levels and preferred suppliers per item. When stock falls below threshold, top-bar alerts activate.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          saveSystemSettingsToCloud({
-                            inventory: systemSettings?.inventory || {}
-                          });
-                          alert("Item Reorder Levels saved to cloud database!");
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Save Reorder Settings
-                      </button>
-                    </div>
-
-                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                      <table className="min-w-[600px] w-full text-left text-xs font-mono border-collapse">
-                        <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-2.5">Item Name</th>
-                            <th className="p-2.5 text-center">Reorder Threshold</th>
-                            <th className="p-2.5 text-center">Suggested Order Qty</th>
-                            <th className="p-2.5">Preferred Supplier</th>
-                            <th className="p-2.5 text-center">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {masterItems.map((item) => {
-                            const curCfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || {};
-                            const curLevel = curCfg.reorderLevel ?? item.reorder_level ?? 5;
-                            const curQty = curCfg.suggestedQty ?? (curLevel * 2);
-                            const curSupp = curCfg.supplierId || item.preferred_supplier_id || "";
-
-                            return (
-                              <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                <td className="p-2.5 font-sans font-bold">{item.name}</td>
-                                <td className="p-2.5 text-center">
-                                  <IndianNumberInput
-                                    value={curLevel}
-                                    onChange={(e) => {
-                                      const val = cleanNum(e.target.value);
-                                      setSystemSettings({
-                                        ...systemSettings,
-                                        inventory: {
-                                          ...(systemSettings?.inventory || {}),
-                                          itemReorderLevels: {
-                                            ...(systemSettings?.inventory?.itemReorderLevels || {}),
-                                            [item.id]: { ...curCfg, reorderLevel: val }
-                                          }
-                                        }
-                                      });
-                                    }}
-                                    className="w-16 p-1 text-center bg-white dark:bg-slate-900 border rounded-lg font-bold"
-                                  />
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  <IndianNumberInput
-                                    value={curQty}
-                                    onChange={(e) => {
-                                      const val = cleanNum(e.target.value);
-                                      setSystemSettings({
-                                        ...systemSettings,
-                                        inventory: {
-                                          ...(systemSettings?.inventory || {}),
-                                          itemReorderLevels: {
-                                            ...(systemSettings?.inventory?.itemReorderLevels || {}),
-                                            [item.id]: { ...curCfg, suggestedQty: val }
-                                          }
-                                        }
-                                      });
-                                    }}
-                                    className="w-16 p-1 text-center bg-white dark:bg-slate-900 border rounded-lg font-bold"
-                                  />
-                                </td>
-                                <td className="p-2.5">
-                                  <select
-                                    value={curSupp}
-                                    onChange={(e) => {
-                                      setSystemSettings({
-                                        ...systemSettings,
-                                        inventory: {
-                                          ...(systemSettings?.inventory || {}),
-                                          itemReorderLevels: {
-                                            ...(systemSettings?.inventory?.itemReorderLevels || {}),
-                                            [item.id]: { ...curCfg, supplierId: e.target.value }
-                                          }
-                                        }
-                                      });
-                                    }}
-                                    className="p-1 bg-white dark:bg-slate-900 border rounded-lg text-xs"
-                                  >
-                                    <option value="">-- Choose Supplier --</option>
-                                    {suppliers.map((s) => (
-                                      <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                  </select>
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const updated = { ...(systemSettings?.inventory?.itemReorderLevels || {}) };
-                                      delete updated[item.id];
-                                      setSystemSettings({
-                                        ...systemSettings,
-                                        inventory: { ...(systemSettings?.inventory || {}), itemReorderLevels: updated }
-                                      });
-                                    }}
-                                    className="text-rose-500 hover:text-rose-700 text-xs font-bold"
-                                  >
-                                    Reset
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SCENARIO 5: CUSTOMER CREDIT LIMITS CONFIGURATION */}
-              {settingsSubTab === "credit_control" && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>💳</span> Customer Credit Exposure & Limits Registry (Cloud CRUD)
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Set maximum allowed credit limits per customer. Bills exceeding the threshold trigger checkout warnings.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          saveSystemSettingsToCloud({
-                            creditControl: systemSettings?.creditControl || {}
-                          });
-                          alert("Customer Credit Limits saved to cloud database!");
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Save Credit Limits
-                      </button>
-                    </div>
-
-                    <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                      <table className="min-w-[600px] w-full text-left text-xs font-mono border-collapse">
-                        <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-2.5">Customer Name</th>
-                            <th className="p-2.5">Mobile</th>
-                            <th className="p-2.5 text-right">Current Due (₹)</th>
-                            <th className="p-2.5 text-right">Configured Credit Limit (₹)</th>
-                            <th className="p-2.5 text-center">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {customers.map((c) => {
-                            const curLimit = systemSettings?.creditControl?.customerCreditLimits?.[c.id] ?? c.credit_limit ?? 0;
-                            const curDue = Number(c.old_due || 0);
-
-                            return (
-                              <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                <td className="p-2.5 font-sans font-bold">{c.name}</td>
-                                <td className="p-2.5 text-slate-500">{c.mobile || "—"}</td>
-                                <td className="p-2.5 text-right font-bold text-rose-600">{money(curDue)}</td>
-                                <td className="p-2.5 text-right">
-                                  <IndianNumberInput
-                                    value={curLimit || ""}
-                                    placeholder="0 (No Limit)"
-                                    onChange={(e) => {
-                                      const val = cleanNum(e.target.value);
-                                      setSystemSettings({
-                                        ...systemSettings,
-                                        creditControl: {
-                                          ...(systemSettings?.creditControl || {}),
-                                          customerCreditLimits: {
-                                            ...(systemSettings?.creditControl?.customerCreditLimits || {}),
-                                            [c.id]: val
-                                          }
-                                        }
-                                      });
-                                    }}
-                                    className="w-28 p-1 text-right bg-white dark:bg-slate-900 border rounded-lg font-bold"
-                                  />
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  {curDue > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSendWhatsAppReminder(c)}
-                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-sans font-bold text-[11px]"
-                                    >
-                                      💬 Reminder
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SCENARIO 3: Z-REPORT HISTORY AUDIT TRAIL */}
-              {settingsSubTab === "z_reports" && (
-                <div className="space-y-5 animate-in fade-in duration-150">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>📊</span> Day-End Cash Register Reconciliation (Z-Report) History
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Audit trail of past day-end drawer closings, surplus/shortage variances, and physical counts.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowZReportModal(true)}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Open Today&apos;s Z-Report
-                      </button>
-                    </div>
-
-                    {(!systemSettings?.zReport?.history || systemSettings.zReport.history.length === 0) ? (
-                      <div className="p-8 text-center text-slate-400 space-y-2">
-                        <span className="text-3xl block">📑</span>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Saved Z-Reports Yet</p>
-                        <p className="text-xs">Close your first day-end cash register reconciliation to create persistent history records.</p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
-                        <table className="min-w-[650px] w-full text-left text-xs font-mono border-collapse">
-                          <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
-                            <tr>
-                              <th className="p-2.5">Date & Time</th>
-                              <th className="p-2.5">Closed By</th>
-                              <th className="p-2.5 text-right">Expected Cash (₹)</th>
-                              <th className="p-2.5 text-right">Physical Count (₹)</th>
-                              <th className="p-2.5 text-right">Variance (₹)</th>
-                              <th className="p-2.5 text-center">Status</th>
-                              <th className="p-2.5 text-center">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {systemSettings.zReport.history.map((z) => (
-                              <tr key={z.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                <td className="p-2.5 font-bold">{z.date} ({z.timestamp?.slice(11, 16)})</td>
-                                <td className="p-2.5 font-sans">{z.operator}</td>
-                                <td className="p-2.5 text-right font-bold text-indigo-600">{money(z.expected_cash)}</td>
-                                <td className="p-2.5 text-right font-bold">{money(z.physical_cash)}</td>
-                                <td className={`p-2.5 text-right font-black ${z.difference > 0 ? "text-emerald-600" : z.difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                                  {z.difference > 0 ? `+${money(z.difference)}` : z.difference < 0 ? `-${money(Math.abs(z.difference))}` : "₹0.00"}
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    z.status === "Surplus" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : z.status === "Shortage" ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" : "bg-indigo-100 text-indigo-800"
-                                  }`}>
-                                    {z.status}
-                                  </span>
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => setViewingSavedZReport(z)}
-                                    className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded font-sans font-bold text-xs"
-                                  >
-                                    View Receipt
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* APPLICATION CONFIGURATION TAB (POINT 3) */}
-              {settingsSubTab === "app_config" && (
-                <div className="space-y-6 animate-in fade-in duration-150">
-                  {/* SYSTEM NAME & BRAND CONFIGURATION */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <Icon name="briefcase" size={16} /> Application & System Business Name
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Configure the business / system name displayed across header branding, browser titles, invoice bills, WhatsApp receipts, and reports.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (typeof window !== "undefined") {
-                            localStorage.setItem("app_system_name", systemName);
-                          }
-                          alert(`System Name saved successfully as "${systemName}"!`);
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Save System Name
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          System / Business Display Name:
-                        </label>
-                        <input
-                          type="text"
-                          value={systemName}
-                          onChange={(e) => setSystemName(e.target.value)}
-                          placeholder="e.g. B Reddy Sales"
-                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Live Display Preview</div>
-                        <div className="font-black text-indigo-600 dark:text-indigo-400 text-base">{systemName.toUpperCase()}</div>
-                        <div className="text-[11px] text-slate-500">{systemName} - Wholesale & Retail ERP</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PAN & GSTIN SYSTEM-WIDE TOGGLE */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <Icon name="shield" size={16} /> PAN & GSTIN Compliance Requirement
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Enable or disable PAN and GSTIN fields system-wide for Customers and Suppliers. When enabled, tax fields are captured in forms and displayed across Masters.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = !enablePanGstin;
-                          setEnablePanGstin(next);
-                          if (typeof window !== "undefined") {
-                            localStorage.setItem("enable_pan_gstin", String(next));
-                          }
-                          alert(`PAN & GSTIN requirement is now ${next ? "ENABLED" : "DISABLED"} system-wide.`);
-                        }}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
-                          enablePanGstin
-                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                            : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        <span>{enablePanGstin ? "✓" : "✕"}</span>
-                        <span>{enablePanGstin ? "Requirement Enabled" : "Requirement Disabled"}</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <Icon name="file" size={16} /> Module Numbering & Display Format Configuration
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Configure module prefixes, numbering format patterns, and next sequence counters. All invoices and receipts will increment sequentially.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const defaults = {
-                              sales_invoice: { name: "Sales Invoices", prefix: "INV-", pattern: "INV-{YYMMDD}-{SEQ}", nextSeq: 1 },
-                              customer_collection: { name: "Customer Receipts (Collections)", prefix: "REC-", pattern: "REC-{SEQ}", nextSeq: 1 },
-                              purchase_order: { name: "Purchase Orders / Bills", prefix: "PUR-", pattern: "PUR-{YYMMDD}-{SEQ}", nextSeq: 1 },
-                              supplier_payment: { name: "Supplier Payments", prefix: "PAY-", pattern: "PAY-{SEQ}", nextSeq: 1 },
-                              business_loan: { name: "Business Loans & Repayments", prefix: "LN-", pattern: "LN-{SEQ}", nextSeq: 1 },
-                              expense: { name: "Shop Expenses & Outflows", prefix: "EXP-", pattern: "EXP-{SEQ}", nextSeq: 1 }
-                            };
-                            setNumberingConfig(defaults);
-                            if (typeof window !== "undefined") {
-                              localStorage.setItem("app_numbering_config", JSON.stringify(defaults));
-                            }
-                            alert("Reset module numbering to default formats!");
-                          }}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
-                        >
-                          Reset Defaults
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (typeof window !== "undefined") {
-                              localStorage.setItem("app_numbering_config", JSON.stringify(numberingConfig));
-                            }
-                            alert("Application Configurations saved successfully!");
-                          }}
-                          className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition cursor-pointer"
-                        >
-                          Save Configurations
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* ERP Grid Table */}
-                    <div className="overflow-x-auto rounded-xl border border-sky-200 dark:border-slate-700">
-                      <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono">
-                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-12 whitespace-nowrap">S.No</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans whitespace-nowrap">Module Name</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Prefix</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Numbering Format</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-28 whitespace-nowrap">Next Seq #</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Live Sample Preview</th>
-                            <th className="p-2.5 border border-sky-200 dark:border-slate-700 text-center w-20 whitespace-nowrap">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium">
-                          {Object.keys(numberingConfig).map((key, idx) => {
-                            const mod = numberingConfig[key];
-                            const sampleDate = new Date().toISOString().split("T")[0].replace(/-/g, "").slice(2);
-                            const seqPad = String(mod.nextSeq || 1).padStart(4, "0");
-                            const preview = key === "sales_invoice" || key === "purchase_order"
-                              ? `${mod.prefix || ""}${sampleDate}-${seqPad}`
-                              : `${mod.prefix || ""}${seqPad}`;
-
-                            return (
-                              <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center font-bold text-slate-500 whitespace-nowrap">
-                                  {idx + 1}
-                                </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                                  {mod.name}
-                                </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
-                                  <input
-                                    type="text"
-                                    value={mod.prefix}
-                                    onChange={(e) => {
-                                      const updated = {
-                                        ...numberingConfig,
-                                        [key]: { ...mod, prefix: e.target.value.toUpperCase() }
-                                      };
-                                      setNumberingConfig(updated);
-                                    }}
-                                    className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold text-indigo-600 dark:text-indigo-400"
-                                  />
-                                </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px]">
-                                    {mod.pattern}
-                                  </span>
-                                </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
-                                  <IndianNumberInput
-                                    allowDecimal={false}
-                                    value={mod.nextSeq}
-                                    onChange={(e) => {
-                                      const val = Math.max(1, parseInt(String(e.target.value).replace(/,/g, ""), 10) || 1);
-                                      const updated = {
-                                        ...numberingConfig,
-                                        [key]: { ...mod, nextSeq: val }
-                                      };
-                                      setNumberingConfig(updated);
-                                    }}
-                                    className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold"
-                                  />
-                                </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">
-                                  <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                    {preview}
-                                  </span>
-                                </td>
-                                <td className="p-2.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
-                                    Active
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* GENERAL SETTINGS CONTAINER */}
-              {settingsSubTab === "general" && (
-                <div className="space-y-6">
-
-                  {/* SECTION 0: SYSTEM NAME & BRAND CONFIGURATION */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <Icon name="briefcase" size={16} /> Application & System Business Name
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Configure the business / system name displayed across header branding, browser titles, invoice bills, WhatsApp receipts, and reports.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (typeof window !== "undefined") {
-                            localStorage.setItem("app_system_name", systemName);
-                          }
-                          alert(`System Name saved successfully as "${systemName}"!`);
-                        }}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                      >
-                        Save System Name
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                      <div>
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                          System / Business Display Name:
-                        </label>
-                        <input
-                          type="text"
-                          value={systemName}
-                          onChange={(e) => setSystemName(e.target.value)}
-                          placeholder="e.g. B Reddy Sales"
-                          className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-                        />
-                      </div>
-                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Live Display Preview</div>
-                        <div className="font-black text-indigo-600 dark:text-indigo-400 text-base">{systemName.toUpperCase()}</div>
-                        <div className="text-[11px] text-slate-500">{systemName} - Wholesale & Retail ERP</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SECTION 0B: PAN & GSTIN SYSTEM-WIDE TOGGLE */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                      <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <Icon name="shield" size={16} /> PAN & GSTIN Compliance Requirement
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Enable or disable PAN and GSTIN fields system-wide for Customers and Suppliers. When enabled, tax fields are captured in forms and displayed across Masters.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = !enablePanGstin;
-                          setEnablePanGstin(next);
-                          if (typeof window !== "undefined") {
-                            localStorage.setItem("enable_pan_gstin", String(next));
-                          }
-                          alert(`PAN & GSTIN requirement is now ${next ? "ENABLED" : "DISABLED"} system-wide.`);
-                        }}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
-                          enablePanGstin
-                            ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                            : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        <span>{enablePanGstin ? "✓" : "✕"}</span>
-                        <span>{enablePanGstin ? "Requirement Enabled" : "Requirement Disabled"}</span>
-                      </button>
-                    </div>
-                  </div>
-
-              {/* SECTION 1: LANGUAGE SELECTION (POINT 1 & 5) */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span>🌐</span> System Language (భాష ఎంపిక)
-                </h3>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Choose System Language:</b>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Default is clean English. Telugu subtitles and hints available when selected.
-                    </span>
-                  </div>
-                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <button
-                      type="button"
-                      onClick={() => toggleLanguage("en")}
-                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
-                        language === "en" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                      }`}
-                    >
-                      English (Default)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toggleLanguage("te")}
-                      className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
-                        language === "te" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                      }`}
-                    >
-                      తెలుగు (Telugu)
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 2: THEME COLOR WITH LIVE PREVIEW (POINT 7) */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span>🎨</span> Accent Theme Color (రంగుల ఎంపిక)
-                </h3>
-                
-                {/* Live Theme Preview Banner (Point 7 - Instantly shows user the theme is active) */}
-                <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${curTheme.primaryLight}`}>
-                  <div className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded-full inline-block shadow-xs" style={{ backgroundColor: curTheme.hex }} />
-                    <div>
-                      <b className="text-xs block">Active System Theme: {curTheme.name} ✓</b>
-                      <span className="text-[11px] opacity-80">This color is now actively applied to all buttons, navigation tabs, and system highlights</span>
-                    </div>
-                  </div>
-                  <button className={`px-4 py-2 rounded-xl text-xs font-bold shadow-xs ${curTheme.primary}`}>
-                    Active Preview Button
-                  </button>
-                </div>
-
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
-                  <div>
-                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Select Accent Theme:</b>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Click any palette color below to change your active ERP theme</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {[
-                      { id: "indigo", name: "Classic Indigo", color: "bg-indigo-600" },
-                      { id: "emerald", name: "Farmer Emerald", color: "bg-emerald-600" },
-                      { id: "blue", name: "Ocean Sky", color: "bg-sky-600" },
-                      { id: "rose", name: "Crimson Rose", color: "bg-rose-600" },
-                      { id: "amber", name: "Warm Amber", color: "bg-amber-600" }
-                    ].map((th) => (
-                      <button
-                        key={th.id}
-                        type="button"
-                        onClick={() => updateThemeColor(th.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition cursor-pointer ${
-                          themeColor === th.id
-                            ? "border-slate-900 dark:border-white bg-slate-100 dark:bg-slate-800 text-slate-950 dark:text-white font-black shadow-xs ring-2 ring-indigo-400"
-                            : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                        }`}
-                      >
-                        <span className={`w-3 h-3 rounded-full ${th.color} inline-block`} />
-                        {th.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 3: DISPLAY & TEXT SIZE (POINT 4 & 5) */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-5">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span>☀️</span> Display & Font Scale
-                </h3>
-
-                {/* Light / Dark Mode Toggle */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Day / Night Mode (Light & Dark Theme):</b>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">High-contrast dark mode for night operations</span>
-                  </div>
-                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700">
-                    <button
-                      type="button"
-                      onClick={() => { if (darkMode) toggleDarkMode(); }}
-                      className={`px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
-                        !darkMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                      }`}
-                    >
-                      <span className="text-amber-500">☀️</span> Light
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { if (!darkMode) toggleDarkMode(); }}
-                      className={`px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
-                        darkMode ? "bg-slate-900 text-amber-400 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                      }`}
-                    >
-                      <span>🌙</span> Dark
-                    </button>
-                  </div>
-                </div>
-
-                {/* Font Scale */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <div>
-                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Text Size / Font Scale:</b>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Enlarge text size for better readability</span>
-                  </div>
-                  <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <button
-                      type="button"
-                      onClick={() => updateFontScale("normal")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        fontScale === "normal" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                      }`}
-                    >
-                      Normal (100%)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateFontScale("large")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        fontScale === "large" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                      }`}
-                    >
-                      Large (115%)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateFontScale("xl")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                        fontScale === "xl" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                      }`}
-                    >
-                      Extra Large (125%)
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 4: SECURITY & GOOGLE AUTHENTICATOR (POINT 6) */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span>🔐</span> Login Security & Google Authenticator (2FA)
-                </h3>
-
-                {/* Google Authenticator Toggle */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Google Authenticator Two-Factor Authentication:</b>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      When enabled, requires a 6-digit TOTP code from Google Authenticator app on login
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !enableTwoFactor;
-                      setEnableTwoFactor(next);
-                      if (typeof window !== "undefined") localStorage.setItem("enable_2fa", next ? "true" : "false");
-                      alert(next ? "Google Authenticator 2FA Enabled!" : "Google Authenticator 2FA Disabled.");
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition ${
-                      enableTwoFactor
-                        ? "bg-emerald-600 text-white shadow-xs"
-                        : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {enableTwoFactor ? "✓ 2FA Enabled" : "Enable 2FA"}
-                  </button>
-                </div>
-
-                {/* 2FA Setup Instructions Card with QR Code and 1-Click Mobile Actions */}
-                {enableTwoFactor && (
-                  <div className="p-5 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-emerald-950/30 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 space-y-4 text-xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-indigo-200 dark:border-indigo-800">
-                      <div>
-                        <b className="text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-                          <span>📱</span> Google Authenticator Mobile Setup
-                        </b>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Scan the QR code below with Google Authenticator or tap 'Copy Key'
-                        </span>
-                      </div>
-                      <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold rounded-full">
-                        2FA Active
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col md:flex-row items-center gap-5">
-                      {/* Live Scannable QR Code */}
-                      <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-1.5 shrink-0">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=otpauth%3A%2F%2Ftotp%2FJSR%2520Retail%2520(B%2520Reddy)%3Fsecret%3D${twoFactorSecret}%26issuer%3DJSR%2520Retail`}
-                          alt="Google Authenticator QR Code"
-                          className="w-36 h-36 rounded-lg"
-                        />
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                          Scan with App
-                        </span>
-                      </div>
-
-                      {/* Mobile Instructions & Action Buttons */}
-                      <div className="space-y-3 flex-1 w-full">
-                        <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
-                          <span className="text-[10px] text-slate-400 font-bold uppercase block">Your Setup Key (కీ)</span>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono font-black text-sm text-indigo-600 dark:text-indigo-400 tracking-wider">
-                              {twoFactorSecret}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(twoFactorSecret);
-                                alert("Setup Key copied to clipboard! Open Google Authenticator > Tap '+' > Enter a setup key > Paste.");
-                              }}
-                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-xs"
-                            >
-                              <span>📋</span> Copy Key
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] space-y-1 text-slate-700 dark:text-slate-300">
-                          <div><b>Account Name:</b> <span className="font-mono text-indigo-600 dark:text-indigo-400">JSR Retail (B Reddy)</span></div>
-                          <div><b>Type of Key:</b> <span className="font-mono">Time-based (సమయ ఆధారితం)</span></div>
-                          <div><b>Emergency Master Code:</b> <span className="font-mono text-rose-600 font-bold">999999</span></div>
-                        </div>
-
-                        {/* Direct Mobile Launch Button */}
-                        <a
-                          href={`otpauth://totp/JSR%20Retail%20(B%20Reddy)?secret=${twoFactorSecret}&issuer=JSR%20Retail`}
-                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition text-center"
-                        >
-                          <span>⚡</span> Open Directly in Authenticator App
-                        </a>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Require PIN on Startup Toggle */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <div>
-                    <b className="text-xs text-slate-800 dark:text-slate-200 block">Require PIN on Startup:</b>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      When turned off, skips login gate on app open
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={toggleRequireLogin}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition ${
-                      requireLogin
-                        ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800"
-                        : "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800"
-                    }`}
-                  >
-                    {requireLogin ? "🔒 PIN Required" : "⚡ Direct Access"}
-                  </button>
-                </div>
-              </div>
-
-              {/* SECTION 5: DATA BACKUP & RESTORE */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <span>💾</span> Complete Database Backup & Restore
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Export complete data snapshot (Customers, Suppliers, Items, Invoices, Purchases, Collections, Expenses) to a JSON file on your computer.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                  <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2">
-                    <b className="text-xs text-indigo-900 dark:text-indigo-300 block">1. Export Full System Backup:</b>
-                    <button
-                      type="button"
-                      onClick={handleExportAllData}
-                      className={`w-full py-2.5 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer`}
-                    >
-                      <span>📥</span> Export Backup JSON
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-2">
-                    <b className="text-xs text-emerald-900 dark:text-emerald-300 block">2. Restore from JSON Backup:</b>
-                    <label className={`w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer text-center ${
-                      importingBackup ? "opacity-50 pointer-events-none" : ""
-                    }`}>
-                      <span>📤</span> {importingBackup ? "Restoring..." : "Select Backup JSON to Restore"}
-                      <input
-                        type="file"
-                        accept=".json"
-                        onChange={handleImportBackup}
-                        className="hidden"
-                        disabled={importingBackup}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 6: SYSTEM INFO */}
-              <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <div>
-                  <b className="text-slate-900 dark:text-slate-200 block">JSR Retail Sales ERP System</b>
-                  <span>Database: Supabase PostgreSQL Connected • Branch: B Reddy Traders</span>
-                </div>
-                <span className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 font-bold rounded-lg text-slate-700 dark:text-slate-200 text-[11px]">
-                  Version 3.0 (Enterprise Custom Edition)
-                </span>
-              </div>
-                </div>
-              )}
-
-              {/* BUSINESS ALERTS TAB (SCENARIO #1: DAILY BUSINESS ALERT VIA WHATSAPP) */}
-              {/* VIEW: ROLES & MANAGE MODULES (RBAC) */}
-              {settingsSubTab === "roles" && (
-                <div className="space-y-6 animate-in fade-in duration-150">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                {/* 2. BANK ACCOUNTS MASTER */}
+                {settingsSidebarTab === "banking" && (
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
                       <div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <Icon name="shield" size={16} /> Roles & Manage Modules (Role-Based Access Control)
-                        </h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          Create custom partner roles and configure module permissions. Partners will only view and access assigned screens.
-                        </p>
+                        <h3 className="font-black text-base text-slate-900 dark:text-white">Bank Accounts Master</h3>
+                        <p className="text-xs text-slate-500">Configure commercial bank accounts, partner tagging, and UPI modes.</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingRoleId(null);
-                          setRoleForm({
-                            name: "",
-                            description: "",
-                            modules: ["sale", "invoices"]
-                          });
-                          setShowRoleModal(true);
+                          setEditingBank(null);
+                          setBankForm({ bankName: "", accountNo: "", ifsc: "", branch: "", partnerId: "p1", upiEnabled: true, upiId: "", openingBalance: "0" });
+                          setShowAddBankModal(true);
                         }}
-                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
                       >
-                        <Icon name="plus" size={14} /> Create New Role
+                        <Icon name="plus" size={14} /> Add Bank
                       </button>
                     </div>
 
-                    {/* Roles ERP Grid Table */}
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                      <table className="min-w-[750px] w-full text-left text-xs border-collapse">
-                        <thead className="bg-[#f0f6fc] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-3 w-12 text-center whitespace-nowrap">S.No</th>
-                            <th className="p-3 w-48 whitespace-nowrap">Role Name</th>
-                            <th className="p-3 w-56 whitespace-nowrap">Description</th>
-                            <th className="p-3 whitespace-nowrap">Allowed Module Access ({SYSTEM_MODULES.length})</th>
-                            <th className="p-3 w-28 text-center whitespace-nowrap">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                          {systemRoles.map((r, idx) => {
-                            const isAdminRole = r.id === "role_admin";
-                            return (
-                              <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                                <td className="p-3 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
-                                <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                                  <div className="flex items-center gap-1.5">
-                                    <span>{isAdminRole ? "👑" : "🛡️"}</span>
-                                    <span>{r.name}</span>
-                                    {isAdminRole && (
-                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                                        System
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-3 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
-                                  {r.description || "—"}
-                                </td>
-                                <td className="p-3 whitespace-nowrap">
-                                  <div className="flex flex-wrap gap-1">
-                                    {isAdminRole ? (
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-200">
-                                        Full Universal Access (All {SYSTEM_MODULES.length} Modules)
-                                      </span>
-                                    ) : (
-                                      (r.modules || []).map((mId) => {
-                                        const modInfo = SYSTEM_MODULES.find((m) => m.id === mId);
-                                        return (
-                                          <span key={mId} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-                                            <Icon name={modInfo?.icon || "check"} size={10} />
-                                            <span>{modInfo?.label || mId}</span>
-                                          </span>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-3 text-center whitespace-nowrap">
-                                  {!isAdminRole ? (
-                                    <div className="inline-flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingRoleId(r.id);
-                                          setRoleForm({
-                                            name: r.name,
-                                            description: r.description || "",
-                                            modules: [...(r.modules || [])]
-                                          });
-                                          setShowRoleModal(true);
-                                        }}
-                                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer"
-                                      >
-                                        Edit
-                                      </button>
-                                      {!r.isSystem && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            if (!confirm(`Delete role "${r.name}"? Partners with this role will fall back to Standard Partner.`)) return;
-                                            setSystemRoles((prev) => {
-                                              const next = prev.filter((item) => item.id !== r.id);
-                                              if (typeof window !== "undefined") localStorage.setItem("app_system_roles", JSON.stringify(next));
-                                              return next;
-                                            });
-                                          }}
-                                          className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 font-bold text-xs transition cursor-pointer"
-                                        >
-                                          Delete
-                                        </button>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-[10px] text-slate-400 font-bold">Unrestricted</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
+                    <div className="space-y-3">
+                      {(systemSettings?.banking?.accounts || []).map(b => (
+                        <div key={b.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                          <div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">{b.bankName}</h4>
+                            <span className="font-mono text-xs text-slate-500">A/c: {b.accountNo} · IFSC: {b.ifsc}</span>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              Tagged Partner: <strong>{partners.find(p => p.id === b.partnerId)?.name || "General"}</strong> · UPI: <strong>{b.upiEnabled ? (b.upiId || "Enabled") : "Disabled"}</strong>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-sm text-slate-800 dark:text-slate-200">{money(b.openingBalance || 0)}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = (systemSettings?.banking?.accounts || []).filter(x => x.id !== b.id);
+                                saveSystemSettingsToCloud({ banking: { ...(systemSettings?.banking || {}), accounts: updated } });
+                              }}
+                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                              title="Delete Bank Account"
+                            >
+                              <Icon name="trash" size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. USER MANAGEMENT & RBAC ROLES */}
+                {settingsSidebarTab === "users_roles" && (
+                  <div className="space-y-5">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">User Management & RBAC Roles</h3>
+                      <p className="text-xs text-slate-500">Manage user accounts, assign roles, and configure screen permissions.</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">System Roles & Screen Access</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {systemRoles.map(role => (
+                          <div key={role.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div className="flex justify-between items-center">
+                              <h5 className="font-bold text-xs text-slate-900 dark:text-white">{role.name}</h5>
+                              <span className="text-[10px] font-bold text-indigo-600 font-mono">{role.modules?.length || 0} modules</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-1">{role.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. SECURITY & CREDENTIALS */}
+                {settingsSidebarTab === "security" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Security & Credentials</h3>
+                      <p className="text-xs text-slate-500">Manage Administrator password, partner PINs, and RFC 6238 TOTP secrets.</p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="font-bold text-xs text-slate-900 dark:text-white">Require Login Authentication</h4>
+                          <p className="text-[11px] text-slate-500">Lock application screens when unattended.</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={systemSettings?.security?.requireLogin !== false}
+                          onChange={(e) => saveSystemSettingsToCloud({
+                            security: { ...(systemSettings?.security || {}), requireLogin: e.target.checked }
                           })}
-                        </tbody>
-                      </table>
+                          className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {settingsSubTab === "business_alerts" && (
-                <div className="space-y-6 animate-in fade-in duration-150">
-                  {/* Breadcrumb & Section Header */}
-                  <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      <span>Settings</span>
-                      <span>›</span>
-                      <span>Business Alerts</span>
-                      <span>›</span>
-                      <span className="text-indigo-600 dark:text-indigo-400">Daily Business Alert</span>
+                {/* 5. INVENTORY & LOW STOCK */}
+                {settingsSidebarTab === "inventory" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Inventory & Low Stock Alerts</h3>
+                      <p className="text-xs text-slate-500">Configure global reorder thresholds and stock depletion notifications.</p>
                     </div>
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
                       <div>
-                        <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white flex items-center gap-2">
-                          <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-                            <Icon name="bell" size={18} />
-                          </span>
-                          Daily Business Alert to Owner & Partners via WhatsApp
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Automatically generates and delivers previous day's sales, collections, payments, and stock summary via WhatsApp every midnight at 12:00 AM.
-                        </p>
+                        <h4 className="font-bold text-xs">Default Reorder Level Threshold</h4>
+                        <p className="text-[11px] text-slate-500">Alert triggers when remaining units drop below this value.</p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={handleTestWhatsAppConnection}
-                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                          title="Test Meta WhatsApp Cloud API credentials & webhook connectivity"
-                        >
-                          <span>🔍</span> Test Connection
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerDailyAlert(true)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                          title="Trigger and dispatch previous day summary right now"
-                        >
-                          <Icon name="send" size={13} /> Send Now
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleTriggerTestAlert}
-                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                          title="Send test WhatsApp message to verify configuration"
-                        >
-                          <span>🧪</span> Send Test Alert
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleSaveAlertConfig}
-                          className={`px-3 py-1.5 ${curTheme.primary} rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer`}
-                        >
-                          <Icon name="check" size={13} /> Save Settings
-                        </button>
-                      </div>
+                      <input
+                        type="number"
+                        min={1}
+                        value={systemSettings?.inventory?.defaultReorderLevel || 5}
+                        onChange={(e) => saveSystemSettingsToCloud({
+                          inventory: { ...(systemSettings?.inventory || {}), defaultReorderLevel: Number(e.target.value) }
+                        })}
+                        className="w-20 p-2 border rounded-xl text-center font-bold"
+                      />
                     </div>
                   </div>
+                )}
 
-                  {/* MASTER SCHEDULE SETTINGS CARD */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                    <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span>⚙️</span> 1. Alert Schedule & Automation Controls
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Daily Business Alert Master Switch */}
-                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white block">Daily Business Alert</b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Master switch to enable or pause all automatic WhatsApp alerts
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDailyAlertConfig((prev) => ({ ...prev, enabled: !prev.enabled }))}
-                          className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                            dailyAlertConfig.enabled
-                              ? "bg-emerald-600 text-white shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                          }`}
-                        >
-                          {dailyAlertConfig.enabled ? "ON ✓" : "OFF"}
-                        </button>
-                      </div>
-
-                      {/* Automatic Alert Time */}
-                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white block">Automatic Alert Time</b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Default: 12:00 AM (midnight trigger for previous day)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="time"
-                            value={dailyAlertConfig.alertTime || "00:00"}
-                            onChange={(e) => setDailyAlertConfig((prev) => ({ ...prev, alertTime: e.target.value }))}
-                            className="p-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                          />
-                          <span className="text-[11px] font-mono text-slate-500 font-bold">
-                            {dailyAlertConfig.alertTime === "00:00" ? "12:00 AM" : ""}
-                          </span>
-                        </div>
-                      </div>
+                {/* 6. CREDIT CONTROL */}
+                {settingsSidebarTab === "credit_control" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Customer Credit Control</h3>
+                      <p className="text-xs text-slate-500">Enforce customer credit limits during retail checkout.</p>
                     </div>
-                  </div>
-
-                  {/* OWNER CONFIGURATION CARD */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl flex justify-between items-center">
                       <div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>👑</span> 2. Business Owner Configuration
-                        </h4>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Configure primary recipient for all executive summaries
-                        </span>
+                        <h4 className="font-bold text-xs">Enable Strict Credit Limits</h4>
+                        <p className="text-[11px] text-slate-500">Warns cashier when bill amount exceeds customer ceiling.</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={systemSettings?.creditControl?.enableCreditLimits !== false}
+                        onChange={(e) => saveSystemSettingsToCloud({
+                          creditControl: { ...(systemSettings?.creditControl || {}), enableCreditLimits: e.target.checked }
+                        })}
+                        className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 7. DOCUMENT AUTO-NUMBERING */}
+                {settingsSidebarTab === "numbering" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Document Auto-Numbering</h3>
+                      <p className="text-xs text-slate-500">Configure prefixes and patterns for sales bills, purchase orders, receipts, and vouchers.</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {Object.entries(numberingConfig).map(([key, cfg]) => (
+                        <div key={key} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <span className="text-xs font-bold block">{cfg.name}</span>
+                          <span className="font-mono text-indigo-600 text-xs font-bold block mt-1">{cfg.pattern}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 8. ALERTS & WHATSAPP */}
+                {settingsSidebarTab === "alerts" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Alerts & WhatsApp Gateway</h3>
+                      <p className="text-xs text-slate-500">Configure messaging automations and daily summaries.</p>
+                    </div>
+                    <p className="text-xs text-slate-500">WhatsApp direct link generation active with clean SVG icons system-wide.</p>
+                  </div>
+                )}
+
+                {/* 9. Z-REPORTS */}
+                {settingsSidebarTab === "z_reports" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Z-Report Closing History</h3>
+                      <p className="text-xs text-slate-500">Archived cash register closing balances and physical denomination counts.</p>
+                    </div>
+                    <div className="space-y-2">
+                      {(systemSettings?.zReport?.history || []).slice(0, 10).map((zr, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl flex justify-between items-center text-xs">
+                          <div>
+                            <span className="font-mono font-bold">{zr.date}</span>
+                            <span className="text-slate-400 block text-[10px]">{zr.timestamp}</span>
+                          </div>
+                          <span className="font-mono font-bold text-emerald-600">{money(zr.physicalCashCounted || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 10. ADMIN MAINTENANCE */}
+                {settingsSidebarTab === "admin_tools" && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <h3 className="font-black text-base text-slate-900 dark:text-white">Administration & Maintenance</h3>
+                      <p className="text-xs text-slate-500">Administrative tools, Undo Bank Reconciliation, and ledger integrity checks.</p>
+                    </div>
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/60 flex justify-between items-center">
+                      <div>
+                        <h4 className="font-bold text-xs text-amber-900 dark:text-amber-200">Undo Bank Reconciliation Tool</h4>
+                        <p className="text-[11px] text-amber-700/80">Reverts reconciled transactions back to pending to unlock editing.</p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setDailyAlertConfig((prev) => ({ ...prev, ownerAlert: !prev.ownerAlert }))}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                          dailyAlertConfig.ownerAlert
-                            ? "bg-emerald-600 text-white shadow-xs"
-                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                        }`}
+                        onClick={() => setShowUndoReconModal(true)}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
                       >
-                        Owner Alert: {dailyAlertConfig.ownerAlert ? "ON ✓" : "OFF"}
+                        Open Undo Tool
                       </button>
                     </div>
-
-                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 space-y-3">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white block">Owner WhatsApp Number:</b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Supports international prefix or 10-digit mobile (+91 XXXXX XXXXX)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                          <span className="text-xs font-mono font-bold text-slate-500">📱</span>
-                          <input
-                            type="tel"
-                            placeholder="+91 98480 12345"
-                            value={dailyAlertConfig.ownerMobile || ""}
-                            onChange={(e) => setDailyAlertConfig((prev) => ({ ...prev, ownerMobile: e.target.value }))}
-                            className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white flex-1 sm:w-56"
-                          />
-                          {(() => {
-                            const v = validateMobileNumber(dailyAlertConfig.ownerMobile);
-                            return (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${v.valid ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"}`}>
-                                {v.valid ? "Valid ✓" : "Check #"}
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-slate-400 italic">
-                        * Note: If the owner changes the mobile number, future alerts are automatically dispatched to the new number without altering previous Alert History.
-                      </p>
-                    </div>
                   </div>
-
-                  {/* PARTNER CONFIGURATION CARD */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>🤝</span> 3. Partner Configuration & Recipients Table
-                        </h4>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Manage partner alerts, edit numbers, and toggle delivery individually
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <button
-                          type="button"
-                          onClick={() => setDailyAlertConfig((prev) => ({ ...prev, partnerAlerts: !prev.partnerAlerts }))}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                            dailyAlertConfig.partnerAlerts
-                              ? "bg-emerald-600 text-white shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                          }`}
-                        >
-                          Partner Alerts: {dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNewAlertRecipientForm({ name: "", mobile: "", enabled: true });
-                            setShowAddAlertRecipientModal(true);
-                          }}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800"
-                        >
-                          <Icon name="plus" size={13} /> Add Partner Recipient
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Partner Recipients Table */}
-                    <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
-                      <table className="min-w-[600px] w-full text-left text-xs border-collapse">
-                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Partner</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">WhatsApp Number</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Daily Alert</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-24 whitespace-nowrap">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
-                          {(dailyAlertConfig.partnerRecipients || []).map((p, idx) => {
-                            const val = validateMobileNumber(p.mobile);
-                            return (
-                              <tr key={p.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
-                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  {p.name}
-                                </td>
-                                <td className="p-3 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="tel"
-                                      placeholder="+91 XXXXX XXXXX"
-                                      value={p.mobile || ""}
-                                      onChange={(e) => {
-                                        const newNum = e.target.value;
-                                        setDailyAlertConfig((prev) => {
-                                          const nextList = [...prev.partnerRecipients];
-                                          nextList[idx] = { ...nextList[idx], mobile: newNum };
-                                          return { ...prev, partnerRecipients: nextList };
-                                        });
-                                      }}
-                                      className="px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white w-44"
-                                    />
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${val.valid ? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/60" : "text-rose-700 bg-rose-50 dark:text-rose-400 dark:bg-rose-950/60"}`}>
-                                      {val.valid ? "✓" : "Invalid"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setDailyAlertConfig((prev) => {
-                                        const nextList = [...prev.partnerRecipients];
-                                        nextList[idx] = { ...nextList[idx], enabled: !nextList[idx].enabled };
-                                        return { ...prev, partnerRecipients: nextList };
-                                      });
-                                    }}
-                                    className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
-                                      p.enabled && dailyAlertConfig.partnerAlerts
-                                        ? "bg-emerald-600 text-white shadow-2xs"
-                                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                                    }`}
-                                  >
-                                    {p.enabled && dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
-                                  </button>
-                                </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (confirm(`Remove partner "${p.name}" from daily alerts?`)) {
-                                        setDailyAlertConfig((prev) => ({
-                                          ...prev,
-                                          partnerRecipients: prev.partnerRecipients.filter((_, i) => i !== idx)
-                                        }));
-                                      }
-                                    }}
-                                    className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 rounded transition cursor-pointer"
-                                    title="Remove Recipient"
-                                  >
-                                    <Icon name="trash" size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* ALERT INFORMATION SELECTION CARD */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                    <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span>📊</span> 4. Alert Information Selection
-                    </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Select which business activity sections are included in the WhatsApp message. If a section is toggled OFF, that entire section is completely omitted from the delivered message.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {/* 1. Sales Summary */}
-                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>🧾</span> Sales Summary
-                          </b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                            • Number of invoices<br />• Total sales amount (₹)
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDailyAlertConfig((prev) => ({
-                            ...prev,
-                            sections: { ...prev.sections, sales: !prev.sections?.sales }
-                          }))}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                            dailyAlertConfig.sections?.sales
-                              ? "bg-emerald-600 text-white shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                          }`}
-                        >
-                          {dailyAlertConfig.sections?.sales ? "ON ✓" : "OFF"}
-                        </button>
-                      </div>
-
-                      {/* 2. Collections Summary */}
-                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>📥</span> Collections Summary
-                          </b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                            • Number of collections<br />• Total collection amount (₹)
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDailyAlertConfig((prev) => ({
-                            ...prev,
-                            sections: { ...prev.sections, collections: !prev.sections?.collections }
-                          }))}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                            dailyAlertConfig.sections?.collections
-                              ? "bg-emerald-600 text-white shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                          }`}
-                        >
-                          {dailyAlertConfig.sections?.collections ? "ON ✓" : "OFF"}
-                        </button>
-                      </div>
-
-                      {/* 3. Payments Summary */}
-                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>📤</span> Payments Summary
-                          </b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                            • Number of payments<br />• Total payment amount (₹)
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDailyAlertConfig((prev) => ({
-                            ...prev,
-                            sections: { ...prev.sections, payments: !prev.sections?.payments }
-                          }))}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                            dailyAlertConfig.sections?.payments
-                              ? "bg-emerald-600 text-white shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                          }`}
-                        >
-                          {dailyAlertConfig.sections?.payments ? "ON ✓" : "OFF"}
-                        </button>
-                      </div>
-
-                      {/* 4. Stock Summary */}
-                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                        <div>
-                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>📦</span> Stock Summary
-                          </b>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                            • Items Sold count<br />• Current stock valuation (₹)
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setDailyAlertConfig((prev) => ({
-                            ...prev,
-                            sections: { ...prev.sections, stock: !prev.sections?.stock }
-                          }))}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
-                            dailyAlertConfig.sections?.stock
-                              ? "bg-emerald-600 text-white shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
-                          }`}
-                        >
-                          {dailyAlertConfig.sections?.stock ? "ON ✓" : "OFF"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ALERT HISTORY SCREEN (SECTION 12) */}
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                          <span>📜</span> Alert History
-                        </h4>
-                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Complete audit log of automatic midnight alerts and manual test dispatches
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        {/* Search Input */}
-                        <input
-                          type="text"
-                          placeholder="Search recipient / date..."
-                          value={alertHistorySearch}
-                          onChange={(e) => setAlertHistorySearch(e.target.value)}
-                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white flex-1 sm:w-44"
-                        />
-                        {/* Status Filter */}
-                        <select
-                          value={alertHistoryStatusFilter}
-                          onChange={(e) => setAlertHistoryStatusFilter(e.target.value)}
-                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="Sent">Sent</option>
-                          <option value="Dispatched (Web)">Dispatched (Web)</option>
-                          <option value="Ready">Ready / Pending</option>
-                          <option value="Disabled">Disabled</option>
-                          <option value="Failed">Failed</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm("Clear all alert history records?")) {
-                              setAlertHistory([]);
-                              try {
-                                localStorage.removeItem("jsr_alert_history");
-                              } catch (e) {}
-                              fetch("/api/alerts/settings", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ history: [] })
-                              }).catch(() => {});
-                            }
-                          }}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-xs font-bold transition cursor-pointer"
-                          title="Clear History"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* History Table matching Scenario #11 Point 5 exact columns */}
-                    <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
-                      <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono">
-                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
-                          <tr>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date & Time</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Recipient</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Number</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Status</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Message ID</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">API Response</th>
-                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
-                          {(() => {
-                            let filtered = alertHistory;
-                            if (alertHistoryStatusFilter !== "all") {
-                              if (alertHistoryStatusFilter === "Ready") {
-                                filtered = filtered.filter((h) => h.status === "Ready" || h.status === "Pending");
-                              } else {
-                                filtered = filtered.filter((h) => h.status === alertHistoryStatusFilter);
-                              }
-                            }
-                            if (alertHistorySearch.trim()) {
-                              const q = alertHistorySearch.toLowerCase();
-                              filtered = filtered.filter((h) =>
-                                (h.recipient || h.name || "").toLowerCase().includes(q) ||
-                                (h.displayDateTime || "").toLowerCase().includes(q) ||
-                                (h.recipientMobile || h.mobile || "").toLowerCase().includes(q) ||
-                                (h.messageId || "").toLowerCase().includes(q) ||
-                                (h.apiResponse || "").toLowerCase().includes(q)
-                              );
-                            }
-
-                            if (filtered.length === 0) {
-                              return (
-                                <tr>
-                                  <td colSpan={7} className="p-6 text-center text-slate-400">
-                                    No alert records found.
-                                  </td>
-                                </tr>
-                              );
-                            }
-
-                            return filtered.map((item) => (
-                              <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
-                                <td className="p-3 whitespace-nowrap text-slate-600 dark:text-slate-400 border border-sky-100 dark:border-slate-800 text-[11px]">
-                                  {item.displayDateTime}
-                                </td>
-                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  {item.recipient || item.name || item.recipientName || "Recipient"}
-                                </td>
-                                <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap text-[11px]">
-                                  {item.recipientMobile || item.mobile || "—"}
-                                </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
-                                    item.status === "Delivered" || item.status === "Read"
-                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                                      : item.status === "Sent"
-                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                                      : item.status === "Accepted"
-                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
-                                      : item.status === "Dispatched (Web)"
-                                      ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
-                                      : item.status === "Ready" || item.status === "Pending"
-                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                      : item.status === "Sending..."
-                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
-                                      : item.status === "Disabled"
-                                      ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                      : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                                  }`}>
-                                    <span>
-                                      {item.status === "Delivered" || item.status === "Read"
-                                        ? "✓✓"
-                                        : item.status === "Sent"
-                                        ? "✓"
-                                        : item.status === "Accepted"
-                                        ? "📡"
-                                        : item.status === "Dispatched (Web)"
-                                        ? "📱"
-                                        : item.status === "Ready" || item.status === "Pending"
-                                        ? "⏳"
-                                        : item.status === "Sending..."
-                                        ? "🔄"
-                                        : item.status === "Disabled"
-                                        ? "⊘"
-                                        : "✕"}
-                                    </span>
-                                    {item.status}
-                                  </span>
-                                </td>
-                                <td className="p-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  {item.messageId || "—"}
-                                </td>
-                                <td className="p-3 text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 text-[11px] font-sans whitespace-nowrap">
-                                  {item.apiResponse || item.reason || (item.status === "Sent" ? "Accepted" : "—")}
-                                </td>
-                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRetrySingleAlert(item)}
-                                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg text-[11px] font-bold cursor-pointer transition flex items-center gap-1 mx-auto"
-                                    title={`Retry sending alert specifically to ${item.recipient || item.name || 'this recipient'}`}
-                                  >
-                                    <span>🔄</span> Retry
-                                  </button>
-                                </td>
-                              </tr>
-                            ));
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })()}
-      </main>
 
-      {/* MODAL: ADD / EDIT LENDER */}
-      {showLenderModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingLenderId ? "Edit Loan Source" : "Add Business Loan Source"}</h3>
-            <form onSubmit={saveLender} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Lender / Source (e.g. Muthoot Gold Loan, Srinivas)"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={lenderForm.name}
-                onChange={(e) => setLenderForm({ ...lenderForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Contact Phone"
-                className="w-full p-2.5 border rounded-xl text-sm"
-                value={lenderForm.mobile}
-                onChange={(e) => setLenderForm({ ...lenderForm, mobile: e.target.value })}
-              />
-              <IndianNumberInput
-                placeholder="Current Outstanding Loan (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
-                value={lenderForm.initial_loan}
-                onChange={(e) => setLenderForm({ ...lenderForm, initial_loan: e.target.value })}
-              />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowLenderModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* MODAL: RECORD LOAN REPAYMENT */}
-      {showLoanPaymentModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">Repay Business Loan / Interest</h3>
-            <form onSubmit={saveLoanRepayment} className="space-y-3">
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={loanPaymentForm.borrower_id}
-                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, borrower_id: e.target.value })}
-              >
-                <option value="">-- Choose Lender / Loan Source --</option>
-                {lenders.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name} (Due: {money(l.balance_due)})</option>
-                ))}
-              </select>
-
-              <div className="space-y-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Principal Repayment (అసలు చెల్లింపు ₹ - Optional if paying interest only)
-                  </label>
-                  <IndianNumberInput
-                    placeholder="Principal Amount (₹, Leave 0 for interest only)"
-                    className="w-full p-2.5 border rounded-xl text-sm font-bold text-rose-600"
-                    value={loanPaymentForm.principal_amount}
-                    onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, principal_amount: e.target.value })}
-                  />
-                  <span className="text-[10px] text-slate-400">Reduces the lender balance due</span>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Interest Amount (వడ్డీ చెల్లింపు ₹)
-                  </label>
-                  <IndianNumberInput
-                    placeholder="Interest Amount (₹, Optional)"
-                    className="w-full p-2.5 border rounded-xl text-sm font-bold text-amber-600"
-                    value={loanPaymentForm.interest_amount}
-                    onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, interest_amount: e.target.value })}
-                  />
-                  <span className="text-[10px] text-slate-400">Interest paid does not reduce principal balance</span>
-                </div>
-
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs font-bold text-slate-700">
-                  <span>Total Deducted from Partner:</span>
-                  <span className="text-sm font-black text-rose-600">
-                    {money(cleanNum(loanPaymentForm.principal_amount) + cleanNum(loanPaymentForm.interest_amount))}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "Cash" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  💵 Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLoanPaymentForm({ ...loanPaymentForm, payment_mode: "UPI" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${loanPaymentForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
-                >
-                  📱 UPI
-                </button>
-              </div>
-
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={loanPaymentForm.partner_id}
-                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, partner_id: e.target.value })}
-              >
-                <option value="">-- Partner Account Paying --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                  Payment Date (చెల్లింపు తేదీ)
-                </label>
-                <input
-                  type="date"
-                  required
-                  className="w-full p-2.5 border rounded-xl text-xs font-semibold text-slate-800"
-                  value={loanPaymentForm.tx_date}
-                  onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, tx_date: e.target.value })}
-                />
-              </div>
-
-              <input
-                type="text"
-                placeholder="Notes / Cheque / Voucher Ref (Optional)"
-                className="w-full p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
-                value={loanPaymentForm.notes}
-                onChange={(e) => setLoanPaymentForm({ ...loanPaymentForm, notes: e.target.value })}
-              />
-
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowLoanPaymentModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Repayment</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: PAY SUPPLIER PURCHASE BILL */}
-      {showPayPurchaseModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-[70] overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingPaymentId ? "Edit Supplier Payment" : "Pay Supplier Purchase Bill"}</h3>
-
-            {!isBillLocked && (
-              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaySupplierMode("single");
-                    setMultiSupplierId("");
-                    setPayPurchaseForm((prev) => ({ ...prev, purchase_id: "", amount: "" }));
-                  }}
-                  className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "single" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
-                >
-                  Pay Single Bill
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPaySupplierMode("multi");
-                    setPayPurchaseForm((prev) => ({ ...prev, purchase_id: "", amount: "" }));
-                    setMultiSupplierId("");
-                  }}
-                  className={`flex-1 py-1.5 rounded-lg transition ${paySupplierMode === "multi" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600"}`}
-                >
-                  Pay Supplier (Multiple Bills)
-                </button>
-              </div>
-            )}
-
-            <form onSubmit={savePurchasePayment} className="space-y-3">
-              {paySupplierMode === "single" ? (
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Select Purchase Bill {isBillLocked && "(Locked)"}
-                  </label>
-                  <select
-                    required
-                    disabled={isBillLocked}
-                    className="w-full p-2.5 border rounded-xl text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-600"
-                    value={payPurchaseForm.purchase_id}
-                onChange={(e) => {
-                  const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === e.target.value || po.purchaseNum === e.target.value);
-                  const remDue = targetPO ? Math.max(0, Number(targetPO.total_amount || 0) - Number(targetPO.paid_amount || 0)) : "";
-                  setPayPurchaseForm({
-                    ...payPurchaseForm,
-                    purchase_id: e.target.value,
-                    amount: remDue ? String(remDue) : ""
-                  });
-                }}
-              >
-                <option value="">-- Choose Purchase Bill with Due --</option>
-                {purchaseOrdersGrouped
-                  .filter((po) => editingPaymentId || String(po.id) === String(payPurchaseForm.purchase_id) || (Number(po.total_amount || 0) - Number(po.paid_amount || 0)) > 0)
-                  .map((po) => {
-                    const due = Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0));
-                    return (
-                      <option key={po.id} value={po.id}>
-                        {po.supplier_name} — Due: {money(due)} ({po.purchaseNum})
-                      </option>
-                    );
-                  })}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Choose Supplier (Settle Multiple Bills FIFO)
-                  </label>
-                  <select
-                    required
-                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                    value={multiSupplierId}
-                    onChange={(e) => {
-                      const sid = e.target.value;
-                      setMultiSupplierId(sid);
-                      const targetSup = suppliers.find((s) => String(s.id) === sid);
-                      if (targetSup) {
-                        const totalDue = purchaseOrdersGrouped
-                          .filter((po) => po.supplier_name === targetSup.name)
-                          .reduce((s, po) => s + Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)), 0);
-                        setPayPurchaseForm((prev) => ({ ...prev, amount: totalDue > 0 ? String(totalDue) : "" }));
-                      }
-                    }}
-                  >
-                    <option value="">-- Choose Supplier --</option>
-                    {suppliers.map((s) => {
-                      const totalDue = purchaseOrdersGrouped
-                        .filter((po) => po.supplier_name === s.name)
-                        .reduce((sum, po) => sum + Math.max(0, Number(po.total_amount || 0) - Number(po.paid_amount || 0)), 0);
-                      return (
-                        <option key={s.id} value={s.id}>
-                          {s.name} — Pending Bills Due: {money(totalDue)}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              )}
-
-              <IndianNumberInput
-                required
-                placeholder="Payment Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold text-indigo-600"
-                value={payPurchaseForm.amount}
-                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, amount: e.target.value })}
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "Cash" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  💵 Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPayPurchaseForm({ ...payPurchaseForm, payment_mode: "UPI" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${payPurchaseForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
-                >
-                  📱 UPI
-                </button>
-              </div>
-
-              {/* DETAILS CARD: SINGLE BILL MODE */}
-              {paySupplierMode === "single" && payPurchaseForm.purchase_id && (() => {
-                const targetPO = purchaseOrdersGrouped.find((po) => String(po.id) === String(payPurchaseForm.purchase_id) || po.purchaseNum === payPurchaseForm.purchase_id);
-                const target = targetPO || procurements.find((p) => String(p.id) === String(payPurchaseForm.purchase_id));
-                if (!target) return null;
-                const tot = Number(target.total_amount || 0);
-                const paid = Number(target.paid_amount !== undefined ? target.paid_amount : (target.p1_amount || 0));
-                const due = Math.max(0, tot - paid);
-                const poTitle = target.purchaseNum || (typeof target.receiver_2_mode === "string" && target.receiver_2_mode.startsWith("PUR-") ? target.receiver_2_mode : `PUR-${target.id}`);
-                const itemsSummary = Array.isArray(target.items) && target.items.length > 0
-                  ? target.items.map((it) => it.item_name).filter(Boolean).join(", ")
-                  : (target.item_name || "Items");
-                return (
-                  <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1 text-xs">
-                    <div className="flex justify-between font-bold text-slate-800">
-                      <span>{poTitle}</span>
-                      <span className="text-slate-500">{target.purchase_date || target.created_at?.slice(0, 10)}</span>
-                    </div>
-                    <div className="text-slate-600 font-medium">
-                      Supplier: <strong className="text-slate-900">{target.supplier_name}</strong> | Items: <strong className="text-slate-900">{itemsSummary}</strong>
-                    </div>
-                    <div className="flex justify-between pt-1 border-t border-indigo-100 text-[11px]">
-                      <span>Total: <strong>{money(tot)}</strong></span>
-                      <span>Paid: <strong className="text-emerald-600">{money(paid)}</strong></span>
-                      <span>Due: <strong className="text-rose-600">{money(due)}</strong></span>
-                    </div>
-
-                    {/* Settle from Supplier Advance Button */}
-                    {(() => {
-                      const sup = suppliers.find((s) => s.name === target.supplier_name);
-                      const adv = Number(sup?.old_due || 0) < 0 ? Math.abs(Number(sup?.old_due)) : 0;
-                      if (adv <= 0) return null;
-                      return (
-                        <div className="pt-2 border-t border-indigo-100 flex justify-between items-center">
-                          <span className="text-[10px] text-emerald-700 font-bold">Advance Credit: {money(adv)}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const useAmt = Math.min(adv, due);
-                              setPayPurchaseForm({
-                                ...payPurchaseForm,
-                                amount: String(useAmt),
-                                payment_mode: "Advance Adjusted"
-                              });
-                            }}
-                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg"
-                          >
-                            ⚡ Settle via Advance
-                          </button>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })()}
-
-              {/* DETAILS CARD: MULTIPLE BILLS (FIFO) MODE */}
-              {paySupplierMode === "multi" && multiSupplierId && (() => {
-                const targetSup = suppliers.find((s) => String(s.id) === String(multiSupplierId) || s.name === multiSupplierId);
-                if (!targetSup) return null;
-
-                const pendingBills = procurements
-                  .filter((p) => p.supplier_name === targetSup.name && Math.max(0, Number(p.total_amount || 0) - Number(p.p1_amount || 0)) > 0)
-                  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-                const totalPendingDue = pendingBills.reduce(
-                  (sum, b) => sum + Math.max(0, Number(b.total_amount || 0) - Number(b.p1_amount || 0)),
-                  0
-                );
-
-                const currentPayAmt = cleanNum(payPurchaseForm.amount);
-                const advCredit = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
-
-                return (
-                  <div className="p-3.5 bg-purple-50/70 border-2 border-purple-200 rounded-xl space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="font-black text-purple-900 uppercase text-[11px] tracking-wider flex items-center gap-1.5">
-                        📋 Pending Bills for {targetSup.name}
-                      </span>
-                      <span className="font-bold text-[10px] bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
-                        FIFO Waterfall
-                      </span>
-                    </div>
-
-                    <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
-                      {pendingBills.map((b) => {
-                        const tot = Number(b.total_amount || 0);
-                        const paid = Number(b.p1_amount || 0);
-                        const due = Math.max(0, tot - paid);
-                        return (
-                          <div key={b.id} className="p-2 bg-white rounded-lg border border-purple-100 flex justify-between items-center">
-                            <div>
-                              <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                                <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px]">PUR-{b.id}</span>
-                                <span>{b.item_name}</span>
-                                <span className="text-slate-400 font-normal">({b.procured_qty} qty)</span>
-                              </div>
-                              <span className="text-[10px] text-slate-500 block mt-0.5">
-                                Total: {money(tot)} | Paid: {money(paid)}
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Due</span>
-                              <span className="font-black text-rose-600 text-xs">{money(due)}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {pendingBills.length === 0 && (
-                        <p className="text-slate-500 italic text-center py-2">No pending bills with due balance found for this supplier.</p>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t border-purple-200 flex justify-between items-center text-[11px]">
-                      <span className="font-bold text-slate-700">Total Outstanding Payable:</span>
-                      <span className="font-black text-rose-600 text-xs">{money(totalPendingDue)}</span>
-                    </div>
-
-                    {/* Settle from Supplier Advance Credit */}
-                    {advCredit > 0 && (
-                      <div className="pt-1.5 border-t border-purple-200 flex justify-between items-center">
-                        <span className="text-[10px] text-emerald-700 font-bold">Advance Credit: {money(advCredit)}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const useAmt = Math.min(advCredit, totalPendingDue);
-                            setPayPurchaseForm((prev) => ({
-                              ...prev,
-                              amount: String(useAmt),
-                              payment_mode: "Advance Adjusted"
-                            }));
-                          }}
-                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg shadow-xs"
-                        >
-                          ⚡ Settle via Advance
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={payPurchaseForm.partner_id}
-                onChange={(e) => setPayPurchaseForm({ ...payPurchaseForm, partner_id: e.target.value })}
-              >
-                <option value="">-- Partner Paying Bill --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowPayPurchaseModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Record Payment</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: INVOICE-WISE DUE COLLECTION */}
-      {showCollectModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-[70] overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-sm w-full my-auto max-h-[90dvh] overflow-y-auto space-y-3">
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCollectionId ? "Edit Collection Receipt" : "Collect Customer Due"}</h3>
-            <form onSubmit={saveInvoiceCollection} className="space-y-3">
-              {collectForm.invoice_id ? (
-                (() => {
-                  const targetInv = invoices.find((i) => String(i.id) === String(collectForm.invoice_id));
-                  const targetCust = customers.find((c) => String(c.id) === String(collectForm.customer_id)) || { name: targetInv?.customer_name };
-                  const targetAlloc = targetInv ? invoiceAllocationsMap.get(String(targetInv.id)) : null;
-                  const paidAmt = targetAlloc ? targetAlloc.totalPaid : (targetInv ? Math.max(0, Number(targetInv.total_amount || 0) - Number(targetInv.balance_due || 0)) : 0);
-                  const dueAmt = targetAlloc ? targetAlloc.balanceDue : Number(targetInv?.balance_due || 0);
-                  return (
-                    <div className="p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-black text-indigo-950 dark:text-indigo-200">
-                          {targetInv?.invoice_number || `INV-${collectForm.invoice_id}`}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
-                          Selected Invoice (Locked)
-                        </span>
-                      </div>
-                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        Customer: <span className="font-black text-indigo-700 dark:text-indigo-300">{targetCust?.name || targetInv?.customer_name}</span>
-                        {targetCust?.mobile && <span className="text-[11px] text-slate-500 font-normal ml-1.5">({targetCust.mobile})</span>}
-                      </div>
-                      <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-indigo-100 dark:border-indigo-800/60 text-xs">
-                        <div>
-                          <span className="text-slate-500 block text-[10px] uppercase font-bold">Bill Total</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">{money(targetInv?.total_amount || 0)}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block text-[10px] uppercase font-bold">Total Paid</span>
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400">{money(paidAmt)}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block text-[10px] uppercase font-bold">Balance Due</span>
-                          <span className="font-black text-rose-600 dark:text-rose-400">{money(dueAmt)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()
-              ) : (
-                <>
-                  <select
-                    required
-                    className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                    value={collectForm.customer_id}
-                    onChange={(e) => {
-                      const custId = e.target.value;
-                      const cust = customers.find((c) => String(c.id) === String(custId));
-                      setCollectForm({
-                        ...collectForm,
-                        customer_id: custId,
-                        invoice_id: "",
-                        amount: cust && Number(cust.old_due || 0) > 0 ? String(cust.old_due) : ""
-                      });
-                    }}
-                  >
-                    <option value="">-- Choose Customer with Outstanding Due --</option>
-                    {customers
-                      .filter((c) => editingCollectionId || Number(c.old_due || 0) > 0)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} (Total Due: {money(c.old_due)})
-                        </option>
-                      ))}
-                  </select>
-
-                  {/* Reference Invoices Preview for Collection */}
-                  {editingCollectionId && (() => {
-                    const currentCol = collections.find((c) => String(c.id) === String(editingCollectionId));
-                    const adjusted = currentCol ? getAdjustedInvoicesForCollection(currentCol) : [];
-                    if (adjusted.length === 0) return null;
-                    return (
-                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-2">
-                        <div className="flex justify-between items-center text-xs font-bold text-emerald-900 dark:text-emerald-300">
-                          <span>Reference Invoices Settled ({adjusted.length}):</span>
-                          <span className="font-mono">{money(adjusted.reduce((s, x) => s + Number(x.amount || 0), 0))}</span>
-                        </div>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {adjusted.map((inv) => (
-                            <div key={inv.id} className="flex justify-between items-center text-xs font-mono bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-emerald-100 dark:border-emerald-900">
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400">{inv.invoice_number}</span>
-                              <span className="font-black text-emerald-600 dark:text-emerald-400">{money(inv.amount)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {collectForm.customer_id && (
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                        Select Invoice (Optional — FIFO Waterfall by default)
-                      </label>
-                      <select
-                        className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                        value={collectForm.invoice_id}
-                        onChange={(e) => {
-                          const invId = e.target.value;
-                          const inv = invoices.find((i) => String(i.id) === String(invId));
-                          const cust = customers.find((c) => String(c.id) === String(collectForm.customer_id));
-                          const custDue = Math.max(0, Number(cust?.old_due || 0));
-                          const alloc = inv ? invoiceAllocationsMap.get(String(inv.id)) : null;
-                          const targetDue = inv
-                            ? (alloc ? alloc.balanceDue : Math.max(0, Number(inv.balance_due || 0)))
-                            : custDue;
-                          setCollectForm({
-                            ...collectForm,
-                            invoice_id: invId,
-                            amount: targetDue > 0 ? String(targetDue) : collectForm.amount
-                          });
-                        }}
-                      >
-                        <option value="">-- Settle All Invoices (FIFO Waterfall) / General Due --</option>
-                        {(() => {
-                          const custInvs = invoices.filter((i) => String(i.customer_id) === String(collectForm.customer_id));
-                          return custInvs
-                            .map((i) => {
-                              const alloc = invoiceAllocationsMap.get(String(i.id));
-                              const individualDue = alloc ? alloc.balanceDue : Math.max(0, Number(i.balance_due || 0));
-                              return { ...i, individualDue };
-                            })
-                            .filter((i) => editingCollectionId || i.individualDue > 0)
-                            .map((i) => (
-                              <option key={i.id} value={i.id}>
-                                {i.invoice_number || `INV-${i.id}`} — Due: {money(i.individualDue)} (Bill Total: {money(i.total_amount)})
-                              </option>
-                            ));
-                        })()}
-                      </select>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <IndianNumberInput
-                required
-                placeholder="Amount (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm font-black text-emerald-600"
-                value={collectForm.amount}
-                onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
-              />
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "Cash" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "Cash" ? "bg-emerald-600 text-white" : "bg-white"}`}
-                >
-                  💵 Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCollectForm({ ...collectForm, payment_mode: "UPI" })}
-                  className={`py-2 rounded-xl text-xs font-bold border ${collectForm.payment_mode === "UPI" ? "bg-indigo-600 text-white" : "bg-white"}`}
-                >
-                  📱 UPI
-                </button>
-              </div>
-
-              <select
-                required
-                className="w-full p-2.5 border rounded-xl text-xs font-semibold"
-                value={collectForm.receiver_id || upfrontPartnerId}
-                onChange={(e) => setCollectForm({ ...collectForm, receiver_id: e.target.value })}
-              >
-                <option value="">-- Partner Who Received --</option>
-                {partners.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCollectModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button
-                  type="submit"
-                  disabled={savingCollection}
-                  className={`flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition ${
-                    savingCollection ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  {savingCollection ? "Saving..." : "Save Receipt"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT PURCHASES (FORMATTED LIKE SALES INVOICE SCREEN) */}
-      {showProcureModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 max-w-2xl w-full my-auto max-h-[90dvh] overflow-y-auto space-y-4 shadow-xl">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-black text-lg text-slate-900 dark:text-white leading-tight">
-                    {editingProcureId ? "Edit Purchase Order / Bill" : "Create Purchase Order / Bill (కొనుగోళ్లు)"}
-                  </h3>
-                  {editingProcureId && (
-                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold text-[10px] rounded-full uppercase">
-                      Editing Mode
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400">
-                  {editingProcureId ? "Review purchase details and recorded supplier payments" : "Record vendor procurements, batch inventory, and supplier dues"}
-                </p>
-              </div>
-              {editingProcureId && (() => {
-                const p = procurements.find((x) => x.id === editingProcureId);
-                const pDate = p?.purchase_date || (p?.created_at ? p.created_at.slice(0, 10) : "");
-                const datePart = pDate ? pDate.replace(/-/g, "").slice(2) : "000000";
-                const purchaseNum = p ? `PUR-${datePart}-${String(p.id).padStart(4, "0")}` : `PUR-${editingProcureId}`;
-                return (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProcureModal(false);
-                        setEditingProcureId(null);
-                        setEditingOrderRef(null);
-                      }}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1 transition cursor-pointer"
-                    >
-                      ← Cancel Edit
-                    </button>
-                    <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
-                      {purchaseNum}
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <form onSubmit={saveProcurement} className="space-y-4">
-              {/* Supplier & Date Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Supplier / Vendor Selector */}
-                <div className="sm:col-span-2 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                      Supplier / Vendor *
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingSupplierId(null);
-                        setSupplierForm({ name: "", mobile: "", old_due: "", is_dual: false });
-                        setShowSupplierModal(true);
-                      }}
-                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                    >
-                      + Add New Supplier
-                    </button>
-                  </div>
-                  <select
-                    required
-                    className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold"
-                    value={procureForm.supplier_name}
-                    onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
-                  >
-                    <option value="">-- Choose Supplier --</option>
-                    {uniqueSupplierSuggestions.map((s, idx) => (
-                      <option key={idx} value={s}>{s}</option>
-                    ))}
-                    <option value="Opening Stock">Opening Stock</option>
-                  </select>
-
-                  {/* Supplier Balance / Advance Notification */}
-                  {(() => {
-                    const targetSup = suppliers.find((s) => s.name === procureForm.supplier_name);
-                    if (!targetSup) return null;
-                    const adv = Number(targetSup.old_due || 0) < 0 ? Math.abs(Number(targetSup.old_due)) : 0;
-                    const due = Number(targetSup.old_due || 0) > 0 ? Number(targetSup.old_due) : 0;
-                    return (
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700 flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-medium">Supplier Balance:</span>
-                        {adv > 0 ? (
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                              Advance: {money(adv)}
-                            </span>
-                            {!editingProcureId && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const billTotal = procureGrandTotal;
-                                  const applyAmt = billTotal > 0 ? Math.min(adv, billTotal) : adv;
-                                  setProcureForm({
-                                    ...procureForm,
-                                    paid_now: String(applyAmt),
-                                    p1_mode: "Advance Adjusted"
-                                  });
-                                }}
-                                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px]"
-                              >
-                                ⚡ Apply
-                              </button>
-                            )}
-                          </div>
-                        ) : due > 0 ? (
-                          <span className="px-2.5 py-0.5 rounded-full font-black text-xs bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300">
-                            Due: {money(due)}
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 rounded-full font-bold text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                            Settled (₹0.00)
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Purchase Date */}
-                <div className="sm:col-span-1 bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                        Purchase Date *
-                      </label>
-                      {editingProcureId && (
-                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded flex items-center gap-1">
-                          <span>🔒</span> Original Date Locked
-                        </span>
-                      )}
-                    </div>
-                    <input
-                      type="date"
-                      required
-                      readOnly={Boolean(editingProcureId)}
-                      disabled={Boolean(editingProcureId)}
-                      className={`w-full p-2.5 rounded-xl text-xs font-bold border transition ${
-                        editingProcureId
-                          ? "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-90"
-                          : "bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100"
-                      }`}
-                      value={procureForm.purchase_date || new Date().toISOString().split("T")[0]}
-                      onChange={(e) => {
-                        if (!editingProcureId) {
-                          setProcureForm({ ...procureForm, purchase_date: e.target.value });
-                        }
-                      }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    {editingProcureId
-                      ? "Original Purchase Order Date is preserved and locked"
-                      : "Order / Inward date for batch tracking"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Purchase Items (Multi-line Support) */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    Purchase Items ({procureForm.items?.length || 1}) *
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingItemId(null);
-                        setItemForm({ name: "", purchase_rate: "", selling_rate: "" });
-                        setShowItemModal(true);
-                      }}
-                      className="text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:underline"
-                    >
-                      + Add Master Item
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddProcureLine}
-                      className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold flex items-center gap-1 transition"
-                    >
-                      <Icon name="plus" size={13} /> Add Line
-                    </button>
-                  </div>
-                </div>
-
-                {(procureForm.items || [{ item_name: "", procured_qty: "1", purchase_rate: "", selling_rate: "", total: 0 }]).map((line, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5 relative"
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
-                        Line #{idx + 1}
-                      </span>
-                      {(procureForm.items?.length || 0) > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveProcureLine(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition"
-                          title="Remove Line"
-                        >
-                          <Icon name="trash" size={15} />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Item Selector Dropdown */}
-                    <div>
-                      <select
-                        required
-                        className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
-                        value={line.item_name}
-                        onChange={(e) => handleUpdateProcureLine(idx, "item_name", e.target.value)}
-                      >
-                        <option value="">-- Choose Item / Product --</option>
-                        {line.item_name && !uniqueItemSuggestions.some((i) => i.name.toLowerCase() === line.item_name.trim().toLowerCase()) && (
-                          <option value={line.item_name}>{line.item_name}</option>
-                        )}
-                        {uniqueItemSuggestions.map((item, itemIdx) => (
-                          <option key={itemIdx} value={item.name}>
-                            {item.name} {item.purchase_rate ? `(Default Cost: ₹${item.purchase_rate})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Qty, Cost Rate, Selling Rate, Line Total Grid */}
-                    <div className="grid grid-cols-12 gap-2.5 items-center pt-1">
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Qty</label>
-                        <IndianNumberInput
-                          required
-                          placeholder="1"
-                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-center text-slate-900 dark:text-slate-100"
-                          value={line.procured_qty}
-                          onChange={(e) => handleUpdateProcureLine(idx, "procured_qty", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cost Rate (₹)</label>
-                        <IndianNumberInput
-                          required
-                          placeholder="Cost"
-                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100"
-                          value={line.purchase_rate}
-                          onChange={(e) => handleUpdateProcureLine(idx, "purchase_rate", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Selling (₹)</label>
-                        <IndianNumberInput
-                          placeholder="Sell"
-                          className="w-full p-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                          value={line.selling_rate}
-                          onChange={(e) => handleUpdateProcureLine(idx, "selling_rate", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-span-3 text-right">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Line Total</label>
-                        <span className="font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white block truncate">
-                          {money(Number(line.procured_qty || 0) * Number(line.purchase_rate || 0))}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Add Another Line Button */}
-                <button
-                  type="button"
-                  onClick={handleAddProcureLine}
-                  className="w-full py-2.5 border-2 border-dashed border-indigo-200 dark:border-indigo-800/80 hover:border-indigo-400 dark:hover:border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <Icon name="plus" size={14} /> Add Another Item Line
-                </button>
-              </div>
-
-              {/* Pulled-Down Settlement Section (Matching Sales Invoice POS) */}
-              <div className="bg-slate-50 dark:bg-slate-800/80 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-2">
-                  <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <span>💳</span> Supplier Payments & Settlement
-                  </span>
-                  <span className="text-xs font-black font-mono text-slate-900 dark:text-white">
-                    Bill Total: {money(procureGrandTotal)}
-                  </span>
-                </div>
-
-                {editingProcureId ? (
-                  /* Edit Mode: Show Supplier Payments ERP Grid */
-                  (() => {
-                    const currentPO = purchaseOrdersGrouped.find(
-                      (po) => po.id === editingProcureId || po.purchaseNum === editingOrderRef || po.receiver_2_mode === editingOrderRef
-                    ) || {
-                      total_amount: procureGrandTotal,
-                      paid_amount: Number(procureForm.paid_now || 0),
-                      payments: []
-                    };
-                    const poPayments = currentPO.payments || [];
-                    const totalPaid = poPayments.reduce((s, pay) => s + Number(pay.amount || 0), 0);
-                    const billTotalCost = procureGrandTotal;
-                    const balanceDueNow = Math.max(0, billTotalCost - totalPaid);
-
-                    return (
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                            💰 Supplier Payments Total:
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
-                              {money(totalPaid)}
-                            </span>
-                            {balanceDueNow > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => handlePayPurchaseOrder(currentPO)}
-                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs cursor-pointer transition"
-                              >
-                                <Icon name="plus" size={12} /> Record Payment
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="overflow-x-auto border border-sky-200 dark:border-slate-700 rounded-lg">
-                          <table className="min-w-[650px] w-full text-left text-[11px] border-collapse font-mono">
-                            <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
-                              <tr>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Ref</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Funding Partner</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Mode</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-right whitespace-nowrap">Amount (₹)</th>
-                                <th className="p-1.5 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {poPayments.length === 0 ? (
-                                <tr>
-                                  <td colSpan={6} className="p-3 text-center text-slate-400 font-sans text-xs">
-                                    No payments recorded yet for this purchase bill (Full Due).
-                                  </td>
-                                </tr>
-                              ) : (
-                                poPayments.map((pay, pIdx) => {
-                                  const pDate = pay.date || "-";
-                                  const pRef = pay.ref || `PAY-${pay.id}`;
-                                  const pName = pay.partner_name || "Partner";
-                                  return (
-                                    <tr key={pay.id || pIdx} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition">
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
-                                        {pDate}
-                                      </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 font-bold whitespace-nowrap">
-                                        {pRef}
-                                        {pay.isUpfront && (
-                                          <span className="ml-1 text-[9px] px-1 py-0.2 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 font-sans">
-                                            Upfront
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 whitespace-nowrap">{pName}</td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center font-bold whitespace-nowrap">
-                                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                                          pay.payment_mode === "UPI" ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
-                                        }`}>
-                                          {pay.payment_mode || "Cash"}
-                                        </span>
-                                      </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-right font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                                        {money(pay.amount)}
-                                      </td>
-                                      <td className="p-1.5 border border-slate-200 dark:border-slate-700 text-center whitespace-nowrap">
-                                        <div className="flex items-center justify-center gap-1">
-                                          <button
-                                            type="button"
-                                            title="Edit Payment"
-                                            onClick={() => handleEditPurchasePayment(pay.rawRow || pay)}
-                                            className="p-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded transition"
-                                          >
-                                            <Icon name="edit" size={12} />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            title="Void / Delete Payment"
-                                            onClick={() => handleDeletePurchasePayment(pay.rawRow || pay)}
-                                            className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-300 rounded transition"
-                                          >
-                                            <Icon name="trash" size={12} />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Balance summary card */}
-                        <div className="p-2.5 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs flex justify-between items-center">
-                          <span className="font-bold text-slate-700 dark:text-slate-300">Remaining Due to Supplier:</span>
-                          <span className={`font-mono font-black text-sm ${balanceDueNow > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                            {balanceDueNow > 0 ? money(balanceDueNow) : "Fully Settled (₹0.00)"}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  /* Create Mode: Upfront Payment & Partner inputs */
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                        Paid Now by Partner (Leave 0 if full Due)
-                      </label>
-                      <IndianNumberInput
-                        placeholder="0"
-                        className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-emerald-600"
-                        value={procureForm.paid_now}
-                        onChange={(e) => setProcureForm({ ...procureForm, paid_now: e.target.value })}
-                      />
-                    </div>
-
-                    {cleanNum(procureForm.paid_now) > 0 && procureForm.p1_mode !== "Advance Adjusted" && (
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <select
-                          className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
-                          value={procureForm.p1_id}
-                          onChange={(e) => setProcureForm({ ...procureForm, p1_id: e.target.value })}
-                        >
-                          <option value="">-- Funding Partner --</option>
-                          {partners.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
-                        <select
-                          className="w-full p-2 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold"
-                          value={procureForm.p1_mode}
-                          onChange={(e) => setProcureForm({ ...procureForm, p1_mode: e.target.value })}
-                        >
-                          <option value="Cash">Cash</option>
-                          <option value="UPI">UPI</option>
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {editingProcureId && renderTransactionAuditTrailGrid(
-                editingOrderRef || `PUR-${editingProcureId}`,
-                "Purchase Order",
-                procurements.find((p) => p.id === editingProcureId)
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-1">
-                {!editingProcureId && (
-                  <button
-                    type="button"
-                    onClick={() => { setShowProcureModal(false); setEditingProcureId(null); setEditingOrderRef(null); }}
-                    className="flex-1 py-2.5 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={savingProcure}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm transition"
-                >
-                  {savingProcure ? "Saving..." : editingProcureId ? "Update Purchase Order" : "Save Purchase Order"}
-                </button>
-              </div>
-
-              {editingProcureId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowProcureModal(false);
-                    setEditingProcureId(null);
-                    setEditingOrderRef(null);
-                  }}
-                  className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs tracking-wider cursor-pointer"
-                >
-                  Cancel Edit
-                </button>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT ITEM MASTER */}
-      {showItemModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900">{editingItemId ? "Edit Item Master" : "Add New Item Master"}</h3>
-            <form onSubmit={saveItem} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Item / Product Name"
-                className="w-full p-2.5 border rounded-xl text-sm font-bold"
-                value={itemForm.name}
-                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Cost Rate (₹)</label>
-                  <IndianNumberInput
-                    placeholder="0.00"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold"
-                    value={itemForm.purchase_rate}
-                    onChange={(e) => setItemForm({ ...itemForm, purchase_rate: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Selling Rate (₹)</label>
-                  <IndianNumberInput
-                    placeholder="0.00"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-indigo-600"
-                    value={itemForm.selling_rate}
-                    onChange={(e) => setItemForm({ ...itemForm, selling_rate: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {!editingItemId && (
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">Opening Stock Qty (ఆరంభ నిల్వ)</label>
-                  <IndianNumberInput
-                    placeholder="0"
-                    className="w-full p-2.5 border rounded-xl text-xs font-bold text-emerald-600"
-                    value={itemForm.opening_qty}
-                    onChange={(e) => setItemForm({ ...itemForm, opening_qty: e.target.value })}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">If entered, automatically adds an opening inventory batch in stock.</p>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">{editingItemId ? "Update Item" : "Save Item"}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT CUSTOMER */}
-      {showCustModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingCustId ? "Edit Customer" : "Add Customer"}</h3>
-            <form onSubmit={saveCustomer} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Customer Name"
-                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                value={custForm.name}
-                onChange={(e) => setCustForm({ ...custForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                value={custForm.mobile}
-                onChange={(e) => setCustForm({ ...custForm, mobile: e.target.value })}
-              />
-              <IndianNumberInput
-                placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                value={custForm.old_due}
-                onChange={(e) => setCustForm({ ...custForm, old_due: e.target.value })}
-              />
-              {enablePanGstin && (
-                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
-                      PAN No.
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={10}
-                      placeholder="ABCDE1234F"
-                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                      value={custForm.pan || ""}
-                      onChange={(e) => setCustForm({ ...custForm, pan: e.target.value.toUpperCase() })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
-                      GSTIN
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      placeholder="37ABCDE1234F1Z5"
-                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                      value={custForm.gstin || ""}
-                      onChange={(e) => setCustForm({ ...custForm, gstin: e.target.value.toUpperCase() })}
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowCustModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Customer</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT SUPPLIER */}
-      {showSupplierModal && (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">{editingSupplierId ? "Edit Supplier" : "Add Supplier"}</h3>
-            <form onSubmit={saveSupplier} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Supplier / Firm Name"
-                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                value={supplierForm.name}
-                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
-              />
-              <input
-                type="tel"
-                placeholder="Phone Number"
-                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                value={supplierForm.mobile}
-                onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
-              />
-              <IndianNumberInput
-                placeholder="Opening Due (₹)"
-                className="w-full p-2.5 border rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                value={supplierForm.old_due}
-                onChange={(e) => setSupplierForm({ ...supplierForm, old_due: e.target.value })}
-              />
-              {enablePanGstin && (
-                <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
-                      PAN No.
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={10}
-                      placeholder="ABCDE1234F"
-                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                      value={supplierForm.pan || ""}
-                      onChange={(e) => setSupplierForm({ ...supplierForm, pan: e.target.value.toUpperCase() })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
-                      GSTIN
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      placeholder="37ABCDE1234F1Z5"
-                      className="w-full p-2 border rounded-lg text-xs font-mono uppercase bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                      value={supplierForm.gstin || ""}
-                      onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })}
-                    />
-                  </div>
-                </div>
-              )}
-              <label className="flex items-center gap-2 p-2 bg-indigo-50/60 dark:bg-indigo-950/40 rounded-xl border border-indigo-100 dark:border-indigo-900 cursor-pointer text-xs font-semibold text-indigo-900 dark:text-indigo-200">
-                <input
-                  type="checkbox"
-                  checked={!!supplierForm.is_dual}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, is_dual: e.target.checked })}
-                  className="rounded text-indigo-600 cursor-pointer h-4 w-4"
-                />
-                <span>Allow in Sale Invoice (Supplier is also a Customer)</span>
-              </label>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowSupplierModal(false)} className="flex-1 py-2 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300">Cancel</button>
-                <button type="submit" className="flex-1 py-2 bg-indigo-600 text-white font-bold rounded-xl text-xs">Save Supplier</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT ROLE (RBAC) */}
-      {showRoleModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  {editingRoleId ? "Edit Role Permissions" : "Create New Role"}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Define role name and select the exact modules accessible by partners assigned this role.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRoleModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-              >
-                <Icon name="close" size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Role Name:
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sales Cashier, Store Manager, Accountant"
-                  value={roleForm.name}
-                  onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Description:
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Can access POS billing and customer receipts only"
-                  value={roleForm.description}
-                  onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
-                  className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700"
-                />
-              </div>
-
-              {/* Module Selection Grid */}
-              <div className="space-y-2 pt-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    Module Access Permissions: ({roleForm.modules.length} selected)
-                  </label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRoleForm({ ...roleForm, modules: SYSTEM_MODULES.map((m) => m.id) })}
-                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRoleForm({ ...roleForm, modules: ["sale"] })}
-                      className="text-xs font-bold text-slate-400 hover:underline cursor-pointer"
-                    >
-                      Reset Minimum
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {SYSTEM_MODULES.map((mod) => {
-                    const isChecked = roleForm.modules.includes(mod.id);
-                    return (
-                      <label
-                        key={mod.id}
-                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition ${
-                          isChecked
-                            ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700"
-                            : "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 opacity-75"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            const next = isChecked
-                              ? roleForm.modules.filter((m) => m !== mod.id)
-                              : [...roleForm.modules, mod.id];
-                            setRoleForm({ ...roleForm, modules: next });
-                          }}
-                          className="mt-0.5 rounded text-indigo-600 cursor-pointer"
-                        />
-                        <div className="space-y-0.5">
-                          <div className="font-bold text-xs flex items-center gap-1.5 text-slate-900 dark:text-white">
-                            <Icon name={mod.icon} size={14} className={isChecked ? "text-indigo-600" : "text-slate-400"} />
-                            <span>{mod.label}</span>
-                          </div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                            {mod.desc}
-                          </p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setShowRoleModal(false)}
-                className="flex-1 py-2.5 border rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!roleForm.name.trim()) return alert("Enter role name");
-                  if (roleForm.modules.length === 0) return alert("Select at least one module for this role");
-                  const newRoleId = editingRoleId || `role_${Date.now()}`;
-                  const updatedRole = {
-                    id: newRoleId,
-                    name: roleForm.name.trim(),
-                    description: roleForm.description.trim(),
-                    modules: roleForm.modules,
-                    isSystem: false
-                  };
-                  setSystemRoles((prev) => {
-                    const existingIdx = prev.findIndex((r) => r.id === newRoleId);
-                    let next;
-                    if (existingIdx >= 0) {
-                      next = [...prev];
-                      next[existingIdx] = updatedRole;
-                    } else {
-                      next = [...prev, updatedRole];
-                    }
-                    if (typeof window !== "undefined") {
-                      localStorage.setItem("app_system_roles", JSON.stringify(next));
-                    }
-                    return next;
-                  });
-                  setShowRoleModal(false);
-                  alert(`Role "${updatedRole.name}" saved successfully with ${updatedRole.modules.length} module permissions!`);
-                }}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
-              >
-                Save Role Permissions
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: ADD / EDIT PARTNER */}
       {showPartnerModal && (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-sm w-full space-y-3">
