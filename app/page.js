@@ -727,6 +727,7 @@ export default function App() {
 
   // Settings Full-Screen Left Sidebar State
   const [settingsSidebarTab, setSettingsSidebarTab] = useState("branding");
+  const [settingsFilterQuery, setSettingsFilterQuery] = useState("");
 
   // Executive Balance Sheet Group By States
   const [balanceSheetStockGroupBy, setBalanceSheetStockGroupBy] = useState("none");
@@ -15397,10 +15398,17 @@ Thank you for your business!`;
         
         {/* VIEW 13: FULL-SCREEN SYSTEM SETTINGS MODULE WITH LEFT SIDEBAR MENU */}
         {hasModuleAccess("settings") && activeTab === "settings" && (() => {
+          const filteredMasterItems = masterItems.filter(item => 
+            !settingsFilterQuery || item.name.toLowerCase().includes(settingsFilterQuery.toLowerCase()) || (item.category && item.category.toLowerCase().includes(settingsFilterQuery.toLowerCase()))
+          );
+          const filteredCustomers = customers.filter(c => 
+            !settingsFilterQuery || c.name.toLowerCase().includes(settingsFilterQuery.toLowerCase()) || (c.mobile && c.mobile.includes(settingsFilterQuery))
+          );
+
           return (
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[650px]">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[780px]">
               {/* Left Panel Sidebar Menu matching Point 5 */}
-              <div className="w-full md:w-64 lg:w-72 bg-slate-50 dark:bg-slate-950/60 border-r border-slate-200 dark:border-slate-800 p-4 space-y-2 shrink-0">
+              <div className="w-full md:w-64 lg:w-72 bg-slate-50 dark:bg-slate-950/60 border-r border-slate-200 dark:border-slate-800 p-4 shrink-0 flex flex-col gap-2">
                 <div className="pb-3 border-b border-slate-200 dark:border-slate-800">
                   <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2">
                     <Icon name="settings" size={16} /> System Settings
@@ -15418,133 +15426,382 @@ Thank you for your business!`;
                     { id: "credit_control", label: "Customer Credit Limits", icon: "creditcard" },
                     { id: "numbering", label: "Document Auto-Numbering", icon: "filetext" },
                     { id: "alerts", label: "Alerts & WhatsApp Gateway", icon: "bell" },
-                    { id: "z_reports", label: "Z-Report History", icon: "file" },
-                    { id: "admin_tools", label: "Administration & Maintenance", icon: "history" }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setSettingsSidebarTab(tab.id)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2.5 cursor-pointer ${settingsSidebarTab === tab.id ? "bg-indigo-600 text-white shadow-xs font-black" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900"}`}
-                    >
-                      <Icon name={tab.icon} size={15} />
-                      <span className="truncate">{tab.label}</span>
-                    </button>
-                  ))}
+                    { id: "z_reports", label: "Z-Report History & Audit", icon: "file" },
+                    { id: "admin_tools", label: "Administration & Tools", icon: "history" },
+                  ].map((tab) => {
+                    const isActive = settingsSidebarTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setSettingsSidebarTab(tab.id);
+                          setSettingsFilterQuery("");
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition text-left cursor-pointer ${
+                          isActive
+                            ? `${curTheme.primary} shadow-sm`
+                            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon name={tab.icon} size={15} />
+                          <span>{tab.label}</span>
+                        </div>
+                        {isActive && <Icon name="chevron-right" size={12} />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Right Workspace Area */}
-              <div className="flex-1 p-6 overflow-y-auto max-h-[850px] space-y-6">
-                {/* 1. BUSINESS IDENTITY & BRANDING */}
+              {/* Right Panel Workspace */}
+              <div className="flex-1 p-5 md:p-7 overflow-y-auto max-h-[85vh]">
+                {/* 1. GENERAL, BRANDING & THEMES */}
                 {settingsSidebarTab === "branding" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Business Identity & Branding</h3>
-                      <p className="text-xs text-slate-500">Configure business trade name (3–60 chars), banner image upload, address, and GSTIN.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex justify-between">
-                          <span>Business Trade Name</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{(systemSettings?.branding?.systemName || "").length}/60 chars</span>
-                        </label>
-                        <input
-                          type="text"
-                          minLength={3}
-                          maxLength={60}
-                          value={systemSettings?.branding?.systemName || ""}
-                          onChange={(e) => {
-                            const val = e.target.value.slice(0, 60);
-                            saveSystemSettingsToCloud({
-                              branding: { ...(systemSettings?.branding || {}), systemName: val }
-                            });
-                          }}
-                          className="w-full p-2.5 border rounded-xl text-xs font-bold bg-white dark:bg-slate-800"
-                          placeholder="e.g. JSR Retails & Wholesale"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Tagline / Sub-Heading</label>
-                        <input
-                          type="text"
-                          value={systemSettings?.branding?.tagline || ""}
-                          onChange={(e) => saveSystemSettingsToCloud({
-                            branding: { ...(systemSettings?.branding || {}), tagline: e.target.value }
-                          })}
-                          className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Login Page Background Banner Upload matching Point 12 */}
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                      <div className="flex justify-between items-center">
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    {/* SYSTEM NAME & BRAND CONFIGURATION */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                         <div>
-                          <h4 className="font-bold text-xs text-slate-900 dark:text-white">Login Page Background Image</h4>
-                          <p className="text-[11px] text-slate-500">Admin can upload a custom desktop & mobile login hero banner.</p>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="briefcase" size={16} /> Business Identity & System Name
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Configure business name, tagline, and contact information displayed across invoices and receipts.
+                          </p>
                         </div>
-                        <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 transition">
-                          <Icon name="upload" size={13} /> Upload New Banner
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                const reader = new FileReader();
-                                reader.onload = (ev) => {
-                                  const base64 = ev.target?.result;
-                                  if (base64) {
-                                    saveSystemSettingsToCloud({
-                                      branding: { ...(systemSettings?.branding || {}), businessImage: base64 }
-                                    });
-                                    alert("✓ New login page banner image uploaded and cloud-synced successfully!");
-                                  }
-                                };
-                                reader.readAsDataURL(file);
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("app_system_name", systemName);
                               }
+                              saveSystemSettingsToCloud({
+                                branding: systemSettings?.branding || {}
+                              });
+                              alert(`System Name & Branding saved successfully as "${systemName}"!`);
                             }}
-                          />
-                        </label>
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                          >
+                            Save Branding Settings
+                          </button>
+                        </div>
                       </div>
 
-                      {systemSettings?.branding?.businessImage && (
-                        <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 relative">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            System / Business Display Name:
+                          </label>
+                          <input
+                            type="text"
+                            value={systemName}
+                            onChange={(e) => {
+                              setSystemName(e.target.value);
+                              setSystemSettings({
+                                ...systemSettings,
+                                branding: { ...(systemSettings?.branding || {}), systemName: e.target.value }
+                              });
+                            }}
+                            placeholder="e.g. JSR Retails"
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            Tagline / Sub-Heading:
+                          </label>
+                          <input
+                            type="text"
+                            value={systemSettings?.branding?.tagline || ""}
+                            onChange={(e) => setSystemSettings({
+                              ...systemSettings,
+                              branding: { ...(systemSettings?.branding || {}), tagline: e.target.value }
+                            })}
+                            placeholder="e.g. Wholesale & Retail Billing ERP"
+                            className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Business Image Banner for Login Screen */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                          Business Hero Image / Login Screen Banner URL:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={systemSettings?.branding?.businessImage || ""}
+                            onChange={(e) => setSystemSettings({
+                              ...systemSettings,
+                              branding: { ...(systemSettings?.branding || {}), businessImage: e.target.value }
+                            })}
+                            placeholder="https://images.unsplash.com/..."
+                            className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSystemSettings({
+                              ...systemSettings,
+                              branding: { ...(systemSettings?.branding || {}), businessImage: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80" }
+                            })}
+                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                          >
+                            Reset Default
+                          </button>
+                        </div>
+                        <div className="h-36 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative">
                           <img
-                            src={systemSettings.branding.businessImage}
-                            alt="Current Banner"
+                            src={systemSettings?.branding?.businessImage || "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80"}
+                            alt="Login Banner Preview"
                             className="w-full h-full object-cover"
                           />
+                          <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/70 text-white rounded text-[10px] font-bold">
+                            Live Login Screen Hero Preview
+                          </span>
                         </div>
-                      )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            Company Address:
+                          </label>
+                          <input
+                            type="text"
+                            value={systemSettings?.branding?.companyAddress || ""}
+                            onChange={(e) => setSystemSettings({
+                              ...systemSettings,
+                              branding: { ...(systemSettings?.branding || {}), companyAddress: e.target.value }
+                            })}
+                            placeholder="Main Road, JSR City"
+                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            Contact Phone / Support:
+                          </label>
+                          <input
+                            type="tel"
+                            value={systemSettings?.branding?.phone || ""}
+                            onChange={(e) => setSystemSettings({
+                              ...systemSettings,
+                              branding: { ...(systemSettings?.branding || {}), phone: e.target.value }
+                            })}
+                            placeholder="+91 9876543210"
+                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                            Default UPI ID:
+                          </label>
+                          <input
+                            type="text"
+                            value={systemSettings?.branding?.upiId || ""}
+                            onChange={(e) => setSystemSettings({
+                              ...systemSettings,
+                              branding: { ...(systemSettings?.branding || {}), upiId: e.target.value }
+                            })}
+                            placeholder="merchant@upi"
+                            className="w-full p-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-mono"
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Company Store Address</label>
-                        <input
-                          type="text"
-                          value={systemSettings?.branding?.companyAddress || ""}
-                          onChange={(e) => saveSystemSettingsToCloud({
-                            branding: { ...(systemSettings?.branding || {}), companyAddress: e.target.value }
-                          })}
-                          className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800"
-                        />
+                    {/* PAN & GSTIN SYSTEM-WIDE TOGGLE */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="shield" size={16} /> PAN & GSTIN Compliance Requirement
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Enable or disable PAN and GSTIN fields system-wide for Customers and Suppliers across all modules.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !enablePanGstin;
+                            setEnablePanGstin(next);
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("enable_pan_gstin", String(next));
+                            }
+                            alert(`PAN & GSTIN requirement is now ${next ? "ENABLED" : "DISABLED"} system-wide.`);
+                          }}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs ${
+                            enablePanGstin
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <span>{enablePanGstin ? "✓" : "✕"}</span>
+                          <span>{enablePanGstin ? "Requirement Enabled" : "Requirement Disabled"}</span>
+                        </button>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Store Contact Number</label>
-                        <input
-                          type="text"
-                          value={systemSettings?.branding?.phone || ""}
-                          onChange={(e) => saveSystemSettingsToCloud({
-                            branding: { ...(systemSettings?.branding || {}), phone: e.target.value }
-                          })}
-                          className="w-full p-2.5 border rounded-xl text-xs bg-white dark:bg-slate-800"
-                        />
+                    </div>
+
+                    {/* LANGUAGE SELECTION */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <span>🌐</span> System Language (భాష ఎంపిక)
+                      </h3>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-800 dark:text-slate-200 block">Choose Active Language:</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Default is clean English. Telugu subtitles and hints available throughout the application.
+                          </span>
+                        </div>
+                        <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => toggleLanguage("en")}
+                            className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                              language === "en" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            English (Default)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleLanguage("te")}
+                            className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
+                              language === "te" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            తెలుగు (Telugu)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* THEME COLOR WITH LIVE PREVIEW BANNER */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <span>🎨</span> Accent Theme Color (రంగుల ఎంపిక)
+                      </h3>
+                      
+                      {/* Live Theme Preview Banner */}
+                      <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${curTheme.primaryLight}`}>
+                        <div className="flex items-center gap-3">
+                          <span className="w-5 h-5 rounded-full inline-block shadow-xs" style={{ backgroundColor: curTheme.hex }} />
+                          <div>
+                            <b className="text-xs block">Active System Theme: {curTheme.name} ✓</b>
+                            <span className="text-[11px] opacity-80">This theme is actively applied to buttons, navigation tabs, and highlights across all screens</span>
+                          </div>
+                        </div>
+                        <button className={`px-4 py-2 rounded-xl text-xs font-bold shadow-xs ${curTheme.primary}`}>
+                          Active Preview Button
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+                        <div>
+                          <b className="text-xs text-slate-800 dark:text-slate-200 block">Select Accent Theme:</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">Click any palette color below to change your active ERP theme</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {[
+                            { id: "indigo", name: "Classic Indigo", color: "bg-indigo-600" },
+                            { id: "emerald", name: "Farmer Emerald", color: "bg-emerald-600" },
+                            { id: "blue", name: "Ocean Sky", color: "bg-sky-600" },
+                            { id: "rose", name: "Crimson Rose", color: "bg-rose-600" },
+                            { id: "amber", name: "Warm Amber", color: "bg-amber-600" }
+                          ].map((th) => (
+                            <button
+                              key={th.id}
+                              type="button"
+                              onClick={() => updateThemeColor(th.id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition cursor-pointer ${
+                                themeColor === th.id
+                                  ? "border-slate-900 dark:border-white bg-slate-100 dark:bg-slate-800 text-slate-950 dark:text-white font-black shadow-xs ring-2 ring-indigo-400"
+                                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                              }`}
+                            >
+                              <span className={`w-3 h-3 rounded-full ${th.color} inline-block`} />
+                              {th.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DISPLAY & FONT SCALE */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-5 shadow-2xs">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <span>☀️</span> Display & Font Scale
+                      </h3>
+
+                      {/* Light / Dark Mode Toggle */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-800 dark:text-slate-200 block">Day / Night Mode (Light & Dark Theme):</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">High-contrast dark mode for night operations</span>
+                        </div>
+                        <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => { if (darkMode) toggleDarkMode(); }}
+                            className={`px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
+                              !darkMode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                            }`}
+                          >
+                            <span className="text-amber-500">☀️</span> Light
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { if (!darkMode) toggleDarkMode(); }}
+                            className={`px-4 py-2 rounded-full font-bold text-xs flex items-center gap-2 transition cursor-pointer ${
+                              darkMode ? "bg-slate-900 text-amber-400 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                            }`}
+                          >
+                            <span>🌙</span> Dark
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Font Scale */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <div>
+                          <b className="text-xs text-slate-800 dark:text-slate-200 block">Text Size / Font Scale:</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">Enlarge typography for counter billing and mobile readability</span>
+                        </div>
+                        <div className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => updateFontScale("normal")}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              fontScale === "normal" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            Normal (100%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateFontScale("large")}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              fontScale === "large" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            Large (115%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateFontScale("xl")}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              fontScale === "xl" ? curTheme.primary : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                            }`}
+                          >
+                            Extra Large (125%)
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -15552,225 +15809,1200 @@ Thank you for your business!`;
 
                 {/* 2. BANK ACCOUNTS MASTER */}
                 {settingsSidebarTab === "banking" && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <div>
-                        <h3 className="font-black text-base text-slate-900 dark:text-white">Bank Accounts Master</h3>
-                        <p className="text-xs text-slate-500">Configure commercial bank accounts, partner tagging, and UPI modes.</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingBank(null);
-                          setBankForm({ bankName: "", accountNo: "", ifsc: "", branch: "", partnerId: "p1", upiEnabled: true, upiId: "", openingBalance: "0" });
-                          setShowAddBankModal(true);
-                        }}
-                        className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Icon name="plus" size={14} /> Add Bank
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {(systemSettings?.banking?.accounts || []).map(b => (
-                        <div key={b.id} className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                          <div>
-                            <h4 className="font-bold text-sm text-slate-900 dark:text-white">{b.bankName}</h4>
-                            <span className="font-mono text-xs text-slate-500">A/c: {b.accountNo} · IFSC: {b.ifsc}</span>
-                            <div className="text-[11px] text-slate-400 mt-0.5">
-                              Tagged Partner: <strong>{partners.find(p => p.id === b.partnerId)?.name || "General"}</strong> · UPI: <strong>{b.upiEnabled ? (b.upiId || "Enabled") : "Disabled"}</strong>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-sm text-slate-800 dark:text-slate-200">{money(b.openingBalance || 0)}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = (systemSettings?.banking?.accounts || []).filter(x => x.id !== b.id);
-                                saveSystemSettingsToCloud({ banking: { ...(systemSettings?.banking || {}), accounts: updated } });
-                              }}
-                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                              title="Delete Bank Account"
-                            >
-                              <Icon name="trash" size={14} />
-                            </button>
-                          </div>
+                  <div className="space-y-5 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="wallet" size={18} /> Bank Accounts Master & Commercial Partners
+                          </h3>
+                          <p className="text-xs text-slate-500">
+                            Configure commercial bank accounts, IFSC codes, partner tagging, and UPI QR modes.
+                          </p>
                         </div>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingBank(null);
+                            setBankForm({ bankName: "", accountNo: "", ifsc: "", branch: "", partnerId: "p1", upiEnabled: true, upiId: "", openingBalance: "0" });
+                            setShowAddBankModal(true);
+                          }}
+                          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <Icon name="plus" size={14} /> Add Bank Account
+                        </button>
+                      </div>
+
+                      {(!systemSettings?.banking?.accounts || systemSettings.banking.accounts.length === 0) ? (
+                        <div className="p-8 text-center text-slate-400 space-y-2">
+                          <span className="text-3xl block">🏦</span>
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Bank Accounts Configured</p>
+                          <p className="text-xs">Add your business bank account to enable UPI QR settlement and partner tracking.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {systemSettings.banking.accounts.map((b) => (
+                            <div key={b.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">🏦</span>
+                                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">{b.bankName}</h4>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200">
+                                    {b.branch || "Main Branch"}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-xs text-slate-500 mt-1 block">A/c: {b.accountNo} · IFSC: {b.ifsc}</span>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-3 flex-wrap">
+                                  <span>Tagged Partner: <strong className="text-slate-800 dark:text-slate-200">{partners.find(p => p.id === b.partnerId)?.name || "General / Unassigned"}</strong></span>
+                                  <span>UPI: <strong className={b.upiEnabled ? "text-emerald-600" : "text-slate-400"}>{b.upiEnabled ? (b.upiId || "Enabled") : "Disabled"}</strong></span>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between sm:justify-end gap-3">
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Opening Balance</span>
+                                  <span className="font-mono font-bold text-sm text-slate-800 dark:text-slate-200">{money(b.openingBalance || 0)}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!confirm(`Delete bank account ${b.bankName} (${b.accountNo})?`)) return;
+                                    const updated = (systemSettings?.banking?.accounts || []).filter(x => x.id !== b.id);
+                                    saveSystemSettingsToCloud({ banking: { ...(systemSettings?.banking || {}), accounts: updated } });
+                                  }}
+                                  className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded-xl transition cursor-pointer"
+                                  title="Delete Bank Account"
+                                >
+                                  <Icon name="trash" size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
                 {/* 3. USER MANAGEMENT & RBAC ROLES */}
                 {settingsSidebarTab === "users_roles" && (
-                  <div className="space-y-5">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">User Management & RBAC Roles</h3>
-                      <p className="text-xs text-slate-500">Manage user accounts, assign roles, and configure screen permissions.</p>
-                    </div>
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="shield" size={16} /> Roles & Manage Modules (Role-Based Access Control)
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Create custom partner roles and configure module permissions. Partners will only view and access assigned screens.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRoleId(null);
+                            setRoleForm({
+                              name: "",
+                              description: "",
+                              modules: ["sale", "invoices"]
+                            });
+                            setShowRoleModal(true);
+                          }}
+                          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <Icon name="plus" size={14} /> Create New Role
+                        </button>
+                      </div>
 
-                    <div className="space-y-3">
-                      <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">System Roles & Screen Access</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {systemRoles.map(role => (
-                          <div key={role.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                            <div className="flex justify-between items-center">
-                              <h5 className="font-bold text-xs text-slate-900 dark:text-white">{role.name}</h5>
-                              <span className="text-[10px] font-bold text-indigo-600 font-mono">{role.modules?.length || 0} modules</span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 mt-1">{role.description}</p>
-                          </div>
-                        ))}
+                      {/* Roles ERP Grid Table */}
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                        <table className="min-w-[750px] w-full text-left text-xs border-collapse">
+                          <thead className="bg-[#f0f6fc] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-3 w-12 text-center whitespace-nowrap">S.No</th>
+                              <th className="p-3 w-48 whitespace-nowrap">Role Name</th>
+                              <th className="p-3 w-56 whitespace-nowrap">Description</th>
+                              <th className="p-3 whitespace-nowrap">Allowed Module Access ({SYSTEM_MODULES.length})</th>
+                              <th className="p-3 w-28 text-center whitespace-nowrap">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            {systemRoles.map((r, idx) => {
+                              const isAdminRole = r.id === "role_admin";
+                              return (
+                                <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                                  <td className="p-3 text-center text-slate-400 whitespace-nowrap">{idx + 1}</td>
+                                  <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span>{isAdminRole ? "👑" : "🛡️"}</span>
+                                      <span>{r.name}</span>
+                                      {isAdminRole && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                                          System
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
+                                    {r.description || "—"}
+                                  </td>
+                                  <td className="p-3 whitespace-nowrap">
+                                    <div className="flex flex-wrap gap-1">
+                                      {isAdminRole ? (
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-200">
+                                          Full Universal Access (All {SYSTEM_MODULES.length} Modules)
+                                        </span>
+                                      ) : (
+                                        (r.modules || []).map((mId) => {
+                                          const modInfo = SYSTEM_MODULES.find((m) => m.id === mId);
+                                          return (
+                                            <span key={mId} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                                              <Icon name={modInfo?.icon || "check"} size={10} />
+                                              <span>{modInfo?.label || mId}</span>
+                                            </span>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-center whitespace-nowrap">
+                                    {!isAdminRole ? (
+                                      <div className="inline-flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingRoleId(r.id);
+                                            setRoleForm({
+                                              name: r.name,
+                                              description: r.description || "",
+                                              modules: [...(r.modules || [])]
+                                            });
+                                            setShowRoleModal(true);
+                                          }}
+                                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer"
+                                        >
+                                          Edit
+                                        </button>
+                                        {!r.isSystem && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (!confirm(`Delete role "${r.name}"? Partners with this role will fall back to Standard Partner.`)) return;
+                                              setSystemRoles((prev) => {
+                                                const next = prev.filter((item) => item.id !== r.id);
+                                                if (typeof window !== "undefined") localStorage.setItem("app_system_roles", JSON.stringify(next));
+                                                return next;
+                                              });
+                                            }}
+                                            className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-400 font-bold text-xs transition cursor-pointer"
+                                          >
+                                            Delete
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-bold">Unrestricted</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Partner Role Assignment Section */}
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                        <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">
+                          Partner Role Assignments ({partners.length} Partners)
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {partners.map((p) => {
+                            const curRoleId = partnerRoles[p.id] || "role_admin";
+                            return (
+                              <div key={p.id} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-center gap-2">
+                                <div>
+                                  <b className="text-xs text-slate-900 dark:text-white block">{p.name}</b>
+                                  <span className="text-[10px] text-slate-500">Partner ID: {p.id}</span>
+                                </div>
+                                <select
+                                  value={curRoleId}
+                                  onChange={(e) => {
+                                    const next = { ...partnerRoles, [p.id]: e.target.value };
+                                    setPartnerRoles(next);
+                                    if (typeof window !== "undefined") localStorage.setItem("app_partner_roles", JSON.stringify(next));
+                                  }}
+                                  className="p-1.5 bg-white dark:bg-slate-900 border rounded-lg text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                                >
+                                  {systemRoles.map((r) => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* 4. SECURITY & CREDENTIALS */}
+                {/* 4. SECURITY & 2FA CREDENTIALS */}
                 {settingsSidebarTab === "security" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Security & Credentials</h3>
-                      <p className="text-xs text-slate-500">Manage Administrator password, partner PINs, and RFC 6238 TOTP secrets.</p>
-                    </div>
-
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-                      <div className="flex justify-between items-center">
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                         <div>
-                          <h4 className="font-bold text-xs text-slate-900 dark:text-white">Require Login Authentication</h4>
-                          <p className="text-[11px] text-slate-500">Lock application screens when unattended.</p>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="shield" size={16} /> Security, Credentials & Two-Factor Authentication (2FA)
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Configure login authentication, security passwords with special characters, and Google Authenticator TOTP secrets.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            saveSystemSettingsToCloud({
+                              security: systemSettings?.security || {}
+                            });
+                            alert("2FA Secrets and Security Settings saved to cloud database!");
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                        >
+                          Save Security Settings
+                        </button>
+                      </div>
+
+                      {/* Password Management Hub */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-900 dark:text-white block">👑 Administrator Password</b>
+                            <span className="text-[11px] text-slate-500">Master password supporting complex characters</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChangePinForm(prev => ({ ...prev, targetType: "admin", error: "", success: "" }));
+                              setShowChangePinModal(true);
+                            }}
+                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Change Admin Password
+                          </button>
+                        </div>
+
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-900 dark:text-white block">🛡️ Partner Security PIN</b>
+                            <span className="text-[11px] text-slate-500">Update individual partner counter PINs</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChangePinForm(prev => ({
+                                ...prev,
+                                targetType: "partner",
+                                partnerId: prev.partnerId || (partners[0]?.id ? String(partners[0].id) : ""),
+                                error: "",
+                                success: ""
+                              }));
+                              setShowChangePinModal(true);
+                            }}
+                            className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold transition cursor-pointer"
+                          >
+                            Change Partner PIN
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Require PIN on Startup Toggle */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <div>
+                          <b className="text-xs text-slate-800 dark:text-slate-200 block">Require PIN / Password on Startup:</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            When turned off, allows direct access without locking application screens
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={toggleRequireLogin}
+                          className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition ${
+                            requireLogin
+                              ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800"
+                              : "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800"
+                          }`}
+                        >
+                          {requireLogin ? "🔒 PIN Required" : "⚡ Direct Access"}
+                        </button>
+                      </div>
+
+                      {/* Google Authenticator (2FA) */}
+                      <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-800 dark:text-slate-200 block">Google Authenticator Two-Factor Authentication:</b>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                              When enabled, requires a 6-digit TOTP code from Google Authenticator app on login
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = !enableTwoFactor;
+                              setEnableTwoFactor(next);
+                              if (typeof window !== "undefined") localStorage.setItem("enable_2fa", next ? "true" : "false");
+                              alert(next ? "Google Authenticator 2FA Enabled!" : "Google Authenticator 2FA Disabled.");
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition ${
+                              enableTwoFactor
+                                ? "bg-emerald-600 text-white shadow-xs"
+                                : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {enableTwoFactor ? "✓ 2FA Enabled" : "Enable 2FA"}
+                          </button>
+                        </div>
+
+                        {/* 2FA Setup Instructions Card with QR Code */}
+                        {enableTwoFactor && (
+                          <div className="p-5 bg-gradient-to-r from-indigo-50 via-slate-50 to-emerald-50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-emerald-950/30 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 space-y-4 text-xs">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-indigo-200 dark:border-indigo-800">
+                              <div>
+                                <b className="text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                                  <span>📱</span> Google Authenticator Mobile Setup
+                                </b>
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  Scan QR code below with Google Authenticator or tap 'Copy Key'
+                                </span>
+                              </div>
+                              <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold rounded-full">
+                                2FA Active
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col md:flex-row items-center gap-5">
+                              <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center gap-1.5 shrink-0">
+                                <img
+                                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=otpauth%3A%2F%2Ftotp%2FJSR%2520Retail%2520(B%2520Reddy)%3Fsecret%3D${twoFactorSecret}%26issuer%3DJSR%2520Retail`}
+                                  alt="Google Authenticator QR Code"
+                                  className="w-36 h-36 rounded-lg"
+                                />
+                                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                  Scan with App
+                                </span>
+                              </div>
+
+                              <div className="space-y-3 flex-1 w-full">
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Your Setup Key (కీ)</span>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono font-black text-sm text-indigo-600 dark:text-indigo-400 tracking-wider">
+                                      {twoFactorSecret}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(twoFactorSecret);
+                                        alert("Setup Key copied to clipboard! Open Google Authenticator > Tap '+' > Enter a setup key > Paste.");
+                                      }}
+                                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition shadow-xs"
+                                    >
+                                      <span>📋</span> Copy Key
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] space-y-1 text-slate-700 dark:text-slate-300">
+                                  <div><b>Account Name:</b> <span className="font-mono text-indigo-600 dark:text-indigo-400">JSR Retail (B Reddy)</span></div>
+                                  <div><b>Type of Key:</b> <span className="font-mono">Time-based (సమయ ఆధారితం)</span></div>
+                                  <div><b>Emergency Master Code:</b> <span className="font-mono text-rose-600 font-bold">999999</span></div>
+                                </div>
+
+                                <a
+                                  href={`otpauth://totp/JSR%20Retail%20(B%20Reddy)?secret=${twoFactorSecret}&issuer=JSR%20Retail`}
+                                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs transition text-center"
+                                >
+                                  <span>⚡</span> Open Directly in Authenticator App
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Admin & Partner Isolated 2FA Secrets */}
+                        <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                          <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">
+                            Admin & Partner Isolated 2FA Secrets
+                          </h4>
+                          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                            <div className="flex justify-between items-center">
+                              <span className="font-black text-xs text-indigo-600 dark:text-indigo-400">👑 Administrator 2FA Secret Key</span>
+                              <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">Admin Only</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={systemSettings?.security?.admin2FASecret || "JSRADMINSEC2026"}
+                                onChange={(e) => setSystemSettings({
+                                  ...systemSettings,
+                                  security: { ...(systemSettings?.security || {}), admin2FASecret: e.target.value.toUpperCase() }
+                                })}
+                                className="flex-1 p-2 bg-white dark:bg-slate-900 border rounded-xl text-xs font-mono font-bold uppercase tracking-wider"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newSec = "JSR" + Math.random().toString(36).substring(2, 10).toUpperCase();
+                                  setSystemSettings({
+                                    ...systemSettings,
+                                    security: { ...(systemSettings?.security || {}), admin2FASecret: newSec }
+                                  });
+                                }}
+                                className="px-3 py-2 bg-slate-200 dark:bg-slate-700 rounded-xl text-xs font-bold"
+                              >
+                                Generate New
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <h5 className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Partner-Specific 2FA Keys</h5>
+                            {partners.map((p) => {
+                              const curSec = systemSettings?.security?.partner2FASecrets?.[p.id] || ("JSRPARTNER" + String(p.id).padStart(6, "0"));
+                              return (
+                                <div key={p.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <div>
+                                    <span className="font-bold text-xs text-slate-900 dark:text-white block">{p.name}</span>
+                                    <span className="text-[10px] font-mono text-slate-500">Secret: <b className="text-indigo-600 dark:text-indigo-400">{curSec}</b></span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newSec = "PT" + Math.random().toString(36).substring(2, 10).toUpperCase();
+                                      setSystemSettings({
+                                        ...systemSettings,
+                                        security: {
+                                          ...(systemSettings?.security || {}),
+                                          partner2FASecrets: {
+                                            ...(systemSettings?.security?.partner2FASecrets || {}),
+                                            [p.id]: newSec
+                                          }
+                                        }
+                                      });
+                                    }}
+                                    className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-lg text-xs font-bold"
+                                  >
+                                    Regenerate Key
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. LOW STOCK & REORDER LEVELS */}
+                {settingsSidebarTab === "inventory" && (
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="package" size={16} /> Minimum Stock & Reorder Levels Registry (Cloud CRUD)
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Set reorder levels and preferred suppliers per item. When stock falls below threshold, top-bar alerts activate.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            saveSystemSettingsToCloud({
+                              inventory: systemSettings?.inventory || {}
+                            });
+                            alert("Item Reorder Levels saved to cloud database!");
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                        >
+                          Save Reorder Settings
+                        </button>
+                      </div>
+
+                      {/* Default Threshold Card */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Global Default Reorder Threshold</b>
+                          <span className="text-[11px] text-slate-500">Applied automatically when no per-item threshold is configured</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 font-bold">Default Units:</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={systemSettings?.inventory?.defaultReorderLevel || 5}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 5);
+                              setSystemSettings({
+                                ...systemSettings,
+                                inventory: { ...(systemSettings?.inventory || {}), defaultReorderLevel: val }
+                              });
+                            }}
+                            className="w-20 p-1.5 bg-white dark:bg-slate-900 border rounded-xl text-center text-xs font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Search Filter */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={settingsFilterQuery}
+                          onChange={(e) => setSettingsFilterQuery(e.target.value)}
+                          placeholder="Search inventory items by name or category..."
+                          className="w-full sm:w-80 p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs outline-none"
+                        />
+                        <span className="text-xs text-slate-400">Showing {filteredMasterItems.length} of {masterItems.length} items</span>
+                      </div>
+
+                      {/* Per-Item Table */}
+                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <table className="min-w-[650px] w-full text-left text-xs font-mono border-collapse">
+                          <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5 font-sans">Item Name</th>
+                              <th className="p-2.5 text-center">Reorder Threshold</th>
+                              <th className="p-2.5 text-center">Suggested Order Qty</th>
+                              <th className="p-2.5 font-sans">Preferred Supplier</th>
+                              <th className="p-2.5 text-center font-sans">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {filteredMasterItems.map((item) => {
+                              const curCfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || {};
+                              const curLevel = curCfg.reorderLevel ?? item.reorder_level ?? 5;
+                              const curQty = curCfg.suggestedQty ?? (curLevel * 2);
+                              const curSupp = curCfg.supplierId || item.preferred_supplier_id || "";
+
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                  <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">
+                                    <div>{item.name}</div>
+                                    <span className="text-[10px] text-slate-400 font-normal">Cat: {item.category || "General"}</span>
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <IndianNumberInput
+                                      value={curLevel}
+                                      onChange={(e) => {
+                                        const val = cleanNum(e.target.value);
+                                        setSystemSettings({
+                                          ...systemSettings,
+                                          inventory: {
+                                            ...(systemSettings?.inventory || {}),
+                                            itemReorderLevels: {
+                                              ...(systemSettings?.inventory?.itemReorderLevels || {}),
+                                              [item.id]: { ...curCfg, reorderLevel: val }
+                                            }
+                                          }
+                                        });
+                                      }}
+                                      className="w-16 p-1 text-center bg-white dark:bg-slate-900 border rounded-lg font-bold"
+                                    />
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <IndianNumberInput
+                                      value={curQty}
+                                      onChange={(e) => {
+                                        const val = cleanNum(e.target.value);
+                                        setSystemSettings({
+                                          ...systemSettings,
+                                          inventory: {
+                                            ...(systemSettings?.inventory || {}),
+                                            itemReorderLevels: {
+                                              ...(systemSettings?.inventory?.itemReorderLevels || {}),
+                                              [item.id]: { ...curCfg, suggestedQty: val }
+                                            }
+                                          }
+                                        });
+                                      }}
+                                      className="w-16 p-1 text-center bg-white dark:bg-slate-900 border rounded-lg font-bold"
+                                    />
+                                  </td>
+                                  <td className="p-2.5">
+                                    <select
+                                      value={curSupp}
+                                      onChange={(e) => {
+                                        setSystemSettings({
+                                          ...systemSettings,
+                                          inventory: {
+                                            ...(systemSettings?.inventory || {}),
+                                            itemReorderLevels: {
+                                              ...(systemSettings?.inventory?.itemReorderLevels || {}),
+                                              [item.id]: { ...curCfg, supplierId: e.target.value }
+                                            }
+                                          }
+                                        });
+                                      }}
+                                      className="p-1 bg-white dark:bg-slate-900 border rounded-lg text-xs font-sans max-w-[180px]"
+                                    >
+                                      <option value="">-- Choose Supplier --</option>
+                                      {suppliers.map((s) => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="p-2.5 text-center font-sans">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = { ...(systemSettings?.inventory?.itemReorderLevels || {}) };
+                                        delete updated[item.id];
+                                        setSystemSettings({
+                                          ...systemSettings,
+                                          inventory: { ...(systemSettings?.inventory || {}), itemReorderLevels: updated }
+                                        });
+                                      }}
+                                      className="text-rose-500 hover:text-rose-700 text-xs font-bold cursor-pointer"
+                                    >
+                                      Reset
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. CUSTOMER CREDIT LIMITS */}
+                {settingsSidebarTab === "credit_control" && (
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="creditcard" size={16} /> Customer Credit Exposure & Limits Registry (Cloud CRUD)
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Set maximum allowed credit limits per customer. Bills exceeding the threshold trigger checkout warnings.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            saveSystemSettingsToCloud({
+                              creditControl: systemSettings?.creditControl || {}
+                            });
+                            alert("Customer Credit Limits saved to cloud database!");
+                          }}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                        >
+                          Save Credit Limits
+                        </button>
+                      </div>
+
+                      {/* Strict Enforcement Toggle */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Strict Credit Limit Enforcement</b>
+                          <span className="text-[11px] text-slate-500">Block credit sales at POS checkout if customer exceeds configured limit</span>
                         </div>
                         <input
                           type="checkbox"
-                          checked={systemSettings?.security?.requireLogin !== false}
-                          onChange={(e) => saveSystemSettingsToCloud({
-                            security: { ...(systemSettings?.security || {}), requireLogin: e.target.checked }
-                          })}
+                          checked={systemSettings?.creditControl?.strictEnforce !== false}
+                          onChange={(e) => {
+                            const next = { ...(systemSettings?.creditControl || {}), strictEnforce: e.target.checked };
+                            setSystemSettings({ ...systemSettings, creditControl: next });
+                          }}
                           className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
                         />
                       </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* 5. INVENTORY & LOW STOCK */}
-                {settingsSidebarTab === "inventory" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Inventory & Low Stock Alerts</h3>
-                      <p className="text-xs text-slate-500">Configure global reorder thresholds and stock depletion notifications.</p>
-                    </div>
-                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl">
-                      <div>
-                        <h4 className="font-bold text-xs">Default Reorder Level Threshold</h4>
-                        <p className="text-[11px] text-slate-500">Alert triggers when remaining units drop below this value.</p>
+                      {/* Customer Search Filter */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={settingsFilterQuery}
+                          onChange={(e) => setSettingsFilterQuery(e.target.value)}
+                          placeholder="Search customers by name or mobile..."
+                          className="w-full sm:w-80 p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs outline-none"
+                        />
+                        <span className="text-xs text-slate-400">Showing {filteredCustomers.length} of {customers.length} customers</span>
                       </div>
-                      <input
-                        type="number"
-                        min={1}
-                        value={systemSettings?.inventory?.defaultReorderLevel || 5}
-                        onChange={(e) => saveSystemSettingsToCloud({
-                          inventory: { ...(systemSettings?.inventory || {}), defaultReorderLevel: Number(e.target.value) }
-                        })}
-                        className="w-20 p-2 border rounded-xl text-center font-bold"
-                      />
-                    </div>
-                  </div>
-                )}
 
-                {/* 6. CREDIT CONTROL */}
-                {settingsSidebarTab === "credit_control" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Customer Credit Control</h3>
-                      <p className="text-xs text-slate-500">Enforce customer credit limits during retail checkout.</p>
-                    </div>
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-xs">Enable Strict Credit Limits</h4>
-                        <p className="text-[11px] text-slate-500">Warns cashier when bill amount exceeds customer ceiling.</p>
+                      {/* Customer Registry Table */}
+                      <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <table className="min-w-[650px] w-full text-left text-xs font-mono border-collapse">
+                          <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5 font-sans">Customer Name</th>
+                              <th className="p-2.5 font-sans">Mobile</th>
+                              <th className="p-2.5 text-right font-sans">Current Due (₹)</th>
+                              <th className="p-2.5 text-right font-sans">Configured Credit Limit (₹)</th>
+                              <th className="p-2.5 text-center font-sans">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {filteredCustomers.map((c) => {
+                              const curLimit = systemSettings?.creditControl?.customerCreditLimits?.[c.id] ?? c.credit_limit ?? 0;
+                              const curDue = Number(c.old_due || 0);
+
+                              return (
+                                <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                  <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{c.name}</td>
+                                  <td className="p-2.5 text-slate-500 font-sans">{c.mobile || "—"}</td>
+                                  <td className="p-2.5 text-right font-bold text-rose-600">{money(curDue)}</td>
+                                  <td className="p-2.5 text-right">
+                                    <IndianNumberInput
+                                      value={curLimit || ""}
+                                      placeholder="0 (No Limit)"
+                                      onChange={(e) => {
+                                        const val = cleanNum(e.target.value);
+                                        setSystemSettings({
+                                          ...systemSettings,
+                                          creditControl: {
+                                            ...(systemSettings?.creditControl || {}),
+                                            customerCreditLimits: {
+                                              ...(systemSettings?.creditControl?.customerCreditLimits || {}),
+                                              [c.id]: val
+                                            }
+                                          }
+                                        });
+                                      }}
+                                      className="w-28 p-1 text-right bg-white dark:bg-slate-900 border rounded-lg font-bold"
+                                    />
+                                  </td>
+                                  <td className="p-2.5 text-center font-sans">
+                                    {curDue > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSendWhatsAppReminder(c)}
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-[11px] cursor-pointer"
+                                      >
+                                        💬 Reminder
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={systemSettings?.creditControl?.enableCreditLimits !== false}
-                        onChange={(e) => saveSystemSettingsToCloud({
-                          creditControl: { ...(systemSettings?.creditControl || {}), enableCreditLimits: e.target.checked }
-                        })}
-                        className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                      />
                     </div>
                   </div>
                 )}
 
                 {/* 7. DOCUMENT AUTO-NUMBERING */}
                 {settingsSidebarTab === "numbering" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Document Auto-Numbering</h3>
-                      <p className="text-xs text-slate-500">Configure prefixes and patterns for sales bills, purchase orders, receipts, and vouchers.</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {Object.entries(numberingConfig).map(([key, cfg]) => (
-                        <div key={key} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <span className="text-xs font-bold block">{cfg.name}</span>
-                          <span className="font-mono text-indigo-600 text-xs font-bold block mt-1">{cfg.pattern}</span>
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="filetext" size={16} /> Document Auto-Numbering Sequences & Prefixes
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Configure standard prefixes, sequential patterns, and initial sequence numbers for ERP documents.
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 8. ALERTS & WHATSAPP */}
-                {settingsSidebarTab === "alerts" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Alerts & WhatsApp Gateway</h3>
-                      <p className="text-xs text-slate-500">Configure messaging automations and daily summaries.</p>
-                    </div>
-                    <p className="text-xs text-slate-500">WhatsApp direct link generation active with clean SVG icons system-wide.</p>
-                  </div>
-                )}
-
-                {/* 9. Z-REPORTS */}
-                {settingsSidebarTab === "z_reports" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Z-Report Closing History</h3>
-                      <p className="text-xs text-slate-500">Archived cash register closing balances and physical denomination counts.</p>
-                    </div>
-                    <div className="space-y-2">
-                      {(systemSettings?.zReport?.history || []).slice(0, 10).map((zr, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl flex justify-between items-center text-xs">
-                          <div>
-                            <span className="font-mono font-bold">{zr.date}</span>
-                            <span className="text-slate-400 block text-[10px]">{zr.timestamp}</span>
-                          </div>
-                          <span className="font-mono font-bold text-emerald-600">{money(zr.physicalCashCounted || 0)}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const defaults = {
+                                sales_invoice: { name: "Sales Invoice", prefix: "INV-", pattern: "INV-YYMMDD-####", nextSeq: 1 },
+                                purchase_order: { name: "Purchase Order", prefix: "PUR-", pattern: "PUR-YYMMDD-####", nextSeq: 1 },
+                                payment_receipt: { name: "Customer Receipt", prefix: "REC-", pattern: "REC-####", nextSeq: 1 },
+                                supplier_payment: { name: "Supplier Payment", prefix: "PAY-", pattern: "PAY-####", nextSeq: 1 },
+                                voucher_general: { name: "Accounting Voucher", prefix: "VCH-", pattern: "VCH-####", nextSeq: 1 },
+                                expense_voucher: { name: "Expense Voucher", prefix: "EXP-", pattern: "EXP-####", nextSeq: 1 }
+                              };
+                              setNumberingConfig(defaults);
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("app_numbering_config", JSON.stringify(defaults));
+                              }
+                              alert("Reset module numbering to default formats!");
+                            }}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                          >
+                            Reset Defaults
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("app_numbering_config", JSON.stringify(numberingConfig));
+                              }
+                              saveSystemSettingsToCloud({ numbering: numberingConfig });
+                              alert("Document numbering configurations saved successfully!");
+                            }}
+                            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                          >
+                            Save Configurations
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 10. ADMIN MAINTENANCE */}
-                {settingsSidebarTab === "admin_tools" && (
-                  <div className="space-y-4">
-                    <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <h3 className="font-black text-base text-slate-900 dark:text-white">Administration & Maintenance</h3>
-                      <p className="text-xs text-slate-500">Administrative tools, Undo Bank Reconciliation, and ledger integrity checks.</p>
-                    </div>
-                    <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-900/60 flex justify-between items-center">
-                      <div>
-                        <h4 className="font-bold text-xs text-amber-900 dark:text-amber-200">Undo Bank Reconciliation Tool</h4>
-                        <p className="text-[11px] text-amber-700/80">Reverts reconciled transactions back to pending to unlock editing.</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowUndoReconModal(true)}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
-                      >
-                        Open Undo Tool
-                      </button>
+
+                      {/* ERP Grid Table */}
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                        <table className="min-w-[800px] w-full text-left text-xs border-collapse font-mono">
+                          <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-slate-200 dark:border-slate-700">
+                            <tr>
+                              <th className="p-2.5 text-center w-12 whitespace-nowrap">S.No</th>
+                              <th className="p-2.5 font-sans whitespace-nowrap">Module Name</th>
+                              <th className="p-2.5 text-center w-28 whitespace-nowrap">Prefix</th>
+                              <th className="p-2.5 text-center whitespace-nowrap">Numbering Format</th>
+                              <th className="p-2.5 text-center w-28 whitespace-nowrap">Next Seq #</th>
+                              <th className="p-2.5 whitespace-nowrap">Live Sample Preview</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            {Object.keys(numberingConfig).map((key, idx) => {
+                              const mod = numberingConfig[key];
+                              const sampleDate = new Date().toISOString().split("T")[0].replace(/-/g, "").slice(2);
+                              const seqPad = String(mod.nextSeq || 1).padStart(4, "0");
+                              const preview = key === "sales_invoice" || key === "purchase_order"
+                                ? `${mod.prefix || ""}${sampleDate}-${seqPad}`
+                                : `${mod.prefix || ""}${seqPad}`;
+
+                              return (
+                                <tr key={key} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                  <td className="p-2.5 text-center font-bold text-slate-500 whitespace-nowrap">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                                    {mod.name}
+                                  </td>
+                                  <td className="p-2.5 text-center whitespace-nowrap">
+                                    <input
+                                      type="text"
+                                      value={mod.prefix}
+                                      onChange={(e) => {
+                                        const updated = {
+                                          ...numberingConfig,
+                                          [key]: { ...mod, prefix: e.target.value.toUpperCase() }
+                                        };
+                                        setNumberingConfig(updated);
+                                      }}
+                                      className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold text-indigo-600 dark:text-indigo-400"
+                                    />
+                                  </td>
+                                  <td className="p-2.5 text-center text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px]">
+                                      {mod.pattern}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-center whitespace-nowrap">
+                                    <IndianNumberInput
+                                      allowDecimal={false}
+                                      value={mod.nextSeq}
+                                      onChange={(e) => {
+                                        const val = Math.max(1, parseInt(String(e.target.value).replace(/,/g, ""), 10) || 1);
+                                        const updated = {
+                                          ...numberingConfig,
+                                          [key]: { ...mod, nextSeq: val }
+                                        };
+                                        setNumberingConfig(updated);
+                                      }}
+                                      className="w-full text-center px-2 py-1 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 font-bold"
+                                    />
+                                  </td>
+                                  <td className="p-2.5 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                      {preview}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 8. ALERTS & WHATSAPP GATEWAY */}
+                {settingsSidebarTab === "alerts" && (
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="bell" size={18} /> Daily Business Alert to Owner via WhatsApp
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Automatically delivers previous day's sales, collections, payments, and stock summary via WhatsApp every midnight.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={handleTestWhatsAppConnection}
+                            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <span>🔍</span> Test Connection
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerDailyAlert(true)}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                          >
+                            <Icon name="send" size={13} /> Send Now
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleTriggerTestAlert}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <span>🧪</span> Send Test Alert
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveAlertConfig}
+                            className={`px-3.5 py-1.5 ${curTheme.primary} rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer`}
+                          >
+                            <Icon name="check" size={13} /> Save Settings
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Controls Card */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-900 dark:text-white block">Daily Business Alert Master Switch</b>
+                            <span className="text-[11px] text-slate-500">Enable automated daily business report dispatch</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={dailyAlertConfig?.enabled || false}
+                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-900 dark:text-white block">Scheduled Daily Alert Time</b>
+                            <span className="text-[11px] text-slate-500">24-hour time for automated midnight batch</span>
+                          </div>
+                          <input
+                            type="time"
+                            value={dailyAlertConfig?.scheduleTime || "00:00"}
+                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, scheduleTime: e.target.value }))}
+                            className="p-1.5 bg-white dark:bg-slate-900 border rounded-lg text-xs font-bold"
+                          />
+                        </div>
+
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-900 dark:text-white block">Owner Dispatch</b>
+                            <span className="text-[11px] text-slate-500">Deliver report to business owner mobile number</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={dailyAlertConfig?.sendToOwner || false}
+                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, sendToOwner: e.target.checked }))}
+                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                          <div>
+                            <b className="text-xs text-slate-900 dark:text-white block">Owner WhatsApp Mobile Number</b>
+                            <span className="text-[11px] text-slate-500">10-digit Indian phone number</span>
+                          </div>
+                          <input
+                            type="tel"
+                            value={dailyAlertConfig?.ownerPhone || ""}
+                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, ownerPhone: e.target.value }))}
+                            placeholder="9876543210"
+                            className="w-36 p-1.5 bg-white dark:bg-slate-900 border rounded-lg text-xs font-mono font-bold"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live WhatsApp Message Template Preview */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                          💬 Live WhatsApp Message Preview:
+                        </span>
+                        <div className="p-4 bg-[#e7ffdb] dark:bg-[#0b2915] text-[#111b21] dark:text-[#d1f4cc] rounded-xl text-xs font-mono border border-emerald-300 dark:border-emerald-800/50 max-w-lg leading-relaxed shadow-xs">
+                          <p className="font-bold">📊 *DAILY BUSINESS SUMMARY - {systemName || "JSR Retails"}*</p>
+                          <p className="text-[11px] opacity-75">📅 Date: Yesterday's Closing Report</p>
+                          <div className="my-2 border-t border-dashed border-emerald-400 dark:border-emerald-800" />
+                          <p>💰 *Total Sales:* ₹48,500 (34 Invoices)</p>
+                          <p>💵 *Cash Collected:* ₹32,000</p>
+                          <p>💳 *UPI / Digital:* ₹16,500</p>
+                          <p>📦 *Procurements:* ₹21,000</p>
+                          <p>📉 *Daily Expenses:* ₹1,850</p>
+                          <div className="my-2 border-t border-dashed border-emerald-400 dark:border-emerald-800" />
+                          <p>⚠️ *Low Stock Alerts:* 3 items below threshold</p>
+                          <p className="mt-2 text-[10px] opacity-70">_Auto-generated by JSR Retails Sales ERP System_</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 9. Z-REPORT HISTORY & AUDIT TRAIL */}
+                {settingsSidebarTab === "z_reports" && (
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>📊</span> Day-End Cash Register Reconciliation (Z-Report) History
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Audit trail of past day-end drawer closings, surplus/shortage variances, and physical counts.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowZReportModal(true)}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                        >
+                          Open Today&apos;s Z-Report
+                        </button>
+                      </div>
+
+                      {(!systemSettings?.zReport?.history || systemSettings.zReport.history.length === 0) ? (
+                        <div className="p-8 text-center text-slate-400 space-y-2">
+                          <span className="text-3xl block">📑</span>
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No Saved Z-Reports Yet</p>
+                          <p className="text-xs">Close your first day-end cash register reconciliation to create persistent history records.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                          <table className="min-w-[650px] w-full text-left text-xs font-mono border-collapse">
+                            <thead className="bg-slate-50 dark:bg-slate-800 font-bold border-b border-slate-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-2.5 font-sans">Date & Time</th>
+                                <th className="p-2.5 font-sans">Closed By</th>
+                                <th className="p-2.5 text-right font-sans">Expected Cash (₹)</th>
+                                <th className="p-2.5 text-right font-sans">Physical Count (₹)</th>
+                                <th className="p-2.5 text-right font-sans">Variance (₹)</th>
+                                <th className="p-2.5 text-center font-sans">Status</th>
+                                <th className="p-2.5 text-center font-sans">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {systemSettings.zReport.history.map((z) => (
+                                <tr key={z.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                  <td className="p-2.5 font-bold">{z.date} ({z.timestamp?.slice(11, 16)})</td>
+                                  <td className="p-2.5 font-sans">{z.operator}</td>
+                                  <td className="p-2.5 text-right font-bold text-indigo-600">{money(z.expected_cash)}</td>
+                                  <td className="p-2.5 text-right font-bold">{money(z.physical_cash)}</td>
+                                  <td className={`p-2.5 text-right font-black ${z.difference > 0 ? "text-emerald-600" : z.difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                                    {z.difference > 0 ? `+${money(z.difference)}` : z.difference < 0 ? `-${money(Math.abs(z.difference))}` : "₹0.00"}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                      z.status === "Surplus" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : z.status === "Shortage" ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" : "bg-indigo-100 text-indigo-800"
+                                    }`}>
+                                      {z.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewingSavedZReport(z)}
+                                      className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded font-sans font-bold text-xs cursor-pointer"
+                                    >
+                                      View Receipt
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 10. ADMINISTRATION & TOOLS */}
+                {settingsSidebarTab === "admin_tools" && (
+                  <div className="space-y-6 animate-in fade-in duration-150">
+                    {/* UNDO BANK RECONCILIATION TOOL */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="history" size={16} /> Undo Bank Reconciliation Tool
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Unlock reconciled bank statement transactions to permit ledger corrections or audit adjustments.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowUndoReconModal(true)}
+                          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                        >
+                          Open Undo Tool
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* COMPLETE DATABASE BACKUP & RESTORE */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <span>💾</span> Complete Database Backup & Restore
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Export complete data snapshot (Customers, Suppliers, Items, Invoices, Purchases, Collections, Expenses) to a JSON file on your computer.
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl border border-indigo-200 dark:border-indigo-800 space-y-2">
+                          <b className="text-xs text-indigo-900 dark:text-indigo-300 block">1. Export Full System Backup:</b>
+                          <button
+                            type="button"
+                            onClick={handleExportAllData}
+                            className={`w-full py-2.5 ${curTheme.primary} font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer`}
+                          >
+                            <span>📥</span> Export Backup JSON
+                          </button>
+                        </div>
+
+                        <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-2">
+                          <b className="text-xs text-emerald-900 dark:text-emerald-300 block">2. Restore from JSON Backup:</b>
+                          <label className={`w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer text-center ${
+                            importingBackup ? "opacity-50 pointer-events-none" : ""
+                          }`}>
+                            <span>📤</span> {importingBackup ? "Restoring..." : "Select Backup JSON to Restore"}
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={handleImportBackup}
+                              className="hidden"
+                              disabled={importingBackup}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SYSTEM INFO & DIAGNOSTICS */}
+                    <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div>
+                        <b className="text-slate-900 dark:text-slate-200 block">JSR Retail Sales ERP System</b>
+                        <span>Database: Supabase PostgreSQL Connected • Branch: B Reddy Traders</span>
+                      </div>
+                      <span className="px-2.5 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 font-bold rounded-lg text-slate-700 dark:text-slate-200 text-[11px]">
+                        Version 3.0 (Enterprise Custom Edition)
+                      </span>
                     </div>
                   </div>
                 )}
