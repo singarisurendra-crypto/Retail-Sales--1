@@ -15959,9 +15959,12 @@ Thank you for your business!`;
         
         {/* VIEW 13: FULL-SCREEN SYSTEM SETTINGS MODULE WITH LEFT SIDEBAR MENU */}
         {hasModuleAccess("settings") && activeTab === "settings" && (() => {
-          const filteredMasterItems = masterItems.filter(item => 
-            !settingsFilterQuery || item.name.toLowerCase().includes(settingsFilterQuery.toLowerCase()) || (item.category && item.category.toLowerCase().includes(settingsFilterQuery.toLowerCase()))
-          );
+          const filteredMasterItems = masterItems.filter(item => {
+            const iName = (item.name || item.item_name || "").toLowerCase();
+            const iCat = (item.category || "").toLowerCase();
+            const q = (settingsFilterQuery || "").toLowerCase();
+            return !q || iName.includes(q) || iCat.includes(q);
+          });
           const filteredCustomers = customers.filter(c => 
             !settingsFilterQuery || c.name.toLowerCase().includes(settingsFilterQuery.toLowerCase()) || (c.mobile && c.mobile.includes(settingsFilterQuery))
           );
@@ -17087,7 +17090,7 @@ Thank you for your business!`;
                               return (
                                 <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                                   <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">
-                                    <div>{item.name}</div>
+                                    <div>{item.name || item.item_name || `Item #${item.id}`}</div>
                                     <span className="text-[10px] text-slate-400 font-normal">Cat: {item.category || "General"}</span>
                                   </td>
                                   <td className="p-2.5 text-center">
