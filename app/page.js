@@ -16729,128 +16729,605 @@ Thank you for your business!`;
                   </div>
                 )}
 
-                {/* 8. ALERTS & WHATSAPP GATEWAY */}
+                {/* 8. ALERTS & WHATSAPP GATEWAY (FULL PRODUCTION SUITE) */}
                 {settingsSidebarTab === "alerts" && (
-                  <div className="space-y-6 animate-in fade-in duration-150">
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* Breadcrumb & Section Header */}
+                  <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span>Settings</span>
+                      <span>›</span>
+                      <span>Business Alerts</span>
+                      <span>›</span>
+                      <span className="text-indigo-600 dark:text-indigo-400">Daily Business Alert</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                          <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                            <Icon name="bell" size={18} />
+                          </span>
+                          Daily Business Alert to Owner & Partners via WhatsApp
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Automatically generates and delivers previous day's sales, collections, payments, and stock summary via WhatsApp every midnight at 12:00 AM.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleTestWhatsAppConnection}
+                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          title="Test Meta WhatsApp Cloud API credentials & webhook connectivity"
+                        >
+                          <span>🔍</span> Test Connection
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerDailyAlert(true)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                          title="Trigger and dispatch previous day summary right now"
+                        >
+                          <Icon name="send" size={13} /> Send Now
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleTriggerTestAlert}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                          title="Send test WhatsApp message to verify configuration"
+                        >
+                          <span>🧪</span> Send Test Alert
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveAlertConfig}
+                          className={`px-3 py-1.5 ${curTheme.primary} rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer`}
+                        >
+                          <Icon name="check" size={13} /> Save Settings
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* MASTER SCHEDULE SETTINGS CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <span>⚙️</span> 1. Alert Schedule & Automation Controls
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Daily Business Alert Master Switch */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
                         <div>
-                          <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
-                            <Icon name="bell" size={18} /> Daily Business Alert to Owner via WhatsApp
-                          </h3>
-                          <p className="text-xs text-slate-500 mt-1">
-                            Automatically delivers previous day's sales, collections, payments, and stock summary via WhatsApp every midnight.
-                          </p>
+                          <b className="text-xs text-slate-900 dark:text-white block">Daily Business Alert</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Master switch to enable or pause all automatic WhatsApp alerts
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={handleTestWhatsAppConnection}
-                            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                          >
-                            <span>🔍</span> Test Connection
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleTriggerDailyAlert(true)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                          >
-                            <Icon name="send" size={13} /> Send Now
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleTriggerTestAlert}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                          >
-                            <span>🧪</span> Send Test Alert
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSaveAlertConfig}
-                            className={`px-3.5 py-1.5 ${curTheme.primary} rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer`}
-                          >
-                            <Icon name="check" size={13} /> Save Settings
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.enabled
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {dailyAlertConfig.enabled ? "ON ✓" : "OFF"}
+                        </button>
                       </div>
 
-                      {/* Controls Card */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                          <div>
-                            <b className="text-xs text-slate-900 dark:text-white block">Daily Business Alert Master Switch</b>
-                            <span className="text-[11px] text-slate-500">Enable automated daily business report dispatch</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={dailyAlertConfig?.enabled || false}
-                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, enabled: e.target.checked }))}
-                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                          />
+                      {/* Automatic Alert Time */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Automatic Alert Time</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Default: 12:00 AM (midnight trigger for previous day)
+                          </span>
                         </div>
-
-                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                          <div>
-                            <b className="text-xs text-slate-900 dark:text-white block">Scheduled Daily Alert Time</b>
-                            <span className="text-[11px] text-slate-500">24-hour time for automated midnight batch</span>
-                          </div>
+                        <div className="flex items-center gap-1.5">
                           <input
                             type="time"
-                            value={dailyAlertConfig?.scheduleTime || "00:00"}
-                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, scheduleTime: e.target.value }))}
-                            className="p-1.5 bg-white dark:bg-slate-900 border rounded-lg text-xs font-bold"
+                            value={dailyAlertConfig.alertTime || "00:00"}
+                            onChange={(e) => setDailyAlertConfig((prev) => ({ ...prev, alertTime: e.target.value }))}
+                            className="p-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
                           />
-                        </div>
-
-                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                          <div>
-                            <b className="text-xs text-slate-900 dark:text-white block">Owner Dispatch</b>
-                            <span className="text-[11px] text-slate-500">Deliver report to business owner mobile number</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={dailyAlertConfig?.sendToOwner || false}
-                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, sendToOwner: e.target.checked }))}
-                            className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
-                          />
-                        </div>
-
-                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
-                          <div>
-                            <b className="text-xs text-slate-900 dark:text-white block">Owner WhatsApp Mobile Number</b>
-                            <span className="text-[11px] text-slate-500">10-digit Indian phone number</span>
-                          </div>
-                          <input
-                            type="tel"
-                            value={dailyAlertConfig?.ownerPhone || ""}
-                            onChange={(e) => setDailyAlertConfig(prev => ({ ...prev, ownerPhone: e.target.value }))}
-                            placeholder="9876543210"
-                            className="w-36 p-1.5 bg-white dark:bg-slate-900 border rounded-lg text-xs font-mono font-bold"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Live WhatsApp Message Template Preview */}
-                      <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                          💬 Live WhatsApp Message Preview:
-                        </span>
-                        <div className="p-4 bg-[#e7ffdb] dark:bg-[#0b2915] text-[#111b21] dark:text-[#d1f4cc] rounded-xl text-xs font-mono border border-emerald-300 dark:border-emerald-800/50 max-w-lg leading-relaxed shadow-xs">
-                          <p className="font-bold">📊 *DAILY BUSINESS SUMMARY - {systemName || "JSR Retails"}*</p>
-                          <p className="text-[11px] opacity-75">📅 Date: Yesterday's Closing Report</p>
-                          <div className="my-2 border-t border-dashed border-emerald-400 dark:border-emerald-800" />
-                          <p>💰 *Total Sales:* ₹48,500 (34 Invoices)</p>
-                          <p>💵 *Cash Collected:* ₹32,000</p>
-                          <p>💳 *UPI / Digital:* ₹16,500</p>
-                          <p>📦 *Procurements:* ₹21,000</p>
-                          <p>📉 *Daily Expenses:* ₹1,850</p>
-                          <div className="my-2 border-t border-dashed border-emerald-400 dark:border-emerald-800" />
-                          <p>⚠️ *Low Stock Alerts:* 3 items below threshold</p>
-                          <p className="mt-2 text-[10px] opacity-70">_Auto-generated by JSR Retails Sales ERP System_</p>
+                          <span className="text-[11px] font-mono text-slate-500 font-bold">
+                            {dailyAlertConfig.alertTime === "00:00" ? "12:00 AM" : ""}
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* OWNER CONFIGURATION CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>👑</span> 2. Business Owner Configuration
+                        </h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Configure primary recipient for all executive summaries
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDailyAlertConfig((prev) => ({ ...prev, ownerAlert: !prev.ownerAlert }))}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                          dailyAlertConfig.ownerAlert
+                            ? "bg-emerald-600 text-white shadow-xs"
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        }`}
+                      >
+                        Owner Alert: {dailyAlertConfig.ownerAlert ? "ON ✓" : "OFF"}
+                      </button>
+                    </div>
+
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 space-y-3">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white block">Owner WhatsApp Number:</b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Supports international prefix or 10-digit mobile (+91 XXXXX XXXXX)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <span className="text-xs font-mono font-bold text-slate-500">📱</span>
+                          <input
+                            type="tel"
+                            placeholder="+91 98480 12345"
+                            value={dailyAlertConfig.ownerMobile || ""}
+                            onChange={(e) => setDailyAlertConfig((prev) => ({ ...prev, ownerMobile: e.target.value }))}
+                            className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-mono font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-white flex-1 sm:w-56"
+                          />
+                          {(() => {
+                            const v = validateMobileNumber(dailyAlertConfig.ownerMobile);
+                            return (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${v.valid ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"}`}>
+                                {v.valid ? "Valid ✓" : "Check #"}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 italic">
+                        * Note: If the owner changes the mobile number, future alerts are automatically dispatched to the new number without altering previous Alert History.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* PARTNER CONFIGURATION CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>🤝</span> 3. Partner Configuration & Recipients Table
+                        </h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Manage partner alerts, edit numbers, and toggle delivery individually
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({ ...prev, partnerAlerts: !prev.partnerAlerts }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                            dailyAlertConfig.partnerAlerts
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          Partner Alerts: {dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewAlertRecipientForm({ name: "", mobile: "", enabled: true });
+                            setShowAddAlertRecipientModal(true);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer border border-indigo-200 dark:border-indigo-800"
+                        >
+                          <Icon name="plus" size={13} /> Add Partner Recipient
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Partner Recipients Table */}
+                    <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
+                      <table className="min-w-[600px] w-full text-left text-xs border-collapse">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Partner</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">WhatsApp Number</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Daily Alert</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center w-24 whitespace-nowrap">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
+                          {(dailyAlertConfig.partnerRecipients || []).map((p, idx) => {
+                            const val = validateMobileNumber(p.mobile);
+                            return (
+                              <tr key={p.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  {p.name}
+                                </td>
+                                <td className="p-3 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="tel"
+                                      placeholder="+91 XXXXX XXXXX"
+                                      value={p.mobile || ""}
+                                      onChange={(e) => {
+                                        const newNum = e.target.value;
+                                        setDailyAlertConfig((prev) => {
+                                          const nextList = [...prev.partnerRecipients];
+                                          nextList[idx] = { ...nextList[idx], mobile: newNum };
+                                          return { ...prev, partnerRecipients: nextList };
+                                        });
+                                      }}
+                                      className="px-2.5 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white w-44"
+                                    />
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${val.valid ? "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/60" : "text-rose-700 bg-rose-50 dark:text-rose-400 dark:bg-rose-950/60"}`}>
+                                      {val.valid ? "✓" : "Invalid"}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDailyAlertConfig((prev) => {
+                                        const nextList = [...prev.partnerRecipients];
+                                        nextList[idx] = { ...nextList[idx], enabled: !nextList[idx].enabled };
+                                        return { ...prev, partnerRecipients: nextList };
+                                      });
+                                    }}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${
+                                      p.enabled && dailyAlertConfig.partnerAlerts
+                                        ? "bg-emerald-600 text-white shadow-2xs"
+                                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                                    }`}
+                                  >
+                                    {p.enabled && dailyAlertConfig.partnerAlerts ? "ON ✓" : "OFF"}
+                                  </button>
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (confirm(`Remove partner "${p.name}" from daily alerts?`)) {
+                                        setDailyAlertConfig((prev) => ({
+                                          ...prev,
+                                          partnerRecipients: prev.partnerRecipients.filter((_, i) => i !== idx)
+                                        }));
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 rounded transition cursor-pointer"
+                                    title="Remove Recipient"
+                                  >
+                                    <Icon name="trash" size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* ALERT INFORMATION SELECTION CARD */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <span>📊</span> 4. Alert Information Selection
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Select which business activity sections are included in the WhatsApp message. If a section is toggled OFF, that entire section is completely omitted from the delivered message.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* 1. Sales Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>🧾</span> Sales Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Number of invoices<br />• Total sales amount (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, sales: !prev.sections?.sales }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.sales
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.sales ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* 2. Collections Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>📥</span> Collections Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Number of collections<br />• Total collection amount (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, collections: !prev.sections?.collections }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.collections
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.collections ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* 3. Payments Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>📤</span> Payments Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Number of payments<br />• Total payment amount (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, payments: !prev.sections?.payments }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.payments
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.payments ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+
+                      {/* 4. Stock Summary */}
+                      <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/50 flex justify-between items-center gap-3">
+                        <div>
+                          <b className="text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>📦</span> Stock Summary
+                          </b>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                            • Items Sold count<br />• Current stock valuation (₹)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDailyAlertConfig((prev) => ({
+                            ...prev,
+                            sections: { ...prev.sections, stock: !prev.sections?.stock }
+                          }))}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
+                            dailyAlertConfig.sections?.stock
+                              ? "bg-emerald-600 text-white shadow-xs"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {dailyAlertConfig.sections?.stock ? "ON ✓" : "OFF"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  
+                    {/* Live WhatsApp Message Template Preview Card */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                        💬 Live WhatsApp Message Preview:
+                      </span>
+                      <div className="p-4 bg-[#e7ffdb] dark:bg-[#0b2915] text-[#111b21] dark:text-[#d1f4cc] rounded-xl text-xs font-mono border border-emerald-300 dark:border-emerald-800/50 max-w-lg leading-relaxed shadow-xs">
+                        <p className="font-bold">📊 *DAILY BUSINESS SUMMARY - {systemName || "JSR Retails"}*</p>
+                        <p className="text-[11px] opacity-75">📅 Date: Yesterday's Closing Report</p>
+                        <div className="my-2 border-t border-dashed border-emerald-400 dark:border-emerald-800" />
+                        <p>💰 *Total Sales:* ₹48,500 (34 Invoices)</p>
+                        <p>💵 *Cash Collected:* ₹32,000</p>
+                        <p>💳 *UPI / Digital:* ₹16,500</p>
+                        <p>📦 *Procurements:* ₹21,000</p>
+                        <p>📉 *Daily Expenses:* ₹1,850</p>
+                        <div className="my-2 border-t border-dashed border-emerald-400 dark:border-emerald-800" />
+                        <p>⚠️ *Low Stock Alerts:* 3 items below threshold</p>
+                        <p className="mt-2 text-[10px] opacity-70">_Auto-generated by JSR Retails Sales ERP System_</p>
+                      </div>
+                    </div>
+
+                  {/* ALERT HISTORY SCREEN (SECTION 12) */}
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>📜</span> Alert History
+                        </h4>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Complete audit log of automatic midnight alerts and manual test dispatches
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {/* Search Input */}
+                        <input
+                          type="text"
+                          placeholder="Search recipient / date..."
+                          value={alertHistorySearch}
+                          onChange={(e) => setAlertHistorySearch(e.target.value)}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white flex-1 sm:w-44"
+                        />
+                        {/* Status Filter */}
+                        <select
+                          value={alertHistoryStatusFilter}
+                          onChange={(e) => setAlertHistoryStatusFilter(e.target.value)}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold"
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="Sent">Sent</option>
+                          <option value="Dispatched (Web)">Dispatched (Web)</option>
+                          <option value="Ready">Ready / Pending</option>
+                          <option value="Disabled">Disabled</option>
+                          <option value="Failed">Failed</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm("Clear all alert history records?")) {
+                              setAlertHistory([]);
+                              try {
+                                localStorage.removeItem("jsr_alert_history");
+                              } catch (e) {}
+                              fetch("/api/alerts/settings", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ history: [] })
+                              }).catch(() => {});
+                            }
+                          }}
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl text-xs font-bold transition cursor-pointer"
+                          title="Clear History"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* History Table matching Scenario #11 Point 5 exact columns */}
+                    <div className="overflow-x-auto border border-sky-100 dark:border-slate-800 rounded-xl">
+                      <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono">
+                        <thead className="bg-[#e4effa] dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-bold border-b border-sky-200 dark:border-slate-700">
+                          <tr>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Date & Time</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Recipient</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Number</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Status</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">Message ID</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 whitespace-nowrap">API Response</th>
+                            <th className="p-3 border border-sky-200 dark:border-slate-700 text-center whitespace-nowrap">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-sky-100 dark:divide-slate-800 font-medium bg-white dark:bg-slate-900">
+                          {(() => {
+                            let filtered = alertHistory;
+                            if (alertHistoryStatusFilter !== "all") {
+                              if (alertHistoryStatusFilter === "Ready") {
+                                filtered = filtered.filter((h) => h.status === "Ready" || h.status === "Pending");
+                              } else {
+                                filtered = filtered.filter((h) => h.status === alertHistoryStatusFilter);
+                              }
+                            }
+                            if (alertHistorySearch.trim()) {
+                              const q = alertHistorySearch.toLowerCase();
+                              filtered = filtered.filter((h) =>
+                                (h.recipient || h.name || "").toLowerCase().includes(q) ||
+                                (h.displayDateTime || "").toLowerCase().includes(q) ||
+                                (h.recipientMobile || h.mobile || "").toLowerCase().includes(q) ||
+                                (h.messageId || "").toLowerCase().includes(q) ||
+                                (h.apiResponse || "").toLowerCase().includes(q)
+                              );
+                            }
+
+                            if (filtered.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={7} className="p-6 text-center text-slate-400">
+                                    No alert records found.
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return filtered.map((item) => (
+                              <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-850/50 transition">
+                                <td className="p-3 whitespace-nowrap text-slate-600 dark:text-slate-400 border border-sky-100 dark:border-slate-800 text-[11px]">
+                                  {item.displayDateTime}
+                                </td>
+                                <td className="p-3 font-bold text-slate-900 dark:text-white border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  {item.recipient || item.name || item.recipientName || "Recipient"}
+                                </td>
+                                <td className="p-3 font-mono text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap text-[11px]">
+                                  {item.recipientMobile || item.mobile || "—"}
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                    item.status === "Delivered" || item.status === "Read"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : item.status === "Sent"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : item.status === "Accepted"
+                                      ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                      : item.status === "Dispatched (Web)"
+                                      ? "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                                      : item.status === "Ready" || item.status === "Pending"
+                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                      : item.status === "Sending..."
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                                      : item.status === "Disabled"
+                                      ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                      : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+                                  }`}>
+                                    <span>
+                                      {item.status === "Delivered" || item.status === "Read"
+                                        ? "✓✓"
+                                        : item.status === "Sent"
+                                        ? "✓"
+                                        : item.status === "Accepted"
+                                        ? "📡"
+                                        : item.status === "Dispatched (Web)"
+                                        ? "📱"
+                                        : item.status === "Ready" || item.status === "Pending"
+                                        ? "⏳"
+                                        : item.status === "Sending..."
+                                        ? "🔄"
+                                        : item.status === "Disabled"
+                                        ? "⊘"
+                                        : "✕"}
+                                    </span>
+                                    {item.status}
+                                  </span>
+                                </td>
+                                <td className="p-3 font-mono text-[11px] text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  {item.messageId || "—"}
+                                </td>
+                                <td className="p-3 text-slate-600 dark:text-slate-300 border border-sky-100 dark:border-slate-800 text-[11px] font-sans whitespace-nowrap">
+                                  {item.apiResponse || item.reason || (item.status === "Sent" ? "Accepted" : "—")}
+                                </td>
+                                <td className="p-3 text-center border border-sky-100 dark:border-slate-800 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRetrySingleAlert(item)}
+                                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg text-[11px] font-bold cursor-pointer transition flex items-center gap-1 mx-auto"
+                                    title={`Retry sending alert specifically to ${item.recipient || item.name || 'this recipient'}`}
+                                  >
+                                    <span>🔄</span> Retry
+                                  </button>
+                                </td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
                 )}
 
                 {/* 9. Z-REPORT HISTORY & AUDIT TRAIL */}
@@ -16934,27 +17411,6 @@ Thank you for your business!`;
                 {/* 10. ADMINISTRATION & TOOLS */}
                 {settingsSidebarTab === "admin_tools" && (
                   <div className="space-y-6 animate-in fade-in duration-150">
-                    {/* UNDO BANK RECONCILIATION TOOL */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                        <div>
-                          <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                            <Icon name="history" size={16} /> Undo Bank Reconciliation Tool
-                          </h4>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Unlock reconciled bank statement transactions to permit ledger corrections or audit adjustments.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowUndoReconModal(true)}
-                          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-                        >
-                          Open Undo Tool
-                        </button>
-                      </div>
-                    </div>
-
                     {/* COMPLETE DATABASE BACKUP & RESTORE */}
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
                       <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
