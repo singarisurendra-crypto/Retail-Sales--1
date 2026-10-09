@@ -18885,6 +18885,9 @@ Thank you for your business!`;
                     onChange={(e) => setProcureForm({ ...procureForm, supplier_name: e.target.value })}
                   >
                     <option value="">-- Choose Supplier --</option>
+                    {procureForm.supplier_name && !uniqueSupplierSuggestions.includes(procureForm.supplier_name) && procureForm.supplier_name !== "Opening Stock" && (
+                      <option value={procureForm.supplier_name}>{procureForm.supplier_name}</option>
+                    )}
                     {uniqueSupplierSuggestions.map((s, idx) => (
                       <option key={idx} value={s}>{s}</option>
                     ))}
@@ -21656,13 +21659,71 @@ Thank you for your business!`;
                   Items currently at or below configured minimum reorder level. Click 1-Click Purchase Reorder to instantly generate a vendor procurement bill.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowLowStockModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {lowStockItems.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allLines = lowStockItems.map((it) => {
+                        const itName = (it.name || it.item_name || `Item #${it.id}`).trim();
+                        const prevP = procurements
+                          .filter((p) => (p.item_name || p.name || "").toLowerCase().trim() === itName.toLowerCase().trim() && !isPaymentProcurementRow(p) && p.supplier_name && p.supplier_name !== "Opening Stock")
+                          .sort((a, b) => new Date(b.purchase_date || b.created_at || 0) - new Date(a.purchase_date || a.created_at || 0))[0];
+                        const matched = uniqueItemSuggestions.find((i) => i.name.toLowerCase().trim() === itName.toLowerCase().trim());
+                        const cRate = matched?.purchase_rate ?? (prevP?.purchase_rate ?? (it.purchase_rate ?? (it.unit_price ?? "")));
+                        const sRate = matched?.selling_rate ?? (prevP?.selling_rate ?? (it.selling_rate ?? (it.unit_price ?? "")));
+                        const q = String(it.suggested_qty || (it.reorder_level ? it.reorder_level * 2 : 10));
+                        const c = (cRate !== "" && cRate !== undefined && cRate !== null && Number(cRate) > 0) ? String(cRate) : (it.purchase_rate ? String(it.purchase_rate) : "");
+                        const s = (sRate !== "" && sRate !== undefined && sRate !== null && Number(sRate) > 0) ? String(sRate) : (it.selling_rate ? String(it.selling_rate) : "");
+                        return {
+                          item_name: itName,
+                          procured_qty: q,
+                          purchase_rate: c,
+                          selling_rate: s,
+                          total: Number(q || 0) * Number(c || 0)
+                        };
+                      });
+
+                      const firstItem = lowStockItems[0];
+                      const firstSupp = suppliers.find((s) => String(s.id) === String(firstItem?.preferred_supplier_id))
+                        || suppliers.find((s) => s.name === firstItem?.preferred_supplier_id);
+                      const suppName = firstSupp?.name || suppliers[0]?.name || "";
+
+                      setEditingProcureId(null);
+                      setProcureForm({
+                        supplier_name: suppName,
+                        purchase_date: new Date().toISOString().split("T")[0],
+                        items: allLines,
+                        item_name: allLines[0]?.item_name || "",
+                        procured_qty: allLines[0]?.procured_qty || "1",
+                        purchase_rate: allLines[0]?.purchase_rate || "",
+                        selling_rate: allLines[0]?.selling_rate || "",
+                        is_opening: false,
+                        paid_now: "",
+                        p1_id: partners[0]?.id ? String(partners[0].id) : "",
+                        p1_mode: "Cash",
+                        notes: `Batch Auto Reorder (${lowStockItems.length} Low Stock Items)`
+                      });
+                      setShowLowStockModal(false);
+                      setShowProcureModal(true);
+                      setActiveTab("purchases");
+                    }}
+                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
+                    title="Pre-populate purchase order with all low stock items"
+                  >
+                    <span>⚡</span>
+                    <span className="hidden sm:inline">Reorder All ({lowStockItems.length})</span>
+                    <span className="sm:hidden">All ({lowStockItems.length})</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowLowStockModal(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {lowStockItems.length === 0 ? (
@@ -21704,13 +21765,55 @@ Thank you for your business!`;
                             <button
                               type="button"
                               onClick={() => {
+                                const resolvedName = (item.name || item.item_name || `Item #${item.id}`).trim();
+
+                                // 1. Resolve Supplier
+                                const matchedSupp = suppliers.find((s) => String(s.id) === String(item.preferred_supplier_id))
+                                  || suppliers.find((s) => s.name === item.preferred_supplier_id);
+                                const prevProc = !matchedSupp
+                                  ? procurements
+                                      .filter((p) => (p.item_name || p.name || "").toLowerCase().trim() === resolvedName.toLowerCase().trim() && !isPaymentProcurementRow(p) && p.supplier_name && p.supplier_name !== "Opening Stock")
+                                      .sort((a, b) => new Date(b.purchase_date || b.created_at || 0) - new Date(a.purchase_date || a.created_at || 0))[0]
+                                  : null;
+                                const targetSupplier = matchedSupp?.name || prevProc?.supplier_name || suppliers[0]?.name || "";
+
+                                // 2. Resolve Item Rates
+                                const matchedSuggestion = uniqueItemSuggestions.find((i) => i.name.toLowerCase().trim() === resolvedName.toLowerCase().trim());
+                                const costRate = matchedSuggestion?.purchase_rate
+                                  ?? (prevProc?.purchase_rate ?? (item.purchase_rate ?? (item.unit_price ?? "")));
+                                const sellRate = matchedSuggestion?.selling_rate
+                                  ?? (prevProc?.selling_rate ?? (item.selling_rate ?? (item.unit_price ?? "")));
+
+                                const qtyStr = String(item.suggested_qty || (item.reorder_level ? item.reorder_level * 2 : 10));
+                                const costStr = (costRate !== "" && costRate !== undefined && costRate !== null && Number(costRate) > 0)
+                                  ? String(costRate)
+                                  : (item.purchase_rate ? String(item.purchase_rate) : "");
+                                const sellStr = (sellRate !== "" && sellRate !== undefined && sellRate !== null && Number(sellRate) > 0)
+                                  ? String(sellRate)
+                                  : (item.selling_rate ? String(item.selling_rate) : "");
+                                const lineTotal = Number(qtyStr || 0) * Number(costStr || 0);
+
                                 setEditingProcureId(null);
                                 setProcureForm({
-                                  supplier_id: String(item.preferred_supplier_id || suppliers[0]?.id || ""),
-                                  item_name: item.name || item.item_name || `Item #${item.id}`,
-                                  quantity: String(item.suggested_qty || 10),
-                                  rate: String(item.purchase_rate || item.unit_price || 0),
-                                  total_amount: String((item.suggested_qty || 10) * Number(item.purchase_rate || item.unit_price || 0)),
+                                  supplier_name: targetSupplier,
+                                  purchase_date: new Date().toISOString().split("T")[0],
+                                  items: [
+                                    {
+                                      item_name: resolvedName,
+                                      procured_qty: qtyStr,
+                                      purchase_rate: costStr,
+                                      selling_rate: sellStr,
+                                      total: lineTotal
+                                    }
+                                  ],
+                                  item_name: resolvedName,
+                                  procured_qty: qtyStr,
+                                  purchase_rate: costStr,
+                                  selling_rate: sellStr,
+                                  is_opening: false,
+                                  paid_now: "",
+                                  p1_id: partners[0]?.id ? String(partners[0].id) : "",
+                                  p1_mode: "Cash",
                                   notes: `1-Click Auto Reorder from Low Stock Alert (Current Stock: ${item.current_stock})`
                                 });
                                 setShowLowStockModal(false);
