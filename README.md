@@ -510,3 +510,20 @@ PostgreSQL database tables hosted on Supabase:
 
 ## 32. System-Wide WhatsApp SVG Icon-Only (§24.1)
 - **Clean Action Buttons:** Replaced text "WhatsApp" with a clean SVG `<Icon name="whatsapp" size={15} />` across billing, invoices, collections, and reports for uncluttered UI.
+
+---
+
+## 33. Analytics Redesign, Top/Left Menu Settings & Theme Typography (§25.1)
+- **Executive Analytics Redesign (Matching Images 1 & 2):**
+  - **Top Filter Toolbar:** Period pills (`All Time`, `This Year`, `This Month`, `This Week`, `Today`), dual date picker `dd-mm-yyyy to dd-mm-yyyy`, `Reset ✕`, and dynamic bucket pill (`Filtered Bucket: Oct 2026` vs `All Time History`).
+  - **6 Executive KPI Summary Cards:** `TOTAL REVENUE` (₹), `COST OF GOODS` (🥞), `GROSS PROFIT` (↗), `OPERATING CHARGES` (🗃️), `NET STORE PROFIT` (↗), and `NET MARGIN` (🏷️) with real-time recalculation when drilling into any monthly timeline row.
+  - **Dynamic Catalogue Sales Matrix:** Table 3 badge updates dynamically to `Scoped to Filtered Bucket: [Month]` when filtered, with column-level active highlighting.
+  - **Conditional Filter Badges:** Tables 4 and 5 display `Scoped to Filtered Bucket: [Month]` next to their title **only when a filter is applied**.
+- **Top Menu vs Left Menu Layout Customization (Image 3 Fix):**
+  - Added dedicated customization card in **System Settings &rarr; Branding & Navigation**.
+  - Provides 1-click presets: *Compact (No Scrollbar - Recommended)*, *Core Retail & Banking*, and *Show All*.
+  - Individual checkboxes for all 12 modules allow users to pin core modules to the top navigation bar while remaining modules reside in the `≡ Menu ▾` left drawer, eliminating horizontal scrollbars on all displays.
+- **System Background Color & Modern Typography:**
+  - Standardized base canvas background to `#f8fafc` (`bg-slate-50`) with `#ffffff` pure white cards and subtle `border-slate-200` borders.
+  - Imported and configured **Inter** geometric sans-serif font stack with antialiased font smoothing and tabular numbers for financial figures.
+
