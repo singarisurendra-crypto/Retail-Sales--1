@@ -7389,23 +7389,8 @@ Thank you for your business!`;
             </div>
           </div>
 
-          {/* Bottom Business Information Card Overlay */}
-          <div className="relative z-10 max-w-xl bg-slate-950/70 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-2xl space-y-3">
-            <span className="px-2.5 py-1 bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] font-black uppercase tracking-wider inline-block">
-              {systemSettings?.branding?.tagline || "Retail & Wholesale Billing ERP"}
-            </span>
-            <h1 className="text-3xl font-black text-white tracking-tight leading-snug">
-              Smart Accounting, POS Billing & Multi-Party Ledgers
-            </h1>
-            <p className="text-xs text-slate-300 leading-relaxed font-medium">
-              Seamlessly manage inventory, daily collections, vendor procurements, and real-time reconciliation with verified security.
-            </p>
-            <div className="flex flex-wrap gap-4 pt-2 text-[11px] text-slate-400 border-t border-white/10">
-              <span>📍 {systemSettings?.branding?.companyAddress || "Main Bazaar, Dornala"}</span>
-              <span>📞 {systemSettings?.branding?.phone || "9848022338"}</span>
-              <span>⚡ UPI: {systemSettings?.branding?.upiId || "9848022338@ybl"}</span>
-            </div>
-          </div>
+          {/* Bottom spacer for clean visual presentation */}
+          <div className="relative z-10" />
         </div>
 
         {/* SCENARIO 7: MOBILE RESPONSIVE TOP HERO BANNER */}
@@ -7488,7 +7473,7 @@ Thank you for your business!`;
                           type="text"
                           value={adminUsername}
                           onChange={(e) => setAdminUsername(e.target.value)}
-                          placeholder="admin"
+                          placeholder=""
                           className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                           autoFocus
                           required
@@ -7507,7 +7492,7 @@ Thank you for your business!`;
                             type={showAdminPassword ? "text" : "password"}
                             value={loginPin}
                             onChange={(e) => setLoginPin(e.target.value)}
-                            placeholder="Enter Security Password (e.g. Admin@2026!)"
+                            placeholder=""
                             className="w-full px-3.5 py-2.5 pr-11 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                             required
                           />
@@ -7520,8 +7505,7 @@ Thank you for your business!`;
                             <Icon name={showAdminPassword ? "eye" : "eyeoff"} size={16} />
                           </button>
                         </div>
-                        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
-                          <span>Default: <code className="text-indigo-300 font-mono">Admin@2026!</code> or <code className="text-indigo-300 font-mono">1234</code></span>
+                        <div className="flex items-center justify-end mt-1 text-[10px] text-slate-500">
                           <button
                             type="button"
                             onClick={() => setShowForgotPasswordModal(true)}
@@ -7567,7 +7551,7 @@ Thank you for your business!`;
                             type={showPartnerPassword ? "text" : "password"}
                             value={loginPin}
                             onChange={(e) => setLoginPin(e.target.value)}
-                            placeholder="Enter Partner Password (e.g. Partner@2026!)"
+                            placeholder=""
                             className="w-full px-3.5 py-2.5 pr-11 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                             required
                           />
@@ -7580,8 +7564,7 @@ Thank you for your business!`;
                             <Icon name={showPartnerPassword ? "eye" : "eyeoff"} size={16} />
                           </button>
                         </div>
-                        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
-                          <span>Default: <code className="text-indigo-300 font-mono">Partner@2026!</code> or <code className="text-indigo-300 font-mono">1234</code></span>
+                        <div className="flex items-center justify-end mt-1 text-[10px] text-slate-500">
                           <button
                             type="button"
                             onClick={() => setShowForgotPasswordModal(true)}
@@ -7606,16 +7589,15 @@ Thank you for your business!`;
                           type="text"
                           value={portalIdentifier}
                           onChange={(e) => setPortalIdentifier(e.target.value)}
-                          placeholder="e.g. 9848022338 or Customer Name"
+                          placeholder=""
                           className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white outline-none focus:border-indigo-500 transition"
                           required
                           autoFocus
                         />
                       </div>
                       <div>
-                        <label className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1.5 flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1.5">
                           <span>PORTAL NUMERIC PIN ONLY</span>
-                          <span className="text-[10px] text-slate-500 font-normal">Default: 1234</span>
                         </label>
                         <input
                           type="password"
@@ -7624,7 +7606,7 @@ Thank you for your business!`;
                           maxLength={6}
                           value={portalPassword}
                           onChange={(e) => setPortalPassword(e.target.value.replace(/[^0-9]/g, ""))}
-                          placeholder="••••"
+                          placeholder=""
                           className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm font-semibold text-white tracking-widest text-center outline-none focus:border-indigo-500 transition"
                           required
                         />
@@ -8137,17 +8119,6 @@ Thank you for your business!`;
 
           {/* Quick Action Shortcuts (Desktop) */}
           <div className="hidden lg:flex items-center gap-2">
-            {lowStockItems.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowLowStockModal(true)}
-                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-lg flex items-center gap-1.5 transition animate-pulse cursor-pointer"
-                title="Low Stock Items Alert - Click for 1-Click Auto Reorder"
-              >
-                <span>⚠️</span>
-                <span>{lowStockItems.length} Low Stock</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setShowZReportModal(true)}
@@ -8183,8 +8154,22 @@ Thank you for your business!`;
             </button>
           </div>
 
-          {/* Utilities: Language, Theme, User Profile */}
-          <div className="flex items-center gap-2">
+          {/* Utilities: Low Stock Alert (Mobile & Desktop), Language, Theme, User Profile */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Low Stock Warning Button - ALWAYS VISIBLE ON MOBILE & DESKTOP */}
+            {lowStockItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowLowStockModal(true)}
+                className="px-2 sm:px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-lg flex items-center gap-1 sm:gap-1.5 transition animate-pulse cursor-pointer shrink-0"
+                title="Low Stock Items Alert - Click for 1-Click Auto Reorder"
+              >
+                <span>⚠️</span>
+                <span className="hidden sm:inline font-bold">{lowStockItems.length} Low Stock</span>
+                <span className="sm:hidden font-black text-[11px]">{lowStockItems.length} Low</span>
+              </button>
+            )}
+
             {/* Language Selector Pill */}
             <button
               type="button"
@@ -8501,9 +8486,21 @@ Thank you for your business!`;
           </div>
 
           {/* Quick Action Buttons */}
-          {(hasModuleAccess("payments_collections") || hasModuleAccess("purchases")) && (
-            <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block px-1">Quick Actions</span>
+          <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
+            {lowStockItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLowStockModal(true);
+                  setSidebarOpen(false);
+                }}
+                className="w-full py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer transition animate-pulse"
+              >
+                <span>⚠️</span>
+                <span>{lowStockItems.length} Low Stock & Auto-Reorder Hub</span>
+              </button>
+            )}
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block px-1">Quick Actions</span>
               {hasModuleAccess("payments_collections") && (
                 <button
                   onClick={() => {
@@ -8533,7 +8530,6 @@ Thank you for your business!`;
                 </button>
               )}
             </div>
-          )}
 
           {/* Navigation Items */}
           <nav className="p-3 space-y-4">
@@ -11767,17 +11763,17 @@ Thank you for your business!`;
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
+                  <table className="min-w-[750px] w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                       <tr>
-                        <th className="p-2.5">Time Period</th>
-                        <th className="p-2.5 text-right">Orders</th>
-                        <th className="p-2.5 text-right">Units Sold</th>
-                        <th className="p-2.5 text-right">Revenue (₹)</th>
-                        <th className="p-2.5 text-right">COGS (₹)</th>
-                        <th className="p-2.5 text-right">Charges (₹)</th>
-                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600">Net Profit (₹)</th>}
-                        {showProfitColumns && <th className="p-2.5 text-right">Margin %</th>}
+                        <th className="p-2.5 whitespace-nowrap">Time Period</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Orders</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Units Sold</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Revenue (₹)</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">COGS (₹)</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Charges (₹)</th>
+                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600 whitespace-nowrap">Net Profit (₹)</th>}
+                        {showProfitColumns && <th className="p-2.5 text-right whitespace-nowrap">Margin %</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -11793,7 +11789,7 @@ Thank you for your business!`;
                             onClick={() => setAnalyticsScopedMonth(isActive ? null : row.label)}
                             className={`cursor-pointer transition ${isActive ? "bg-indigo-50/80 dark:bg-indigo-950/50 font-bold" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"}`}
                           >
-                            <td className="p-2.5">
+                            <td className="p-2.5 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <span className={isActive ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-slate-900 dark:text-white"}>
                                   {row.label}
@@ -11805,16 +11801,16 @@ Thank you for your business!`;
                                 )}
                               </div>
                             </td>
-                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-300">{row.orders}</td>
-                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-300">{row.unitsSold.toLocaleString("en-IN")}</td>
-                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(row.revenue)}</td>
-                            <td className="p-2.5 text-right text-slate-500">{money(row.cogs)}</td>
-                            <td className="p-2.5 text-right text-rose-500">{money(row.charges)}</td>
+                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.orders}</td>
+                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.unitsSold.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{money(row.revenue)}</td>
+                            <td className="p-2.5 text-right text-slate-500 whitespace-nowrap">{money(row.cogs)}</td>
+                            <td className="p-2.5 text-right text-rose-500 whitespace-nowrap">{money(row.charges)}</td>
                             {showProfitColumns && (
-                              <td className="p-2.5 text-right font-bold text-emerald-600">{money(netProf)}</td>
+                              <td className="p-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">{money(netProf)}</td>
                             )}
                             {showProfitColumns && (
-                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">{marginPct}%</td>
+                              <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{marginPct}%</td>
                             )}
                           </tr>
                         );
@@ -11822,11 +11818,11 @@ Thank you for your business!`;
                     </tbody>
                     <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
                       <tr>
-                        <td className="p-2.5 uppercase text-[11px]">Total</td>
-                        <td className="p-2.5 text-right">{monthlyTimelineList.reduce((s, r) => s + r.orders, 0)}</td>
-                        <td className="p-2.5 text-right">{monthlyTimelineList.reduce((s, r) => s + r.unitsSold, 0).toLocaleString("en-IN")}</td>
-                        <td className="p-2.5 text-right">{money(monthlyTimelineList.reduce((s, r) => s + r.revenue, 0))}</td>
-                        <td className="p-2.5 text-right">{money(monthlyTimelineList.reduce((s, r) => s + r.cogs, 0))}</td>
+                        <td className="p-2.5 uppercase text-[11px] whitespace-nowrap">Total</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{monthlyTimelineList.reduce((s, r) => s + r.orders, 0)}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{monthlyTimelineList.reduce((s, r) => s + r.unitsSold, 0).toLocaleString("en-IN")}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{money(monthlyTimelineList.reduce((s, r) => s + r.revenue, 0))}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{money(monthlyTimelineList.reduce((s, r) => s + r.cogs, 0))}</td>
                         <td className="p-2.5 text-right text-rose-600">{money(monthlyTimelineList.reduce((s, r) => s + r.charges, 0))}</td>
                         {showProfitColumns && (
                           <td className="p-2.5 text-right text-emerald-600 font-black">
@@ -11862,15 +11858,15 @@ Thank you for your business!`;
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
+                  <table className="min-w-[750px] w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                       <tr>
-                        <th className="p-2.5 font-sans">Product Title</th>
-                        <th className="p-2.5 text-right">Units Sold</th>
-                        <th className="p-2.5 text-right">Revenue (₹)</th>
-                        <th className="p-2.5 text-right">COGS (₹)</th>
-                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600">Gross Profit (₹)</th>}
-                        {showProfitColumns && <th className="p-2.5 text-right">Margin %</th>}
+                        <th className="p-2.5 font-sans whitespace-nowrap">Product Title</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Units Sold</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Revenue (₹)</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">COGS (₹)</th>
+                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600 whitespace-nowrap">Gross Profit (₹)</th>}
+                        {showProfitColumns && <th className="p-2.5 text-right whitespace-nowrap">Margin %</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -11879,28 +11875,28 @@ Thank you for your business!`;
                         const m = row.revenue > 0 ? ((gp / row.revenue) * 100).toFixed(1) : "0.0";
                         return (
                           <tr key={row.productTitle} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{row.productTitle}</td>
-                            <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{row.unitsSold.toLocaleString("en-IN")}</td>
-                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(row.revenue)}</td>
-                            <td className="p-2.5 text-right text-slate-500">{money(row.cogs)}</td>
-                            {showProfitColumns && <td className="p-2.5 text-right font-bold text-emerald-600">{money(gp)}</td>}
-                            {showProfitColumns && <td className="p-2.5 text-right text-slate-700 dark:text-slate-300">{m}%</td>}
+                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.productTitle}</td>
+                            <td className="p-2.5 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.unitsSold.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{money(row.revenue)}</td>
+                            <td className="p-2.5 text-right text-slate-500 whitespace-nowrap">{money(row.cogs)}</td>
+                            {showProfitColumns && <td className="p-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">{money(gp)}</td>}
+                            {showProfitColumns && <td className="p-2.5 text-right text-slate-700 dark:text-slate-300 whitespace-nowrap">{m}%</td>}
                           </tr>
                         );
                       })}
                     </tbody>
                     <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
                       <tr>
-                        <td className="p-2.5 font-sans uppercase text-[11px]">Total ({itemProfitList.length} items)</td>
-                        <td className="p-2.5 text-right">{itemProfitList.reduce((s, r) => s + r.unitsSold, 0).toLocaleString("en-IN")}</td>
-                        <td className="p-2.5 text-right">{money(itemProfitList.reduce((s, r) => s + r.revenue, 0))}</td>
-                        <td className="p-2.5 text-right">{money(itemProfitList.reduce((s, r) => s + r.cogs, 0))}</td>
+                        <td className="p-2.5 font-sans uppercase text-[11px] whitespace-nowrap">Total ({itemProfitList.length} items)</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{itemProfitList.reduce((s, r) => s + r.unitsSold, 0).toLocaleString("en-IN")}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{money(itemProfitList.reduce((s, r) => s + r.revenue, 0))}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{money(itemProfitList.reduce((s, r) => s + r.cogs, 0))}</td>
                         {showProfitColumns && (
-                          <td className="p-2.5 text-right text-emerald-600 font-black">
+                          <td className="p-2.5 text-right text-emerald-600 font-black whitespace-nowrap">
                             {money(itemProfitList.reduce((s, r) => s + (r.revenue - r.cogs), 0))}
                           </td>
                         )}
-                        {showProfitColumns && <td className="p-2.5 text-right">—</td>}
+                        {showProfitColumns && <td className="p-2.5 text-right whitespace-nowrap">—</td>}
                       </tr>
                     </tfoot>
                   </table>
@@ -11922,7 +11918,7 @@ Thank you for your business!`;
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
+                  <table className="min-w-[750px] w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                       <tr>
                         <th className="p-2.5 font-sans whitespace-nowrap">Product</th>
@@ -11937,23 +11933,23 @@ Thank you for your business!`;
                         <tr key={row.product} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                           <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.product}</td>
                           {allMonthsPresent.map(m => (
-                            <td key={m} className={`p-2.5 text-right transition ${analyticsScopedMonth === m ? "bg-indigo-50/70 dark:bg-indigo-950/40 font-bold text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400"}`}>
+                            <td key={m} className={`p-2.5 text-right whitespace-nowrap transition ${analyticsScopedMonth === m ? "bg-indigo-50/70 dark:bg-indigo-950/40 font-bold text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400"}`}>
                               {row.months[m] ? row.months[m].toLocaleString("en-IN") : "—"}
                             </td>
                           ))}
-                          <td className="p-2.5 text-right font-bold text-indigo-600">{row.totalUnits.toLocaleString("en-IN")}</td>
+                          <td className="p-2.5 text-right font-bold text-indigo-600 whitespace-nowrap">{row.totalUnits.toLocaleString("en-IN")}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
                       <tr>
-                        <td className="p-2.5 font-sans uppercase text-[11px]">Total Units</td>
+                        <td className="p-2.5 font-sans uppercase text-[11px] whitespace-nowrap">Total Units</td>
                         {allMonthsPresent.map(m => (
-                          <td key={m} className="p-2.5 text-right">
+                          <td key={m} className="p-2.5 text-right whitespace-nowrap">
                             {catalogMatrixList.reduce((s, r) => s + (r.months[m] || 0), 0).toLocaleString("en-IN")}
                           </td>
                         ))}
-                        <td className="p-2.5 text-right font-black text-indigo-600">
+                        <td className="p-2.5 text-right font-black text-indigo-600 whitespace-nowrap">
                           {catalogMatrixList.reduce((s, r) => s + r.totalUnits, 0).toLocaleString("en-IN")}
                         </td>
                       </tr>
@@ -11990,17 +11986,17 @@ Thank you for your business!`;
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
+                  <table className="min-w-[850px] w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                       <tr>
-                        <th className="p-2.5 font-sans">Customer Account</th>
-                        <th className="p-2.5 text-right">Orders</th>
-                        <th className="p-2.5 text-right">Purchase Value (₹)</th>
-                        <th className="p-2.5 text-right">COGS (₹)</th>
-                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600">Gross Profit (₹)</th>}
-                        {showProfitColumns && <th className="p-2.5 text-right">Margin %</th>}
-                        <th className="p-2.5 text-right">Units</th>
-                        <th className="p-2.5 text-center font-sans">Aging / Overdue Days</th>
+                        <th className="p-2.5 font-sans whitespace-nowrap">Customer Account</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Orders</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">Purchase Value (₹)</th>
+                        <th className="p-2.5 text-right whitespace-nowrap">COGS (₹)</th>
+                        {showProfitColumns && <th className="p-2.5 text-right text-emerald-600 whitespace-nowrap">Gross Profit (₹)</th>}
+                        {showProfitColumns && <th className="p-2.5 text-right whitespace-nowrap">Margin %</th>}
+                        <th className="p-2.5 text-right whitespace-nowrap">Units</th>
+                        <th className="p-2.5 text-center font-sans whitespace-nowrap">Aging / Overdue Days</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -12010,14 +12006,14 @@ Thank you for your business!`;
                         const due = row.oldDue;
                         return (
                           <tr key={row.customerName} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{row.customerName}</td>
-                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-400">{row.orders}</td>
-                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(row.purchaseValue)}</td>
-                            <td className="p-2.5 text-right text-slate-500">{money(row.cogs)}</td>
-                            {showProfitColumns && <td className="p-2.5 text-right font-bold text-emerald-600">{money(gp)}</td>}
-                            {showProfitColumns && <td className="p-2.5 text-right">{m}%</td>}
-                            <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">{row.units.toLocaleString("en-IN")}</td>
-                            <td className="p-2.5 text-center font-sans">
+                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.customerName}</td>
+                            <td className="p-2.5 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">{row.orders}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{money(row.purchaseValue)}</td>
+                            <td className="p-2.5 text-right text-slate-500 whitespace-nowrap">{money(row.cogs)}</td>
+                            {showProfitColumns && <td className="p-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">{money(gp)}</td>}
+                            {showProfitColumns && <td className="p-2.5 text-right whitespace-nowrap">{m}%</td>}
+                            <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">{row.units.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-center font-sans whitespace-nowrap">
                               {due > 0 ? (
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${due > 50000 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
                                   ₹{due.toLocaleString("en-IN")} ({due > 50000 ? "> 60 Days" : "30-60 Days"})
@@ -12032,18 +12028,18 @@ Thank you for your business!`;
                     </tbody>
                     <tfoot className="bg-slate-100/80 dark:bg-slate-800 font-bold border-t border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
                       <tr>
-                        <td className="p-2.5 font-sans uppercase text-[11px]">Total ({customerPerfList.length} customers)</td>
-                        <td className="p-2.5 text-right">{customerPerfList.reduce((s, r) => s + r.orders, 0)}</td>
-                        <td className="p-2.5 text-right">{money(customerPerfList.reduce((s, r) => s + r.purchaseValue, 0))}</td>
-                        <td className="p-2.5 text-right">{money(customerPerfList.reduce((s, r) => s + r.cogs, 0))}</td>
+                        <td className="p-2.5 font-sans uppercase text-[11px] whitespace-nowrap">Total ({customerPerfList.length} customers)</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{customerPerfList.reduce((s, r) => s + r.orders, 0)}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{money(customerPerfList.reduce((s, r) => s + r.purchaseValue, 0))}</td>
+                        <td className="p-2.5 text-right whitespace-nowrap">{money(customerPerfList.reduce((s, r) => s + r.cogs, 0))}</td>
                         {showProfitColumns && (
-                          <td className="p-2.5 text-right text-emerald-600 font-black">
+                          <td className="p-2.5 text-right text-emerald-600 font-black whitespace-nowrap">
                             {money(customerPerfList.reduce((s, r) => s + (r.purchaseValue - r.cogs), 0))}
                           </td>
                         )}
-                        {showProfitColumns && <td className="p-2.5 text-right">—</td>}
-                        <td className="p-2.5 text-right">{customerPerfList.reduce((s, r) => s + r.units, 0).toLocaleString("en-IN")}</td>
-                        <td className="p-2.5 text-center">—</td>
+                        {showProfitColumns && <td className="p-2.5 text-right whitespace-nowrap">—</td>}
+                        <td className="p-2.5 text-right whitespace-nowrap">{customerPerfList.reduce((s, r) => s + r.units, 0).toLocaleString("en-IN")}</td>
+                        <td className="p-2.5 text-center whitespace-nowrap">—</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -12117,22 +12113,22 @@ Thank you for your business!`;
                   </div>
                 ) : (
                   <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
+                    <table className="min-w-[650px] w-full text-left text-xs border-collapse font-mono">
                       <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase text-[10px]">
                         <tr>
-                          <th className="p-2.5 font-sans">Customer</th>
-                          <th className="p-2.5 text-right">Products Count</th>
-                          <th className="p-2.5 text-right">Total Units</th>
-                          <th className="p-2.5 text-right">Total Purchase (₹)</th>
+                          <th className="p-2.5 font-sans whitespace-nowrap">Customer</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Products Count</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Total Units</th>
+                          <th className="p-2.5 text-right whitespace-nowrap">Total Purchase (₹)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {customerUnitsList.map(c => (
                           <tr key={c.customerName} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white">{c.customerName}</td>
-                            <td className="p-2.5 text-right text-slate-600">{Object.keys(c.productsMap).length}</td>
-                            <td className="p-2.5 text-right font-bold text-indigo-600">{c.totalUnits.toLocaleString("en-IN")}</td>
-                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">{money(c.totalAmount)}</td>
+                            <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">{c.customerName}</td>
+                            <td className="p-2.5 text-right text-slate-600 whitespace-nowrap">{Object.keys(c.productsMap).length}</td>
+                            <td className="p-2.5 text-right font-bold text-indigo-600 whitespace-nowrap">{c.totalUnits.toLocaleString("en-IN")}</td>
+                            <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{money(c.totalAmount)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -12413,23 +12409,23 @@ Thank you for your business!`;
               {/* Transactions Ledger Table */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="min-w-[800px] w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-3">Doc # / Ref</th>
-                        <th className="p-3">Type</th>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Party / Particulars</th>
-                        <th className="p-3 text-right">Inward (Deposit ₹)</th>
-                        <th className="p-3 text-right">Outward (Payout ₹)</th>
-                        <th className="p-3 text-center">Status</th>
-                        <th className="p-3 text-center">Action</th>
+                        <th className="p-3 whitespace-nowrap">Doc # / Ref</th>
+                        <th className="p-3 whitespace-nowrap">Type</th>
+                        <th className="p-3 whitespace-nowrap">Date</th>
+                        <th className="p-3 whitespace-nowrap">Party / Particulars</th>
+                        <th className="p-3 text-right whitespace-nowrap">Inward (Deposit ₹)</th>
+                        <th className="p-3 text-right whitespace-nowrap">Outward (Payout ₹)</th>
+                        <th className="p-3 text-center whitespace-nowrap">Status</th>
+                        <th className="p-3 text-center whitespace-nowrap">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {bankFiltered.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="p-6 text-center text-slate-400 font-bold">
+                          <td colSpan={8} className="p-6 text-center text-slate-400 font-bold whitespace-nowrap">
                             No digital transactions matching current filters
                           </td>
                         </tr>
@@ -12439,24 +12435,24 @@ Thank you for your business!`;
                           const isCleared = recon?.status === "cleared";
                           return (
                             <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                              <td className="p-3 font-mono font-bold text-indigo-600">
+                              <td className="p-3 font-mono font-bold text-indigo-600 whitespace-nowrap">
                                 {renderClickableDocNo(tx.docNo)}
                               </td>
-                              <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{tx.docType}</td>
-                              <td className="p-3 text-slate-500 font-mono">{tx.date}</td>
-                              <td className="p-3 font-bold text-slate-900 dark:text-white">{tx.partyName}</td>
-                              <td className="p-3 text-right font-mono font-bold text-emerald-600">
+                              <td className="p-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">{tx.docType}</td>
+                              <td className="p-3 text-slate-500 font-mono whitespace-nowrap">{tx.date}</td>
+                              <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">{tx.partyName}</td>
+                              <td className="p-3 text-right font-mono font-bold text-emerald-600 whitespace-nowrap">
                                 {tx.type === "deposit" ? money(tx.amount) : "—"}
                               </td>
-                              <td className="p-3 text-right font-mono font-bold text-rose-600">
+                              <td className="p-3 text-right font-mono font-bold text-rose-600 whitespace-nowrap">
                                 {tx.type === "withdrawal" ? money(tx.amount) : "—"}
                               </td>
-                              <td className="p-3 text-center">
+                              <td className="p-3 text-center whitespace-nowrap">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isCleared ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
                                   {isCleared ? `🟢 Cleared (${recon?.valueDate || tx.date})` : "🟡 Pending"}
                                 </span>
                               </td>
-                              <td className="p-3 text-center">
+                              <td className="p-3 text-center whitespace-nowrap">
                                 {isCleared ? (
                                   <span className="text-[10px] font-bold text-slate-400">🔒 Reconciled</span>
                                 ) : (
@@ -12722,42 +12718,42 @@ Thank you for your business!`;
               {/* Payroll Register Table */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse font-mono">
+                  <table className="min-w-[950px] w-full text-left text-xs border-collapse font-mono">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-3">Emp ID</th>
-                        <th className="p-3 font-sans">Employee Name & Role</th>
-                        <th className="p-3 text-center">Wage Scheme</th>
-                        <th className="p-3 text-right">Gross (₹)</th>
-                        <th className="p-3 text-right">Basic+DA (₹)</th>
-                        <th className="p-3 text-right">EPF (₹)</th>
-                        <th className="p-3 text-right">ESIC (₹)</th>
-                        <th className="p-3 text-right">PT (₹)</th>
-                        <th className="p-3 text-right">Net Pay (₹)</th>
-                        <th className="p-3 text-center font-sans">Payment Status</th>
-                        <th className="p-3 text-center font-sans">Actions</th>
+                        <th className="p-3 whitespace-nowrap">Emp ID</th>
+                        <th className="p-3 font-sans whitespace-nowrap">Employee Name & Role</th>
+                        <th className="p-3 text-center whitespace-nowrap">Wage Scheme</th>
+                        <th className="p-3 text-right whitespace-nowrap">Gross (₹)</th>
+                        <th className="p-3 text-right whitespace-nowrap">Basic+DA (₹)</th>
+                        <th className="p-3 text-right whitespace-nowrap">EPF (₹)</th>
+                        <th className="p-3 text-right whitespace-nowrap">ESIC (₹)</th>
+                        <th className="p-3 text-right whitespace-nowrap">PT (₹)</th>
+                        <th className="p-3 text-right whitespace-nowrap">Net Pay (₹)</th>
+                        <th className="p-3 text-center font-sans whitespace-nowrap">Payment Status</th>
+                        <th className="p-3 text-center font-sans whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {displayedPayroll.map(emp => (
                         <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-bold text-indigo-600">{emp.empId}</td>
-                          <td className="p-3 font-sans">
+                          <td className="p-3 font-bold text-indigo-600 whitespace-nowrap">{emp.empId}</td>
+                          <td className="p-3 font-sans whitespace-nowrap">
                             <span className="font-bold text-slate-900 dark:text-white block">{emp.name}</span>
                             <span className="text-[11px] text-slate-500">{emp.designation} · {emp.department}</span>
                           </td>
-                          <td className="p-3 text-center font-sans">
+                          <td className="p-3 text-center font-sans whitespace-nowrap">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${emp.salaryType === "fixed" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}`}>
                               {emp.salaryType === "fixed" ? "Fixed (Exempt)" : "Statutory (EPF+ESI)"}
                             </span>
                           </td>
-                          <td className="p-3 text-right font-bold text-slate-900 dark:text-white">{money(emp.earnedGross)}</td>
-                          <td className="p-3 text-right text-slate-600 dark:text-slate-400">{money(emp.basicDa)}</td>
-                          <td className="p-3 text-right text-indigo-600">{emp.pfDeduction > 0 ? money(emp.pfDeduction) : "—"}</td>
-                          <td className="p-3 text-right text-indigo-600">{emp.esicDeduction > 0 ? money(emp.esicDeduction) : "—"}</td>
-                          <td className="p-3 text-right text-amber-600">{emp.ptDeduction > 0 ? money(emp.ptDeduction) : "—"}</td>
-                          <td className="p-3 text-right font-bold text-emerald-600">{money(emp.netSalary)}</td>
-                          <td className="p-3 text-center font-sans">
+                          <td className="p-3 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{money(emp.earnedGross)}</td>
+                          <td className="p-3 text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">{money(emp.basicDa)}</td>
+                          <td className="p-3 text-right text-indigo-600 whitespace-nowrap">{emp.pfDeduction > 0 ? money(emp.pfDeduction) : "—"}</td>
+                          <td className="p-3 text-right text-indigo-600 whitespace-nowrap">{emp.esicDeduction > 0 ? money(emp.esicDeduction) : "—"}</td>
+                          <td className="p-3 text-right text-amber-600 whitespace-nowrap">{emp.ptDeduction > 0 ? money(emp.ptDeduction) : "—"}</td>
+                          <td className="p-3 text-right font-bold text-emerald-600 whitespace-nowrap">{money(emp.netSalary)}</td>
+                          <td className="p-3 text-center font-sans whitespace-nowrap">
                             {emp.isPaid ? (
                               <div>
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
@@ -12781,7 +12777,7 @@ Thank you for your business!`;
                               </div>
                             )}
                           </td>
-                          <td className="p-3 text-center font-sans">
+                          <td className="p-3 text-center font-sans whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
                               {!emp.isPaid ? (
                                 <button
@@ -13031,38 +13027,38 @@ Thank you for your business!`;
               {/* Vouchers Table */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="min-w-[850px] w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
                       <tr>
-                        <th className="p-3">Voucher #</th>
-                        <th className="p-3">Type</th>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Account Head</th>
-                        <th className="p-3">Party Name</th>
-                        <th className="p-3">Mode</th>
-                        <th className="p-3 text-right">Amount (₹)</th>
-                        <th className="p-3 text-center">Slip View</th>
+                        <th className="p-3 whitespace-nowrap">Voucher #</th>
+                        <th className="p-3 whitespace-nowrap">Type</th>
+                        <th className="p-3 whitespace-nowrap">Date</th>
+                        <th className="p-3 whitespace-nowrap">Account Head</th>
+                        <th className="p-3 whitespace-nowrap">Party Name</th>
+                        <th className="p-3 whitespace-nowrap">Mode</th>
+                        <th className="p-3 text-right whitespace-nowrap">Amount (₹)</th>
+                        <th className="p-3 text-center whitespace-nowrap">Slip View</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {filteredVouchers.map(v => (
                         <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-mono font-bold text-indigo-600">
+                          <td className="p-3 font-mono font-bold text-indigo-600 whitespace-nowrap">
                             {renderClickableDocNo(v.voucherNo)}
                           </td>
-                          <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">{v.voucherType}</td>
-                          <td className="p-3 font-mono text-slate-500">{v.date}</td>
-                          <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{v.accountHead}</td>
-                          <td className="p-3 font-bold text-slate-900 dark:text-white">{v.partyName}</td>
-                          <td className="p-3">
+                          <td className="p-3 font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">{v.voucherType}</td>
+                          <td className="p-3 font-mono text-slate-500 whitespace-nowrap">{v.date}</td>
+                          <td className="p-3 font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{v.accountHead}</td>
+                          <td className="p-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">{v.partyName}</td>
+                          <td className="p-3 whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                               {v.mode}
                             </span>
                           </td>
-                          <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                          <td className="p-3 text-right font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
                             {money(v.amount)}
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-3 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => setViewingVoucherSlip(v)}
@@ -21169,7 +21165,7 @@ Thank you for your business!`;
                   maxLength={32}
                   value={changePinForm.newPin}
                   onChange={(e) => setChangePinForm({ ...changePinForm, newPin: e.target.value })}
-                  placeholder="Enter new Security Password (e.g. Admin@2026!)"
+                  placeholder="Enter new Security Password"
                   className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-300 dark:border-slate-700 outline-none focus:border-indigo-500"
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">Special characters supported (minimum 4 characters)</span>
@@ -22020,28 +22016,30 @@ Thank you for your business!`;
                     <p className="text-[11px] mt-1">Initial transaction creation registered in system audit ledger.</p>
                   </div>
                 ) : (
-                  <table className="w-full text-left text-xs border-collapse font-mono">
-                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px]">
-                      <tr>
-                        <th className="p-2">Timestamp</th>
-                        <th className="p-2">Action</th>
-                        <th className="p-2">Operator</th>
-                        <th className="p-2">Status</th>
-                        <th className="p-2">Change Details</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {docLogs.map(log => (
-                        <tr key={log.id}>
-                          <td className="p-2 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
-                          <td className="p-2 font-bold text-indigo-600">{log.action}</td>
-                          <td className="p-2">{log.operator}</td>
-                          <td className="p-2"><span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800">{log.status}</span></td>
-                          <td className="p-2 text-slate-700 dark:text-slate-300 font-sans">{log.changeDetails}</td>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[600px] w-full text-left text-xs border-collapse font-mono">
+                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px]">
+                        <tr>
+                          <th className="p-2 whitespace-nowrap">Timestamp</th>
+                          <th className="p-2 whitespace-nowrap">Action</th>
+                          <th className="p-2 whitespace-nowrap">Operator</th>
+                          <th className="p-2 whitespace-nowrap">Status</th>
+                          <th className="p-2 whitespace-nowrap">Change Details</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {docLogs.map(log => (
+                          <tr key={log.id}>
+                            <td className="p-2 text-slate-500 whitespace-nowrap">{log.timestamp}</td>
+                            <td className="p-2 font-bold text-indigo-600 whitespace-nowrap">{log.action}</td>
+                            <td className="p-2 whitespace-nowrap">{log.operator}</td>
+                            <td className="p-2 whitespace-nowrap"><span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800">{log.status}</span></td>
+                            <td className="p-2 text-slate-700 dark:text-slate-300 font-sans min-w-[200px]">{log.changeDetails}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
 
@@ -22883,23 +22881,23 @@ Thank you for your business!`;
               </div>
 
               {/* Pending Staff Preview Table */}
-              <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
-                <table className="w-full text-left text-xs font-mono">
+              <div className="max-h-48 overflow-y-auto overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                <table className="min-w-[450px] w-full text-left text-xs font-mono">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 text-[10px] uppercase">
                     <tr>
-                      <th className="p-2">Emp ID</th>
-                      <th className="p-2 font-sans">Name</th>
-                      <th className="p-2">Bank / A/c</th>
-                      <th className="p-2 text-right">Net Payable</th>
+                      <th className="p-2 whitespace-nowrap">Emp ID</th>
+                      <th className="p-2 font-sans whitespace-nowrap">Name</th>
+                      <th className="p-2 whitespace-nowrap">Bank / A/c</th>
+                      <th className="p-2 text-right whitespace-nowrap">Net Payable</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {pendingList.map(p => (
                       <tr key={p.id}>
-                        <td className="p-2 text-indigo-600 font-bold">{p.empId}</td>
-                        <td className="p-2 font-sans font-bold text-slate-800 dark:text-slate-200">{p.name}</td>
-                        <td className="p-2 text-slate-500 text-[11px]">{p.bankName ? `${p.bankName} (${p.accountNo ? p.accountNo.slice(-4) : ''})` : 'Cash'}</td>
-                        <td className="p-2 text-right font-bold text-emerald-600">{money(p.netSalary)}</td>
+                        <td className="p-2 text-indigo-600 font-bold whitespace-nowrap">{p.empId}</td>
+                        <td className="p-2 font-sans font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">{p.name}</td>
+                        <td className="p-2 text-slate-500 text-[11px] whitespace-nowrap">{p.bankName ? `${p.bankName} (${p.accountNo ? p.accountNo.slice(-4) : ''})` : 'Cash'}</td>
+                        <td className="p-2 text-right font-bold text-emerald-600 whitespace-nowrap">{money(p.netSalary)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -23224,11 +23222,18 @@ Thank you for your business!`;
           <button
             type="button"
             onClick={() => navigateTab("procurement")}
-            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition ${
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition relative ${
               activeTab === "procurement" ? "text-indigo-400 font-bold" : "hover:text-white"
             }`}
           >
-            <Icon name="package" size={20} />
+            <div className="relative">
+              <Icon name="package" size={20} />
+              {lowStockItems.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-rose-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                  {lowStockItems.length}
+                </span>
+              )}
+            </div>
             <span className="text-[10px]">{t("Stock", "స్టాక్")}</span>
           </button>
         )}
