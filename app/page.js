@@ -241,6 +241,9 @@ const matchDateFilter = (dateStr, filter) => {
 // UNIFIED SYSTEM CONFIGURATION & SECURITY REGISTRY
 // ==============================================================================
 const defaultSystemSettings = {
+  navigation: {
+    topNavModules: ["summary", "sale", "invoices", "purchases", "payments_collections"]
+  },
   branding: {
     systemName: "JSR Retails",
     businessImage: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1920&q=80",
@@ -7725,7 +7728,7 @@ Thank you for your business!`;
 
   return (
     <div className={`min-h-screen flex flex-col font-sans antialiased transition-colors duration-200 ${
-      darkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-100 text-slate-800"
+      darkMode ? "dark bg-slate-950 text-slate-100" : "bg-[#f8fafc] text-slate-900"
     } ${fontScale === "large" ? "text-base" : fontScale === "xl" ? "text-lg" : "text-sm"}`}>
       {["customer", "supplier", "dual_portal"].includes(currentUser?.role) ? (
         <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 space-y-6 animate-in fade-in duration-150">
@@ -8229,220 +8232,233 @@ Thank you for your business!`;
         </div>
 
         {/* Lower Tier: Horizontal Top Navigation Bar */}
-        {/* EXACT ORDER: Menu | Dashboard | POS | Invoice & Receipts | Purchase & Stock | Payment & Collections | Analysis | Masters | Reports */}
-        <nav className="px-2 sm:px-4 py-1.5 bg-slate-900/95 overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1 sm:gap-1.5">
-          {/* 1. Menu */}
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-              sidebarOpen
-                ? "bg-indigo-600 text-white shadow-xs"
-                : ["ledger", "history_audit", "lenders", "expenses", "partners", "settings"].includes(activeTab)
-                ? "bg-slate-800 text-indigo-400 border border-indigo-500/50"
-                : "bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60"
-            }`}
-            title="Open Menu (Ledgers, Loans, Expenses, Settings & Quick Actions)"
-          >
-            <Icon name={sidebarOpen ? "close" : "menu"} size={15} />
-            <span>{t("Menu", "మెనూ")}</span>
-            <span className="text-[9px] text-slate-400">▼</span>
-          </button>
+        {(() => {
+          const topNavList = systemSettings?.navigation?.topNavModules || [
+            "summary",
+            "sale",
+            "invoices",
+            "purchases",
+            "payments_collections"
+          ];
+          const isTopNav = (mId) => topNavList.includes(mId);
+          const isOffNavActive = !topNavList.includes(activeTab);
 
-          <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
+          return (
+            <nav className="px-2 sm:px-4 py-1.5 bg-slate-900/95 overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1 sm:gap-1.5">
+              {/* 1. Menu */}
+              <button
+                type="button"
+                onClick={() => setSidebarOpen((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                  sidebarOpen
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : isOffNavActive
+                    ? "bg-slate-800 text-indigo-400 border border-indigo-500/50"
+                    : "bg-slate-800/80 hover:bg-slate-800 text-slate-200 border border-slate-700/60"
+                }`}
+                title="Open Menu (Ledgers, Loans, Expenses, Settings & Quick Actions)"
+              >
+                <Icon name={sidebarOpen ? "close" : "menu"} size={15} />
+                <span>{t("Menu", "మెనూ")}</span>
+                <span className="text-[9px] text-slate-400">▼</span>
+              </button>
 
-          {/* 2. Dashboard */}
-          {hasModuleAccess("summary") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("summary")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "summary"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="dashboard" size={15} />
-              <span>{t("Dashboard", "డ్యాష్‌బోర్డ్")}</span>
-            </button>
-          )}
+              <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
 
-          {/* 3. POS */}
-          {hasModuleAccess("sale") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("sale")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "sale"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="rupee" size={15} />
-              <span>{t("POS", "పీఓఎస్")}</span>
-            </button>
-          )}
+              {/* 2. Dashboard */}
+              {hasModuleAccess("summary") && isTopNav("summary") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("summary")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "summary"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="dashboard" size={15} />
+                  <span>{t("Dashboard", "డ్యాష్‌బోర్డ్")}</span>
+                </button>
+              )}
 
-          {/* 4. Invoice & Receipts */}
-          {hasModuleAccess("invoices") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("invoices")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "invoices"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="filetext" size={15} />
-              <span>{t("Invoice & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}</span>
-            </button>
-          )}
+              {/* 3. POS */}
+              {hasModuleAccess("sale") && isTopNav("sale") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("sale")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "sale"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="rupee" size={15} />
+                  <span>{t("POS", "పీఓఎస్")}</span>
+                </button>
+              )}
 
-          {/* 5. Purchase & Stock */}
-          {hasModuleAccess("purchases") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("purchases")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "purchases" || activeTab === "procurement"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="package" size={15} />
-              <span>{t("Purchase & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
-            </button>
-          )}
+              {/* 4. Invoice & Receipts */}
+              {hasModuleAccess("invoices") && isTopNav("invoices") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("invoices")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "invoices"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="filetext" size={15} />
+                  <span>{t("Invoice & Receipts", "ఇన్‌వాయిస్‌లు & రసీదులు")}</span>
+                </button>
+              )}
 
-          {/* 6. Payment & Collections */}
-          {hasModuleAccess("payments_collections") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("payments_collections")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "payments_collections"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="receipt" size={15} />
-              <span>{t("Payment & Collections", "చెల్లింపులు & వసూళ్లు")}</span>
-            </button>
-          )}
+              {/* 5. Purchase & Stock */}
+              {hasModuleAccess("purchases") && isTopNav("purchases") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("purchases")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "purchases" || activeTab === "procurement"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="package" size={15} />
+                  <span>{t("Purchase & Stock", "కొనుగోళ్లు & స్టాక్")}</span>
+                </button>
+              )}
 
-          {/* 7. Banking & Reconciliation */}
-          {hasModuleAccess("banking") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("banking")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "banking"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="wallet" size={15} />
-              <span>{t("Banking & BRS", "బ్యాంకింగ్ & బిఆర్ఎస్")}</span>
-            </button>
-          )}
+              {/* 6. Payment & Collections */}
+              {hasModuleAccess("payments_collections") && isTopNav("payments_collections") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("payments_collections")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "payments_collections"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="receipt" size={15} />
+                  <span>{t("Payment & Collections", "చెల్లింపులు & వసూళ్లు")}</span>
+                </button>
+              )}
 
-          {/* 8. HR & Indian Statutory Payroll */}
-          {hasModuleAccess("hr_payroll") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("hr_payroll")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "hr_payroll"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="users" size={15} />
-              <span>{t("HR & Payroll", "హెచ్‌ఆర్ & పేరోల్")}</span>
-            </button>
-          )}
+              {/* 7. Banking & Reconciliation */}
+              {hasModuleAccess("banking") && isTopNav("banking") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("banking")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "banking"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="wallet" size={15} />
+                  <span>{t("Banking & BRS", "బ్యాంకింగ్ & బిఆర్ఎస్")}</span>
+                </button>
+              )}
 
-          {/* 9. Accounting Vouchers */}
-          {hasModuleAccess("accounting_vouchers") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("accounting_vouchers")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "accounting_vouchers"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="receipt" size={15} />
-              <span>{t("Vouchers", "వోచర్లు")}</span>
-            </button>
-          )}
+              {/* 8. HR & Indian Statutory Payroll */}
+              {hasModuleAccess("hr_payroll") && isTopNav("hr_payroll") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("hr_payroll")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "hr_payroll"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="users" size={15} />
+                  <span>{t("HR & Payroll", "హెచ్‌ఆర్ & పేరోల్")}</span>
+                </button>
+              )}
 
-          {/* 10. Analysis */}
-          {hasModuleAccess("analysis") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("analysis")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "analysis"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="chart" size={15} />
-              <span>{t("Analysis", "విశ్లేషణ")}</span>
-            </button>
-          )}
+              {/* 9. Accounting Vouchers */}
+              {hasModuleAccess("accounting_vouchers") && isTopNav("accounting_vouchers") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("accounting_vouchers")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "accounting_vouchers"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="receipt" size={15} />
+                  <span>{t("Vouchers", "వోచర్లు")}</span>
+                </button>
+              )}
 
-          {/* 11. Masters */}
-          {hasModuleAccess("masters") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("masters")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "masters"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="layers" size={15} />
-              <span>{t("Masters", "మాస్టర్స్")}</span>
-            </button>
-          )}
+              {/* 10. Analysis */}
+              {hasModuleAccess("analysis") && isTopNav("analysis") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("analysis")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "analysis"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="chart" size={15} />
+                  <span>{t("Analysis", "విశ్లేషణ")}</span>
+                </button>
+              )}
 
-          {/* 12. Reports */}
-          {hasModuleAccess("reports") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("reports")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "reports"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="filetext" size={15} />
-              <span>{t("Reports", "నివేదికలు")}</span>
-            </button>
-          )}
+              {/* 11. Masters */}
+              {hasModuleAccess("masters") && isTopNav("masters") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("masters")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "masters"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="layers" size={15} />
+                  <span>{t("Masters", "మాస్టర్స్")}</span>
+                </button>
+              )}
 
-          {/* 13. System Settings */}
-          {hasModuleAccess("settings") && (
-            <button
-              type="button"
-              onClick={() => navigateTab("settings")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
-                activeTab === "settings"
-                  ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
-              }`}
-            >
-              <Icon name="settings" size={15} />
-              <span>{t("Settings", "సెట్టింగులు")}</span>
-            </button>
-          )}
-        </nav>
+              {/* 12. Reports */}
+              {hasModuleAccess("reports") && isTopNav("reports") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("reports")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "reports"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="filetext" size={15} />
+                  <span>{t("Reports", "నివేదికలు")}</span>
+                </button>
+              )}
+
+              {/* 13. System Settings */}
+              {hasModuleAccess("settings") && isTopNav("settings") && (
+                <button
+                  type="button"
+                  onClick={() => navigateTab("settings")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer ${
+                    activeTab === "settings"
+                      ? curTheme.activeNav + " shadow-xs ring-1 ring-white/10"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  <Icon name="settings" size={15} />
+                  <span>{t("Settings", "సెట్టింగులు")}</span>
+                </button>
+              )}
+            </nav>
+          );
+        })()}
       </header>
 
       {/* SLIDE-OUT NAVIGATION DRAWER (ACCESSED VIA "MENU" BUTTON) */}
@@ -11490,115 +11506,252 @@ Thank you for your business!`;
           const customerUnitsList = Object.values(custUnitGroupMap);
 
           return (
-            <div className="space-y-6">
-              {/* Top Header matching Point 10 */}
-              <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                  <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                      <span className="text-indigo-600">📊</span> Profit & Sales Analytics
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Financial ledger, revenue, COGS, operating charges, and itemized margins.
-                    </p>
+            <div className="space-y-4 sm:space-y-5">
+              {/* TOP FILTER TOOLBAR (MATCHING REFERENCE IMAGES 1 & 2) */}
+              <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                {/* Left: Period Selection */}
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mr-1">
+                    <span className="text-slate-400">🕒</span>
+                    <span>Period:</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={async () => {
-                        await refreshData();
-                        setShowRefreshToast(true);
-                        setTimeout(() => setShowRefreshToast(false), 3000);
-                      }}
-                      className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-                    >
-                      <Icon name="history" size={13} className={loading ? "animate-spin" : ""} />
-                      Refresh
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowProfitColumns(prev => !prev)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${showProfitColumns ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}
-                      title="Toggle visibility of Profit & Margin columns"
-                    >
-                      {showProfitColumns ? "👁️ Hide Margins" : "👁️ Show Margins"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Period Selector matching user specification */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-xl text-xs font-bold">
-                    <span className="px-2 text-slate-400 font-semibold uppercase text-[10px]">Period:</span>
-                    {[
-                      { id: "all_time", label: "All Time" },
-                      { id: "this_year", label: "This Year" },
-                      { id: "this_month", label: "This Month" },
-                      { id: "this_week", label: "This Week" },
-                      { id: "today", label: "Today" },
-                      { id: "custom", label: "Date Range" }
-                    ].map(p => (
+                  {[
+                    { id: "all_time", label: "All Time" },
+                    { id: "this_year", label: "This Year" },
+                    { id: "this_month", label: "This Month" },
+                    { id: "this_week", label: "This Week" },
+                    { id: "today", label: "Today" }
+                  ].map(p => {
+                    const isSel = analyticsPeriod === p.id && !analyticsScopedMonth;
+                    return (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => { setAnalyticsPeriod(p.id); setAnalyticsScopedMonth(null); }}
-                        className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${analyticsPeriod === p.id ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs font-black" : "text-slate-600 dark:text-slate-400 hover:text-slate-900"}`}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+                          isSel
+                            ? "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 shadow-2xs"
+                            : "bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
                       >
                         {p.label}
                       </button>
-                    ))}
+                    );
+                  })}
+                </div>
+
+                {/* Right: Date Picker, Reset & Bucket Status Badge */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-3 py-1">
+                    <input
+                      type="date"
+                      value={analyticsCustomStart || ""}
+                      onChange={(e) => {
+                        setAnalyticsPeriod("custom");
+                        setAnalyticsCustomStart(e.target.value);
+                      }}
+                      placeholder="dd-mm-yyyy"
+                      className="bg-transparent text-slate-700 dark:text-slate-200 font-mono text-xs outline-none cursor-pointer"
+                    />
+                    <span className="text-slate-400 text-xs">to</span>
+                    <input
+                      type="date"
+                      value={analyticsCustomEnd || ""}
+                      onChange={(e) => {
+                        setAnalyticsPeriod("custom");
+                        setAnalyticsCustomEnd(e.target.value);
+                      }}
+                      placeholder="dd-mm-yyyy"
+                      className="bg-transparent text-slate-700 dark:text-slate-200 font-mono text-xs outline-none cursor-pointer"
+                    />
                   </div>
 
-                  {analyticsPeriod === "custom" && (
-                    <div className="flex items-center gap-2 text-xs font-bold">
-                      <input
-                        type="date"
-                        value={analyticsCustomStart}
-                        onChange={(e) => setAnalyticsCustomStart(e.target.value)}
-                        className="p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 font-mono"
-                      />
-                      <span className="text-slate-400">to</span>
-                      <input
-                        type="date"
-                        value={analyticsCustomEnd}
-                        onChange={(e) => setAnalyticsCustomEnd(e.target.value)}
-                        className="p-1.5 border rounded-lg bg-slate-50 dark:bg-slate-800 font-mono"
-                      />
-                    </div>
+                  {(analyticsScopedMonth || analyticsPeriod !== "all_time" || analyticsCustomStart) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAnalyticsPeriod("all_time");
+                        setAnalyticsScopedMonth(null);
+                        setAnalyticsCustomStart("");
+                        setAnalyticsCustomEnd("");
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold transition cursor-pointer border border-slate-200 dark:border-slate-700"
+                    >
+                      Reset ✕
+                    </button>
                   )}
 
-                  {/* Scoped Month Drill-Down Reset Badge matching Point 10 */}
-                  {analyticsScopedMonth && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
-                        Filtered: {analyticsScopedMonth}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setAnalyticsScopedMonth(null)}
-                        className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-md text-xs font-bold transition cursor-pointer"
-                      >
-                        ✕ Reset
-                      </button>
-                    </div>
-                  )}
+                  {/* Filtered Bucket Badge */}
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                    <span>🕒</span>
+                    <span>{analyticsScopedMonth ? `Filtered Bucket: ${analyticsScopedMonth}` : "All Time History"}</span>
+                  </div>
                 </div>
               </div>
 
+              {/* 6 EXECUTIVE KPI SUMMARY CARDS (DYNAMIC TO SCOPED TIME BUCKET) */}
+              {(() => {
+                let kpiRev = 0;
+                let kpiCogs = 0;
+                let kpiCharges = 0;
+                let kpiUnits = 0;
+
+                if (analyticsScopedMonth) {
+                  const foundMonth = monthlyTimelineList.find(m => m.label === analyticsScopedMonth);
+                  if (foundMonth) {
+                    kpiRev = foundMonth.revenue;
+                    kpiCogs = foundMonth.cogs;
+                    kpiCharges = foundMonth.charges;
+                    kpiUnits = foundMonth.unitsSold;
+                  } else {
+                    activeMonthInvoices.forEach(inv => {
+                      kpiRev += Number(inv.total_amount || 0);
+                      if (Array.isArray(inv.items)) {
+                        inv.items.forEach(it => {
+                          const q = Number(it.qty || 0);
+                          const pr = Number(it.purchase_rate || 0);
+                          kpiUnits += q;
+                          kpiCogs += q * pr;
+                        });
+                      }
+                    });
+                  }
+                } else {
+                  kpiRev = periodInvoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0);
+                  periodInvoices.forEach(inv => {
+                    if (Array.isArray(inv.items)) {
+                      inv.items.forEach(it => {
+                        const q = Number(it.qty || 0);
+                        const pr = Number(it.purchase_rate || 0);
+                        kpiUnits += q;
+                        kpiCogs += q * pr;
+                      });
+                    }
+                  });
+                  kpiCharges = expenses.reduce((s, exp) => s + Number(exp.amount || 0), 0);
+                }
+
+                const kpiGrossProfit = kpiRev - kpiCogs;
+                const kpiNetProfit = kpiGrossProfit - kpiCharges;
+                const kpiMargin = kpiRev > 0 ? ((kpiNetProfit / kpiRev) * 100).toFixed(1) : "0.0";
+
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {/* 1. TOTAL REVENUE */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span>TOTAL REVENUE</span>
+                        <span className="text-blue-500 font-bold text-sm">₹</span>
+                      </div>
+                      <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                        {money(kpiRev)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Gross sales turnover
+                      </div>
+                    </div>
+
+                    {/* 2. COST OF GOODS */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span>COST OF GOODS</span>
+                        <span className="text-amber-500 font-bold text-sm">🥞</span>
+                      </div>
+                      <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                        {money(kpiCogs)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Acquisition lot costs
+                      </div>
+                    </div>
+
+                    {/* 3. GROSS PROFIT */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span>GROSS PROFIT</span>
+                        <span className="text-blue-500 font-bold text-sm">↗</span>
+                      </div>
+                      <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tight">
+                        {money(kpiGrossProfit)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Revenue – COGS
+                      </div>
+                    </div>
+
+                    {/* 4. OPERATING CHARGES */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span>OPERATING CHARGES</span>
+                        <span className="text-amber-500 font-bold text-sm">🗃️</span>
+                      </div>
+                      <div className="text-xl font-black text-amber-600 dark:text-amber-400 tabular-nums tracking-tight">
+                        -{money(kpiCharges)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Deducted expenses
+                      </div>
+                    </div>
+
+                    {/* 5. NET STORE PROFIT */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span>NET STORE PROFIT</span>
+                        <span className="text-emerald-500 font-bold text-sm">↗</span>
+                      </div>
+                      <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums tracking-tight">
+                        +{money(kpiNetProfit)}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        True net profitability
+                      </div>
+                    </div>
+
+                    {/* 6. NET MARGIN */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-2xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span>NET MARGIN</span>
+                        <span className="text-blue-500 font-bold text-sm">🏷️</span>
+                      </div>
+                      <div className="text-xl font-black text-blue-600 dark:text-blue-400 tabular-nums tracking-tight">
+                        {kpiMargin}%
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Across {kpiUnits} units
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* SECTION 1: Financial Timeline & Performance Ledger */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                      Financial Timeline & Performance Ledger
-                    </h3>
-                    <p className="text-[11px] text-slate-500">Click any month below to drill-down and scope subsequent tables.</p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-500 text-base">📅</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                          Financial Timeline & Performance Ledger
+                        </h3>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 uppercase">
+                          MONTH
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Click any row to inspect & scope the entire dashboard to that specific time bucket.
+                      </p>
+                    </div>
                   </div>
                   {analyticsScopedMonth && (
-                    <span className="text-xs font-bold text-slate-400">
-                      Active Filter: <strong className="text-indigo-600">{analyticsScopedMonth}</strong>
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAnalyticsScopedMonth(null)}
+                      className="px-3 py-1 rounded-full text-xs font-bold border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Filtered: {analyticsScopedMonth}</span>
+                      <span className="text-blue-500 font-black">✕ Reset</span>
+                    </button>
                   )}
                 </div>
 
@@ -11679,11 +11832,14 @@ Thank you for your business!`;
               {/* SECTION 2: Catalogue Item Profitability */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-500 text-base">📦</span>
                     <h3 className="font-black text-sm text-slate-900 dark:text-white">
                       Catalogue Item Profitability
                     </h3>
-                    <p className="text-[11px] text-slate-500 font-semibold">{scopeBadgeText}</p>
+                  </div>
+                  <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    {analyticsScopedMonth ? `Scoped to Filtered Bucket: ${analyticsScopedMonth}` : "Scoped to All Time History"}
                   </div>
                   <input
                     type="text"
@@ -11742,11 +11898,16 @@ Thank you for your business!`;
 
               {/* SECTION 3: Monthly Unit Sales by Catalogue (Matrix) */}
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
-                <div>
-                  <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                    Monthly Unit Sales by Catalogue
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-semibold">Scoped to All Time History</p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-500 text-base">📊</span>
+                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                      Monthly Unit Sales by Catalogue
+                    </h3>
+                  </div>
+                  <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                    {analyticsScopedMonth ? `Scoped to Filtered Bucket: ${analyticsScopedMonth}` : "Scoped to All Time History"}
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl">
@@ -11755,7 +11916,7 @@ Thank you for your business!`;
                       <tr>
                         <th className="p-2.5 font-sans whitespace-nowrap">Product</th>
                         {allMonthsPresent.map(m => (
-                          <th key={m} className="p-2.5 text-right whitespace-nowrap">{m}</th>
+                          <th key={m} className={`p-2.5 text-right whitespace-nowrap transition ${analyticsScopedMonth === m ? "bg-indigo-600 text-white font-black" : ""}`}>{m}</th>
                         ))}
                         <th className="p-2.5 text-right whitespace-nowrap font-bold">Total</th>
                       </tr>
@@ -11765,7 +11926,7 @@ Thank you for your business!`;
                         <tr key={row.product} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                           <td className="p-2.5 font-sans font-bold text-slate-900 dark:text-white whitespace-nowrap">{row.product}</td>
                           {allMonthsPresent.map(m => (
-                            <td key={m} className="p-2.5 text-right text-slate-600 dark:text-slate-400">
+                            <td key={m} className={`p-2.5 text-right transition ${analyticsScopedMonth === m ? "bg-indigo-50/70 dark:bg-indigo-950/40 font-bold text-indigo-700 dark:text-indigo-300" : "text-slate-600 dark:text-slate-400"}`}>
                               {row.months[m] ? row.months[m].toLocaleString("en-IN") : "—"}
                             </td>
                           ))}
@@ -11794,10 +11955,17 @@ Thank you for your business!`;
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-3">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                   <div>
-                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                      Customer Financial Performance
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <div className="flex items-center gap-2.5">
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                        Customer Financial Performance
+                      </h3>
+                      {analyticsScopedMonth && (
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                          Scoped to Filtered Bucket: {analyticsScopedMonth}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
                       Total purchase value, cost of goods, gross profit, margin percentages, and dues aging per customer.
                     </p>
                   </div>
@@ -11875,10 +12043,17 @@ Thank you for your business!`;
               <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <h3 className="font-black text-sm text-slate-900 dark:text-white">
-                      Unit-wise Purchase by Customer
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
+                    <div className="flex items-center gap-2.5">
+                      <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                        Unit-wise Purchase by Customer
+                      </h3>
+                      {analyticsScopedMonth && (
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                          Scoped to Filtered Bucket: {analyticsScopedMonth}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
                       Exact catalogue unit volumes purchased by each customer account across this period.
                     </p>
                   </div>
@@ -16188,6 +16363,142 @@ Thank you for your business!`;
                             Extra Large (125%)
                           </button>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* TOP NAVIGATION BAR & LEFT MENU CUSTOMIZATION */}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-2xs">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                            <Icon name="menu" size={16} /> Top Navigation Bar & Left Menu Customization
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            Choose which modules appear on the top menu bar. Remaining modules will appear in the ≡ Menu drawer to eliminate the horizontal scrollbar.
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentModules = systemSettings?.navigation?.topNavModules || ["summary", "sale", "invoices", "purchases", "payments_collections"];
+                              saveSystemSettingsToCloud({
+                                navigation: { ...(systemSettings?.navigation || {}), topNavModules: currentModules }
+                              });
+                              alert("Top Navigation Menu configuration saved successfully!");
+                            }}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                          >
+                            Save Menu Settings
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span className="text-[11px] font-black uppercase text-slate-400">Quick Layout Presets:</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const compact = ["summary", "sale", "invoices", "purchases", "payments_collections"];
+                            setSystemSettings(prev => ({
+                              ...prev,
+                              navigation: { ...(prev?.navigation || {}), topNavModules: compact }
+                            }));
+                          }}
+                          className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold hover:bg-indigo-100 transition cursor-pointer"
+                        >
+                          ⚡ Compact (No Scrollbar - Recommended)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const core = ["summary", "sale", "invoices", "purchases", "payments_collections", "banking"];
+                            setSystemSettings(prev => ({
+                              ...prev,
+                              navigation: { ...(prev?.navigation || {}), topNavModules: core }
+                            }));
+                          }}
+                          className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
+                        >
+                          🏢 Core Retail & Banking
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allMods = ["summary", "sale", "invoices", "purchases", "payments_collections", "banking", "hr_payroll", "accounting_vouchers", "analysis", "masters", "reports", "settings"];
+                            setSystemSettings(prev => ({
+                              ...prev,
+                              navigation: { ...(prev?.navigation || {}), topNavModules: allMods }
+                            }));
+                          }}
+                          className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
+                        >
+                          📋 Show All (Allow Scroll)
+                        </button>
+                      </div>
+
+                      {/* Module Grid Checkboxes */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+                        {[
+                          { id: "summary", label: "Dashboard", te: "డ్యాష్‌బోర్డ్", icon: "dashboard" },
+                          { id: "sale", label: "POS Billing", te: "పీఓఎస్", icon: "rupee" },
+                          { id: "invoices", label: "Invoice & Receipts", te: "ఇన్‌వాయిస్‌లు", icon: "filetext" },
+                          { id: "purchases", label: "Purchase & Stock", te: "కొనుగోళ్లు", icon: "package" },
+                          { id: "payments_collections", label: "Payment & Collections", te: "చెల్లింపులు & వసూళ్లు", icon: "receipt" },
+                          { id: "banking", label: "Banking & BRS", te: "బ్యాంకింగ్", icon: "wallet" },
+                          { id: "hr_payroll", label: "HR & Payroll", te: "హెచ్‌ఆర్ & పేరోల్", icon: "users" },
+                          { id: "accounting_vouchers", label: "Accounting Vouchers", te: "వోచర్లు", icon: "receipt" },
+                          { id: "analysis", label: "Profit & Analysis", te: "విశ్లేషణ", icon: "chart" },
+                          { id: "masters", label: "Masters Directory", te: "మాస్టర్స్", icon: "layers" },
+                          { id: "reports", label: "Reports & Excel", te: "నివేదికలు", icon: "filetext" },
+                          { id: "settings", label: "System Settings", te: "సెట్టింగ్స్", icon: "settings" }
+                        ].map(m => {
+                          const activeList = systemSettings?.navigation?.topNavModules || ["summary", "sale", "invoices", "purchases", "payments_collections"];
+                          const isChecked = activeList.includes(m.id);
+                          return (
+                            <label
+                              key={m.id}
+                              className={`p-3 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer transition ${
+                                isChecked
+                                  ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-300 dark:border-indigo-700"
+                                  : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const nextList = e.target.checked
+                                      ? [...activeList, m.id]
+                                      : activeList.filter(id => id !== m.id);
+                                    setSystemSettings(prev => ({
+                                      ...prev,
+                                      navigation: { ...(prev?.navigation || {}), topNavModules: nextList }
+                                    }));
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <div className="min-w-0">
+                                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                                    {m.label}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 truncate block">
+                                    {m.te}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                isChecked
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                              }`}>
+                                {isChecked ? "Top Bar" : "Left Only"}
+                              </span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
