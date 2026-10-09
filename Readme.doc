@@ -332,11 +332,21 @@ Organized into logical operational sections:
 
 ## 19. ERP / Finance / Payroll
 - **Financial Year (FY) Scoping:** Payroll and financial accounting configurations are partitioned by Financial Year (e.g. FY 2026–27).
-- **Approved Wage Structures:** Basic + DA structures calculate using authorized percentage brackets.
+- **Approved Wage Structures:** Basic + DA structures calculate using authorized percentage brackets (50% Basic+DA, 20% HRA up to ₹15k). Fixed remuneration scheme passes agreed base salary without statutory deductions.
 - **HRA Threshold:** House Rent Allowance applies the configured ₹15,000 monthly threshold rule.
 - **PF Statutory Limits:**
   - Qualifying wage ceiling capped at ₹15,000.
   - Employee Provident Fund calculated at statutory 12% with ₹1,800 monthly contribution cap.
+  - ESIC calculated at 0.75% for gross $\le$ ₹21,000.
+  - Professional Tax (PT) calculated using state statutory slabs (₹150 for ₹15k–₹20k, ₹200 for > ₹20k).
+- **Salary Disbursement & Payment Engine:**
+  - **1-Click Disburse Modal:** Pay salary directly from the employee register via Cash, Bank Transfer, UPI, or Cheque.
+  - **Bank Account Integration:** Seamlessly select source debit account from `systemSettings.banking.accounts`.
+  - **Employee Bank Details Quick Copy:** One-click copy for employee's registered bank account and IFSC.
+  - **Automated Ledger Outflow:** Automatically generates operating expense under "Salaries & Wages" and accounting voucher under "Staff Salaries & Wages" with audit trail.
+  - **Verified "PAID" Stamped Pay Slip:** Pay slip dynamically features official green PAID stamp banner with payment date, mode, bank name, and UTR reference.
+  - **Bulk Month Disbursal:** Top toolbar batch button dispatches payments for all pending staff in one coordinated action.
+  - **Disbursement Reversal:** Undo action allows reverting accidental disbursements back to pending.
 - **Voucher Debit/Credit Balance:** Every accounting and payroll voucher enforces:
   $$\sum \text{Debits} = \sum \text{Credits}$$
   Unbalanced vouchers are blocked from posting to prevent PFMS and ledger discrepancies.
