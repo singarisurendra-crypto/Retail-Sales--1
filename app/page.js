@@ -683,6 +683,38 @@ export default function App() {
   const [viewingPaySlip, setViewingPaySlip] = useState(null);
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState("");
   const [employeeDeptFilter, setEmployeeDeptFilter] = useState("all");
+  const [employeePaymentStatusFilter, setEmployeePaymentStatusFilter] = useState("all"); // "all" | "pending" | "paid"
+
+  // HR & Salary Disbursement States
+  const [salaryDisbursements, setSalaryDisbursements] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("app_hr_salary_disbursements");
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [showPaySalaryModal, setShowPaySalaryModal] = useState(false);
+  const [showBulkDisburseModal, setShowBulkDisburseModal] = useState(false);
+  const [payingEmployee, setPayingEmployee] = useState(null);
+  const [paySalaryForm, setPaySalaryForm] = useState({
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMode: "Bank Transfer", // "Bank Transfer" | "UPI" | "Cash" | "Cheque"
+    bankAccountId: "",
+    payerPartnerId: "",
+    utrNo: "",
+    notes: "",
+    autoPostExpense: true,
+    autoPostVoucher: true
+  });
+  const [bulkDisburseForm, setBulkDisburseForm] = useState({
+    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentMode: "Bank Transfer",
+    bankAccountId: "",
+    payerPartnerId: "",
+    notes: ""
+  });
 
   // Accounting Vouchers States
   const [voucherFilterType, setVoucherFilterType] = useState("all");
@@ -6377,6 +6409,253 @@ Thank you for your business!`;
     } catch (err) {
       alert("Error deleting category: " + err.message);
     }
+  };
+
+  // ==========================================
+  // HR & SALARY DISBURSEMENT HANDLERS
+  // ==========================================
+  const saveSalaryDisbursements = (records) => {
+    setSalaryDisbursements(records);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("app_hr_salary_disbursements", JSON.stringify(records));
+      } catch (e) {}
+    }
+  };
+
+  const getDisbursementForEmployee = (empId, month) => {
+    if (!salaryDisbursements || !salaryDisbursements.length) return null;
+    return salaryDisbursements.find(
+      (d) => String(d.employeeId) === String(empId) && d.month === month
+    );
+  };
+
+  const handleConfirmPaySalary = async () => {
+    if (!payingEmployee) return;
+    const netAmt = cleanNum(payingEmployee.netSalary);
+    if (netAmt <= 0) {
+      alert("Net payable salary must be greater than 0");
+      return;
+    }
+    const accounts = systemSettings?.banking?.accounts || [];
+    const chosenBank = accounts.find(a => String(a.id) === String(paySalaryForm.bankAccountId));
+    const chosenPartner = partners.find(p => String(p.id) === String(paySalaryForm.payerPartnerId));
+    const disbursementId = `SAL-${Date.now().toString().slice(-6)}`;
+
+    const newDisbursement = {
+      id: disbursementId,
+      employeeId: payingEmployee.id,
+      empId: payingEmployee.empId || "",
+      employeeName: payingEmployee.name,
+      designation: payingEmployee.designation || "",
+      department: payingEmployee.department || "",
+      month: selectedPayrollMonth,
+      grossSalary: cleanNum(payingEmployee.earnedGross),
+      basicDa: cleanNum(payingEmployee.basicDa),
+      pfDeduction: cleanNum(payingEmployee.pfDeduction),
+      esicDeduction: cleanNum(payingEmployee.esicDeduction),
+      ptDeduction: cleanNum(payingEmployee.ptDeduction),
+      totalDeductions: cleanNum(payingEmployee.totalDeductions),
+      netSalary: netAmt,
+      paymentMode: paySalaryForm.paymentMode,
+      bankAccountId: chosenBank?.id || null,
+      bankName: chosenBank ? chosenBank.bankName : (paySalaryForm.paymentMode === "Cash" ? "Cash In Hand" : (payingEmployee.bankName || "Commercial Bank")),
+      accountNo: chosenBank ? chosenBank.accountNo : (payingEmployee.accountNo || ""),
+      ifsc: chosenBank ? chosenBank.ifsc : (payingEmployee.ifsc || ""),
+      payerPartnerId: chosenPartner?.id || null,
+      payerPartnerName: chosenPartner?.name || "Store Cash / Business",
+      utrNo: (paySalaryForm.utrNo || "").trim(),
+      paymentDate: paySalaryForm.paymentDate || new Date().toISOString().slice(0, 10),
+      notes: (paySalaryForm.notes || "").trim(),
+      disbursedAt: new Date().toISOString()
+    };
+
+    const nextDisbursements = [newDisbursement, ...salaryDisbursements.filter(d => !(String(d.employeeId) === String(payingEmployee.id) && d.month === selectedPayrollMonth))];
+    saveSalaryDisbursements(nextDisbursements);
+
+    // 1. Auto-post to Shop Expenses if enabled
+    if (paySalaryForm.autoPostExpense) {
+      try {
+        const salariesCat = expenseCategories.find(c => (c.name || "").toLowerCase().includes("salar") || (c.name || "").toLowerCase().includes("wage"));
+        const expensePayload = {
+          title: `Salary Disbursed: ${payingEmployee.name} (${selectedPayrollMonth})`,
+          category_id: salariesCat ? Number(salariesCat.id) : null,
+          category_name: salariesCat ? salariesCat.name : "Salaries & Wages",
+          amount: netAmt,
+          payment_mode: paySalaryForm.paymentMode === "Cash" ? "Cash" : "Bank Transfer",
+          paid_by_id: chosenPartner ? Number(chosenPartner.id) : (partners[0]?.id ? Number(partners[0].id) : null),
+          expense_date: paySalaryForm.paymentDate || new Date().toISOString().slice(0, 10),
+          notes: `Monthly payroll disbursement for ${selectedPayrollMonth} - Emp ID: ${payingEmployee.empId || ""}${paySalaryForm.utrNo ? ` · Ref/UTR: ${paySalaryForm.utrNo}` : ""}`
+        };
+        const { error } = await db.from("expenses").insert([expensePayload]);
+        if (!error) {
+          setExpenses(prev => [{ id: `exp_${Date.now()}`, ...expensePayload, created_at: new Date().toISOString() }, ...prev]);
+        }
+      } catch (err) {
+        console.warn("Could not auto-post expense to DB:", err);
+      }
+    }
+
+    // 2. Auto-post to Accounting Manual Vouchers if enabled
+    if (paySalaryForm.autoPostVoucher) {
+      try {
+        const voucherPayload = {
+          id: `vch_${Date.now()}`,
+          voucherType: "payment",
+          voucherNo: `VCH-${disbursementId}`,
+          date: paySalaryForm.paymentDate || new Date().toISOString().slice(0, 10),
+          accountHead: "Staff Salaries & Wages",
+          partyName: payingEmployee.name,
+          mode: paySalaryForm.paymentMode,
+          bankId: chosenBank?.id || "",
+          amount: netAmt,
+          narration: `Salary payment for ${selectedPayrollMonth} to ${payingEmployee.name} (${payingEmployee.empId || ""})${paySalaryForm.utrNo ? ` via Ref/UTR: ${paySalaryForm.utrNo}` : ""}`
+        };
+        const nextVouchers = [voucherPayload, ...manualVouchers];
+        setManualVouchers(nextVouchers);
+        if (typeof window !== "undefined") {
+          try { localStorage.setItem("app_manual_vouchers", JSON.stringify(nextVouchers)); } catch (e) {}
+        }
+      } catch (err) {
+        console.warn("Could not auto-post manual voucher:", err);
+      }
+    }
+
+    // 3. Log Audit Trail
+    logAuditEvent({
+      docRef: disbursementId,
+      docType: "Salary Disbursement",
+      action: "Disbursed",
+      details: `Paid salary of ${money(netAmt)} to ${payingEmployee.name} (${payingEmployee.empId || ""}) for ${selectedPayrollMonth} via ${paySalaryForm.paymentMode}${paySalaryForm.utrNo ? ` (Ref: ${paySalaryForm.utrNo})` : ""}`
+    });
+
+    setShowPaySalaryModal(false);
+    setPayingEmployee(null);
+    alert(`Salary of ${money(netAmt)} disbursed successfully to ${payingEmployee.name}!`);
+  };
+
+  const handleRevertDisbursement = (disbursementId) => {
+    const dis = salaryDisbursements.find(d => d.id === disbursementId);
+    if (!dis) return;
+    if (!confirm(`Are you sure you want to revert salary payment of ${money(dis.netSalary)} for ${dis.employeeName} (${dis.month})? This will mark the salary as pending again.`)) {
+      return;
+    }
+    const updated = salaryDisbursements.filter(d => d.id !== disbursementId);
+    saveSalaryDisbursements(updated);
+
+    logAuditEvent({
+      docRef: disbursementId,
+      docType: "Salary Disbursement",
+      action: "Reverted",
+      details: `Reverted salary disbursement of ${money(dis.netSalary)} for ${dis.employeeName} (${dis.month})`
+    });
+
+    alert(`Salary disbursement for ${dis.employeeName} reverted. Status is now Pending.`);
+  };
+
+  const handleBulkDisburseAll = async (pendingList, bulkMode, bulkBankId, bulkPartnerId, bulkDate) => {
+    if (!pendingList || pendingList.length === 0) return;
+    const accounts = systemSettings?.banking?.accounts || [];
+    const chosenBank = accounts.find(a => String(a.id) === String(bulkBankId));
+    const chosenPartner = partners.find(p => String(p.id) === String(bulkPartnerId));
+    const effectiveDate = bulkDate || new Date().toISOString().slice(0, 10);
+
+    let createdDisbursements = [];
+    let createdVouchers = [];
+    let createdExpenses = [];
+
+    const salariesCat = expenseCategories.find(c => (c.name || "").toLowerCase().includes("salar") || (c.name || "").toLowerCase().includes("wage"));
+
+    for (const emp of pendingList) {
+      const netAmt = cleanNum(emp.netSalary);
+      if (netAmt <= 0) continue;
+      const disId = `SAL-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+      const disObj = {
+        id: disId,
+        employeeId: emp.id,
+        empId: emp.empId || "",
+        employeeName: emp.name,
+        designation: emp.designation || "",
+        department: emp.department || "",
+        month: selectedPayrollMonth,
+        grossSalary: cleanNum(emp.earnedGross),
+        basicDa: cleanNum(emp.basicDa),
+        pfDeduction: cleanNum(emp.pfDeduction),
+        esicDeduction: cleanNum(emp.esicDeduction),
+        ptDeduction: cleanNum(emp.ptDeduction),
+        totalDeductions: cleanNum(emp.totalDeductions),
+        netSalary: netAmt,
+        paymentMode: bulkMode,
+        bankAccountId: chosenBank?.id || null,
+        bankName: chosenBank ? chosenBank.bankName : (bulkMode === "Cash" ? "Cash In Hand" : (emp.bankName || "Commercial Bank")),
+        accountNo: chosenBank ? chosenBank.accountNo : (emp.accountNo || ""),
+        ifsc: chosenBank ? chosenBank.ifsc : (emp.ifsc || ""),
+        payerPartnerId: chosenPartner?.id || null,
+        payerPartnerName: chosenPartner?.name || "Store Cash / Business",
+        utrNo: `BULK-${selectedPayrollMonth}`,
+        paymentDate: effectiveDate,
+        notes: `Bulk payroll disbursement for ${selectedPayrollMonth}`,
+        disbursedAt: new Date().toISOString()
+      };
+      createdDisbursements.push(disObj);
+
+      createdVouchers.push({
+        id: `vch_${Date.now()}_${Math.random()}`,
+        voucherType: "payment",
+        voucherNo: `VCH-${disId}`,
+        date: effectiveDate,
+        accountHead: "Staff Salaries & Wages",
+        partyName: emp.name,
+        mode: bulkMode,
+        bankId: chosenBank?.id || "",
+        amount: netAmt,
+        narration: `Bulk salary payment for ${selectedPayrollMonth} to ${emp.name} (${emp.empId || ""})`
+      });
+
+      createdExpenses.push({
+        title: `Salary Disbursed: ${emp.name} (${selectedPayrollMonth})`,
+        category_id: salariesCat ? Number(salariesCat.id) : null,
+        category_name: salariesCat ? salariesCat.name : "Salaries & Wages",
+        amount: netAmt,
+        payment_mode: bulkMode === "Cash" ? "Cash" : "Bank Transfer",
+        paid_by_id: chosenPartner ? Number(chosenPartner.id) : (partners[0]?.id ? Number(partners[0].id) : null),
+        expense_date: effectiveDate,
+        notes: `Bulk payroll disbursement for ${selectedPayrollMonth} - Emp ID: ${emp.empId || ""}`
+      });
+    }
+
+    if (createdDisbursements.length === 0) {
+      alert("No pending salaries to disburse.");
+      return;
+    }
+
+    const nextDisbursements = [...createdDisbursements, ...salaryDisbursements];
+    saveSalaryDisbursements(nextDisbursements);
+
+    const nextVouchers = [...createdVouchers, ...manualVouchers];
+    setManualVouchers(nextVouchers);
+    if (typeof window !== "undefined") {
+      try { localStorage.setItem("app_manual_vouchers", JSON.stringify(nextVouchers)); } catch (e) {}
+    }
+
+    try {
+      if (createdExpenses.length > 0) {
+        await db.from("expenses").insert(createdExpenses);
+        setExpenses(prev => [...createdExpenses.map(e => ({ id: `exp_${Date.now()}_${Math.random()}`, ...e, created_at: new Date().toISOString() })), ...prev]);
+      }
+    } catch (err) {
+      console.warn("DB insert error on bulk expenses:", err);
+    }
+
+    logAuditEvent({
+      docRef: `BULK-SAL-${selectedPayrollMonth}`,
+      docType: "Salary Disbursement",
+      action: "Bulk Disbursed",
+      details: `Disbursed salaries for ${createdDisbursements.length} employees totaling ${money(createdDisbursements.reduce((s, d) => s + d.netSalary, 0))} for ${selectedPayrollMonth} via ${bulkMode}`
+    });
+
+    setShowBulkDisburseModal(false);
+    alert(`Successfully disbursed salaries for ${createdDisbursements.length} employees!`);
   };
 
   // BATCH CUSTOMER IMPORT FROM EXCEL / CSV
@@ -12107,11 +12386,33 @@ Thank you for your business!`;
             };
           });
 
+          // Payroll calculation with monthly disbursement status
+          const payrollWithDisbursement = computedPayroll.map(emp => {
+            const dis = getDisbursementForEmployee(emp.id, selectedPayrollMonth);
+            return {
+              ...emp,
+              disbursement: dis,
+              isPaid: !!dis
+            };
+          });
+
+          // Filter by Payment Status
+          const displayedPayroll = payrollWithDisbursement.filter(emp => {
+            if (employeePaymentStatusFilter === "pending") return !emp.isPaid;
+            if (employeePaymentStatusFilter === "paid") return emp.isPaid;
+            return true;
+          });
+
           const totalGrossDisbursed = computedPayroll.reduce((s, e) => s + e.earnedGross, 0);
           const totalPfCollected = computedPayroll.reduce((s, e) => s + e.pfDeduction, 0);
           const totalEsicCollected = computedPayroll.reduce((s, e) => s + e.esicDeduction, 0);
           const totalPtCollected = computedPayroll.reduce((s, e) => s + e.ptDeduction, 0);
-          const totalNetDisbursed = computedPayroll.reduce((s, e) => s + e.netSalary, 0);
+          const totalNetObligation = computedPayroll.reduce((s, e) => s + e.netSalary, 0);
+
+          const paidStaffList = payrollWithDisbursement.filter(e => e.isPaid);
+          const pendingStaffList = payrollWithDisbursement.filter(e => !e.isPaid);
+          const totalPaidNet = paidStaffList.reduce((s, e) => s + (e.disbursement?.netSalary || e.netSalary), 0);
+          const totalPendingNet = pendingStaffList.reduce((s, e) => s + e.netSalary, 0);
 
           return (
             <div className="space-y-4">
@@ -12122,7 +12423,7 @@ Thank you for your business!`;
                     <span className="text-indigo-600">👥</span> Indian HR & Statutory Payroll Management
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Staff directory, wage structure compliance (Code on Wages, EPF 12% cap, ESIC, PT), and monthly pay slip generation.
+                    Staff directory, wage structure compliance (Code on Wages, EPF 12% cap, ESIC, PT), 1-click salary disbursement, and monthly pay slips.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -12135,6 +12436,24 @@ Thank you for your business!`;
                       className="bg-transparent font-mono text-slate-900 dark:text-white outline-none cursor-pointer"
                     />
                   </div>
+                  {pendingStaffList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBulkDisburseForm({
+                          paymentDate: new Date().toISOString().slice(0, 10),
+                          paymentMode: "Bank Transfer",
+                          bankAccountId: systemSettings?.banking?.accounts?.[0]?.id || "",
+                          payerPartnerId: partners?.[0]?.id || "",
+                          notes: `Bulk salary payment for ${selectedPayrollMonth}`
+                        });
+                        setShowBulkDisburseModal(true);
+                      }}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                    >
+                      ⚡ Disburse Month ({pendingStaffList.length})
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -12157,24 +12476,24 @@ Thank you for your business!`;
                   <span className="text-[10px] text-slate-400 block mt-0.5">{filteredEmployees.length} staff members</span>
                 </div>
                 <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Total EPF (Employee 12%)</span>
-                  <h3 className="text-lg font-black text-indigo-600 mt-1 font-mono">{money(totalPfCollected)}</h3>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Statutory cap ₹1,800/mo</span>
+                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Total Deductions (PF/ESI/PT)</span>
+                  <h3 className="text-lg font-black text-indigo-600 mt-1 font-mono">{money(totalPfCollected + totalEsicCollected + totalPtCollected)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">EPF: {money(totalPfCollected)} · ESI: {money(totalEsicCollected)} · PT: {money(totalPtCollected)}</span>
                 </div>
                 <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Total ESIC (0.75%)</span>
-                  <h3 className="text-lg font-black text-indigo-600 mt-1 font-mono">{money(totalEsicCollected)}</h3>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Applicable Gross ≤ ₹21k</span>
+                  <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Total Net Obligation</span>
+                  <h3 className="text-lg font-black text-purple-600 mt-1 font-mono">{money(totalNetObligation)}</h3>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Monthly net wage bill</span>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
-                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Professional Tax (PT)</span>
-                  <h3 className="text-lg font-black text-amber-600 mt-1 font-mono">{money(totalPtCollected)}</h3>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">State statutory slabs</span>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-emerald-300 dark:border-emerald-800/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Disbursed / Paid (✓)</span>
+                  <h3 className="text-lg font-black text-emerald-600 mt-1 font-mono">{money(totalPaidNet)}</h3>
+                  <span className="text-[10px] text-emerald-500/90 font-bold block mt-0.5">{paidStaffList.length} staff paid</span>
                 </div>
-                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 shadow-2xs">
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Net Salary Disbursed</span>
-                  <h3 className="text-lg font-black text-emerald-600 mt-1 font-mono">{money(totalNetDisbursed)}</h3>
-                  <span className="text-[10px] text-emerald-500/80 block mt-0.5">Bank transfer payable</span>
+                <div className="bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-amber-300 dark:border-amber-800/80 shadow-2xs">
+                  <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Pending Disbursal (⏳)</span>
+                  <h3 className="text-lg font-black text-amber-600 mt-1 font-mono">{money(totalPendingNet)}</h3>
+                  <span className="text-[10px] text-amber-500/90 font-bold block mt-0.5">{pendingStaffList.length} staff pending</span>
                 </div>
               </div>
 
@@ -12192,6 +12511,15 @@ Thank you for your business!`;
                     <option value="Warehouse">Warehouse & Logistics</option>
                     <option value="Operations">Operations & Supervisors</option>
                   </select>
+                  <select
+                    value={employeePaymentStatusFilter}
+                    onChange={(e) => setEmployeePaymentStatusFilter(e.target.value)}
+                    className="p-2 border rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="all">All Payment Status ({payrollWithDisbursement.length})</option>
+                    <option value="pending">⏳ Pending Disbursal ({pendingStaffList.length})</option>
+                    <option value="paid">✓ Paid ({paidStaffList.length})</option>
+                  </select>
                   <input
                     type="text"
                     placeholder="Search employee, ID, designation..."
@@ -12201,7 +12529,7 @@ Thank you for your business!`;
                   />
                 </div>
                 <div className="text-xs text-slate-500">
-                  Showing <strong>{computedPayroll.length}</strong> employees for <strong>{selectedPayrollMonth}</strong>
+                  Showing <strong>{displayedPayroll.length}</strong> of <strong>{computedPayroll.length}</strong> employees for <strong>{selectedPayrollMonth}</strong>
                 </div>
               </div>
 
@@ -12220,11 +12548,12 @@ Thank you for your business!`;
                         <th className="p-3 text-right">ESIC (₹)</th>
                         <th className="p-3 text-right">PT (₹)</th>
                         <th className="p-3 text-right">Net Pay (₹)</th>
+                        <th className="p-3 text-center font-sans">Payment Status</th>
                         <th className="p-3 text-center font-sans">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {computedPayroll.map(emp => (
+                      {displayedPayroll.map(emp => (
                         <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                           <td className="p-3 font-bold text-indigo-600">{emp.empId}</td>
                           <td className="p-3 font-sans">
@@ -12243,13 +12572,70 @@ Thank you for your business!`;
                           <td className="p-3 text-right text-amber-600">{emp.ptDeduction > 0 ? money(emp.ptDeduction) : "—"}</td>
                           <td className="p-3 text-right font-bold text-emerald-600">{money(emp.netSalary)}</td>
                           <td className="p-3 text-center font-sans">
+                            {emp.isPaid ? (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                                  ✓ Paid
+                                </span>
+                                <span className="text-[10px] text-slate-500 block mt-0.5 font-mono">
+                                  {emp.disbursement.paymentDate} · {emp.disbursement.paymentMode}
+                                </span>
+                                {emp.disbursement.utrNo && (
+                                  <span className="text-[9px] text-indigo-600 dark:text-indigo-400 block font-mono truncate max-w-[120px] mx-auto" title={`Ref/UTR: ${emp.disbursement.utrNo}`}>
+                                    Ref: {emp.disbursement.utrNo}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Pending
+                                </span>
+                                <span className="text-[10px] text-slate-400 block mt-0.5">Not Disbursed</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 text-center font-sans">
                             <div className="flex items-center justify-center gap-1.5">
+                              {!emp.isPaid ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPayingEmployee(emp);
+                                    const bankAccounts = systemSettings?.banking?.accounts || [];
+                                    setPaySalaryForm({
+                                      paymentDate: new Date().toISOString().slice(0, 10),
+                                      paymentMode: (emp.bankName || emp.accountNo) ? "Bank Transfer" : "Cash",
+                                      bankAccountId: bankAccounts[0]?.id || "",
+                                      payerPartnerId: partners[0]?.id || "",
+                                      utrNo: "",
+                                      notes: `Salary for ${selectedPayrollMonth} - ${emp.name} (${emp.empId || ""})`,
+                                      autoPostExpense: true,
+                                      autoPostVoucher: true
+                                    });
+                                    setShowPaySalaryModal(true);
+                                  }}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                                  title="Disburse / Pay Salary"
+                                >
+                                  💰 Pay Salary
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevertDisbursement(emp.disbursement.id)}
+                                  className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-lg transition cursor-pointer"
+                                  title="Undo / Revert Salary Disbursement"
+                                >
+                                  <Icon name="undo" size={14} />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => setViewingPaySlip(emp)}
-                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition cursor-pointer"
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${emp.isPaid ? "bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800" : "bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800"}`}
                               >
-                                Pay Slip
+                                {emp.isPaid ? "✓ Pay Slip" : "Pay Slip"}
                               </button>
                               <button
                                 type="button"
@@ -12258,7 +12644,7 @@ Thank you for your business!`;
                                   setEmployeeForm({ ...emp });
                                   setShowEmployeeModal(true);
                                 }}
-                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
+                                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition cursor-pointer"
                                 title="Edit Employee Profile"
                               >
                                 <Icon name="settings" size={14} />
@@ -21754,73 +22140,521 @@ Thank you for your business!`;
       )}
 
       {/* MODAL 6: PAY SLIP VIEW & PRINT */}
-      {viewingPaySlip && (
+      {viewingPaySlip && (() => {
+        const dis = getDisbursementForEmployee(viewingPaySlip.id, selectedPayrollMonth);
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"} · Pay Slip</h3>
+                  <p className="text-xs text-slate-500">Pay Period: {selectedPayrollMonth}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingPaySlip(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Verified Payment Status Banner */}
+              {dis ? (
+                <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-2xl border-2 border-emerald-500/60 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-black text-sm shrink-0">
+                      ✓
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-emerald-800 dark:text-emerald-200 uppercase tracking-wider">SALARY DISBURSED & PAID</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white font-mono">PAID</span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-mono mt-0.5">
+                        Paid on <strong>{dis.paymentDate}</strong> via <strong>{dis.paymentMode}</strong> ({dis.bankName || "Bank"})
+                        {dis.utrNo ? ` · Ref: ${dis.utrNo}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Disbursed Net</span>
+                    <span className="font-mono font-black text-sm text-emerald-600">{money(dis.netSalary)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800 flex justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-600 text-base">⚠️</span>
+                    <div>
+                      <span className="text-xs font-bold text-amber-800 dark:text-amber-200">Payment Status: Pending Disbursal</span>
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400">Salary for {selectedPayrollMonth} is not yet disbursed.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const emp = viewingPaySlip;
+                      setViewingPaySlip(null);
+                      setPayingEmployee(emp);
+                      const bankAccounts = systemSettings?.banking?.accounts || [];
+                      setPaySalaryForm({
+                        paymentDate: new Date().toISOString().slice(0, 10),
+                        paymentMode: (emp.bankName || emp.accountNo) ? "Bank Transfer" : "Cash",
+                        bankAccountId: bankAccounts[0]?.id || "",
+                        payerPartnerId: partners[0]?.id || "",
+                        utrNo: "",
+                        notes: `Salary for ${selectedPayrollMonth} - ${emp.name} (${emp.empId || ""})`,
+                        autoPostExpense: true,
+                        autoPostVoucher: true
+                      });
+                      setShowPaySalaryModal(true);
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
+                  >
+                    💰 Disburse Now
+                  </button>
+                </div>
+              )}
+
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
+                <div className="flex justify-between"><span className="text-slate-500">Emp ID:</span><strong>{viewingPaySlip.empId}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><strong>{viewingPaySlip.name}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500">Designation / Dept:</span><span>{viewingPaySlip.designation} · {viewingPaySlip.department}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Wage Structure:</span><span className="text-indigo-600">{viewingPaySlip.typeLabel}</span></div>
+                {(viewingPaySlip.bankName || viewingPaySlip.accountNo) && (
+                  <div className="flex justify-between border-t border-slate-200/60 dark:border-slate-700/60 pt-1 text-[11px] text-slate-500">
+                    <span>Employee Bank:</span>
+                    <span>{viewingPaySlip.bankName} · A/c: {viewingPaySlip.accountNo} · IFSC: {viewingPaySlip.ifsc}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Earnings & Deductions Table */}
+              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                  <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Earnings</span>
+                  <div className="flex justify-between"><span>Basic + DA:</span><span>{money(viewingPaySlip.basicDa)}</span></div>
+                  <div className="flex justify-between"><span>HRA:</span><span>{money(viewingPaySlip.hra)}</span></div>
+                  <div className="flex justify-between"><span>Allowances:</span><span>{money(viewingPaySlip.allowances)}</span></div>
+                  <div className="flex justify-between font-bold border-t pt-1"><span>Total Gross:</span><span>{money(viewingPaySlip.earnedGross)}</span></div>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
+                  <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Deductions</span>
+                  <div className="flex justify-between"><span>EPF (12%):</span><span>{money(viewingPaySlip.pfDeduction)}</span></div>
+                  <div className="flex justify-between"><span>ESIC:</span><span>{money(viewingPaySlip.esicDeduction)}</span></div>
+                  <div className="flex justify-between"><span>PT:</span><span>{money(viewingPaySlip.ptDeduction)}</span></div>
+                  <div className="flex justify-between font-bold border-t pt-1 text-rose-600"><span>Total Ded.:</span><span>{money(viewingPaySlip.totalDeductions)}</span></div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex justify-between items-center text-emerald-800 dark:text-emerald-300 font-mono">
+                <span className="font-bold text-xs uppercase">Net Salary Payable:</span>
+                <span className="font-black text-base">{money(viewingPaySlip.netSalary)}</span>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Icon name="filetext" size={14} /> Print Pay Slip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingPaySlip(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: DISBURSE / PAY SALARY */}
+      {showPaySalaryModal && payingEmployee && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="font-black text-base">{systemSettings?.branding?.systemName || "JSR Retails"} · Pay Slip</h3>
-                <p className="text-xs text-slate-500">Pay Period: {selectedPayrollMonth}</p>
+                <h3 className="font-black text-base flex items-center gap-2">
+                  <span className="text-emerald-600">💰</span> Disburse Employee Salary
+                </h3>
+                <p className="text-xs text-slate-500">Pay Period: <strong className="text-slate-700 dark:text-slate-300 font-mono">{selectedPayrollMonth}</strong></p>
               </div>
               <button
                 type="button"
-                onClick={() => setViewingPaySlip(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold"
+                onClick={() => { setShowPaySalaryModal(false); setPayingEmployee(null); }}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs font-mono space-y-1">
-              <div className="flex justify-between"><span className="text-slate-500">Emp ID:</span><strong>{viewingPaySlip.empId}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Employee Name:</span><strong>{viewingPaySlip.name}</strong></div>
-              <div className="flex justify-between"><span className="text-slate-500">Designation / Dept:</span><span>{viewingPaySlip.designation} · {viewingPaySlip.department}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Wage Structure:</span><span className="text-indigo-600">{viewingPaySlip.typeLabel}</span></div>
-            </div>
-
-            {/* Earnings & Deductions Table */}
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
-                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Earnings</span>
-                <div className="flex justify-between"><span>Basic + DA:</span><span>{money(viewingPaySlip.basicDa)}</span></div>
-                <div className="flex justify-between"><span>HRA:</span><span>{money(viewingPaySlip.hra)}</span></div>
-                <div className="flex justify-between"><span>Allowances:</span><span>{money(viewingPaySlip.allowances)}</span></div>
-                <div className="flex justify-between font-bold border-t pt-1"><span>Total Gross:</span><span>{money(viewingPaySlip.earnedGross)}</span></div>
+            {/* Employee Card & Net Payable Highlight */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">{payingEmployee.name}</h4>
+                  <span className="text-xs text-slate-500 font-mono">{payingEmployee.empId} · {payingEmployee.designation} · {payingEmployee.department}</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${payingEmployee.salaryType === "fixed" ? "bg-amber-100 text-amber-800" : "bg-indigo-100 text-indigo-800"}`}>
+                  {payingEmployee.salaryType === "fixed" ? "Fixed Wage" : "Statutory Wage"}
+                </span>
               </div>
 
-              <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-1">
-                <span className="font-bold text-slate-500 uppercase text-[10px] block border-b pb-1">Deductions</span>
-                <div className="flex justify-between"><span>EPF (12%):</span><span>{money(viewingPaySlip.pfDeduction)}</span></div>
-                <div className="flex justify-between"><span>ESIC:</span><span>{money(viewingPaySlip.esicDeduction)}</span></div>
-                <div className="flex justify-between"><span>PT:</span><span>{money(viewingPaySlip.ptDeduction)}</span></div>
-                <div className="flex justify-between font-bold border-t pt-1 text-rose-600"><span>Total Ded.:</span><span>{money(viewingPaySlip.totalDeductions)}</span></div>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <div className="p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">Gross Wage</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{money(payingEmployee.earnedGross)}</span>
+                </div>
+                <div className="p-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] text-slate-400 block font-sans uppercase font-bold">Deductions</span>
+                  <span className="font-bold text-rose-500">-{money(payingEmployee.totalDeductions || 0)}</span>
+                </div>
+                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 rounded-xl border border-emerald-300 dark:border-emerald-800">
+                  <span className="text-[10px] text-emerald-600 block font-sans uppercase font-bold">Net Payable</span>
+                  <span className="font-black text-emerald-600 text-sm">{money(payingEmployee.netSalary)}</span>
+                </div>
               </div>
             </div>
 
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 flex justify-between items-center text-emerald-800 dark:text-emerald-300 font-mono">
-              <span className="font-bold text-xs uppercase">Net Salary Payable:</span>
-              <span className="font-black text-base">{money(viewingPaySlip.netSalary)}</span>
+            {/* Employee Bank Info Card */}
+            {(payingEmployee.bankName || payingEmployee.accountNo || payingEmployee.ifsc) && (
+              <div className="p-3 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 text-xs">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                    🏦 Employee's Registered Bank A/c
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const txt = `Bank: ${payingEmployee.bankName || ''}\nA/c: ${payingEmployee.accountNo || ''}\nIFSC: ${payingEmployee.ifsc || ''}`;
+                      navigator.clipboard.writeText(txt);
+                      alert("Copied employee bank details to clipboard!");
+                    }}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold underline cursor-pointer"
+                  >
+                    📋 Copy Details
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                  <div><span className="text-slate-400 block text-[9px] uppercase font-sans">Bank:</span>{payingEmployee.bankName || "—"}</div>
+                  <div><span className="text-slate-400 block text-[9px] uppercase font-sans">A/c No:</span>{payingEmployee.accountNo || "—"}</div>
+                  <div><span className="text-slate-400 block text-[9px] uppercase font-sans">IFSC:</span>{payingEmployee.ifsc || "—"}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Details Form */}
+            <div className="space-y-3">
+              {/* Payment Mode */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Payment Mode (చెల్లింపు విధానం) <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {["Bank Transfer", "UPI", "Cash", "Cheque"].map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setPaySalaryForm({ ...paySalaryForm, paymentMode: mode })}
+                      className={`p-2 rounded-xl text-xs font-bold border transition text-center cursor-pointer ${
+                        paySalaryForm.paymentMode === mode
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Source Bank Account (if Bank or UPI) */}
+              {paySalaryForm.paymentMode !== "Cash" && (
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Debit from Business Bank Account (ఖర్చు ఖాతా)
+                  </label>
+                  <select
+                    value={paySalaryForm.bankAccountId}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, bankAccountId: e.target.value })}
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="">-- Select Source Bank Account (Optional) --</option>
+                    {(systemSettings?.banking?.accounts || []).map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.bankName} - A/c {b.accountNo} ({b.branch || "Main"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Disbursing Partner */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Disbursed By Partner (ఖర్చు భాగస్వామి)
+                  </label>
+                  <select
+                    value={paySalaryForm.payerPartnerId}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, payerPartnerId: e.target.value })}
+                    className="w-full p-2.5 border rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="">Store Cash / General</option>
+                    {partners.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Payment Date (తేదీ) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={paySalaryForm.paymentDate}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, paymentDate: e.target.value })}
+                    className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono font-bold text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+              </div>
+
+              {/* UTR / Ref No & Notes */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    UTR / Ref No / Txn ID
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SBI123456789 / Cheque #"
+                    value={paySalaryForm.utrNo}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, utrNo: e.target.value })}
+                    className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 font-mono text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Notes / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Optional notes"
+                    value={paySalaryForm.notes}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, notes: e.target.value })}
+                    className="w-full p-2.5 border rounded-xl text-xs bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+              </div>
+
+              {/* Auto-posting Checkboxes */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={paySalaryForm.autoPostExpense}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, autoPostExpense: e.target.checked })}
+                    className="w-4 h-4 rounded text-indigo-600"
+                  />
+                  <span>Auto-post to Shop Expenses under "Salaries & Wages"</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={paySalaryForm.autoPostVoucher}
+                    onChange={(e) => setPaySalaryForm({ ...paySalaryForm, autoPostVoucher: e.target.checked })}
+                    className="w-4 h-4 rounded text-indigo-600"
+                  />
+                  <span>Auto-generate Accounting Payment Voucher (Audit Trail)</span>
+                </label>
+              </div>
             </div>
 
+            {/* Actions */}
             <div className="flex justify-between items-center pt-2">
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                onClick={() => { setShowPaySalaryModal(false); setPayingEmployee(null); }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold cursor-pointer"
               >
-                <Icon name="filetext" size={14} /> Print Pay Slip
+                Cancel
               </button>
               <button
                 type="button"
-                onClick={() => setViewingPaySlip(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold"
+                onClick={handleConfirmPaySalary}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
               >
-                Close
+                ✓ Confirm & Disburse {money(payingEmployee.netSalary)}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* MODAL: BULK DISBURSE MONTH */}
+      {showBulkDisburseModal && (() => {
+        const cfg = systemSettings?.payroll || defaultSystemSettings.payroll;
+        const pendingList = employees
+          .map(emp => {
+            const baseGross = Number(emp.baseSalary || 0);
+            const isStatutory = emp.salaryType !== "fixed";
+            if (!isStatutory) {
+              return { ...emp, earnedGross: baseGross, basicDa: baseGross, totalDeductions: 0, netSalary: baseGross };
+            }
+            const basicDa = Math.round(baseGross * (Number(cfg.basicDaPercentage || 50) / 100));
+            const hra = Math.min(Math.round(baseGross * 0.20), Number(cfg.hraThreshold || 15000));
+            const pfQualifyingWage = Math.min(basicDa, Number(cfg.pfWageCap || 15000));
+            const pfDeduction = Math.min(Math.round(pfQualifyingWage * (Number(cfg.pfEmployeeRate || 12) / 100)), Number(cfg.pfMonthlyCeiling || 1800));
+            const esicDeduction = baseGross <= Number(cfg.esicWageCap || 21000) ? Math.round(baseGross * (Number(cfg.esicEmployeeRate || 0.75) / 100)) : 0;
+            let ptDeduction = 0;
+            if (baseGross > 20000) ptDeduction = 200;
+            else if (baseGross > 15000) ptDeduction = 150;
+            const totalDeductions = pfDeduction + esicDeduction + ptDeduction;
+            const netSalary = Math.max(0, baseGross - totalDeductions);
+            return { ...emp, earnedGross: baseGross, basicDa, totalDeductions, netSalary };
+          })
+          .filter(emp => !getDisbursementForEmployee(emp.id, selectedPayrollMonth));
+
+        const bulkTotal = pendingList.reduce((s, e) => s + e.netSalary, 0);
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 text-slate-900 dark:text-white space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h3 className="font-black text-base flex items-center gap-2">
+                    <span className="text-emerald-600">⚡</span> Bulk Salary Disbursement
+                  </h3>
+                  <p className="text-xs text-slate-500">Disburse all pending staff for <strong className="text-slate-700 dark:text-slate-300 font-mono">{selectedPayrollMonth}</strong></p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDisburseModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-2xl border border-emerald-300 dark:border-emerald-800 flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 block">Pending Staff Count</span>
+                  <span className="text-[11px] text-emerald-600 font-bold">{pendingList.length} employees to receive salary</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Payout</span>
+                  <span className="font-mono font-black text-base text-emerald-600">{money(bulkTotal)}</span>
+                </div>
+              </div>
+
+              {/* Pending Staff Preview Table */}
+              <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 text-[10px] uppercase">
+                    <tr>
+                      <th className="p-2">Emp ID</th>
+                      <th className="p-2 font-sans">Name</th>
+                      <th className="p-2">Bank / A/c</th>
+                      <th className="p-2 text-right">Net Payable</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {pendingList.map(p => (
+                      <tr key={p.id}>
+                        <td className="p-2 text-indigo-600 font-bold">{p.empId}</td>
+                        <td className="p-2 font-sans font-bold text-slate-800 dark:text-slate-200">{p.name}</td>
+                        <td className="p-2 text-slate-500 text-[11px]">{p.bankName ? `${p.bankName} (${p.accountNo ? p.accountNo.slice(-4) : ''})` : 'Cash'}</td>
+                        <td className="p-2 text-right font-bold text-emerald-600">{money(p.netSalary)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Controls */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Payment Mode</label>
+                  <select
+                    value={bulkDisburseForm.paymentMode}
+                    onChange={(e) => setBulkDisburseForm({ ...bulkDisburseForm, paymentMode: e.target.value })}
+                    className="w-full p-2 border rounded-xl font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
+                    <option value="Cash">Cash (Cash Drawer)</option>
+                    <option value="UPI">UPI</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Payment Date</label>
+                  <input
+                    type="date"
+                    value={bulkDisburseForm.paymentDate}
+                    onChange={(e) => setBulkDisburseForm({ ...bulkDisburseForm, paymentDate: e.target.value })}
+                    className="w-full p-2 border rounded-xl font-mono font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+              </div>
+
+              {bulkDisburseForm.paymentMode !== "Cash" && (
+                <div className="text-xs">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Debit From Business Bank Account</label>
+                  <select
+                    value={bulkDisburseForm.bankAccountId}
+                    onChange={(e) => setBulkDisburseForm({ ...bulkDisburseForm, bankAccountId: e.target.value })}
+                    className="w-full p-2 border rounded-xl font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                  >
+                    <option value="">-- Choose Account (Optional) --</option>
+                    {(systemSettings?.banking?.accounts || []).map(b => (
+                      <option key={b.id} value={b.id}>{b.bankName} - A/c {b.accountNo}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="text-xs">
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Disbursing Partner / Fund Source</label>
+                <select
+                  value={bulkDisburseForm.payerPartnerId}
+                  onChange={(e) => setBulkDisburseForm({ ...bulkDisburseForm, payerPartnerId: e.target.value })}
+                  className="w-full p-2 border rounded-xl font-bold bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                >
+                  <option value="">Store Cash / General Business</option>
+                  {partners.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDisburseModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkDisburseAll(pendingList, bulkDisburseForm.paymentMode, bulkDisburseForm.bankAccountId, bulkDisburseForm.payerPartnerId, bulkDisburseForm.paymentDate)}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  ⚡ Disburse All {pendingList.length} Salaries ({money(bulkTotal)})
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL 7: CREATE NEW ACCOUNTING VOUCHER */}
       {showNewVoucherModal && (
