@@ -96,32 +96,78 @@ The platform is organized into 14 distinct operational modules:
 
 ## 4. Authentication and Security
 
-### 4.1 Active Session Control
+### 4.1 Dual-Tier Authentication Architecture
+The system enforces a strict dual-tier credential architecture:
+- **Admin & Staff Accounts:** Standard **Username + Security Password** supporting special characters (e.g. `Admin@2026!`, `@`, `#`, `$`, `!`). The login card features a show/hide eye toggle button, left-aligned typography, and backward-compatible acceptance of legacy PIN `1234` or `Admin@123` to prevent administrative lockout.
+- **Partner Accounts:** Partner dropdown selector paired with **Partner Security Password** supporting special characters (default: `Partner@2026!` or `1234`).
+- **Customer & Supplier Portal:** Strictly **Numeric PIN Only** (`inputMode="numeric"`, `maxLength={6}`, centered dots `••••`, default `1234`). Special characters and text passwords are blocked for portal logins to maintain kiosk/mobile simplicity.
+- **1-Click Credential Recovery:** An interactive "Forgot Password? / Recovery" modal displays master security defaults, instructions, and a 1-click fallback reset button.
+
+### 4.2 Active Session Control
 - **User-Specific Tracking:** Active session validation is strictly scoped per individual user account.
 - **Non-Interfering Concurrency:** A Partner logging into the system will never terminate or interfere with an active Administrator session.
 - **Logoff & Continue:** If the same user attempts to log in from a second browser or terminal, the system detects the existing active session and presents a **Logoff & Continue** prompt.
 - **Targeted Session Termination:** Confirming "Logoff & Continue" invalidates *only* that specific user's prior session while leaving other active users unaffected.
 
-### 4.2 Password Change Protocol
+### 4.3 Password Change Protocol
 - **Instant Invalidation:** Immediately upon saving a new password, the old password is permanently invalidated in the database.
+- **Security Password Support:** System Settings allows passwords up to 32 characters with special characters for Admin and Partner accounts.
 - **Cross-Device Enforcement:** The updated password takes effect instantly across all browsers, mobile devices, and active terminals.
 - **Authentication Source:** All login attempts are verified strictly against the latest saved credentials in Supabase.
 
-### 4.3 Google Authenticator / 2FA
-- **Individual TOTP Secrets:** Each user possesses an independent Google Authenticator configuration; Admin and Partners never share TOTP secrets.
+### 4.4 Google Authenticator (2FA) & Emergency Bypass
+- **Disabled by Default:** 2FA defaults to `false` in state and configuration to prevent unintentional lockout during onboarding.
+- **Individual TOTP Secrets:** When enabled, each user possesses an independent Google Authenticator secret (`JSRADMINSEC2026`, partner-specific secrets).
 - **Strict OTP Isolation:** An OTP generated from the Admin Authenticator profile will not authenticate a Partner account, and vice versa.
-- **Account Identification:** During 2FA challenge, the user's username or email is explicitly identified to ensure validation against the correct security secret.
-- **Emergency Override:** Backup bypass keys (e.g. `999999`) are strictly restricted to the Super Admin role.
+- **Emergency Bypass:** The master code `999999` and a prominent "Bypass 2FA" button are provided on the 2FA screen.
 
 ---
 
-## 5. Login Screen
+## 5. Login Screen & Navigation Layout
+
+### 5.1 Login Screen Layout
 - **Modern Split-Screen Layout:**
   - **Desktop (Left ~75%):** High-resolution Business Branding Image displaying store identity, address, contact numbers, and tagline.
-  - **Desktop (Right ~25%):** Clean, focused Login Panel containing credentials inputs, role selectors, and authentication actions.
-- **Image Fidelity:** The business image expands to fill full container height without distortion, cropping, or stretching (`object-cover`).
-- **Mobile Responsiveness:** On mobile screens, the layout gracefully collapses into a compact vertical hero header with a streamlined login card below, requiring zero horizontal scrolling.
-- **Configurable Visuals:** The business image URL is configurable from `Settings → General & Branding` with real-time preview.
+  - **Desktop (Right ~25%):** Focused Login Panel containing role tabs (Admin, Partner, Portal), username/partner selectors, eye-toggled password fields, and credential recovery.
+- **Image Fidelity:** The business image expands to fill full container height without distortion or cropping (`object-cover`).
+- **Mobile Responsiveness:** Collapses gracefully into a vertical hero header with a streamlined login card below.
+
+### 5.2 Top Horizontal Navigation Bar (`<header><nav>`)
+Prominently features direct navigation buttons for all key ERP modules:
+1. `[Menu]` (Drawer toggle)
+2. `[Dashboard]` (`summary`)
+3. `[POS]` (`sale`)
+4. `[Invoice & Receipts]` (`invoices`)
+5. `[Purchase & Stock]` (`purchases`)
+6. `[Payment & Collections]` (`payments_collections`)
+7. `[Banking & BRS]` (`banking`) &bull; *Direct 1-click access*
+8. `[HR & Payroll]` (`hr_payroll`) &bull; *Direct 1-click access*
+9. `[Vouchers]` (`accounting_vouchers`) &bull; *Direct 1-click access*
+10. `[Analysis]` (`analysis`) &bull; *Profit & Sales Analytics*
+11. `[Masters]` (`masters`)
+12. `[Reports]` (`reports`)
+13. `[Settings]` (`settings`) &bull; *Direct 1-click access*
+
+### 5.3 Slide-Out Menu Drawer (`<aside><nav>`)
+Organized into logical operational sections:
+- **Sales & Billing:** POS Billing (`sale`), Invoices & Receipts (`invoices`)
+- **Purchases & Stock:** Purchases & Stock (`purchases`), Payments & Collections (`payments_collections`)
+- **Financials & Banking:**
+  - `Business Snapshot (Dashboard)` (`summary`)
+  - `Bank Accounts & Reconciliation (BRS)` (`banking`)
+  - `Accounting Vouchers Hub` (`accounting_vouchers`)
+  - `Ledger Statement` (`ledger`)
+  - `Transaction Audit Ledger` (`history_audit`)
+  - `Business Loans` (`lenders`)
+  - `Shop Expenses & Outflow` (`expenses`)
+  - `Analysis & Insights` (`analysis`)
+  - `B Reddy Excel Sheet (PDF)` (`reports`)
+- **Human Resources & Payroll:**
+  - `Staff Directory & Salary Slips` (`hr_payroll`)
+- **Administration:**
+  - `Master Management` (`masters`)
+  - `Partner Capital Accounts` (`partners`)
+  - `System Settings` (`settings`)
 
 ---
 
