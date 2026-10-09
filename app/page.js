@@ -3075,7 +3075,13 @@ export default function App() {
           return merged;
         });
       }
-      if (itemsRes.data) setMasterItems(itemsRes.data);
+      if (itemsRes.data) {
+        const normalizedItems = itemsRes.data.map((it) => {
+          const nm = (it.item_name || it.name || `Item #${it.id}`).trim();
+          return { ...it, name: nm, item_name: nm };
+        });
+        setMasterItems(normalizedItems);
+      }
     } catch (e) {
       console.error("Data refresh error:", e);
     } finally {
@@ -3144,6 +3150,7 @@ export default function App() {
         map.set(key, {
           id: i.id,
           name: trimmed,
+          item_name: trimmed,
           purchase_rate: purchaseRate,
           selling_rate: sellingRate
         });
@@ -3167,6 +3174,7 @@ export default function App() {
         map.set(key, {
           id: null,
           name: trimmed,
+          item_name: trimmed,
           purchase_rate: purchaseRate,
           selling_rate: sellingRate
         });
@@ -3345,16 +3353,19 @@ export default function App() {
   // Scenario #4: Low-Stock Inventory Engine
   const lowStockItems = useMemo(() => {
     return masterItems.map((item) => {
+      const resolvedName = (item.name || item.item_name || `Item #${item.id}`).trim();
       const itemStock = procurements
-        .filter((p) => (p.item_name || "").toLowerCase().trim() === (item.name || "").toLowerCase().trim())
+        .filter((p) => (p.item_name || p.name || "").toLowerCase().trim() === resolvedName.toLowerCase().trim())
         .reduce((sum, p) => sum + Number(p.remaining_qty || 0), 0);
-      const cfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || systemSettings?.inventory?.itemReorderLevels?.[item.name] || {};
+      const cfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || systemSettings?.inventory?.itemReorderLevels?.[resolvedName] || {};
       const rLevel = Number(cfg.reorderLevel ?? item.reorder_level ?? systemSettings?.inventory?.defaultReorderLevel ?? 5);
       const suggestedQty = Number(cfg.suggestedQty ?? item.suggested_order_qty ?? (rLevel > 0 ? rLevel * 2 : 10));
       const preferredSupplierId = cfg.supplierId || item.preferred_supplier_id || "";
       const isLow = itemStock <= rLevel;
       return {
         ...item,
+        name: resolvedName,
+        item_name: resolvedName,
         current_stock: itemStock,
         reorder_level: rLevel,
         suggested_qty: suggestedQty,
@@ -13672,9 +13683,10 @@ Thank you for your business!`;
                       </tr>
                     ) : (
                       filteredItems.map((item, idx) => {
+                        const itemName = (item.name || item.item_name || `Item #${item.id}`).trim();
                         const margin = Number(item.selling_rate || 0) - Number(item.purchase_rate || 0);
                         const itemStock = procurements
-                          .filter((p) => (p.item_name || "").toLowerCase().trim() === (item.name || "").toLowerCase().trim())
+                          .filter((p) => (p.item_name || p.name || "").toLowerCase().trim() === itemName.toLowerCase())
                           .reduce((sum, p) => sum + Number(p.remaining_qty || 0), 0);
 
                         return (
@@ -13684,7 +13696,7 @@ Thank you for your business!`;
                           >
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">{idx + 1}</td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                              {item.name}
+                              {itemName}
                             </td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded-full text-xs font-black ${
@@ -13695,7 +13707,7 @@ Thank you for your business!`;
                             </td>
                             <td className="p-2.5 border border-slate-300 dark:border-slate-700 text-center whitespace-nowrap font-mono">
                               {(() => {
-                                const cfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || systemSettings?.inventory?.itemReorderLevels?.[item.name] || {};
+                                const cfg = systemSettings?.inventory?.itemReorderLevels?.[item.id] || systemSettings?.inventory?.itemReorderLevels?.[itemName] || {};
                                 const rLevel = Number(cfg.reorderLevel ?? item.reorder_level ?? systemSettings?.inventory?.defaultReorderLevel ?? 5);
                                 const isLow = itemStock <= rLevel;
                                 return (
@@ -21681,7 +21693,7 @@ Thank you for your business!`;
                       const supp = suppliers.find((s) => String(s.id) === String(item.preferred_supplier_id));
                       return (
                         <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                          <td className="p-2.5 font-sans font-bold whitespace-nowrap">{item.name}</td>
+                          <td className="p-2.5 font-sans font-bold whitespace-nowrap">{item.name || item.item_name || `Item #${item.id}`}</td>
                           <td className="p-2.5 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 animate-pulse">
                               {item.current_stock}
@@ -21699,7 +21711,7 @@ Thank you for your business!`;
                                 setEditingProcureId(null);
                                 setProcureForm({
                                   supplier_id: String(item.preferred_supplier_id || suppliers[0]?.id || ""),
-                                  item_name: item.name,
+                                  item_name: item.name || item.item_name || `Item #${item.id}`,
                                   quantity: String(item.suggested_qty || 10),
                                   rate: String(item.purchase_rate || item.unit_price || 0),
                                   total_amount: String((item.suggested_qty || 10) * Number(item.purchase_rate || item.unit_price || 0)),
